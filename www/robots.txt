@@ -1,5 +1,4 @@
 User-agent: Googlebot
-Disallow: /ABRA
 Disallow: /NiceAdmin
 Disallow: /admin
 Disallow: /t

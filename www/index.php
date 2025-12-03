@@ -1,5 +1,4 @@
 <?php
-
 declare(strict_types=1);
 // ------------------------------
 // 0) Сессия
@@ -22,6 +21,7 @@ $languages = [
 
 // host + текущий чистый путь
 $base   = 'https://tlscargo.easytrade.one';
+//$base   = 'http://tlscargo.easytrade.one';
 $uriRaw = $_SERVER['REQUEST_URI'] ?? '/';
 $uri    = parse_url($uriRaw, PHP_URL_PATH) ?: '/';
 $uri    = preg_replace('#//+#', '/', $uri);
@@ -207,27 +207,30 @@ $smarty->assign('currentPath', $path);
 $smarty->assign('canonical',   $canonical);
 $smarty->assign('og_locale',   $ogLocale);
 $smarty->assign('alternates',  $alternates);
+/*
+
+*/
 
 // ------------------------------
 // 7) Мини-роутер
 // ------------------------------
+
 $ROUTES = [
-    ''           => 'main.php',
-    'index.html' => 'main.php',
-//    'about.html' => 'about.php',
-//    'team.html'  => 'team.php',
-//    'contact.html'  => 'contact.php',
-//    'predictions.html'  => 'predictions.php',
+    ''         => 'main.php',
+    'main'         => 'main.php',
     'login.html'   => 'login.php',
-    'logout.php'   => 'logout.php',
-//    'ingest_ohlc.php'  => 'ingest_ohlc.php',
+    'login.php'    => 'login.php',
+    'logout.html'  => 'logout.php',
+    'logout.php'   => 'logout.php'
     // добавишь остальные при необходимости
 ];
+
 
 $PUBLIC_SCRIPTS = [
     'login.php',
     '404.php',
 ];
+
 
 if (isset($ROUTES[$path])) {
     $script = $ROUTES[$path];
@@ -238,15 +241,20 @@ if (isset($ROUTES[$path])) {
     }
 
     include_once __DIR__ . '/' . $script;
+//    echo "111111111dddddddddddddd";
+    exit;
+
+}
+
+
+if (isset($ROUTES[$path])) {
+    include_once __DIR__ . '/' . $ROUTES[$path];
+//    echo "2222222222dddddddddddddd";
     exit;
 }
 
-/*
-if (isset($ROUTES[$path])) {
-    include_once __DIR__ . '/' . $ROUTES[$path];
-    exit;
-}
-*/
 // 404
 http_response_code(404);
 include_once __DIR__ . '/404.php';
+//print_r($_SESSION);
+//echo "dddddd";
