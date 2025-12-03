@@ -1,12 +1,13 @@
 <?php
-declare(strict_types=1);
 
+declare(strict_types=1);
 // ------------------------------
 // 0) Сессия
 // ------------------------------
 if (session_status() !== PHP_SESSION_ACTIVE) {
     session_start();
 }
+require_once __DIR__ . '/../configs/secure.php';
 
 // ------------------------------
 // 1) Поддерживаемые языки и конфиг путей/локалей
@@ -213,19 +214,39 @@ $smarty->assign('alternates',  $alternates);
 $ROUTES = [
     ''           => 'main.php',
     'index.html' => 'main.php',
-    'about.html' => 'about.php',
-    'team.html'  => 'team.php',
-    'contact.html'  => 'contact.php',
-    'predictions.html'  => 'predictions.php',
+//    'about.html' => 'about.php',
+//    'team.html'  => 'team.php',
+//    'contact.html'  => 'contact.php',
+//    'predictions.html'  => 'predictions.php',
+    'login.html'   => 'login.php',
+    'logout.php'   => 'logout.php',
 //    'ingest_ohlc.php'  => 'ingest_ohlc.php',
     // добавишь остальные при необходимости
 ];
 
+$PUBLIC_SCRIPTS = [
+    'login.php',
+    '404.php',
+];
+
+if (isset($ROUTES[$path])) {
+    $script = $ROUTES[$path];
+
+    if (!in_array($script, $PUBLIC_SCRIPTS, true)) {
+        // $lang у тебя уже есть из URL/сессии
+        auth_require_login($lang);
+    }
+
+    include_once __DIR__ . '/' . $script;
+    exit;
+}
+
+/*
 if (isset($ROUTES[$path])) {
     include_once __DIR__ . '/' . $ROUTES[$path];
     exit;
 }
-
+*/
 // 404
 http_response_code(404);
 include_once __DIR__ . '/404.php';
