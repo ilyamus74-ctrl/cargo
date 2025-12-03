@@ -17,9 +17,9 @@ $smarty->assign("data",$data);
 
 
 //echo "aaaa";
-$smarty->assign("pageView","404");
-$smarty->display("404.html");
+//$smarty->assign("pageView","404");
+//$smarty->display("404.html");
 
-//echo "bbb";
+echo "404";
 
 ?>

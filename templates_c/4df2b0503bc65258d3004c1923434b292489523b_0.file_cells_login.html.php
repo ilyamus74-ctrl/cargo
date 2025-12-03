@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2025-12-03 13:25:39
+/* Smarty version 5.3.1, created on 2025-12-03 15:16:54
   from 'file:cells_login.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_69303a539d2362_38170242',
+  'unifunc' => 'content_69305466d7b170_00157550',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '4df2b0503bc65258d3004c1923434b292489523b' => 
     array (
       0 => 'cells_login.html',
-      1 => 1764768335,
+      1 => 1764775007,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_69303a539d2362_38170242 (\Smarty\Template $_smarty_tpl) {
+function content_69305466d7b170_00157550 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>
   <main>
@@ -43,11 +43,11 @@ $_smarty_current_dir = '/home/cells/web/templates';
                 <div class="card-body">
 
                   <div class="pt-4 pb-2">
-                    <h5 class="card-title text-center pb-0 fs-4">Login to Your Account</h5>
+                    <h5 class="card-title text-center pb-0 fs-4">Login to Cargo Cells</h5>
                     <p class="text-center small">Enter your username & password to login</p>
                   </div>
 
-                  <form class="row g-3 needs-validation" novalidate>
+                  <form class="row g-3 needs-validation" method="post" action="/login.php" novalidate>
 
                     <div class="col-12">
                       <label for="yourUsername" class="form-label">Username</label>

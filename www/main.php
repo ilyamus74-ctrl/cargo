@@ -1,8 +1,9 @@
 <?php
 echo "main.php";
-/*
 session_start();
-require_once __DIR__ . '/../configs/secure.php';
+//require_once __DIR__ . '/../configs/secure.php';
+
+/*
 
 //include("/home/zsuauto/web/configs/connectDB.php");
 */

@@ -1,4 +1,6 @@
 <?php
+//print_r($_SERVER);
+
 declare(strict_types=1);
 
 if (session_status() !== PHP_SESSION_ACTIVE) {
@@ -36,9 +38,9 @@ function auth_has_role(string $roleCode): bool {
  * Обязателен логин, иначе редирект на страницу логина.
  * $lang — текущий язык ('uk', 'ru', 'en', 'de').
  */
-function auth_require_login(string $lang): void {
+function auth_require_login(): void {
     if (!auth_is_logged_in()) {
-        header("Location: /{$lang}/login.html");
+        header("Location: /login.html");
         exit;
     }
 }
@@ -46,8 +48,8 @@ function auth_require_login(string $lang): void {
 /**
  * Обязательная роль (например, только админ).
  */
-function auth_require_role(string $lang, string $roleCode): void {
-    auth_require_login($lang);
+function auth_require_role(string $roleCode): void {
+    auth_require_login();
     if (!auth_has_role($roleCode)) {
         http_response_code(403);
         echo 'Forbidden';
