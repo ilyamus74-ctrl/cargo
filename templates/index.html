@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="{$xlang}">
+ {include file='header.html'}
+    <body id="page-top">
+ {include file='navBar.html'}
+        <!-- Masthead-->
+        <header class="masthead">
+            <div class="container">
+                <div class="masthead-subheading">{"EasyTradingMain"|__}<br></div>
+                <div class="masthead-heading text-uppercase">{"EasyTradingSignalsMain"|__}<br><br><br><br></div>
+                {if !$predictions}
+                 <a class="btn btn-primary btn-xl text-uppercase" href="predictions.html">{"ToPredictsButton"|__}</a>
+                {/if}
+            </div>
+        </header>
+{if $main}
+{include file='simpleAbout.html'}
+{/if}
+
+{if $team}
+{include file='team.html'}
+{/if}
+
+{if $contact}
+{include file='contactMain.html'}
+{/if}
+
+
+
+{if $predictions}
+{include file='predictions.html'}
+{/if}
+
+
+{if $about}{include file='about.html'}{/if}
+
+{*include file='services.html'*}
+
+{*include file='portfolioGrid.html'*}
+
+
+{*include file='team.html'*}
+
+
+{*include file='clients.html'*}
+
+{if $main}
+{include file='contact.html'}
+{/if}
+
+{include file='footer.html'}
+
+{*include file='portfolioPopUp.html'*}
+
+
+
+         {include file='downJS.html'}
+    </body>
+</html>

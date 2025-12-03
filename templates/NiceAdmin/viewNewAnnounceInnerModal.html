@@ -1,0 +1,63 @@
+                
+                <div class="card">
+                <div id="carouselExampleIndicators" class="carousel slide" data-bs-ride="carousel">
+                <div class="carousel-indicators">
+                  <button type="button" data-bs-target="#carouselExampleIndicators" data-bs-slide-to="0" class="" aria-label="Slide 1"></button>
+                  <button type="button" data-bs-target="#carouselExampleIndicators" data-bs-slide-to="1" aria-label="Slide 2" class="active" aria-current="true"></button>
+                  <button type="button" data-bs-target="#carouselExampleIndicators" data-bs-slide-to="2" aria-label="Slide 3" class=""></button>
+                </div>
+                <div class="carousel-inner w-50">
+                  {foreach from=$viewCar['img_announce'] key=k item=v}
+                  {if $k <= 2}
+                  <div class="carousel-item {if $k == 0} active {/if}">
+                    <img src="imgLink/announce/{$viewCar['img_dir']}/{$v}" class="d-block w-50" alt="...">
+                  </div>
+                  {/if}
+                  {/foreach}
+                </div>
+                
+                </div>
+
+                <button class="carousel-control-prev" type="button" data-bs-target="#carouselExampleIndicators" data-bs-slide="prev">
+                  <span class="carousel-control-prev-icon" aria-hidden="true"></span>
+                  <span class="visually-hidden">Previous</span>
+                </button>
+                <button class="carousel-control-next" type="button" data-bs-target="#carouselExampleIndicators" data-bs-slide="next">
+                  <span class="carousel-control-next-icon" aria-hidden="true"></span>
+                  <span class="visually-hidden">Next</span>
+                </button>
+
+              </div>
+            	    <input type="hidden" id="idAnnounce" value="{$viewCar['id']}">
+            	    <div class="card-body">Назва об'яви, {$viewCar['img_dir']} зроби привабливим!
+            	    <div class="row mb-3">
+                  <label for="inputText" class="col-sm-2 col-form-label">
+                  <input type="hidden" id="pname" value="{$viewCar['name_announce']}">
+                  {$viewCar['name_announce']}
+                  </label>
+                  <div class="col-sm-10">
+                    <input type="text" id="NewName" value="{$viewCar['name_announce']}"  class="form-control">
+                  </div>
+                </div>
+            	    </div>
+                    <div class="card-body">
+                    <div onclick="makeNewName('','{$viewCar['marke']}');">Марка: {$viewCar['marke']}</div>
+                    <div onclick="makeNewName('','{$viewCar['modell']}');">Модель: {$viewCar['modell']}</div>
+                    <div onclick="makeNewName('пробіг: ','{$viewCar['kilometerstand']}');">Пробіг: {$viewCar['kilometerstand']}</div>
+                    <div onclick="makeNewName('','{$viewCar['fahrzeugzustand']}');">Ушкодження: {$viewCar['fahrzeugzustand']}</div>
+                    <div onclick="makeNewName('рік: ','{$viewCar['erstzulassung']}');">Рік випуску: {$viewCar['erstzulassung']}</div>
+                    <div onclick="makeNewName('','{$viewCar['kraftstoffart']}');">Паливо: {$viewCar['kraftstoffart']}</div>
+                    <div onclick="makeNewName('потужність:','{$viewCar['Leistung']}');">Потужність: {$viewCar['Leistung']}</div>
+                    <div onclick="makeNewName('коробка: ','{$viewCar['Getriebe']}');">Коробка: {$viewCar['Getriebe']}</div>
+                    <div onclick="makeNewName('','{$viewCar['fahrzeugtyp']}');">Тип авто: {$viewCar['fahrzeugtyp']}</div>
+                    <div onclick="makeNewName('','{$viewCar['anzahl_turen']}');">Двері: {$viewCar['anzahl_turen']}</div>
+                    <div onclick="makeNewName('','{$viewCar['hu_bis']}');">Техогляд: {$viewCar['hu_bis']}</div>
+                    <div onclick="makeNewName('','{$viewCar['umweltplakette']}');">Значок Єкологія: {$viewCar['umweltplakette']}</div>
+                    <div onclick="makeNewName('','{$viewCar['schadstoffklasse']}');">Єкологія: {$viewCar['schadstoffklasse']}</div>
+                    <div onclick="makeNewName('ціна: ','{$viewCar['price']}');">Ціна: {$viewCar['price']}</div>
+                    <div onclick="makeNewName('','{$viewCar['farbe']}');">Колір: {$viewCar['farbe']}</div>
+                    </div>
+                    <div class="card-body">
+                    {$viewCar['text_announce']}
+                    </div>
+                    </div>
