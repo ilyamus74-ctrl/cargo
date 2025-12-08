@@ -31,12 +31,22 @@ function auth_has_role(string $roleCode): bool {
     if (!$user) {
         return false;
     }
-    return in_array($roleCode, $user['roles'] ?? [], true);
+
+    // Теперь роль одна, храним в $user['role']
+    if (!empty($user['role']) && $user['role'] === $roleCode) {
+        return true;
+    }
+
+    // На всякий случай поддержим старый массив 'roles'
+    if (!empty($user['roles']) && in_array($roleCode, $user['roles'], true)) {
+        return true;
+    }
+
+    return false;
 }
 
 /**
  * Обязателен логин, иначе редирект на страницу логина.
- * $lang — текущий язык ('uk', 'ru', 'en', 'de').
  */
 function auth_require_login(): void {
     if (!auth_is_logged_in()) {
@@ -58,24 +68,53 @@ function auth_require_role(string $roleCode): void {
 }
 
 /**
- * Логин: проверка username/password, загрузка ролей, обновление статистики, запись в сессию и аудит.
+ * Проверка права по action (view_users, view_devices, save_user и т.п.).
+ */
+function auth_can_action(string $action): bool {
+    $allowed = $_SESSION['allowed_actions'] ?? [];
+    if (isset($allowed['*'])) {
+        return true;
+    }
+    return isset($allowed[$action]);
+}
+
+/**
+ * Обязательное право по action.
+ */
+function auth_require_action(string $action): void {
+    auth_require_login();
+    if (!auth_can_action($action)) {
+        http_response_code(403);
+        echo 'Forbidden';
+        exit;
+    }
+}
+
+/**
+ * Логин: проверка username/password, загрузка меню/прав, обновление статистики, запись в сессию и аудит.
  */
 function auth_login(string $username, string $password): bool {
     global $dbcnx;
 
-    // 1) забираем пользователя
-    $sql = "SELECT id, username, password_hash, full_name, email, is_active
+    $sql = "SELECT id,
+                   username,
+                   password_hash,
+                   full_name,
+                   email,
+                   is_active,
+                   role,
+                   ui_lang,
+                   ui_settings
             FROM users
             WHERE username = ?
             LIMIT 1";
     $stmt = $dbcnx->prepare($sql);
     if (!$stmt) {
-        // можно залогировать ошибку
         return false;
     }
     $stmt->bind_param("s", $username);
     $stmt->execute();
-    $res = $stmt->get_result();
+    $res  = $stmt->get_result();
     $user = $res->fetch_assoc();
     $stmt->close();
 
@@ -83,36 +122,30 @@ function auth_login(string $username, string $password): bool {
         return false;
     }
 
-    // 2) проверяем пароль (bcrypt)
     if (!password_verify($password, $user['password_hash'])) {
         return false;
     }
 
-    $userId = (int)$user['id'];
+    $userId   = (int)$user['id'];
+    $roleCode = $user['role'] ?: 'USER';
 
-    // 3) забираем роли пользователя
-    $sqlRoles = "SELECT r.code
-                 FROM user_roles ur
-                 JOIN roles r ON r.id = ur.role_id
-                 WHERE ur.user_id = ?";
-    $stmtR = $dbcnx->prepare($sqlRoles);
-    $stmtR->bind_param("i", $userId);
-    $stmtR->execute();
-    $resR = $stmtR->get_result();
-    $roles = [];
-    while ($row = $resR->fetch_assoc()) {
-        $roles[] = $row['code'];
+    // Разбор ui_settings JSON (если есть)
+    $settings = [];
+    if (!empty($user['ui_settings'])) {
+        $tmp = json_decode($user['ui_settings'], true);
+        if (is_array($tmp)) {
+            $settings = $tmp;
+        }
     }
-    $stmtR->close();
 
-    // 4) обновляем статистику входа
+    // Обновление статистики входа
     $ip = $_SERVER['REMOTE_ADDR']     ?? null;
     $ua = $_SERVER['HTTP_USER_AGENT'] ?? null;
 
     $sqlUpd = "UPDATE users
-               SET last_login_at = CURRENT_TIMESTAMP(6),
-                   login_count   = login_count + 1,
-                   last_login_ip = ?,
+               SET last_login_at   = CURRENT_TIMESTAMP(6),
+                   login_count     = login_count + 1,
+                   last_login_ip   = ?,
                    last_user_agent = ?
                WHERE id = ?";
     $stmtU = $dbcnx->prepare($sqlUpd);
@@ -120,16 +153,77 @@ function auth_login(string $username, string $password): bool {
     $stmtU->execute();
     $stmtU->close();
 
-    // 5) сохраняем в сессию
+    // === Тянем меню и права для роли из БД ===
+    $menuTree       = [];
+    $allowedActions = [];
+
+    $sqlMenu = "
+        SELECT
+            mg.code  AS group_code,
+            mg.title AS group_title,
+            mg.icon  AS group_icon,
+            mi.menu_key,
+            mi.title AS item_title,
+            mi.icon  AS item_icon,
+            mi.action
+        FROM role_menu rm
+        JOIN menu_items mi
+          ON mi.menu_key = rm.menu_key
+         AND mi.is_active = 1
+        JOIN menu_groups mg
+          ON mg.code = mi.group_code
+         AND mg.is_active = 1
+        WHERE rm.role_code  = ?
+          AND rm.is_allowed = 1
+        ORDER BY mg.sort_order, mi.sort_order, mi.id
+    ";
+
+    $stmtM = $dbcnx->prepare($sqlMenu);
+    if ($stmtM) {
+        $stmtM->bind_param("s", $roleCode);
+        $stmtM->execute();
+        $resM = $stmtM->get_result();
+
+        while ($row = $resM->fetch_assoc()) {
+            $gCode = $row['group_code'];
+
+            if (!isset($menuTree[$gCode])) {
+                $menuTree[$gCode] = [
+                    'code'  => $gCode,
+                    'title' => $row['group_title'],
+                    'icon'  => $row['group_icon'],
+                    'items' => [],
+                ];
+            }
+
+            $menuTree[$gCode]['items'][] = [
+                'menu_key' => $row['menu_key'],
+                'title'    => $row['item_title'],
+                'icon'     => $row['item_icon'],
+                'action'   => $row['action'],
+            ];
+
+            $allowedActions[$row['action']] = true;
+        }
+
+        $stmtM->close();
+    }
+
+    // Пишем всё в сессию
     $_SESSION['user'] = [
         'id'        => $userId,
         'username'  => $user['username'],
         'full_name' => $user['full_name'],
         'email'     => $user['email'],
-        'roles'     => $roles,
+        'role'      => $roleCode,
+        'roles'     => [$roleCode],                 // для старого кода
+        'ui_lang'   => $user['ui_lang'] ?? 'uk',
+        'settings'  => $settings,
     ];
 
-    // 6) логируем успешный логин
+    $_SESSION['menu']            = $menuTree;       // дерево меню для сайдбара
+    $_SESSION['allowed_actions'] = $allowedActions; // разрешённые экшены
+
     audit_log($userId, 'LOGIN', null, null, 'Пользователь вошёл в систему');
 
     return true;
@@ -146,30 +240,17 @@ function auth_logout(): void {
 
     $_SESSION['user'] = null;
     unset($_SESSION['user']);
-
-    // По желанию можно полностью грохнуть сессию
-    /*
-    $_SESSION = [];
-    if (ini_get("session.use_cookies")) {
-        $params = session_get_cookie_params();
-        setcookie(session_name(), '', time() - 42000,
-            $params["path"], $params["domain"],
-            $params["secure"], $params["httponly"]
-        );
-    }
-    session_destroy();
-    */
 }
 
 /**
  * Запись события в таблицу audit_logs.
  */
 function audit_log(
-    ?int $userId,
-    string $eventType,
-    ?string $entityType,
-    ?int $entityId,
-    string $description,
+    $userId,
+    $eventType,
+    $entityType,
+    $entityId,
+    $description,
     array $extra = []
 ): void {
     global $dbcnx;
@@ -186,14 +267,15 @@ function audit_log(
             ) VALUES (
                 ?, CURRENT_TIMESTAMP(6), ?, ?, ?, ?, ?, ?, ?, ?
             )";
+
     $stmt = $dbcnx->prepare($sql);
     if (!$stmt) {
+        error_log('audit_log prepare error: ' . $dbcnx->error);
         return;
     }
 
-    // i i s s i s s s s
     $stmt->bind_param(
-        "iississsss",
+        "iississss",
         $uid,
         $userId,
         $eventType,
@@ -204,6 +286,201 @@ function audit_log(
         $description,
         $json
     );
-    $stmt->execute();
+
+    if (!$stmt->execute()) {
+        error_log('audit_log execute error: ' . $stmt->error);
+    }
+
     $stmt->close();
+}
+
+
+function auth_login_by_qr_token(string $qrToken): ?array {
+    global $dbcnx;
+
+    $qrToken = trim($qrToken);
+    if ($qrToken === '') {
+        return null;
+    }
+
+    // Берём те же поля, что и в auth_login
+    $sql = "SELECT id,
+                   username,
+                   full_name,
+                   email,
+                   is_active,
+                   role,
+                   ui_lang,
+                   ui_settings,
+                   qr_login_token
+              FROM users
+             WHERE qr_login_token = ?
+             LIMIT 1";
+    $stmt = $dbcnx->prepare($sql);
+    if (!$stmt) {
+        return null;
+    }
+
+    $stmt->bind_param("s", $qrToken);
+    $stmt->execute();
+    $res  = $stmt->get_result();
+    $user = $res->fetch_assoc();
+    $stmt->close();
+
+    if (!$user || (int)$user['is_active'] !== 1) {
+        return null;
+    }
+
+    $userId   = (int)$user['id'];
+    $roleCode = $user['role'] ?: 'USER';
+
+    // Разбор ui_settings (как в auth_login)
+    $settings = [];
+    if (!empty($user['ui_settings'])) {
+        $tmp = json_decode($user['ui_settings'], true);
+        if (is_array($tmp)) {
+            $settings = $tmp;
+        }
+    }
+
+    // Обновляем статистику входа
+    $ip = $_SERVER['REMOTE_ADDR']     ?? null;
+    $ua = $_SERVER['HTTP_USER_AGENT'] ?? null;
+
+    $sqlUpd = "UPDATE users
+                  SET last_login_at   = CURRENT_TIMESTAMP(6),
+                      login_count     = login_count + 1,
+                      last_login_ip   = ?,
+                      last_user_agent = ?
+                WHERE id = ?";
+    if ($stmtU = $dbcnx->prepare($sqlUpd)) {
+        $stmtU->bind_param("ssi", $ip, $ua, $userId);
+        $stmtU->execute();
+        $stmtU->close();
+    }
+
+    // === СТРОИМ МЕНЮ И ПРАВА ТОЧНО ТАК ЖЕ, КАК В auth_login ===
+    $menuTree       = [];
+    $allowedActions = [];
+
+    $sqlMenu = "
+        SELECT
+            mg.code  AS group_code,
+            mg.title AS group_title,
+            mg.icon  AS group_icon,
+            mi.menu_key,
+            mi.title AS item_title,
+            mi.icon  AS item_icon,
+            mi.action
+        FROM role_menu rm
+        JOIN menu_items mi
+          ON mi.menu_key = rm.menu_key
+         AND mi.is_active = 1
+        JOIN menu_groups mg
+          ON mg.code = mi.group_code
+         AND mg.is_active = 1
+        WHERE rm.role_code  = ?
+          AND rm.is_allowed = 1
+        ORDER BY mg.sort_order, mi.sort_order, mi.id
+    ";
+
+    if ($stmtM = $dbcnx->prepare($sqlMenu)) {
+        $stmtM->bind_param("s", $roleCode);
+        $stmtM->execute();
+        $resM = $stmtM->get_result();
+
+        while ($row = $resM->fetch_assoc()) {
+            $gCode = $row['group_code'];
+
+            if (!isset($menuTree[$gCode])) {
+                $menuTree[$gCode] = [
+                    'code'  => $gCode,
+                    'title' => $row['group_title'],
+                    'icon'  => $row['group_icon'],
+                    'items' => [],
+                ];
+            }
+
+            $menuTree[$gCode]['items'][] = [
+                'menu_key' => $row['menu_key'],
+                'title'    => $row['item_title'],
+                'icon'     => $row['item_icon'],
+                'action'   => $row['action'],
+            ];
+
+            if (!empty($row['action'])) {
+                $allowedActions[$row['action']] = true;
+            }
+        }
+
+        $stmtM->close();
+    }
+
+    // Пишем в сессию то же самое, что и auth_login
+    $_SESSION['user'] = [
+        'id'        => $userId,
+        'username'  => $user['username'],
+        'full_name' => $user['full_name'],
+        'email'     => $user['email'],
+        'role'      => $roleCode,
+        'roles'     => [$roleCode],
+        'ui_lang'   => $user['ui_lang'] ?? 'uk',
+        'settings'  => $settings,
+    ];
+
+    $_SESSION['menu']            = $menuTree;
+    $_SESSION['allowed_actions'] = $allowedActions;
+
+    audit_log(
+        $userId,
+        'QR_LOGIN',
+        'USER',
+        $userId,
+        'Вход по QR-токену',
+        ['ip' => $ip, 'ua' => $ua]
+    );
+
+    // Возвращаем уже "сессионную" версию юзера
+    return $_SESSION['user'];
+}
+
+
+/**
+ * Загрузка прав/меню для роли из таблицы role_menu.
+ * Возвращает массив вида:
+ * [
+ *   'view_users'  => ['can_view' => true, 'can_edit' => true, 'can_delete' => true],
+ *   'view_devices'=> ['can_view' => true, 'can_edit' => false, ...],
+ *   ...
+ * ]
+ */
+function auth_load_role_menu(string $roleCode): array {
+    global $dbcnx;
+
+    $perms = [];
+
+    $sql = "SELECT menu_key, can_view, can_edit, can_delete
+              FROM role_menu
+             WHERE role_code = ?";
+    $stmt = $dbcnx->prepare($sql);
+    if (!$stmt) {
+        error_log('auth_load_role_menu prepare error: ' . $dbcnx->error);
+        return $perms;
+    }
+
+    $stmt->bind_param("s", $roleCode);
+    $stmt->execute();
+    $res = $stmt->get_result();
+
+    while ($row = $res->fetch_assoc()) {
+        $key = $row['menu_key'];
+        $perms[$key] = [
+            'can_view'   => ((int)$row['can_view']   === 1),
+            'can_edit'   => ((int)$row['can_edit']   === 1),
+            'can_delete' => ((int)$row['can_delete'] === 1),
+        ];
+    }
+
+    $stmt->close();
+    return $perms;
 }

@@ -1,0 +1,33 @@
+
+  <!-- ======= Sidebar ======= -->
+  <aside id="sidebar" class="sidebar">
+
+    <ul class="sidebar-nav" id="sidebar-nav">
+
+{foreach $menu as $group}
+  <li class="nav-item">
+    <a class="nav-link collapsed"
+       data-bs-target="#nav-{$group.code}"
+       data-bs-toggle="collapse"
+       href="#">
+      <i class="{$group.icon}"></i>
+      <span>{$group.title}</span>
+      <i class="bi bi-chevron-down ms-auto"></i>
+    </a>
+    <ul id="nav-{$group.code}" class="nav-content collapse" data-bs-parent="#sidebar-nav">
+      {foreach $group.items as $item}
+        <li>
+          <a href="#"
+             class="js-core-link"
+             data-core-action="{$item.action}">
+            <i class="{$item.icon}"></i>
+            <span>{$item.title}</span>
+          </a>
+        </li>
+      {/foreach}
+    </ul>
+  </li>
+{/foreach}
+    </ul>
+
+  </aside><!-- End Sidebar-->

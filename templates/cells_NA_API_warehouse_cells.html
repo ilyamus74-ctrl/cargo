@@ -1,0 +1,123 @@
+    <div class="pagetitle">
+      <h1>Warehouse Cells</h1>
+      <nav>
+        <ol class="breadcrumb">
+          <li class="breadcrumb-item"><a href="index.html">Main</a></li>
+          <li class="breadcrumb-item">Warehouse</li>
+          <li class="breadcrumb-item active">Cells</li>
+        </ol>
+      </nav>
+    </div><!-- End Page Title -->
+
+    <section class="section">
+      <div class="row">
+        <div class="col-lg-6">
+
+
+          <div class="card">
+            <div class="card-body">
+              <h5 class="card-title">Добавление / Редактирования ячейки</h5>
+              <form class="row g-3" id="cells-form">
+  <div class="col-md-4">
+    <label for="firstCell" class="form-label">Первая ячейка</label>
+    <input type="text"
+           class="form-control"
+           id="firstCell"
+           name="first_code"
+           placeholder="A10"
+           required>
+  </div>
+
+  <div class="col-md-4">
+    <label for="lastCell" class="form-label">Последняя ячейка</label>
+    <input type="text"
+           class="form-control"
+           id="lastCell"
+           name="last_code"
+           placeholder="A99"
+           required>
+  </div>
+
+  <div class="col-md-6">
+    <label for="cellsDesc" class="form-label">Описание для всех новых ячеек</label>
+    <input type="text"
+           class="form-control"
+           id="cellsDesc"
+           name="description">
+  </div>
+
+  <div class="col-12">
+    <button type="button"
+            class="btn btn-primary js-core-link"
+            data-core-action="add_new_cells">
+      Добавить
+    </button>
+  </div>
+              </form>
+            </div>
+          </div>
+
+
+          <div class="card table-responsive warehouse-cells-table-wrapper">
+            <div class="card-body">
+              <h5 class="card-title">Ячейки</h5>
+              <!-- Default Table -->
+              <input type="hidden" id="userListDirty" value="0">
+              <table class="table table-sm align-middle users-table">
+                <thead>
+                  <tr>
+                    <th scope="col">#</th>
+                    <th scope="col">Code</th>
+                    <th scope="col"></th>
+                    <th scope="col">QR_payload</th>
+                    <th scope="col">Description</th>
+                    <th scope="col"></th>
+                  </tr>
+                </thead>
+                <tbody>
+
+                  {foreach $cells as $value}
+                  <tr>
+                    <th scope="row">{$value.id}</th>
+                    <td> <a href="#" class="js-core-link" data-core-action="form_edit_device" data-device-id="{$value.id}">{$value.code|escape}</a></td>
+                    <td class="text-end">
+                        <button type="button" class="btn btn-sm btn-danger js-core-link" data-core-action="delete_cell" data-cell-id="{$value.id}">
+                        <i class="bi bi-exclamation-octagon"></i>
+                        </button>
+                     </td>
+                    <td>{$value.qr_payload}</td>
+                    <td>{$value.description}</td>
+                    <td> {if $value.qr_file} <img src="img/cells/{$value.qr_file}" alt="QR {$value.code}" style="height:40px;">{/if}</td>
+                  </tr>
+                  {/foreach}
+                </tbody>
+              </table>
+              <!-- End Default Table Example -->
+            </div>
+          </div>
+
+              <!-- Full Screen Modal -->
+              <div class="modal fade" id="fullscreenModal" tabindex="-1">
+                <div class="modal-dialog modal-fullscreen">
+                  <div class="modal-content">
+                 
+                    <div class="modal-header">
+                      <h5 class="modal-title">Просмотр устройства</h5>
+                      <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                      Тут не должно быть приведения, если ты его видешь значить что то пошло не так или не туда :)
+                    </div>
+                    <div class="modal-footer">
+                      <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                      <!--<button type="button" class="btn btn-primary">Save changes</button>-->
+                    </div>
+                  </div>
+                </div>
+              </div><!-- End Full Screen Modal-->
+
+
+        </div>
+      </div>
+    </section>
+

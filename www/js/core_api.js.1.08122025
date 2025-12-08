@@ -1,0 +1,353 @@
+// =========================
+// Хелперы
+// =========================
+
+// Перерисовать список пользователей в <main>
+function reloadUserList() {
+    const main = document.getElementById('main');
+    if (!main) return;
+
+    const fd = new FormData();
+    fd.append('action', 'view_users');
+
+    fetch('/core_api.php', {
+        method: 'POST',
+        body: fd
+    })
+        .then(r => r.json())
+        .then(d => {
+            if (!d || d.status !== 'ok') {
+                console.error('core_api error (reloadUserList):', d);
+                return;
+            }
+            if (d.html) {
+                main.innerHTML = d.html;
+            }
+        })
+        .catch(err => {
+            console.error('core_api fetch error (reloadUserList):', err);
+        });
+}
+
+// Одноразовое обновление списка пользователей после закрытия модалки
+function setReloadOnModalCloseOnce() {
+    const modalEl = document.getElementById('fullscreenModal');
+    if (!modalEl || !window.bootstrap || !bootstrap.Modal) {
+        // Если модалка не работает — просто обновим сразу
+        reloadUserList();
+        return;
+    }
+
+    const handler = function () {
+        modalEl.removeEventListener('hidden.bs.modal', handler);
+        reloadUserList();
+    };
+
+    modalEl.addEventListener('hidden.bs.modal', handler);
+}
+
+// Показ HTML в модалке #fullscreenModal
+function showInModal(html) {
+    const modalBody = document.querySelector('#fullscreenModal .modal-body');
+    if (modalBody && typeof html === 'string') {
+        modalBody.innerHTML = html;
+    }
+    const modalEl = document.getElementById('fullscreenModal');
+    if (modalEl && window.bootstrap && bootstrap.Modal) {
+        const modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+        modal.show();
+    }
+}
+
+// Загрузить HTML в <main>
+function loadIntoMain(html) {
+    const main = document.getElementById('main');
+    if (main && typeof html === 'string') {
+        main.innerHTML = html;
+    }
+}
+
+// =========================
+// Главный обработчик кликов по .js-core-link
+// =========================
+
+document.addEventListener('click', function (e) {
+    const link = e.target.closest('.js-core-link[data-core-action]');
+    if (!link) return;
+
+    e.preventDefault();
+
+    const action = link.getAttribute('data-core-action');
+    if (!action) return;
+
+    // Подсветка пункта меню слева — только если клик из <ul> сайдбара
+    const ul = link.closest('ul');
+    if (ul) {
+        ul.querySelectorAll('.active').forEach(el => el.classList.remove('active'));
+        link.classList.add('active');
+    }
+
+    let formData;
+
+    // -------------------------
+    // Сбор данных для разных action'ов
+    // -------------------------
+
+    if (action === 'save_user') {
+        // Сохранение профиля пользователя (создание/редакт)
+        const userForm = document.getElementById('user-profile-form');
+        if (userForm) {
+            formData = new FormData(userForm);
+        } else {
+            formData = new FormData();
+        }
+
+    } else if (action === 'save_device') {
+        // Сохранение устройства
+        const devForm = document.getElementById('device-profile-form');
+        if (devForm) {
+            formData = new FormData(devForm);
+        } else {
+            formData = new FormData();
+        }
+
+    } else if (action === 'add_new_cells') {
+        // Добавление диапазона ячеек
+        // Берём форму вокруг кнопки или форму с id="cells-form"
+        //const cellsForm = link.closest('form') || document.getElementById('cells-form');
+        const cellsForm = document.getElementById('cells-form');
+        if (cellsForm) {
+            formData = new FormData(cellsForm);
+        } else {
+            formData = new FormData();
+        }
+    } else if (action === 'delete_cell') {
+        formData = new FormData();
+        const cellId = link.getAttribute('data-cell-id');
+        if (cellId) {
+            formData.append('cell_id', cellId);
+        }
+    } else if (action === 'form_edit_user') {
+        // Открытие профиля конкретного пользователя
+        formData = new FormData();
+        const userId = link.getAttribute('data-user-id');
+        if (userId) {
+            formData.append('user_id', userId);
+        }
+
+    } else if (action === 'form_new_user') {
+        // Форма нового пользователя
+        formData = new FormData();
+
+    } else if (action === 'form_edit_device') {
+        // Открытие карточки устройства
+        formData = new FormData();
+        const deviceId = link.getAttribute('data-device-id');
+        if (deviceId) {
+            formData.append('device_id', deviceId);
+        }
+
+    } else if (action === 'activate_device') {
+        // Активация/деактивация устройства
+        formData = new FormData();
+        formData.append('device_id', link.getAttribute('data-device-id') || '');
+        formData.append('is_active', link.getAttribute('data-is-active') || '1');
+
+    } else if (action === 'add_new_item_in') {
+        const f = document.getElementById('warehouse-item_in-form');
+        if (f) {
+            formData = new FormData(f);
+        } else {
+            formData = new FormData();
+        }
+
+    }
+     else {
+        // Все остальные действия, которым не нужны дополнительные поля
+        formData = new FormData();
+    }
+
+    // Добавляем action
+    formData.append('action', action);
+
+    // Отладка: что реально улетает
+    console.log('FormData entries:');
+    for (const [k, v] of formData.entries()) {
+        console.log(k, '=>', v);
+    }
+
+    // -------------------------
+    // Запрос к core_api.php
+    // -------------------------
+
+    fetch('/core_api.php', {
+        method: 'POST',
+        body: formData
+    })
+        .then(r => r.json())
+        .then(data => {
+            if (!data || data.status !== 'ok') {
+                console.error('core_api error:', data);
+                alert(data && data.message ? data.message : 'Ошибка при выполнении запроса');
+                return;
+            }
+
+            // -------------------------
+            // Спец. обработчики по action
+            // -------------------------
+
+            // Регенерация QR по пользователям
+            if (action === 'users_regen_qr') {
+                alert(data.message || 'QR-коды обновлены');
+                return;
+            }
+
+            // Формы в модалке (пользователь / устройство)
+            if (action === 'form_new_user' ||
+                action === 'form_edit_user' ||
+                action === 'form_edit_device') {
+
+                showInModal(data.html);
+                return;
+            }
+
+            // Активация/деактивация устройства
+            if (action === 'activate_device') {
+                alert(data.message || 'OK');
+
+                const fd = new FormData();
+                fd.append('action', 'view_devices');
+
+                fetch('/core_api.php', { method: 'POST', body: fd })
+                    .then(r => r.json())
+                    .then(d2 => {
+                        if (d2 && d2.status === 'ok') {
+                            loadIntoMain(d2.html);
+                        }
+                    })
+                    .catch(err => {
+                        console.error('core_api fetch error (view_devices after activate):', err);
+                    });
+
+                return;
+            }
+
+            // Сохранение устройства
+            if (action === 'save_device') {
+                alert(data.message || 'Сохранено');
+
+                // Закрыть модалку
+                const modalEl = document.getElementById('fullscreenModal');
+                if (modalEl && window.bootstrap && bootstrap.Modal) {
+                    const modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+                    modal.hide();
+                }
+
+                // Обновить список устройств
+                const fd = new FormData();
+                fd.append('action', 'view_devices');
+
+                fetch('/core_api.php', { method: 'POST', body: fd })
+                    .then(r => r.json())
+                    .then(d2 => {
+                        if (d2 && d2.status === 'ok') {
+                            loadIntoMain(d2.html);
+                        }
+                    })
+                    .catch(err => {
+                        console.error('core_api fetch error (view_devices after save_device):', err);
+                    });
+
+                return;
+            }
+
+            // Сохранение пользователя (create/update/delete)
+            if (action === 'save_user') {
+
+                // Вариант: пользователь удалён
+                if (data.deleted) {
+                    alert(data.message || 'Пользователь удалён');
+
+                    // Обновить список после закрытия модалки
+                    setReloadOnModalCloseOnce();
+
+                    // Закрыть модалку
+                    const modalEl = document.getElementById('fullscreenModal');
+                    if (modalEl && window.bootstrap && bootstrap.Modal) {
+                        const modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+                        modal.hide();
+                    } else {
+                        // Если модалка не сработала — обновим сразу
+                        reloadUserList();
+                    }
+                    return;
+                }
+
+                // Обычное сохранение
+                alert(data.message || 'Сохранено');
+
+                const newUserId = data.user_id || null;
+
+                // Список пользователей обновится при закрытии модалки
+                setReloadOnModalCloseOnce();
+
+                if (newUserId) {
+                    // Перечитать профиль только что сохранённого пользователя
+                    const fd = new FormData();
+                    fd.append('action', 'form_edit_user');
+                    fd.append('user_id', newUserId);
+
+                    fetch('/core_api.php', {
+                        method: 'POST',
+                        body: fd
+                    })
+                        .then(r => r.json())
+                        .then(d2 => {
+                            if (!d2 || d2.status !== 'ok') {
+                                console.error('core_api error (form_edit_user after save):', d2);
+                                return;
+                            }
+                            showInModal(d2.html);
+                        })
+                        .catch(err => {
+                            console.error('core_api fetch error (form_edit_user after save):', err);
+                        });
+                }
+
+                // Модалка остаётся открытой, список обновится при её закрытии
+                return;
+            }
+
+            // Добавление диапазона ячеек
+            if (action === 'add_new_cells') {
+                alert(data.message || 'Ячейки добавлены');
+                if (data.html) {
+                    loadIntoMain(data.html);
+                }
+                return;
+            }
+            // === Удаление ячейки склада ===
+            if (action === 'delete_cell') {
+                alert(data.message || 'Ячейка удалена');
+
+                const main = document.getElementById('main');
+                if (main && data.html) {
+                    main.innerHTML = data.html; // прилетит уже обновлённая страница с формой + таблицей
+                }
+                return;
+            }
+            // -------------------------
+            // Все прочие actions — просто рисуем HTML в <main>
+            // (view_users, view_devices, setting_cells и т.п.)
+            // -------------------------
+
+            if (data.html) {
+                loadIntoMain(data.html);
+            }
+        })
+        .catch(err => {
+            console.error('core_api fetch error:', err);
+            alert('Ошибка связи с сервером');
+        });
+});
+

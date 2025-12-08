@@ -1,6 +1,6 @@
 <?php
-echo "main.php";
-session_start();
+//echo "main.php";
+//session_start();
 //require_once __DIR__ . '/../configs/secure.php';
 
 /*
@@ -70,10 +70,11 @@ $header_data['soc_og_description']="main_soc_og_dscription";
 $header_data['twitter_title']="main_twitter_title";
 $header_data['twitter_description']="main_twitter_description";
 
-
+*/
+$smarty->assign('user_settings', $_SESSION['user']);
 $smarty->assign('header_data', $header_data);
 $smarty->assign('main','main');
-*/
-//$smarty->display('index.html');
+
+$smarty->display('cells_NA_index.html');
 
 ?>

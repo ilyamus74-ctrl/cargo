@@ -1,0 +1,266 @@
+// === Хелпер: перерисовать список пользователей в <main> ===
+function reloadUserList() {
+    const main = document.getElementById('main');
+    if (!main) return;
+
+    const fd = new FormData();
+    fd.append('action', 'view_users');
+
+    fetch('/core_api.php', {
+        method: 'POST',
+        body: fd
+    })
+        .then(r => r.json())
+        .then(d => {
+            if (!d || d.status !== 'ok') {
+                console.error('core_api error (reloadUserList):', d);
+                return;
+            }
+            if (d.html) {
+                main.innerHTML = d.html;
+            }
+        })
+        .catch(err => {
+            console.error('core_api fetch error (reloadUserList):', err);
+        });
+}
+
+// === Хелпер: один раз обновить список после закрытия модалки ===
+function setReloadOnModalCloseOnce() {
+    const modalEl = document.getElementById('fullscreenModal');
+    if (!modalEl || !window.bootstrap || !bootstrap.Modal) {
+        // на всякий случай — просто обновим список сразу
+        reloadUserList();
+        return;
+    }
+
+    const handler = function () {
+        modalEl.removeEventListener('hidden.bs.modal', handler);
+        reloadUserList();
+    };
+
+    modalEl.addEventListener('hidden.bs.modal', handler);
+}
+
+document.addEventListener('click', function (e) {
+    const link = e.target.closest('.js-core-link[data-core-action]');
+    if (!link) return;
+
+    e.preventDefault();
+
+    const action = link.getAttribute('data-core-action');
+    if (!action) return;
+
+    // Подсветка меню — только если клик внутри <ul>
+    const ul = link.closest('ul');
+    if (ul) {
+        ul.querySelectorAll('.active').forEach(el => el.classList.remove('active'));
+        link.classList.add('active');
+    }
+
+    // Общая форма профиля (в модалке)
+let formData;
+
+if (action === 'save_user') {
+    const userForm = document.getElementById('user-profile-form');
+    if (userForm) {
+        formData = new FormData(userForm);
+    } else {
+        formData = new FormData();
+    }
+
+} else if (action === 'save_device') {
+    const devForm = document.getElementById('device-profile-form');
+    if (devForm) {
+        formData = new FormData(devForm);
+    } else {
+        formData = new FormData();
+    }
+
+} else if (action === 'form_edit_user') {
+    formData = new FormData();
+    const userId = link.getAttribute('data-user-id');
+    if (userId) {
+        formData.append('user_id', userId);
+    }
+
+} else if (action === 'form_new_user') {
+    formData = new FormData();
+
+} else if (action === 'form_edit_device') {
+    formData = new FormData();
+    const deviceId = link.getAttribute('data-device-id');
+    if (deviceId) {
+        formData.append('device_id', deviceId);
+    }
+
+} else if (action === 'activate_device') {
+    formData = new FormData();
+    formData.append('device_id', link.getAttribute('data-device-id') || '');
+    formData.append('is_active', link.getAttribute('data-is-active') || '1');
+
+} else {
+    formData = new FormData();
+}
+
+
+    formData.append('action', action);
+
+    // Для отладки — что реально улетает
+    console.log('FormData entries:');
+    for (const [k, v] of formData.entries()) {
+        console.log(k, '=>', v);
+    }
+
+    fetch('/core_api.php', {
+        method: 'POST',
+        body: formData
+    })
+        .then(r => r.json())
+        .then(data => {
+            if (!data || data.status !== 'ok') {
+                console.error('core_api error:', data);
+                alert(data && data.message ? data.message : 'Ошибка при выполнении запроса');
+                return;
+            }
+            if (action === 'users_regen_qr') {
+                alert(data.message || 'QR-коды обновлены');
+                return;
+            }
+
+            // === Открытие форм в модалке ===
+            if (action === 'form_new_user' ||
+                action === 'form_edit_user'||
+                action === 'form_edit_device') {
+                const modalBody = document.querySelector('#fullscreenModal .modal-body');
+                if (modalBody) {
+                    modalBody.innerHTML = data.html;
+                }
+                const modalEl = document.getElementById('fullscreenModal');
+                if (modalEl && window.bootstrap && bootstrap.Modal) {
+                    const modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+                    modal.show();
+                }
+                return;
+            }
+
+            if (action === 'activate_device') {
+                alert(data.message || 'OK');
+
+                // просто перезагружаем список устройств
+                const fd = new FormData();
+                fd.append('action', 'view_devices');
+                fetch('/core_api.php', { method: 'POST', body: fd })
+                  .then(r => r.json())
+                  .then(d2 => {
+                      if (d2 && d2.status === 'ok') {
+                          const main = document.getElementById('main');
+                          if (main && d2.html) main.innerHTML = d2.html;
+                      }
+                  });
+                return;
+            }
+
+            if (action === 'save_device') {
+                alert(data.message || 'Сохранено');
+
+                // закрываем модалку
+                const modalEl = document.getElementById('fullscreenModal');
+                if (modalEl && window.bootstrap && bootstrap.Modal) {
+                    const modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+                    modal.hide();
+                }
+
+                // и перезагружаем список устройств
+                const fd = new FormData();
+                fd.append('action', 'view_devices');
+                fetch('/core_api.php', { method: 'POST', body: fd })
+                  .then(r => r.json())
+                  .then(d2 => {
+                      if (d2 && d2.status === 'ok') {
+                          const main = document.getElementById('main');
+                          if (main && d2.html) main.innerHTML = d2.html;
+                      }
+                  });
+                return;
+            }
+            
+            // === Сохранение пользователя ===
+            if (action === 'save_user') {
+
+                // Вариант: пользователь удалён
+                if (data.deleted) {
+                    alert(data.message || 'Пользователь удалён');
+
+                    // Обновить список ПОСЛЕ закрытия модалки
+                    setReloadOnModalCloseOnce();
+
+                    // Закрыть модалку
+                    const modalEl = document.getElementById('fullscreenModal');
+                    if (modalEl && window.bootstrap && bootstrap.Modal) {
+                        const modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+                        modal.hide();
+                    } else {
+                        // если что-то не так с модалкой — просто обновим список
+                        reloadUserList();
+                    }
+                    return;
+                }
+
+                // Обычное сохранение (create / update)
+                alert(data.message || 'Сохранено');
+
+                const newUserId = data.user_id || null;
+
+                // Обновлять список будем, когда модалку реально закроют
+                setReloadOnModalCloseOnce();
+
+                if (newUserId) {
+                    // Перечитать профиль только что сохранённого пользователя
+                    const fd = new FormData();
+                    fd.append('action', 'form_edit_user');
+                    fd.append('user_id', newUserId);
+
+                    fetch('/core_api.php', {
+                        method: 'POST',
+                        body: fd
+                    })
+                        .then(r => r.json())
+                        .then(d2 => {
+                            if (!d2 || d2.status !== 'ok') {
+                                console.error('core_api error (form_edit_user after save):', d2);
+                                return;
+                            }
+                            const modalBody = document.querySelector('#fullscreenModal .modal-body');
+                            if (modalBody) {
+                                modalBody.innerHTML = d2.html;
+                            }
+                            const modalEl = document.getElementById('fullscreenModal');
+                            if (modalEl && window.bootstrap && bootstrap.Modal) {
+                                const modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+                                modal.show();
+                            }
+                        })
+                        .catch(err => {
+                            console.error('core_api fetch error (form_edit_user after save):', err);
+                        });
+                }
+
+                // Модалка остаётся открытой, список обновится при её закрытии
+                return;
+            }
+
+            // === Остальные actions — рисуем в <main> ===
+            if (data.html) {
+                const main = document.getElementById('main');
+                if (main) {
+                    main.innerHTML = data.html;
+                }
+            }
+        })
+        .catch(err => {
+            console.error('core_api fetch error:', err);
+            alert('Ошибка связи с сервером');
+        });
+});
+

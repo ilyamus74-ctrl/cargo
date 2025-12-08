@@ -1,0 +1,298 @@
+<?php
+declare(strict_types=1);
+
+// Путь оставляю как у тебя, если нужно — подправишь
+require_once __DIR__ . '../../../configs/connectDB.php';
+require_once __DIR__ . '../../../configs/secure.php'; // ради audit_log, $dbcnx, сессии
+
+header('Content-Type: application/json; charset=utf-8');
+
+$raw  = file_get_contents('php://input');
+$data = json_decode($raw, true);
+
+if (!is_array($data)) {
+    http_response_code(400);
+    echo json_encode(['status' => 'error', 'message' => 'invalid json'], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
+// Режим работы API
+$action = $data['action'] ?? 'enroll'; // для обратной совместимости: если нет action — считаем, что enroll
+
+global $dbcnx;
+$ip = $_SERVER['REMOTE_ADDR'] ?? null;
+$ua = $_SERVER['HTTP_USER_AGENT'] ?? null;
+
+try {
+
+    switch ($action) {
+
+        // -------------------------------------------------
+        // 1) Регистрация / обновление устройства (как было)
+        // -------------------------------------------------
+        case 'enroll': {
+
+            $deviceUid  = trim($data['device_uid']  ?? '');
+            $name       = trim($data['name']        ?? '');
+            $serial     = trim($data['serial']      ?? '');
+            $model      = trim($data['model']       ?? '');
+            $appVersion = trim($data['app_version'] ?? '');
+
+            if ($deviceUid === '') {
+                http_response_code(400);
+                echo json_encode(['status' => 'error', 'message' => 'device_uid required'], JSON_UNESCAPED_UNICODE);
+                exit;
+            }
+
+            // Ищем, есть ли уже такое устройство
+            $stmt = $dbcnx->prepare("SELECT id, device_token, is_active FROM devices WHERE device_uid = ? LIMIT 1");
+            if (!$stmt) {
+                throw new RuntimeException('DB prepare error (select device)');
+            }
+            $stmt->bind_param("s", $deviceUid);
+            $stmt->execute();
+            $res = $stmt->get_result();
+            $row = $res->fetch_assoc();
+            $stmt->close();
+
+            if ($row) {
+                // Уже есть – обновляем данные + last_seen
+                $deviceId    = (int)$row['id'];
+                $deviceToken = $row['device_token'];
+                $isActive    = (int)$row['is_active'];
+
+                $sql = "UPDATE devices
+                           SET name        = ?,
+                               serial      = ?,
+                               model       = ?,
+                               app_version = ?,
+                               last_seen_at = CURRENT_TIMESTAMP(6),
+                               last_ip     = ?
+                         WHERE id = ?";
+                $stmt = $dbcnx->prepare($sql);
+                if (!$stmt) {
+                    throw new RuntimeException('DB prepare error (update device)');
+                }
+                $stmt->bind_param("sssssi", $name, $serial, $model, $appVersion, $ip, $deviceId);
+                $stmt->execute();
+                $stmt->close();
+
+            } else {
+                // Новое устройство – создаём запись, is_active=0, токен генерим
+                $deviceToken = bin2hex(random_bytes(16));
+                $uidCreated  = (int)(microtime(true) * 1000000);
+
+                $sql = "INSERT INTO devices (
+                            uid_created, device_uid, name, serial, model,
+                            app_version, device_token, is_active, last_seen_at, last_ip
+                        ) VALUES (
+                            ?, ?, ?, ?, ?, ?, ?, 0, CURRENT_TIMESTAMP(6), ?
+                        )";
+                $stmt = $dbcnx->prepare($sql);
+                if (!$stmt) {
+                    throw new RuntimeException('DB prepare error (insert device)');
+                }
+                $stmt->bind_param(
+                    "isssssss",
+                    $uidCreated,
+                    $deviceUid,
+                    $name,
+                    $serial,
+                    $model,
+                    $appVersion,
+                    $deviceToken,
+                    $ip
+                );
+                $stmt->execute();
+                $deviceId = $stmt->insert_id;
+                $stmt->close();
+
+                $isActive = 0;
+            }
+
+            // Аудит – кто не залогинен, но нам важен факт
+            audit_log(
+                null,
+                'DEVICE_ENROLL',
+                'DEVICE',
+                $deviceId ?? null,
+                'Запрос регистрации/обновления устройства',
+                [
+                    'device_uid'  => $deviceUid,
+                    'name'        => $name,
+                    'serial'      => $serial,
+                    'model'       => $model,
+                    'app_version' => $appVersion,
+                    'ip'          => $ip,
+                ]
+            );
+
+            echo json_encode(
+                [
+                    'status'       => 'ok',
+                    'action'       => 'enroll',
+                    'device_token' => $deviceToken,
+                    'is_active'    => (int)$isActive, // 0 – ждёт активации, 1 – активен
+                ],
+                JSON_UNESCAPED_UNICODE
+            );
+            exit;
+        }
+
+        // -------------------------------------------------
+        // 2) QR-логин пользователя через устройство
+        // -------------------------------------------------
+        case 'qr_login': {
+
+            $deviceUid    = trim($data['device_uid']    ?? '');
+            $deviceToken  = trim($data['device_token']  ?? '');
+            $qrToken      = trim($data['qr_token']      ?? ''); // строка из QR-кода
+            $appVersion   = trim($data['app_version']   ?? '');
+
+            if ($deviceUid === '' || $deviceToken === '' || $qrToken === '') {
+                http_response_code(400);
+                echo json_encode(['status' => 'error', 'message' => 'missing params'], JSON_UNESCAPED_UNICODE);
+                exit;
+            }
+
+            // 2.1. Проверяем устройство
+            $stmt = $dbcnx->prepare("
+                SELECT id, device_token, is_active
+                  FROM devices
+                 WHERE device_uid = ?
+                 LIMIT 1
+            ");
+            if (!$stmt) {
+                throw new RuntimeException('DB prepare error (select device for qr_login)');
+            }
+            $stmt->bind_param("s", $deviceUid);
+            $stmt->execute();
+            $resDev = $stmt->get_result();
+            $dev = $resDev->fetch_assoc();
+            $stmt->close();
+
+            if (!$dev) {
+                http_response_code(403);
+                echo json_encode(['status' => 'error', 'message' => 'device not registered'], JSON_UNESCAPED_UNICODE);
+                exit;
+            }
+
+            // проверяем токен устройства
+            if (!hash_equals($dev['device_token'], $deviceToken)) {
+                http_response_code(403);
+                echo json_encode(['status' => 'error', 'message' => 'invalid device token'], JSON_UNESCAPED_UNICODE);
+                exit;
+            }
+
+            // ВАЖНО: проверка is_active — вот здесь ты и «рубишь» неактивные устройства
+            if ((int)$dev['is_active'] !== 1) {
+                http_response_code(403);
+                echo json_encode(['status' => 'error', 'message' => 'device not activated'], JSON_UNESCAPED_UNICODE);
+                exit;
+            }
+
+            $deviceId = (int)$dev['id'];
+
+            // 2.2. Ищем пользователя по QR-токену
+            // Имя поля подставь своё: qr_login_token / qr_token
+            $stmt = $dbcnx->prepare("
+                SELECT id, username, full_name, email, role, is_active
+                  FROM users
+                 WHERE qr_login_token = ?
+                 LIMIT 1
+            ");
+            if (!$stmt) {
+                throw new RuntimeException('DB prepare error (select user by qr_token)');
+            }
+            $stmt->bind_param("s", $qrToken);
+            $stmt->execute();
+            $resUser = $stmt->get_result();
+            $user = $resUser->fetch_assoc();
+            $stmt->close();
+
+            if (!$user || (int)$user['is_active'] !== 1) {
+                http_response_code(403);
+                echo json_encode(['status' => 'error', 'message' => 'user not found or inactive'], JSON_UNESCAPED_UNICODE);
+                exit;
+            }
+
+            $userId = (int)$user['id'];
+            $role   = $user['role'] ?? 'USER';
+
+            // 2.3. Обновляем статистику логина пользователя (как в auth_login)
+            $sqlUpd = "UPDATE users
+                       SET last_login_at = CURRENT_TIMESTAMP(6),
+                           login_count   = login_count + 1,
+                           last_login_ip = ?,
+                           last_user_agent = ?
+                     WHERE id = ?";
+            $stmtU = $dbcnx->prepare($sqlUpd);
+            if ($stmtU) {
+                $stmtU->bind_param("ssi", $ip, $ua, $userId);
+                $stmtU->execute();
+                $stmtU->close();
+            }
+
+            // 2.4. Поднимаем PHP-сессию как при обычном логине
+            $_SESSION['user'] = [
+                'id'        => $userId,
+                'username'  => $user['username'],
+                'full_name' => $user['full_name'],
+                'email'     => $user['email'],
+                'role'      => $role,
+                'roles'     => [$role],
+            ];
+
+            // 2.5. Аудит
+            audit_log(
+                $userId,
+                'QR_LOGIN',
+                'DEVICE',
+                $deviceId,
+                'QR-логин пользователя через устройство',
+                [
+                    'device_uid'  => $deviceUid,
+                    'app_version' => $appVersion,
+                    'ip'          => $ip,
+                ]
+            );
+
+            // 2.6. Можно выдать какой-то access_token для API, если надо
+            $accessToken = bin2hex(random_bytes(16));
+            // По уму — сохранить его в отдельную таблицу api_sessions, если нужен stateless доступ.
+
+            echo json_encode(
+                [
+                    'status'       => 'ok',
+                    'action'       => 'qr_login',
+                    'user'         => [
+                        'id'        => $userId,
+                        'username'  => $user['username'],
+                        'full_name' => $user['full_name'],
+                        'email'     => $user['email'],
+                        'role'      => $role,
+                    ],
+                    'device_id'    => $deviceId,
+                    'device_uid'   => $deviceUid,
+                    'access_token' => $accessToken, // используй или игнорируй
+                ],
+                JSON_UNESCAPED_UNICODE
+            );
+            exit;
+        }
+
+        // -------------------------------------------------
+        // Неизвестное действие
+        // -------------------------------------------------
+        default:
+            http_response_code(400);
+            echo json_encode(['status' => 'error', 'message' => 'unknown action'], JSON_UNESCAPED_UNICODE);
+            exit;
+    }
+
+} catch (Throwable $e) {
+    error_log('device_enroll fatal: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
+    http_response_code(500);
+    echo json_encode(['status' => 'error', 'message' => 'internal error'], JSON_UNESCAPED_UNICODE);
+    exit;
+}
