@@ -60,16 +60,15 @@
                 <thead>
                   <tr>
                 <th scope="col">Партия</th>
-                <th scope="col">Начата</th>
                 <th scope="col">Посылок</th>
                 <th scope="col"></th>
+                <th scope="col">Начата</th>
                  </tr>
                 </thead>
             <tbody>
               {foreach $batches as $b}
                 <tr>
                   <td>{$b.batch_uid}</td>
-                  <td>{$b.started_at}</td>
                   <td>{$b.parcel_count}</td>
                   <td class="text-end">
                     <button type="button"
@@ -86,6 +85,7 @@
                       Готово
                     </button>
                   </td>
+                  <td>{$b.started_at}</td>
                 </tr>
               {/foreach}
               {if !$batches}

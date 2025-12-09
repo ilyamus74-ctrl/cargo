@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2025-12-08 10:32:22
+/* Smarty version 5.3.1, created on 2025-12-09 10:09:54
   from 'file:cells_NA_API_warehouse_item_in.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_6936a936ce0406_70971213',
+  'unifunc' => 'content_6937f5724e89c6_24478984',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     'f8b6b275dc86db5eb2f6a47eca7999a3a805564c' => 
     array (
       0 => 'cells_NA_API_warehouse_item_in.html',
-      1 => 1765189846,
+      1 => 1765274989,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_6936a936ce0406_70971213 (\Smarty\Template $_smarty_tpl) {
+function content_6937f5724e89c6_24478984 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>    <div class="pagetitle">
       <h1>Warehouse Item In</h1>
@@ -84,9 +84,9 @@ $_smarty_current_dir = '/home/cells/web/templates';
                 <thead>
                   <tr>
                 <th scope="col">Партия</th>
-                <th scope="col">Начата</th>
                 <th scope="col">Посылок</th>
                 <th scope="col"></th>
+                <th scope="col">Начата</th>
                  </tr>
                 </thead>
             <tbody>
@@ -98,8 +98,6 @@ $foreach0DoElse = false;
 ?>
                 <tr>
                   <td><?php echo $_smarty_tpl->getValue('b')['batch_uid'];?>
-</td>
-                  <td><?php echo $_smarty_tpl->getValue('b')['started_at'];?>
 </td>
                   <td><?php echo $_smarty_tpl->getValue('b')['parcel_count'];?>
 </td>
@@ -120,6 +118,8 @@ $foreach0DoElse = false;
                       Готово
                     </button>
                   </td>
+                  <td><?php echo $_smarty_tpl->getValue('b')['started_at'];?>
+</td>
                 </tr>
               <?php
 }

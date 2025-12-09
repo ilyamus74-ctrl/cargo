@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2025-12-08 10:49:46
+/* Smarty version 5.3.1, created on 2025-12-09 13:12:48
   from 'file:cells_NA_API_warehouse_item_in_batch.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_6936ad4a8b4e49_03691753',
+  'unifunc' => 'content_69382050c06d36_18725530',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '7e8c2c62a4cb34a58255b0e76fcea2eec9328b7b' => 
     array (
       0 => 'cells_NA_API_warehouse_item_in_batch.html',
-      1 => 1765190969,
+      1 => 1765279186,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_6936ad4a8b4e49_03691753 (\Smarty\Template $_smarty_tpl) {
+function content_69382050c06d36_18725530 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?><form id="item-in-modal-form" class="row g-3">
   <input type="hidden" name="batch_uid" value="<?php echo $_smarty_tpl->getValue('batch_uid');?>
@@ -34,6 +34,12 @@ $_smarty_current_dir = '/home/cells/web/templates';
   <div class="col-md-4">
     <label for="trackingNo" class="form-label">Трек-номер</label>
     <input type="text" class="form-control" id="trackingNo" name="tracking_no" required>
+  </div>
+
+  <div class="col-md-4">
+     <label for="carrierName" class="form-label">Перевозчик</label>
+     <input type="text" class="form-control" id="carrierName" name="carrier_name" readonly>
+     <input type="hidden" id="carrierCode" name="carrier_code">
   </div>
 
   <div class="col-md-4">
