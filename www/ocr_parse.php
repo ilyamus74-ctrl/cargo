@@ -715,7 +715,7 @@ $tracking = detect_tracking_no($text);
 
 // --- KOLLI всегда AZB ---
 // форвардеры, которые считаем "только AZB"
-$forceAzbForwarders = ['KOLLI', 'CAMEX','COLIBRI','POSTLINK','ASER','KARGOFLEX'];
+$forceAzbForwarders = ['KOLLI', 'CAMEX', 'COLIBRI', 'POSTLINK', 'ASER', 'KARGOFLEX'];
 
 if (in_array($dest['forwarderCode'] ?? null, $forceAzbForwarders, true)) {
     $dest['destCode']    = 'AZB';
@@ -770,6 +770,86 @@ if (!$forwarderCode && $cellCode !== null) {
             }
         }
     }
+}
+
+
+
+// --- Жесткие подсказки по адресу Starkenburgstr.* ---
+$textLower = mb_strtolower($text, 'UTF-8');
+
+$addressHints = [
+    [
+        'patterns'       => ['starkenburgstr.10c', 'starkenburgstr 10c', 'starkenburgstr10c'],
+        'forwarderCode'  => 'COLIBRI',
+        'forwarderName'  => 'Colibri Express',
+        'countryCode'    => 'AZB',
+    ],
+    [
+        'patterns'       => ['starkenburgstr.10h', 'starkenburgstr 10h', 'starkenburgstr10h'],
+        'forwarderCode'  => 'POSTLINK',
+        'forwarderName'  => 'Postlink',
+        'countryCode'    => 'AZB',
+    ],
+    [
+        'patterns'       => ['starkenburgstr.10a', 'starkenburgstr 10a', 'starkenburgstr10a'],
+        'forwarderCode'  => 'CAMEX',
+        'forwarderName'  => 'Camex',
+        'countryCode'    => 'AZB',
+    ],
+    [
+        'patterns'       => ['starkenburgstr.10k', 'starkenburgstr 10k', 'starkenburgstr10k'],
+        'forwarderCode'  => 'KOLLI',
+        'forwarderName'  => 'KoliExpress',
+        'countryCode'    => 'AZB',
+    ],
+    [
+        'patterns'       => ['starkenburgstr.10g', 'starkenburgstr 10g', 'starkenburgstr10g'],
+        'forwarderCode'  => 'ASER',
+        'forwarderName'  => 'ASER Express',
+        'countryCode'    => 'AZB',
+    ],
+    [
+        'patterns'       => ['starkenburgstr.10t', 'starkenburgstr 10t', 'starkenburgstr10t'],
+        'forwarderCode'  => 'KARGOFLEX',
+        'forwarderName'  => 'KargoFlex',
+        'countryCode'    => 'AZB',
+    ],
+    [
+        'patterns'       => ['starkenburgstr.10b', 'starkenburgstr 10b', 'starkenburgstr10b'],
+        'forwarderCode'  => 'CAMARATC',
+        'forwarderName'  => 'Camaratc LLC',
+        'countryCode'    => 'TBS',
+    ],
+    [
+        'patterns'       => ['starkenburgstr.10e', 'starkenburgstr 10e', 'starkenburgstr10e'],
+        'forwarderCode'  => 'CAMARATC',
+        'forwarderName'  => 'Camaratc',
+        'countryCode'    => 'KG',
+    ],
+];
+
+$countryNames = [
+    'AZB' => 'Azerbaijan',
+    'KG'  => 'Kyrgyzstan',
+    'TBS' => 'Georgia',
+];
+
+foreach ($addressHints as $hint) {
+    foreach ($hint['patterns'] as $pattern) {
+        if (mb_strpos($textLower, $pattern) !== false) {
+            $forwarderCode = $hint['forwarderCode'];
+            $forwarderName = $hint['forwarderName'];
+            $countryCode   = $hint['countryCode'];
+            $countryName   = $countryNames[$countryCode] ?? $countryName;
+            break 2;
+        }
+    }
+}
+
+// если форвардер входит в строгий AZB-список — фиксируем страну
+if (in_array($forwarderCode, $forceAzbForwarders, true)) {
+    $countryCode = 'AZB';
+    $countryName = 'Azerbaijan';
 }
 
 // --- Camaratc: KG vs TBS по адресу Starkenburgstr.10B/10E ---
