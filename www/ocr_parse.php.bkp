@@ -320,8 +320,6 @@ function detect_cell_code(string $text): ?string {
     // Коды, которые НИКОГДА не считаем ячейкой
     $bannedPrefixes = ['PZ', 'URC'];
 
-    $bestKnown = null;
-
     foreach ($m[0] as $code) {
         if (!preg_match('/^[A-Z]+/', $code, $p)) {
             continue;
@@ -331,22 +329,10 @@ function detect_cell_code(string $text): ?string {
             // пропускаем PZ63, URC84 и тому подобное
             continue;
         }
-
-        // Сначала запоминаем первый код, подходящий под наши форвардерские маски,
-        // чтобы не зацепить "левые" значения типа S0423 раньше реального K20374.
-        if ($bestKnown === null && detect_forwarder_by_cell_code($code) !== null) {
-            $bestKnown = $code;
-            // продолжаем цикл, чтобы найденный "знакомый" код победил над случайным первым
-            continue;
-        }
-
-        // если ещё ничего не выбрали — берём первый валидный
-        if ($bestKnown === null) {
-            $bestKnown = $code;
-        }
+        return $code;
     }
 
-    return $bestKnown;
+    return null;
 }
 
 // --------------------------------------------------
@@ -460,7 +446,6 @@ function looks_like_person_name(string $line): bool {
         'inklusive nachhaltigem versand',
         'billing no',
         'cust id',
-        'empfång',
     ];
     foreach ($badSubstrings as $b) {
         if ($b !== '' && mb_strpos($low, $b) !== false) {
@@ -510,7 +495,8 @@ function clean_name_line(string $line, ?string $forwarderCode, ?string $cellCode
 
     // убираем служебные префиксы в начале
     $line = preg_replace(
-        '/^(to|an|von|from|empf[aäå]nger(?:in)?|addressee|receiver|contact|billing\s+no)\s*:?\s*/iu',
+        ////////'/^(to|an|von|from|empf[aä]nger|addressee|receiver|contact)\s*:?\s*/iu',
+        '/^(to|an|von|from|empf[aä]nger|addressee|receiver|contact|billing\s+no)\s*:?\s*/iu',
         '',
         $line
     );
@@ -677,7 +663,7 @@ function detect_forwarder_by_cell_code(string $cell): ?string {
     }
 
     // Colibri: Cxxxxx, иногда Sxx / OPxx / Bxxxx – можешь добавить по мере надобности
-    if (preg_match('/^C\d+$/', $cell) || preg_match('/^S\d+$/', $cell) || preg_match('/^OP\d+$/', $cell)) {
+    if (preg_match('/^C\d+$/', $cell)) {
         return 'COLIBRI';
     }
 
