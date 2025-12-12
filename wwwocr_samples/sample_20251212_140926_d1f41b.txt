@@ -1,0 +1,46 @@
+TIME: 2025-12-12T14:09:26+01:00
+IP:   84.166.213.45
+========================================
+RAW BODY (php://input):
+raw_text=PARCEL%0AInfo+trattamento+dati+personali+www.gla-Italy.oom%2Fprivacydel%0AJPostlink+PL00760%0AFaig+Verdiyev+Verd%0AStarkenburgstr+10H+N-A%0AHessen.+Moerfelden-Walldorf+DE%0APostl+ink+PLO0760+Faig+Verdiyev+Verdiyev%0AWW+665632428+01+0+WW+0
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => PARCEL
+Info trattamento dati personali www.gla-Italy.oom/privacydel
+JPostlink PL00760
+Faig Verdiyev Verd
+Starkenburgstr 10H N-A
+Hessen. Moerfelden-Walldorf DE
+Postl ink PLO0760 Faig Verdiyev Verdiyev
+WW 665632428 01 0 WW 0
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+PARCEL
+Info trattamento dati personali www.gla-Italy.oom/privacydel
+JPostlink PL00760
+Faig Verdiyev Verd
+Starkenburgstr 10H N-A
+Hessen. Moerfelden-Walldorf DE
+Postl ink PLO0760 Faig Verdiyev Verdiyev
+WW 665632428 01 0 WW 0
+
+<form>
+file_name: sample_20251212_140926_d1f41b.txt
+tracking_no: 
+receiver_country_code: AZB
+receiver_forwarder_code: POSTLINK
+receiver_company: Postlink
+receiver_cell_code: PL00760
+receiver_name: Faig Verdiyev Verd
+label_type: GLS
+</form>

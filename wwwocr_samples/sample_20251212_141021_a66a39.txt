@@ -1,0 +1,52 @@
+TIME: 2025-12-12T14:10:21+01:00
+IP:   84.166.213.45
+========================================
+RAW BODY (php://input):
+raw_text=Ruecksendung+an%3A%0AAmazen+Rncksenderentum%0AAmazenstrasse+300%0AGraben+B6836%0AGermany%0A%7CGew.%3A3+02+kg.%0APostlink+PLO0152+Ruslan+Aliyev%0ASTARKENBURGSTR+10H%0A64546+MORFELDEN-WALLDORF%0AGERMANY%0A64546.211.010.+577
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => Ruecksendung an:
+Amazen Rncksenderentum
+Amazenstrasse 300
+Graben B6836
+Germany
+|Gew.:3 02 kg.
+Postlink PLO0152 Ruslan Aliyev
+STARKENBURGSTR 10H
+64546 MORFELDEN-WALLDORF
+GERMANY
+64546.211.010. 577
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+Ruecksendung an:
+Amazen Rncksenderentum
+Amazenstrasse 300
+Graben B6836
+Germany
+|Gew.:3 02 kg.
+Postlink PLO0152 Ruslan Aliyev
+STARKENBURGSTR 10H
+64546 MORFELDEN-WALLDORF
+GERMANY
+64546.211.010. 577
+
+<form>
+file_name: sample_20251212_141021_a66a39.txt
+tracking_no: 
+receiver_country_code: AZB
+receiver_forwarder_code: POSTLINK
+receiver_company: Postlink
+receiver_cell_code: PL00152
+receiver_name: Ruslan Aliye
+label_type: 
+</form>

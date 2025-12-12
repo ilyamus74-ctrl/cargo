@@ -334,18 +334,16 @@ function detect_cell_code(string $text): ?string {
 
         // Сначала запоминаем первый код, подходящий под наши форвардерские маски,
         // чтобы не зацепить "левые" значения типа S0423 раньше реального K20374.
+        // Запоминаем первый код, подходящий под наши форвардерские маски,
+        // чтобы не зацепить "левые" значения типа F2000 вместо нормального C163361.
         if ($bestKnown === null && detect_forwarder_by_cell_code($code) !== null) {
             $bestKnown = $code;
             // продолжаем цикл, чтобы найденный "знакомый" код победил над случайным первым
             continue;
         }
 
-        // если ещё ничего не выбрали — берём первый валидный
-        if ($bestKnown === null) {
-            $bestKnown = $code;
-        }
     }
-
+    // Возвращаем только распознанный по правилам форвардера код
     return $bestKnown;
 }
 
@@ -377,11 +375,11 @@ function looks_like_person_name(string $line): bool {
         'rack','gusensberg',
         'vus chland + eu','vuschland + eu','vuschland+eu','vuschland',
         'herrn',
-        'llg',
+        'llg','desc, cosmetics','desc','cosmetics',
         'expres',
         'cos',
         'hermes','hhermes','ghermnes',
-        'xun',
+        'xun','|am','|an','|an:','fron ce','do not use for returns','postage paid',
         'puma',
         'ainz',
         'koli',
@@ -389,11 +387,11 @@ function looks_like_person_name(string $line): bool {
         'sunday natural products',
         'apo pharmacy b.v','apo pharmacy b v',
         'gewicht in kg',
-        'billing no',
+        'billing no','yor gls track',
         'cust id','customer id',
-        'service sperrgut aencorbrant','service sperrgut','sperrgut',
-        'cho gxo supply chain','co gxo supply chain',
-        'delivery address','deiivery address','entglt ezaht',
+        'service sperrgut aencorbrant','service sperrgut','sperrgut','fedex aerm eny',
+        'cho gxo supply chain','co gxo supply chain','koliexp',
+        'delivery address','deiivery address','entglt ezaht','mehr kommfort ein','dror code',
     ];
     if (in_array($low, $exactBad, true)) {
         return false;
@@ -433,11 +431,11 @@ function looks_like_person_name(string $line): bool {
         'online - shop',
         'veepee','best secret','best secrel','dhl hub',
         'inditex',' zara','zalando lounge','zalando se','zalando ',
-        'deutsche post','post dhl hub',
+        'deutsche post','post dhl hub','|am',
         'c/o deutsche post','c/o dhl','c/o ',
         'nürtingen','nuertingen','mainz','hamm','gusensberg',
         ' vound nachname','vor- und nachname','nachname',
-        ' gewicht','gew\'cht','gew.cht',
+        ' gewicht','gew\'cht','gew.cht','do not use for returns',
         ' empf nger','empf nger','empfi nger','empfaenger','empfänger',
         ' kundenreferenz','notiz',
         ' orthopädie','orthopädie-geld',
@@ -453,14 +451,14 @@ function looks_like_person_name(string $line): bool {
         'autosevice baudisch','autosevice','baudisch',
         'gxo supply chain',' supply chain',
         'rel nasee. ret','rel nasee','destnstire',
-        'absen der',
-        'gewicht in kg',
+        'absen der','koliexp','yor gls track',
+        'gewicht in kg','|an','|an:','fron ce',
         'apo pharmacy b.v','apo pharmacy b v',
         'service sperrgut aencorbrant','service sperrgut','sperrgut',
         'inklusive nachhaltigem versand',
-        'billing no',
-        'cust id',
-        'empfång','entglt','entgelt',
+        'billing no','desc, cosmetics','desc','cosmetics',
+        'cust id','mehr kommfort ein','postage paid',
+        'empfång','entglt','entgelt','dror code','fedex aerm eny',
         'siehe rückseite','unter dhl.de','mit dhl',
     ];
     foreach ($badSubstrings as $b) {
@@ -550,18 +548,21 @@ function clean_name_line(string $line, ?string $forwarderCode, ?string $cellCode
 
     // общие брендовые/служебные слова – режем всегда
     $patterns = array_merge($patterns, [
-    '/\bTLS\s+CARGO\b[:\-]*/iu',
-    '/\bASER\b[:\-]*/iu',
-    '/\bCOLIBRI\b[:\-]*/iu',
-    '/\bCOLIBRIEXPRESS\b[:\-]*/iu',
-    '/\bKOLI\s*EXPRESS\b[:\-]*/iu',
-    '/\bKOLIEXPRESS\b[:\-]*/iu',
-    '/\bCAMEX\b[:\-]*/iu',
-    '/\bKARGOFLEX\b[:\-]*/iu',
-    '/\bEXPRESS\b[:\-]*/iu',
-    '/\bEXP\b[:\-]*/iu',
-    '/\bCARGO\b[:\-]*/iu',
-    '/\bSHIP\b[:\-]*/iu',
+        '/\bTLS\s+CARGO\b[:\-]*/iu',
+        '/\bASER\p{L}*\b[:\-]*/iu',
+        '/\bCOLIBR\p{L}*\s+EXP\p{L}*\b[:\-]*/iu',
+        '/\bCOLIBR\p{L}*\b[:\-]*/iu',
+        '/\bCOLIBRIEXPRESS\b[:\-]*/iu',
+        '/\bKOLI\p{L}*\s*EXP\p{L}*\b[:\-]*/iu',
+        '/\bKOLIEXPRESS\b[:\-]*/iu',
+        '/\bKOLI\p{L}*\b[:\-]*/iu',
+        '/\bCAMEX\p{L}*\b[:\-]*/iu',
+        '/\bKARGO?FLEX\p{L}*\b[:\-]*/iu',
+        '/\bCAMARATC\p{L}*\b[:\-]*/iu',
+        '/\bE\p{L}{0,2}PRESS\p{L}*\b[:\-]*/iu',
+        '/\bEXP\b[:\-]*/iu',
+        '/\bCARGO\b[:\-]*/iu',
+        '/\bSHIP\b[:\-]*/iu',
     ]);
 
    // специальные мусорные префиксы
@@ -590,6 +591,18 @@ function clean_name_line(string $line, ?string $forwarderCode, ?string $cellCode
     // финальная чистка
     $line = trim($line, " \t-,:.;/");
     $line = preg_replace('/\s{2,}/u', ' ', $line);
+
+    // если строка повторяет одно и то же имя через разделители – оставляем единственный вариант
+    $splitParts = array_filter(
+        array_map('trim', preg_split('/\s*[-–—,:;\/]+\s*/u', $line)),
+        'strlen'
+    );
+    if (count($splitParts) > 1) {
+        $lowerUnique = array_unique(array_map(fn($p) => mb_strtolower($p, 'UTF-8'), $splitParts));
+        if (count($lowerUnique) === 1) {
+            $line = $splitParts[0];
+        }
+    }
 
     return $line;
 }
@@ -743,6 +756,7 @@ if (!$forwarderCode && $cellCode !== null) {
             'CAMEX'     => 'Camex',
             'KARGOFLEX' => 'KargoFlex',
             'CAMARATC'  => 'Camaratc',
+            'POSTLINK'  => 'Postlink',
         ];
         if (isset($forwarderCompanies[$forwarderCode])) {
             $forwarderName = $forwarderCompanies[$forwarderCode];
@@ -756,6 +770,7 @@ if (!$forwarderCode && $cellCode !== null) {
                 'ASER'      => 'AZB',
                 'CAMEX'     => 'AZB',
                 'KARGOFLEX' => 'AZB',
+                'POSTLINK'  => 'AZB',
                 'CAMARATC'  => 'KG',
             ];
             $countryNames = [

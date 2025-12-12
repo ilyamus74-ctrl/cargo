@@ -1,0 +1,82 @@
+TIME: 2025-12-12T14:08:16+01:00
+IP:   84.166.213.45
+========================================
+RAW BODY (php://input):
+raw_text=Von%3A+VitalAbo%0ADHL+Paket+GmbH%0AMediapark+2%0ADHL+Kleinpaket%0ADHL+KLEINPAKET+DHL.%0A83088+Kiefersfelden%0AGERMANY%0AVitalAbo%0AAn%3A+Zeynalova+Postlink+Pl00725+Sema+Zel%0ADeutschland%2C+Starkenburgstr+10H+10+H%0A64546+Moerfelden-Walldorf-Hessen%0AGERMANY%0AW%0AAbrechnungsnr.%3A+52237683206202%0AReferenznr.%3A+252001143069%0ASendungsnr.%3A+00340434516518127035%0AHL+KLEINPAKET%0AS%0A037-002%0ATelted37203030505050%0AGoGreen%0AWir+kormpensieren%0ACO2-Emissionen%0Amit+DHL%0AGewicht%3A%0A0.1+kg
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => Von: VitalAbo
+DHL Paket GmbH
+Mediapark 2
+DHL Kleinpaket
+DHL KLEINPAKET DHL.
+83088 Kiefersfelden
+GERMANY
+VitalAbo
+An: Zeynalova Postlink Pl00725 Sema Zel
+Deutschland, Starkenburgstr 10H 10 H
+64546 Moerfelden-Walldorf-Hessen
+GERMANY
+W
+Abrechnungsnr.: 52237683206202
+Referenznr.: 252001143069
+Sendungsnr.: 00340434516518127035
+HL KLEINPAKET
+S
+037-002
+Telted37203030505050
+GoGreen
+Wir kormpensieren
+CO2-Emissionen
+mit DHL
+Gewicht:
+0.1 kg
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+Von: VitalAbo
+DHL Paket GmbH
+Mediapark 2
+DHL Kleinpaket
+DHL KLEINPAKET DHL.
+83088 Kiefersfelden
+GERMANY
+VitalAbo
+An: Zeynalova Postlink Pl00725 Sema Zel
+Deutschland, Starkenburgstr 10H 10 H
+64546 Moerfelden-Walldorf-Hessen
+GERMANY
+W
+Abrechnungsnr.: 52237683206202
+Referenznr.: 252001143069
+Sendungsnr.: 00340434516518127035
+HL KLEINPAKET
+S
+037-002
+Telted37203030505050
+GoGreen
+Wir kormpensieren
+CO2-Emissionen
+mit DHL
+Gewicht:
+0.1 kg
+
+<form>
+file_name: sample_20251212_140816_8e352b.txt
+tracking_no: 00340434516518127035
+receiver_country_code: AZB
+receiver_forwarder_code: POSTLINK
+receiver_company: Postlink
+receiver_cell_code: PL00725
+receiver_name: Zeynalova Postlink
+label_type: DHL
+</form>

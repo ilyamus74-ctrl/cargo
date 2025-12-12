@@ -1,0 +1,62 @@
+TIME: 2025-12-12T14:09:59+01:00
+IP:   84.166.213.45
+========================================
+RAW BODY (php://input):
+raw_text=DHL+PAKET%0AVon%3A+C%26A+Online+Shop%0AAn+der+Elchspitze+520%0A14974+Ludwigstelde%0AAn%3A+Postlink+Vusala+Gasimova%0APostlink+PLO0617+Vusala+Gasim+ova%0AStarkenburgstr.+10H%0A64546+M%C3%B2rfelden+Walldort%0ADeutschland%0AAbrechnungsnr.%3A%0AReferenznr.%3A%0ASendungsnr.%3A%0A62705056730108%0AA109126197%0A00340434636262447187%0AC-a.con
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => DHL PAKET
+Von: C&A Online Shop
+An der Elchspitze 520
+14974 Ludwigstelde
+An: Postlink Vusala Gasimova
+Postlink PLO0617 Vusala Gasim ova
+Starkenburgstr. 10H
+64546 Mòrfelden Walldort
+Deutschland
+Abrechnungsnr.:
+Referenznr.:
+Sendungsnr.:
+62705056730108
+A109126197
+00340434636262447187
+C-a.con
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+DHL PAKET
+Von: C&A Online Shop
+An der Elchspitze 520
+14974 Ludwigstelde
+An: Postlink Vusala Gasimova
+Postlink PLO0617 Vusala Gasim ova
+Starkenburgstr. 10H
+64546 Mòrfelden Walldort
+Deutschland
+Abrechnungsnr.:
+Referenznr.:
+Sendungsnr.:
+62705056730108
+A109126197
+00340434636262447187
+C-a.con
+
+<form>
+file_name: sample_20251212_140959_bc2716.txt
+tracking_no: 
+receiver_country_code: AZB
+receiver_forwarder_code: POSTLINK
+receiver_company: Postlink
+receiver_cell_code: PL00617
+receiver_name: Vusala Gasimova
+label_type: DHL
+</form>
