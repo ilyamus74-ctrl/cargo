@@ -320,7 +320,24 @@ function detect_cell_code(string $text): ?string {
     // Коды, которые НИКОГДА не считаем ячейкой
     $bannedPrefixes = ['PZ', 'URC'];
 
-    $bestKnown = null;
+//    $bestKnown = null;
+
+    $textLower = mb_strtolower($text, 'UTF-8');
+
+    // Простые хинты по упоминанию форвардеров в тексте, чтобы выбрать
+    // наиболее релевантный код ячейки, если распознали несколько вариантов.
+    $forwarderHints = [
+        'COLIBRI'   => ['colibri'],
+        'KOLLI'     => ['koli', 'kolli'],
+        'ASER'      => ['aser'],
+        'CAMEX'     => ['camex'],
+        'KARGOFLEX' => ['kargoflex', 'kargo'],
+        'CAMARATC'  => ['camaratc'],
+        'POSTLINK'  => ['postlink'],
+    ];
+
+    $candidates = [];
+    $idx = 0;
 
     foreach ($m[1] as $rawCode) {
         $code = strtoupper($rawCode);
@@ -336,20 +353,53 @@ function detect_cell_code(string $text): ?string {
         $digits = strtr($p[2], ['O' => '0']);
         $normalizedCode = $prefix . $digits;
 
+        // OCR иногда вставляет лишнюю букву "O" после префикса вместо нуля, например PLO0152
+        // вместо PL00152. Пытаемся восстановить такую ошибку.
+        $variants = [$normalizedCode];
+        if (preg_match('/O$/', $prefix)) {
+            $variants[] = substr($prefix, 0, -1) . '0' . $digits;
+            }
+        foreach ($variants as $variant) {
+            $forwarder = detect_forwarder_by_cell_code($variant);
+            if ($forwarder === null) {
+                continue;
+            }
 
-        // Сначала запоминаем первый код, подходящий под наши форвардерские маски,
-        // чтобы не зацепить "левые" значения типа S0423 раньше реального K20374.
-        // Запоминаем первый код, подходящий под наши форвардерские маски,
-        // чтобы не зацепить "левые" значения типа F2000 вместо нормального C163361.
-        if ($bestKnown === null && detect_forwarder_by_cell_code($normalizedCode) !== null) {
-            $bestKnown = $normalizedCode;
-            // продолжаем цикл, чтобы найденный "знакомый" код победил над случайным первым
-            continue;
+            $score = 1;
+            if (isset($forwarderHints[$forwarder])) {
+                foreach ($forwarderHints[$forwarder] as $alias) {
+                    if ($alias !== '' && mb_strpos($textLower, $alias) !== false) {
+                        $score++;
+                    }
+                }
+            }
+
+            $candidates[] = [
+                'code'  => $variant,
+                'score' => $score,
+                'idx'   => $idx++,
+            ];
+
+            // не добавляем дубль одной и той же разновидности второй раз
+            break;
+
         }
 
     }
-    // Возвращаем только распознанный по правилам форвардера код
-    return $bestKnown;
+    if ($candidates === []) {
+        return null;
+    }
+
+    usort($candidates, function ($a, $b) {
+        $byScore = $b['score'] <=> $a['score'];
+        if ($byScore !== 0) {
+            return $byScore;
+        }
+
+        return $a['idx'] <=> $b['idx'];
+    });
+
+    return $candidates[0]['code'];
 }
 
 // --------------------------------------------------
@@ -376,7 +426,7 @@ function looks_like_person_name(string $line): bool {
         'absender','absenderin/sender',
         'postleitzahl','postleitzanl','postleitzah','postieitzah','pastleitzahl',
         'day','dhl','phl','ed','h&m',
-        'mainz','hamm','nürtingen','nuertingen',
+        'mainz','hamm','nürtingen','nuertingen','leitcode routingcode',
         'rack','gusensberg',
         'vus chland + eu','vuschland + eu','vuschland+eu','vuschland',
         'herrn',
@@ -389,13 +439,13 @@ function looks_like_person_name(string $line): bool {
         'ainz',
         'koli',
         'revolution beauty',
-        'sunday natural products',
-        'apo pharmacy b.v','apo pharmacy b v',
+        'sunday natural products','paket nr','frmeswe do cg',
+        'apo pharmacy b.v','apo pharmacy b v','kunden nr',
         'gewicht in kg',
         'billing no','yor gls track',
-        'cust id','customer id',
+        'cust id','customer id','ioerffl deh holldore',
         'service sperrgut aencorbrant','service sperrgut','sperrgut','fedex aerm eny',
-        'cho gxo supply chain','co gxo supply chain','koliexp',
+        'cho gxo supply chain','co gxo supply chain','koliexp','orthopädie geld','we lg h','contsct',
         'delivery address','deiivery address','entglt ezaht','mehr kommfort ein','dror code',
     ];
     if (in_array($low, $exactBad, true)) {
@@ -420,10 +470,10 @@ function looks_like_person_name(string $line): bool {
         ' llc',' gmbh',' gimbh','gm bh',
         ' online',' shop',' lounge',' hub',
         ' paket','päckchen','paketschein',' gewicht','anzahl',
-        ' datum','kontakt',' telefon',
+        ' datum','kontakt',' telefon','contsct',
         'postleit','fremdbarcode','id no','cust.','customer',
         'shipment','sendungs','abrechnungsnr','referenznr','ref.',
-        'epg one','co2','emiss',
+        'epg one','co2','emiss','we lg h',
         'starkenburgstr','starkenburgstraße',' str.','straße','strasse',
         'deutschland','germany','hessen',
         'mörfelden','morfelden','harfelden','nharfelden','walldorf','wal ldorf','unna',
@@ -432,8 +482,8 @@ function looks_like_person_name(string $line): bool {
         'billing p/p','biling. p/p','biling p/p','billing no',' billing',
         'wir reduzierer','pl ieutschiond',
         'wir kompensieren','wir kompens','wir kormip','wir kormi',
-        'labex','l.t.d','empfanger','empfänger','sender',
-        'online - shop',
+        'labex','l.t.d','empfanger','empfänger','sender','leitcode routingcode',
+        'online - shop','ioerffl deh holldore',
         'veepee','best secret','best secrel','dhl hub',
         'inditex',' zara','zalando lounge','zalando se','zalando ',
         'deutsche post','post dhl hub','|am',
@@ -445,7 +495,7 @@ function looks_like_person_name(string $line): bool {
         ' kundenreferenz','notiz',
         ' orthopädie','orthopädie-geld',
         ' poing','potsdam','krefeld','magdeburg','neum ark','neumark',
-        ' @rmany',' germany','deutschland',
+        ' @rmany',' germany','deutschland','kunden nr','paket nr','frmeswe do cg',
         'asos',
         ' we do','we-do','ve do','ve do!',
         'es naalbaceie',
@@ -455,7 +505,7 @@ function looks_like_person_name(string $line): bool {
         'apo pharmacy',' pharmacy',
         'autosevice baudisch','autosevice','baudisch',
         'gxo supply chain',' supply chain',
-        'rel nasee. ret','rel nasee','destnstire',
+        'rel nasee. ret','rel nasee','destnstire','orthopädie geld',
         'absen der','koliexp','yor gls track',
         'gewicht in kg','|an','|an:','fron ce',
         'apo pharmacy b.v','apo pharmacy b v',
