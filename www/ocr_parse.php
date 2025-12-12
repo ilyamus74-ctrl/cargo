@@ -393,7 +393,7 @@ function looks_like_person_name(string $line): bool {
         'cust id','customer id',
         'service sperrgut aencorbrant','service sperrgut','sperrgut',
         'cho gxo supply chain','co gxo supply chain',
-        'delivery address','deiivery address',
+        'delivery address','deiivery address','entglt ezaht',
     ];
     if (in_array($low, $exactBad, true)) {
         return false;
@@ -460,7 +460,8 @@ function looks_like_person_name(string $line): bool {
         'inklusive nachhaltigem versand',
         'billing no',
         'cust id',
-        'empfång',
+        'empfång','entglt','entgelt',
+        'siehe rückseite','unter dhl.de','mit dhl',
     ];
     foreach ($badSubstrings as $b) {
         if ($b !== '' && mb_strpos($low, $b) !== false) {
