@@ -1,0 +1,87 @@
+TIME: 2025-12-10T11:46:25+01:00
+IP:   88.155.70.42
+========================================
+RAW BODY (php://input):
+raw_text=fatta+di%0AWE+Do%21%0ANBRNRs+WE+DOcOM%0AAbsen+der%3A%0AFedEx+aerm+eny%0ADE-%0ADO+NOT+USE+FOR+RETURNS%0AEmp+f%C3%A4nger%3A%0AEB+PRERS+-+DANIIL+AVSHALUMOV%2C%0ASTARKENBURGSTRA%3FE+10%0A64546+M%3FRFELDEN-+WALLDORF%0AGewicht+in+kg%0ADatum%0AKundenreferenz%0A0%2C7%0A2024+--+08--%0A06%0A271815157737%0A44%0AMAINZ%0A34-22%0AD%0AH+102907+01472894+01+044%0ARetourenedrese%3A%0AFedEx+0erm+eny%0ADO+NOT+USE+FOR+IF+TUPN8%0ADE-%0AHerme
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => fatta di
+WE Do!
+NBRNRs WE DOcOM
+Absen der:
+FedEx aerm eny
+DE-
+DO NOT USE FOR RETURNS
+Emp fänger:
+EB PRERS - DANIIL AVSHALUMOV,
+STARKENBURGSTRA?E 10
+64546 M?RFELDEN- WALLDORF
+Gewicht in kg
+Datum
+Kundenreferenz
+0,7
+2024 -- 08--
+06
+271815157737
+44
+MAINZ
+34-22
+D
+H 102907 01472894 01 044
+Retourenedrese:
+FedEx 0erm eny
+DO NOT USE FOR IF TUPN8
+DE-
+Herme
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+fatta di
+WE Do!
+NBRNRs WE DOcOM
+Absen der:
+FedEx aerm eny
+DE-
+DO NOT USE FOR RETURNS
+Emp fänger:
+EB PRERS - DANIIL AVSHALUMOV,
+STARKENBURGSTRA?E 10
+64546 M?RFELDEN- WALLDORF
+Gewicht in kg
+Datum
+Kundenreferenz
+0,7
+2024 -- 08--
+06
+271815157737
+44
+MAINZ
+34-22
+D
+H 102907 01472894 01 044
+Retourenedrese:
+FedEx 0erm eny
+DO NOT USE FOR IF TUPN8
+DE-
+Herme
+
+
+<form>
+file_name: sample_20251210_114625_82573a.txt
+tracking_no: H1029070147289401044
+receiver_country_code: 
+receiver_forwarder_code: 
+receiver_company: 
+receiver_cell_code: 
+receiver_name: DANIIL AVSHALUMOV
+label_type: HERMES
+</form>

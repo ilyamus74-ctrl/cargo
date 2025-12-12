@@ -1,0 +1,69 @@
+TIME: 2025-12-10T11:40:37+01:00
+IP:   88.155.70.42
+========================================
+RAW BODY (php://input):
+raw_text=Absender%3A%0ASunday+Natural+Products+Gm+bH%0AGewertbeg+ebiet+Etzin+1%0ADE-+14669+Ketzin%0AEmpf%C3%A4nger%3A%0AMammadova%2C+Larisa%0AC128469+Colibri+exp%0AStarkenburg+str+10C%0A64546+M%C3%B6rfelden-Walldorf%0AGewict+in+kg%0ADaturm%0AKundenrefererz%0A0%2C68%0A2025-12-08%0A1013891448%0A44%0AMAINZ%0A34-01%0AD
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => Absender:
+Sunday Natural Products Gm bH
+Gewertbeg ebiet Etzin 1
+DE- 14669 Ketzin
+Empfänger:
+Mammadova, Larisa
+C128469 Colibri exp
+Starkenburg str 10C
+64546 Mörfelden-Walldorf
+Gewict in kg
+Daturm
+Kundenrefererz
+0,68
+2025-12-08
+1013891448
+44
+MAINZ
+34-01
+D
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+Absender:
+Sunday Natural Products Gm bH
+Gewertbeg ebiet Etzin 1
+DE- 14669 Ketzin
+Empfänger:
+Mammadova, Larisa
+C128469 Colibri exp
+Starkenburg str 10C
+64546 Mörfelden-Walldorf
+Gewict in kg
+Daturm
+Kundenrefererz
+0,68
+2025-12-08
+1013891448
+44
+MAINZ
+34-01
+D
+
+
+<form>
+file_name: sample_20251210_114037_8b9a97.txt
+tracking_no: 
+receiver_country_code: AZB
+receiver_forwarder_code: COLIBRI
+receiver_company: Colibri Express
+receiver_cell_code: C128469
+receiver_name: Mammadova Larisa
+label_type: 
+</form>

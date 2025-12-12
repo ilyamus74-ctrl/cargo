@@ -1,0 +1,79 @@
+TIME: 2025-12-10T12:02:11+01:00
+IP:   88.155.70.42
+========================================
+RAW BODY (php://input):
+raw_text=DHL+PAKET%0AAbsender+Teiefon%3A%0AHM%0AH%26M+Hennes+%26+Mauritz+GBC+AB%0A08102+Neum+ark%0AGERMANY%0AVon%3A%0AAn%3A+CAMEX+LLC+A212638%0AAlihuseyn+Jamalov%0A64546+M%C3%B6rfelden-Vlalldorf%0AStarkenburgstr.+10A%0AGERMANY%0AZet%0ATag%0A1%2F1%0AGewicht%0Aa78+kg%0A5004268487+O1+08%0A85889821454%0AAbrechriungsnr%3A%0AO0340434731206241644%0ASendungsnr.%0AReferenznr%0A0.8
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => DHL PAKET
+Absender Teiefon:
+HM
+H&M Hennes & Mauritz GBC AB
+08102 Neum ark
+GERMANY
+Von:
+An: CAMEX LLC A212638
+Alihuseyn Jamalov
+64546 Mörfelden-Vlalldorf
+Starkenburgstr. 10A
+GERMANY
+Zet
+Tag
+1/1
+Gewicht
+a78 kg
+5004268487 O1 08
+85889821454
+Abrechriungsnr:
+O0340434731206241644
+Sendungsnr.
+Referenznr
+0.8
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+DHL PAKET
+Absender Teiefon:
+HM
+H&M Hennes & Mauritz GBC AB
+08102 Neum ark
+GERMANY
+Von:
+An: CAMEX LLC A212638
+Alihuseyn Jamalov
+64546 Mörfelden-Vlalldorf
+Starkenburgstr. 10A
+GERMANY
+Zet
+Tag
+1/1
+Gewicht
+a78 kg
+5004268487 O1 08
+85889821454
+Abrechriungsnr:
+O0340434731206241644
+Sendungsnr.
+Referenznr
+0.8
+
+
+<form>
+file_name: sample_20251210_120211_35d082.txt
+tracking_no: 00340434731206241644
+receiver_country_code: AZB
+receiver_forwarder_code: CAMEX
+receiver_company: Camex
+receiver_cell_code: A212638
+receiver_name: Alihuseyn Jamalov
+label_type: DHL
+</form>

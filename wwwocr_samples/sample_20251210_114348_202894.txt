@@ -1,0 +1,70 @@
+TIME: 2025-12-10T11:43:48+01:00
+IP:   88.155.70.42
+========================================
+RAW BODY (php://input):
+raw_text=1%2F1%0A16418364381+90767%0AHERMES-WE-D0.COM%0AFremdbarcode%0AWE+DO%21%0AD810573508%0ADeutschland%0A64546+M%C3%B6rfelden-Walldorf%0AFremdbarcode%0AStarkenburgstr.+10C%0ACOLIBRI+EXPRESS+-+COLIBRI+EXPRES%0AZulfiyye+Ekberova%0AHHermes%0ADE%0A34+-+01%0AMAINZ%0A44+D%0AHi024562578596501944%0AZAL+DEU
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => 1/1
+16418364381 90767
+HERMES-WE-D0.COM
+Fremdbarcode
+WE DO!
+D810573508
+Deutschland
+64546 Mörfelden-Walldorf
+Fremdbarcode
+Starkenburgstr. 10C
+COLIBRI EXPRESS - COLIBRI EXPRES
+Zulfiyye Ekberova
+HHermes
+DE
+34 - 01
+MAINZ
+44 D
+Hi024562578596501944
+ZAL DEU
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+1/1
+16418364381 90767
+HERMES-WE-D0.COM
+Fremdbarcode
+WE DO!
+D810573508
+Deutschland
+64546 Mörfelden-Walldorf
+Fremdbarcode
+Starkenburgstr. 10C
+COLIBRI EXPRESS - COLIBRI EXPRES
+Zulfiyye Ekberova
+HHermes
+DE
+34 - 01
+MAINZ
+44 D
+Hi024562578596501944
+ZAL DEU
+
+
+
+<form>
+file_name: sample_20251210_114348_202894.txt
+tracking_no: H1024562578596501944
+receiver_country_code: AZB
+receiver_forwarder_code: COLIBRI
+receiver_company: Colibri Express
+receiver_cell_code: 
+receiver_name: Zulfiyye Ekberova
+label_type: HERMES
+</form>

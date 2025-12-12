@@ -1,0 +1,63 @@
+TIME: 2025-12-10T11:35:17+01:00
+IP:   88.155.70.42
+========================================
+RAW BODY (php://input):
+raw_text=e91755601+044%0A-4D%0AMAINZ%0A%7C-01%0AEmpf%C3%A4nger%3A%0ABeauty%0ALimited%0ARevolution+Beauty%2C%0AStatham+Road%0AGermany%0AWN8+8UY+Skelmersdale%0AGreat+Britain%0Acumsud+koliexp+suleymanov%0AStarkenburgstral%C3%9Fe+10k%2C%0AKL404437+Koli%0A64546+M%C3%B6rfelden-Walldorf
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => e91755601 044
+-4D
+MAINZ
+|-01
+Empfänger:
+Beauty
+Limited
+Revolution Beauty,
+Statham Road
+Germany
+WN8 8UY Skelmersdale
+Great Britain
+cumsud koliexp suleymanov
+Starkenburgstralße 10k,
+KL404437 Koli
+64546 Mörfelden-Walldorf
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+e91755601 044
+-4D
+MAINZ
+|-01
+Empfänger:
+Beauty
+Limited
+Revolution Beauty,
+Statham Road
+Germany
+WN8 8UY Skelmersdale
+Great Britain
+cumsud koliexp suleymanov
+Starkenburgstralße 10k,
+KL404437 Koli
+64546 Mörfelden-Walldorf
+
+
+<form>
+file_name: sample_20251210_113517_9851c2.txt
+tracking_no: 
+receiver_country_code: AZB
+receiver_forwarder_code: KOLLI
+receiver_company: Kolli MMC
+receiver_cell_code: KL404437
+receiver_name: cumsud suleymanov
+label_type: 
+</form>

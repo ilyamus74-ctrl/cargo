@@ -1,0 +1,49 @@
+TIME: 2025-12-10T11:47:07+01:00
+IP:   88.155.70.42
+========================================
+RAW BODY (php://input):
+raw_text=PRG2%0ACOLIBRI+EXP+Ziya+Mikayilov+C114692%0A0.22+Kgs+08%2F07%0AHessenring+23c%0A64546+M%C3%B6rfelden-+Walldorf+%2C+Germany%0ADE3575920212%0ADHE1%0AINO%2F%0ACYCLE+1
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => PRG2
+COLIBRI EXP Ziya Mikayilov C114692
+0.22 Kgs 08/07
+Hessenring 23c
+64546 Mörfelden- Walldorf , Germany
+DE3575920212
+DHE1
+INO/
+CYCLE 1
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+PRG2
+COLIBRI EXP Ziya Mikayilov C114692
+0.22 Kgs 08/07
+Hessenring 23c
+64546 Mörfelden- Walldorf , Germany
+DE3575920212
+DHE1
+INO/
+CYCLE 1
+
+
+<form>
+file_name: sample_20251210_114707_d458f3.txt
+tracking_no: 
+receiver_country_code: AZB
+receiver_forwarder_code: COLIBRI
+receiver_company: Colibri Express
+receiver_cell_code: C114692
+receiver_name: Ziya Mikayilov
+label_type: DHL
+</form>

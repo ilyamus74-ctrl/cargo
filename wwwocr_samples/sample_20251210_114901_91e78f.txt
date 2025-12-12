@@ -1,0 +1,62 @@
+TIME: 2025-12-10T11:49:01+01:00
+IP:   88.155.70.42
+========================================
+RAW BODY (php://input):
+raw_text=GoGreen%0ADHL-%0AJJDO00390017980413581%0A64546.211.010.+00+0%0AGERMANY%0A64546+M%C3%96RFELDEN-WALLDORF%0ASTARKENBURGSTRASSE+10C%0AAHMADOV+C151629%0ACOLIBRI+EXPRESS+-ABULFAZ%0ACOLIBRI+Abulfaz+Ahmadov%0AGew.%3A0.15+kg.%0ACzechia%0ADobroviz+25261%0AK+Amazonu+235%0AAmazon+Rucksendezentrum%0ARuecksendung+an%3A
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => GoGreen
+DHL-
+JJDO00390017980413581
+64546.211.010. 00 0
+GERMANY
+64546 MÖRFELDEN-WALLDORF
+STARKENBURGSTRASSE 10C
+AHMADOV C151629
+COLIBRI EXPRESS -ABULFAZ
+COLIBRI Abulfaz Ahmadov
+Gew.:0.15 kg.
+Czechia
+Dobroviz 25261
+K Amazonu 235
+Amazon Rucksendezentrum
+Ruecksendung an:
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+GoGreen
+DHL-
+JJDO00390017980413581
+64546.211.010. 00 0
+GERMANY
+64546 MÖRFELDEN-WALLDORF
+STARKENBURGSTRASSE 10C
+AHMADOV C151629
+COLIBRI EXPRESS -ABULFAZ
+COLIBRI Abulfaz Ahmadov
+Gew.:0.15 kg.
+Czechia
+Dobroviz 25261
+K Amazonu 235
+Amazon Rucksendezentrum
+Ruecksendung an:
+
+<form>
+file_name: sample_20251210_114901_91e78f.txt
+tracking_no: JJDO00390017980413581
+receiver_country_code: AZB
+receiver_forwarder_code: COLIBRI
+receiver_company: Colibri Express
+receiver_cell_code: C151629
+receiver_name: Abulfaz Ahmadov
+label_type: DHL
+</form>

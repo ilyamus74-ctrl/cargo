@@ -1,0 +1,72 @@
+TIME: 2025-12-10T11:37:48+01:00
+IP:   88.155.70.42
+========================================
+RAW BODY (php://input):
+raw_text=K9%0AES+nAALBACEIE%0ARTGOZa122025+S26%0ACust.+Nc.%3A%0Akg+t1%0A643%0A1215679829%0A%28DE--003939850%29%0A4961033767+290%0AMorfelden-Waldorf%0AStarkenburgstrae+10c+Colibri+C414328%0AID+No%0ANote%0ANole%0A03+12+202515%2C14+2.50%0APhone%0AContact%0ADE+64546%0AST0779722%0ALeyla+lbrahimova%0AES3900
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => K9
+ES nAALBACEIE
+RTGOZa122025 S26
+Cust. Nc.:
+kg t1
+643
+1215679829
+(DE--003939850)
+4961033767 290
+Morfelden-Waldorf
+Starkenburgstrae 10c Colibri C414328
+ID No
+Note
+Nole
+03 12 202515,14 2.50
+Phone
+Contact
+DE 64546
+ST0779722
+Leyla lbrahimova
+ES3900
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+K9
+ES nAALBACEIE
+RTGOZa122025 S26
+Cust. Nc.:
+kg t1
+643
+1215679829
+(DE--003939850)
+4961033767 290
+Morfelden-Waldorf
+Starkenburgstrae 10c Colibri C414328
+ID No
+Note
+Nole
+03 12 202515,14 2.50
+Phone
+Contact
+DE 64546
+ST0779722
+Leyla lbrahimova
+ES3900
+
+<form>
+file_name: sample_20251210_113748_084e16.txt
+tracking_no: 
+receiver_country_code: AZB
+receiver_forwarder_code: COLIBRI
+receiver_company: Colibri Express
+receiver_cell_code: C414328
+receiver_name: Leyla lbrahimova
+label_type: 
+</form>

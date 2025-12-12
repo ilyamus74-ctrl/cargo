@@ -1,0 +1,80 @@
+TIME: 2025-12-10T12:01:17+01:00
+IP:   88.155.70.42
+========================================
+RAW BODY (php://input):
+raw_text=Time%0A1%2F1%0ADay%0A477%0A64546.21l+010%2C000%0AShipment+Ref.%3A+21211399945600100030%0A682434837673%0A2%2C00+kg%0A700011103501CA%0AShipment+No%3A%0AWeight%3A%0ABilling+No%3A%0AGermany%0A64546+M%C3%B6rfelden-Walldorf%0AStarkenburgstra%C3%9Fe+10k+12%0AT0+KoliExpress+Vefa+Ezizova%0AGERMANY%0A14641+B%C3%B6rnicke%0APoststrasse+510%0AInditex+%28Zara%29%0AProm+DHL%2FZara%0ADHL+PAKET%0A68%0A3
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => Time
+1/1
+Day
+477
+64546.21l 010,000
+Shipment Ref.: 21211399945600100030
+682434837673
+2,00 kg
+700011103501CA
+Shipment No:
+Weight:
+Billing No:
+Germany
+64546 Mörfelden-Walldorf
+Starkenburgstraße 10k 12
+T0 KoliExpress Vefa Ezizova
+GERMANY
+14641 Börnicke
+Poststrasse 510
+Inditex (Zara)
+Prom DHL/Zara
+DHL PAKET
+68
+3
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+Time
+1/1
+Day
+477
+64546.21l 010,000
+Shipment Ref.: 21211399945600100030
+682434837673
+2,00 kg
+700011103501CA
+Shipment No:
+Weight:
+Billing No:
+Germany
+64546 Mörfelden-Walldorf
+Starkenburgstraße 10k 12
+T0 KoliExpress Vefa Ezizova
+GERMANY
+14641 Börnicke
+Poststrasse 510
+Inditex (Zara)
+Prom DHL/Zara
+DHL PAKET
+68
+3
+
+
+
+<form>
+file_name: sample_20251210_120117_e78aa2.txt
+tracking_no: 21211399945600100030
+receiver_country_code: AZB
+receiver_forwarder_code: KOLLI
+receiver_company: Kolli MMC
+receiver_cell_code: 
+receiver_name: Vefa Ezizova
+label_type: DHL
+</form>

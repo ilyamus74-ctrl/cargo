@@ -1,0 +1,91 @@
+TIME: 2025-12-10T11:44:21+01:00
+IP:   88.155.70.42
+========================================
+RAW BODY (php://input):
+raw_text=%2B0L%0ADHL+PAKET+UND+P%C3%83CKCHEN+DEUTSCHLAND+%2B+EU%0AAbsenderin%2FSender%0APastleitzahl%0ADeutschland+%2F+Germany%0AFrankierung+f%C3%BCr+P%C3%A4ckchen+und+Pakete%0Abitte+hier+aufkleben%21%0AEmpf%C3%A4nger%3Ain%2FAddressee%0AVor-+und+Nachname%0AStreetg%0AGS9Lb0000LLbEt0bE00%0AAdre%C5%9Fszusata%2F+Postnr.+f%C3%BCr+Packfion+Tel.+%28nur+bei+EU-Versand+oder+Sperrgut%0AStra%C3%9Fe+und+Hausnr.+%28%0AStrkenburstr.%0A64346%0APostleitzahl%0ALand%2FDestination%0AAuftragnehmer+%28Frachtf%C3%BChrer%29+ist+die+Deutsche+Post+AG.+Es+gelten+f%C3%BCr+P%C3%A4ckchen+die+AGB+Brief+National+bzw.+International+und+f%C3%BCr%0APakete+die+AGB+DHLPaket%2F+Express+National+bzw%2C.+Paket+international+in+der+jewels+zum+Zeitpunkt+der+Einlieferung+g%C3%BCltigen+Fassung.%0AMit+der+Einlieterung+wird+versichert%2C+dass+keing+danach+ausgeschlossenen+G%C3%BCter+in+der+eingelieferten+Sendung+enthalten+sind.%0AOrt%0AS591L000122%0AOH%0Ahohrelden+balda%0AInklusive+nachhaltigem+Versand.%0ACO%2Ce-Emissionen+werden+durch+Investitionen+in+Klimaschutz2projekte%0Aausgeglichen.+Mehr+Informationen+unter+dhl.de%2Fgogreen%0AZul%C3%A4ssige+Ma%C3%9Fe%2C+Gewichte%2C+Services+und+Bestimmungslander%3A%0Asiehe+R%C3%BCckseite+oder+unter+dhl.de%0A912-685-000+07%2F24
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => +0L
+DHL PAKET UND PÃCKCHEN DEUTSCHLAND + EU
+Absenderin/Sender
+Pastleitzahl
+Deutschland / Germany
+Frankierung für Päckchen und Pakete
+bitte hier aufkleben!
+Empfänger:in/Addressee
+Vor- und Nachname
+Streetg
+GS9Lb0000LLbEt0bE00
+Adreşszusata/ Postnr. für Packfion Tel. (nur bei EU-Versand oder Sperrgut
+Straße und Hausnr. (
+Strkenburstr.
+64346
+Postleitzahl
+Land/Destination
+Auftragnehmer (Frachtführer) ist die Deutsche Post AG. Es gelten für Päckchen die AGB Brief National bzw. International und für
+Pakete die AGB DHLPaket/ Express National bzw,. Paket international in der jewels zum Zeitpunkt der Einlieferung gültigen Fassung.
+Mit der Einlieterung wird versichert, dass keing danach ausgeschlossenen Güter in der eingelieferten Sendung enthalten sind.
+Ort
+S591L000122
+OH
+hohrelden balda
+Inklusive nachhaltigem Versand.
+CO,e-Emissionen werden durch Investitionen in Klimaschutz2projekte
+ausgeglichen. Mehr Informationen unter dhl.de/gogreen
+Zulässige Maße, Gewichte, Services und Bestimmungslander:
+siehe Rückseite oder unter dhl.de
+912-685-000 07/24
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
++0L
+DHL PAKET UND PÃCKCHEN DEUTSCHLAND + EU
+Absenderin/Sender
+Pastleitzahl
+Deutschland / Germany
+Frankierung für Päckchen und Pakete
+bitte hier aufkleben!
+Empfänger:in/Addressee
+Vor- und Nachname
+Streetg
+GS9Lb0000LLbEt0bE00
+Adreşszusata/ Postnr. für Packfion Tel. (nur bei EU-Versand oder Sperrgut
+Straße und Hausnr. (
+Strkenburstr.
+64346
+Postleitzahl
+Land/Destination
+Auftragnehmer (Frachtführer) ist die Deutsche Post AG. Es gelten für Päckchen die AGB Brief National bzw. International und für
+Pakete die AGB DHLPaket/ Express National bzw,. Paket international in der jewels zum Zeitpunkt der Einlieferung gültigen Fassung.
+Mit der Einlieterung wird versichert, dass keing danach ausgeschlossenen Güter in der eingelieferten Sendung enthalten sind.
+Ort
+S591L000122
+OH
+hohrelden balda
+Inklusive nachhaltigem Versand.
+CO,e-Emissionen werden durch Investitionen in Klimaschutz2projekte
+ausgeglichen. Mehr Informationen unter dhl.de/gogreen
+Zulässige Maße, Gewichte, Services und Bestimmungslander:
+siehe Rückseite oder unter dhl.de
+912-685-000 07/24
+
+
+<form>
+file_name: sample_20251210_114421_0f6844.txt
+tracking_no: 
+receiver_country_code: 
+receiver_forwarder_code: 
+receiver_company: 
+receiver_cell_code: 
+receiver_name: 
+label_type: DHL
+</form>

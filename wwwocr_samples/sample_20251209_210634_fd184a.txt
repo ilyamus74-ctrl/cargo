@@ -1,0 +1,127 @@
+TIME: 2025-12-09T21:06:34+01:00
+IP:   84.166.213.45
+========================================
+RAW BODY (php://input):
+raw_text=1%3A%0Aan%3A%0AZAL+DEU%0AH1824562518731501044%0A44+D%0AMAINZ%0A34+-+01%0A2%0AAS241661%0AFrom%0AzalandD%0ACharge%0ACollect%0APrepaid%0AShipper%0ASara+Ceierova%0AAS241661%0AASER-Sara+Ceferova%0AAS241661%0AStarkenburgstr.+10%0A64546+M%C3%B6rfelden-Walldorf%0ADeutschland%0ADeutschland%2FPheiniand+Pfalz%2FSohren%0ARoubuchemweg+3.+55487%0APoslcode+%2F+ZIP+Phone.+Fa+or+Email%0ACode%0A%28required%29%0A4%0ATotal+number%0Aof+packages%0A1%0AHermes%0AShipment+details%0ATrarsportalion%0ATotal%0AGross%0Aweight%0A%28kg%29%0AWE+DO%21%0A0.900%0AHERMESWE-00.COM%0A1%2F1%0AHHN%0AChargeable%0AVoluma%0AWelght+%28kg%29%0A0.000%0AAnz
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => 1:
+an:
+ZAL DEU
+H1824562518731501044
+44 D
+MAINZ
+34 - 01
+2
+AS241661
+From
+zalandD
+Charge
+Collect
+Prepaid
+Shipper
+Sara Ceierova
+AS241661
+ASER-Sara Ceferova
+AS241661
+Starkenburgstr. 10
+64546 Mörfelden-Walldorf
+Deutschland
+Deutschland/Pheiniand Pfalz/Sohren
+Roubuchemweg 3. 55487
+Poslcode / ZIP Phone. Fa or Email
+Code
+(required)
+4
+Total number
+of packages
+1
+Hermes
+Shipment details
+Trarsportalion
+Total
+Gross
+weight
+(kg)
+WE DO!
+0.900
+HERMESWE-00.COM
+1/1
+HHN
+Chargeable
+Voluma
+Welght (kg)
+0.000
+Anz
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+1:
+an:
+ZAL DEU
+H1824562518731501044
+44 D
+MAINZ
+34 - 01
+2
+AS241661
+From
+zalandD
+Charge
+Collect
+Prepaid
+Shipper
+Sara Ceierova
+AS241661
+ASER-Sara Ceferova
+AS241661
+Starkenburgstr. 10
+64546 Mörfelden-Walldorf
+Deutschland
+Deutschland/Pheiniand Pfalz/Sohren
+Roubuchemweg 3. 55487
+Poslcode / ZIP Phone. Fa or Email
+Code
+(required)
+4
+Total number
+of packages
+1
+Hermes
+Shipment details
+Trarsportalion
+Total
+Gross
+weight
+(kg)
+WE DO!
+0.900
+HERMESWE-00.COM
+1/1
+HHN
+Chargeable
+Voluma
+Welght (kg)
+0.000
+Anz
+
+<form>
+file_name: sample_20251209_210634_fd184a.txt
+tracking_no: H1824562518731501044
+receiver_country_code: AZB
+receiver_forwarder_code: ASER
+receiver_company: AserCargo
+receiver_cell_code: AS241661
+receiver_name: Sara Ceierova
+label_type: HERMES
+</form>
+

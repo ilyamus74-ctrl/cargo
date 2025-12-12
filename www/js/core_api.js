@@ -412,6 +412,7 @@ document.addEventListener('click', function (e) {
             fd2.append('action', 'open_item_in_batch');
             fd2.append('batch_uid', batchUid);
 
+
             fetch('/core_api.php', {
                 method: 'POST',
                 body: fd2

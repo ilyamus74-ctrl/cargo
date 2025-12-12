@@ -1,0 +1,67 @@
+TIME: 2025-12-10T11:35:24+01:00
+IP:   88.155.70.42
+========================================
+RAW BODY (php://input):
+raw_text=Destination%0ACumsud+Koliexp+Suleymanov%0ASiarkenburgstrasse+10k%0AKL404437+Koli%0AMorfelden+-+Walldorf%0A64546%0AGERMANY%0ADaie%0AWeight+in+kg%0AReference+1%0AReference+2%0A2025-12-+04%0A2.23%0A33+DEU%0AGECO%0A00012342230733276Q14%0AVAN+25%0AH-04WQ-C-000525779-3
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => Destination
+Cumsud Koliexp Suleymanov
+Siarkenburgstrasse 10k
+KL404437 Koli
+Morfelden - Walldorf
+64546
+GERMANY
+Daie
+Weight in kg
+Reference 1
+Reference 2
+2025-12- 04
+2.23
+33 DEU
+GECO
+00012342230733276Q14
+VAN 25
+H-04WQ-C-000525779-3
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+Destination
+Cumsud Koliexp Suleymanov
+Siarkenburgstrasse 10k
+KL404437 Koli
+Morfelden - Walldorf
+64546
+GERMANY
+Daie
+Weight in kg
+Reference 1
+Reference 2
+2025-12- 04
+2.23
+33 DEU
+GECO
+00012342230733276Q14
+VAN 25
+H-04WQ-C-000525779-3
+
+
+<form>
+file_name: sample_20251210_113524_bd9b92.txt
+tracking_no: 00012342230733276Q14
+receiver_country_code: AZB
+receiver_forwarder_code: KOLLI
+receiver_company: Kolli MMC
+receiver_cell_code: KL404437
+receiver_name: Cumsud Suleymanov
+label_type: 
+</form>

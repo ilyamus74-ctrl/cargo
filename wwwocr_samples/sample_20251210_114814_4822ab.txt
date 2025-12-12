@@ -1,0 +1,54 @@
+TIME: 2025-12-10T11:48:14+01:00
+IP:   88.155.70.42
+========================================
+RAW BODY (php://input):
+raw_text=Anar+Babayev%0ACOLIBRI+EXPRESS+-Anar+Babayev+C158697%0AStarkenburgstr.+10C%0ADE423616+9787+M%C3%B4rtelden-Walldort%0A64546%0ALIQUID%0A03%2F03%0ACYCLE+1%0A0.12+kgs%0AUns0Cp83y%0A1%2F1207%0ADHEI
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => Anar Babayev
+COLIBRI EXPRESS -Anar Babayev C158697
+Starkenburgstr. 10C
+DE423616 9787 Môrtelden-Walldort
+64546
+LIQUID
+03/03
+CYCLE 1
+0.12 kgs
+Uns0Cp83y
+1/1207
+DHEI
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+Anar Babayev
+COLIBRI EXPRESS -Anar Babayev C158697
+Starkenburgstr. 10C
+DE423616 9787 Môrtelden-Walldort
+64546
+LIQUID
+03/03
+CYCLE 1
+0.12 kgs
+Uns0Cp83y
+1/1207
+DHEI
+
+<form>
+file_name: sample_20251210_114814_4822ab.txt
+tracking_no: 
+receiver_country_code: AZB
+receiver_forwarder_code: COLIBRI
+receiver_company: Colibri Express
+receiver_cell_code: C158697
+receiver_name: Anar Babayev
+label_type: DHL
+</form>

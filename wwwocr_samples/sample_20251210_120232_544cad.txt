@@ -1,0 +1,58 @@
+TIME: 2025-12-10T12:02:32+01:00
+IP:   88.155.70.42
+========================================
+RAW BODY (php://input):
+raw_text=Zalando+Lounge%0AFROM%3A%0A14464+Potsdam%0A7741000372011717%0A2025-12-08%0ARef.No%2FRec.Ref%3A%0ADate%3A%0A0709949543%0A64546+M%C3%B6rfelden+-Walldorf%0AT+Jo%3A+Khatira+Targuliyeva%0AStarkenburgstr+10A%0ACAMEX-A176903%0ADeutschland%0A64.546+211.010+00+0
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => Zalando Lounge
+FROM:
+14464 Potsdam
+7741000372011717
+2025-12-08
+Ref.No/Rec.Ref:
+Date:
+0709949543
+64546 Mörfelden -Walldorf
+T Jo: Khatira Targuliyeva
+Starkenburgstr 10A
+CAMEX-A176903
+Deutschland
+64.546 211.010 00 0
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+Zalando Lounge
+FROM:
+14464 Potsdam
+7741000372011717
+2025-12-08
+Ref.No/Rec.Ref:
+Date:
+0709949543
+64546 Mörfelden -Walldorf
+T Jo: Khatira Targuliyeva
+Starkenburgstr 10A
+CAMEX-A176903
+Deutschland
+64.546 211.010 00 0
+
+<form>
+file_name: sample_20251210_120232_544cad.txt
+tracking_no: 
+receiver_country_code: AZB
+receiver_forwarder_code: CAMEX
+receiver_company: Camex
+receiver_cell_code: A176903
+receiver_name: Khatira Targuliyeva
+label_type: 
+</form>

@@ -1,0 +1,63 @@
+TIME: 2025-12-10T11:37:10+01:00
+IP:   88.155.70.42
+========================================
+RAW BODY (php://input):
+raw_text=DEU%0AHHernmes%0A24562579218401044%0A01%0AFremdbarcode%0AKoliExpress+Ayshen+Ehmedova%0AKL418211%0AStarkenburgstra%C3%9Fe+10k+12%0A64546+M%C3%B6rfelden-Walldorf%0ADeutschland%0A0810639478%0AWE+DO%21%0AFremdbarcode%0AHERAES+ME+00tOM%0A1041040438092486%0A1%2F1
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => DEU
+HHernmes
+24562579218401044
+01
+Fremdbarcode
+KoliExpress Ayshen Ehmedova
+KL418211
+Starkenburgstraße 10k 12
+64546 Mörfelden-Walldorf
+Deutschland
+0810639478
+WE DO!
+Fremdbarcode
+HERAES ME 00tOM
+1041040438092486
+1/1
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+DEU
+HHernmes
+24562579218401044
+01
+Fremdbarcode
+KoliExpress Ayshen Ehmedova
+KL418211
+Starkenburgstraße 10k 12
+64546 Mörfelden-Walldorf
+Deutschland
+0810639478
+WE DO!
+Fremdbarcode
+HERAES ME 00tOM
+1041040438092486
+1/1
+
+
+<form>
+file_name: sample_20251210_113710_4b6359.txt
+tracking_no: 24562579218401044
+receiver_country_code: AZB
+receiver_forwarder_code: KOLLI
+receiver_company: Kolli MMC
+receiver_cell_code: KL418211
+receiver_name: Ayshen Ehmedova
+label_type: HERMES
+</form>

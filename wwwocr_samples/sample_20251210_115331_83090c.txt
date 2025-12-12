@@ -1,0 +1,81 @@
+TIME: 2025-12-10T11:53:31+01:00
+IP:   88.155.70.42
+========================================
+RAW BODY (php://input):
+raw_text=0.656+kg%0APolds%0ADror+code+%2F%0APhone+%2B498103876729+%2F+%2B496103376720%0A11%0AAncount%3A%0AColls%0A826355%0AOP71+Fron+ce%0ADE-ALLEMAGNE%0A10+STARKENBURCSTRAS%C5%9EE%0A64546+MOHFELDEN-WALLDORF%0AC183653+COLIBRI+EXPRESS%0ADestnstire+etrNeE%0ASELMI+M+HACIYEVA%0ASELMI+HACIYEVA%0ARet+cient+%3A+D1100309121347137%0A%2B33251663+B3B%0AFR+FRANCE%0A85500+LES+HERBIERS%0AI+La+Rehouchenniere%0AAv+Henri+Jenneai%0ACYF+D+togisics%0ASERIer%0Acolissimo%3A
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => 0.656 kg
+Polds
+Dror code /
+Phone +498103876729 / +496103376720
+11
+Ancount:
+Colls
+826355
+OP71 Fron ce
+DE-ALLEMAGNE
+10 STARKENBURCSTRASŞE
+64546 MOHFELDEN-WALLDORF
+C183653 COLIBRI EXPRESS
+Destnstire etrNeE
+SELMI M HACIYEVA
+SELMI HACIYEVA
+Ret cient : D1100309121347137
++33251663 B3B
+FR FRANCE
+85500 LES HERBIERS
+I La Rehouchenniere
+Av Henri Jenneai
+CYF D togisics
+SERIer
+colissimo:
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+0.656 kg
+Polds
+Dror code /
+Phone +498103876729 / +496103376720
+11
+Ancount:
+Colls
+826355
+OP71 Fron ce
+DE-ALLEMAGNE
+10 STARKENBURCSTRASŞE
+64546 MOHFELDEN-WALLDORF
+C183653 COLIBRI EXPRESS
+Destnstire etrNeE
+SELMI M HACIYEVA
+SELMI HACIYEVA
+Ret cient : D1100309121347137
++33251663 B3B
+FR FRANCE
+85500 LES HERBIERS
+I La Rehouchenniere
+Av Henri Jenneai
+CYF D togisics
+SERIer
+colissimo:
+
+
+<form>
+file_name: sample_20251210_115331_83090c.txt
+tracking_no: 
+receiver_country_code: AZB
+receiver_forwarder_code: COLIBRI
+receiver_company: Colibri Express
+receiver_cell_code: C183653
+receiver_name: SELMI HACIYEVA
+label_type: 
+</form>

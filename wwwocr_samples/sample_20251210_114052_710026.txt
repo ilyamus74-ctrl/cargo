@@ -1,0 +1,57 @@
+TIME: 2025-12-10T11:40:52+01:00
+IP:   88.155.70.42
+========================================
+RAW BODY (php://input):
+raw_text=ZAL+DEU%0AHHermes%0AH1824531310473401g44%0A-+01%0ACOLIBRI+EXPRESS+Kebuter+Ebduerehm%0AC189008%2C+Deutschland+Hessen%2C+%2B49+6%0AStarkenburgstr.+10C%0AWEDO%0A64546+M%C3%B6rfelden-Walldorf%0ADeutschland%0AFremdbarcode%0A9811936425%0A1%2F1
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => ZAL DEU
+HHermes
+H1824531310473401g44
+- 01
+COLIBRI EXPRESS Kebuter Ebduerehm
+C189008, Deutschland Hessen, +49 6
+Starkenburgstr. 10C
+WEDO
+64546 Mörfelden-Walldorf
+Deutschland
+Fremdbarcode
+9811936425
+1/1
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+ZAL DEU
+HHermes
+H1824531310473401g44
+- 01
+COLIBRI EXPRESS Kebuter Ebduerehm
+C189008, Deutschland Hessen, +49 6
+Starkenburgstr. 10C
+WEDO
+64546 Mörfelden-Walldorf
+Deutschland
+Fremdbarcode
+9811936425
+1/1
+
+
+<form>
+file_name: sample_20251210_114052_710026.txt
+tracking_no: H1824531310473401944
+receiver_country_code: AZB
+receiver_forwarder_code: COLIBRI
+receiver_company: Colibri Express
+receiver_cell_code: C189008
+receiver_name: Kebuter Ebduerehm
+label_type: HERMES
+</form>

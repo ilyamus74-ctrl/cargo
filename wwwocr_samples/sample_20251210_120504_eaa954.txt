@@ -1,0 +1,79 @@
+TIME: 2025-12-10T12:05:04+01:00
+IP:   88.155.70.42
+========================================
+RAW BODY (php://input):
+raw_text=20+kg+Paket%0ADHL%0AVon%3A+Orthop%C3%A4die-Geld%0A%5BAn%3A%0AFeldstr.%0AFeldstr.+9%0A54516+Wittlich%0ADeutschland%0ATLS+Cargo+GmbH%0AStarkenburgstr.+10%0A64546+M%C3%B6rfelden-Walldorf%0ADeutschland%0A%22Leitcode%2FRoutingcode%0A1dentc%0AGoGreen%0AWir+kompensieren+CO2-Emissionen%0A64546.211.010.00.0%0APaket+Nat.+bis+20+kg%0AService+SPERRGUT+AEncorbrant%0AEntglt+ezaht%0AMEHR+KOMMFORT+EIN%0A10%2B%0AEntgelt+Bezahlt%0APostage+Paid
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => 20 kg Paket
+DHL
+Von: Orthopädie-Geld
+[An:
+Feldstr.
+Feldstr. 9
+54516 Wittlich
+Deutschland
+TLS Cargo GmbH
+Starkenburgstr. 10
+64546 Mörfelden-Walldorf
+Deutschland
+"Leitcode/Routingcode
+1dentc
+GoGreen
+Wir kompensieren CO2-Emissionen
+64546.211.010.00.0
+Paket Nat. bis 20 kg
+Service SPERRGUT AEncorbrant
+Entglt ezaht
+MEHR KOMMFORT EIN
+10+
+Entgelt Bezahlt
+Postage Paid
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+20 kg Paket
+DHL
+Von: Orthopädie-Geld
+[An:
+Feldstr.
+Feldstr. 9
+54516 Wittlich
+Deutschland
+TLS Cargo GmbH
+Starkenburgstr. 10
+64546 Mörfelden-Walldorf
+Deutschland
+"Leitcode/Routingcode
+1dentc
+GoGreen
+Wir kompensieren CO2-Emissionen
+64546.211.010.00.0
+Paket Nat. bis 20 kg
+Service SPERRGUT AEncorbrant
+Entglt ezaht
+MEHR KOMMFORT EIN
+10+
+Entgelt Bezahlt
+Postage Paid
+
+
+<form>
+file_name: sample_20251210_120504_eaa954.txt
+tracking_no: 
+receiver_country_code: 
+receiver_forwarder_code: 
+receiver_company: 
+receiver_cell_code: 
+receiver_name: 
+label_type: DHL
+</form>

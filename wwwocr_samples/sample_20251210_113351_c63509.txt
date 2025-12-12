@@ -1,0 +1,70 @@
+TIME: 2025-12-10T11:33:51+01:00
+IP:   88.155.70.42
+========================================
+RAW BODY (php://input):
+raw_text=MGASIYAT+MGASADULAEVA%0AMGASIYAT+MGASADULAEV%C4%84%0ACAMARAKG+K20185%0AST%C3%84RKENBURGSTR+10E%0A64546+HESSEN%0ADE-ALLEMAGNE%0APhone+%3A+%2F4961058794042%0ADoor+code%3A+1%0ABet+desti+BR047%0ADesiabaie+Destinee%0AColls%0A1%2F1%0APolds%0A1.127+kg%0AFR+FRANCE%0A96200+NRY+SUR+SEINE%0AAXEIS%2B%0AS+Re+Pere+Rig%0AAsnoUIL641364%0AS+922+LeE+68+TeLe+Sb89+9211+9%25S+b900
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => MGASIYAT MGASADULAEVA
+MGASIYAT MGASADULAEVĄ
+CAMARAKG K20185
+STÄRKENBURGSTR 10E
+64546 HESSEN
+DE-ALLEMAGNE
+Phone : /4961058794042
+Door code: 1
+Bet desti BR047
+Desiabaie Destinee
+Colls
+1/1
+Polds
+1.127 kg
+FR FRANCE
+96200 NRY SUR SEINE
+AXEIS+
+S Re Pere Rig
+AsnoUIL641364
+S 922 LeE 68 TeLe Sb89 9211 9%S b900
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+MGASIYAT MGASADULAEVA
+MGASIYAT MGASADULAEVĄ
+CAMARAKG K20185
+STÄRKENBURGSTR 10E
+64546 HESSEN
+DE-ALLEMAGNE
+Phone : /4961058794042
+Door code: 1
+Bet desti BR047
+Desiabaie Destinee
+Colls
+1/1
+Polds
+1.127 kg
+FR FRANCE
+96200 NRY SUR SEINE
+AXEIS+
+S Re Pere Rig
+AsnoUIL641364
+S 922 LeE 68 TeLe Sb89 9211 9%S b900
+
+<form>
+file_name: sample_20251210_113351_c63509.txt
+tracking_no: 
+receiver_country_code: KG
+receiver_forwarder_code: CAMARATC
+receiver_company: Camaratc
+receiver_cell_code: K20185
+receiver_name: MGASIYAT MGASADULAEVA
+label_type: 
+</form>

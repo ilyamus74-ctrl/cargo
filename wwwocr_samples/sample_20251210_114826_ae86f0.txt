@@ -1,0 +1,60 @@
+TIME: 2025-12-10T11:48:26+01:00
+IP:   88.155.70.42
+========================================
+RAW BODY (php://input):
+raw_text=FRMESWE-DO+CG%0AVE+DO%21%0A34-01%0ADEU%0AGermany%0A64546+Moerfelden--Walldorf%0AStarkenburgstrasse+10c%0AColibri+Express+Nele+Pamira+Stellner+C+1%0ANele+Pamira+Steliner%0AMAINZ%0A044+D%0AGermany%0AH1028960172693201044%0A52098+Aachen%0AApotheke+DocMorris
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => FRMESWE-DO CG
+VE DO!
+34-01
+DEU
+Germany
+64546 Moerfelden--Walldorf
+Starkenburgstrasse 10c
+Colibri Express Nele Pamira Stellner C 1
+Nele Pamira Steliner
+MAINZ
+044 D
+Germany
+H1028960172693201044
+52098 Aachen
+Apotheke DocMorris
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+FRMESWE-DO CG
+VE DO!
+34-01
+DEU
+Germany
+64546 Moerfelden--Walldorf
+Starkenburgstrasse 10c
+Colibri Express Nele Pamira Stellner C 1
+Nele Pamira Steliner
+MAINZ
+044 D
+Germany
+H1028960172693201044
+52098 Aachen
+Apotheke DocMorris
+
+<form>
+file_name: sample_20251210_114826_ae86f0.txt
+tracking_no: H1028960172693201044
+receiver_country_code: AZB
+receiver_forwarder_code: COLIBRI
+receiver_company: Colibri Express
+receiver_cell_code: C1
+receiver_name: Nele Pamira Stellner
+label_type: HERMES
+</form>

@@ -1,0 +1,92 @@
+TIME: 2025-12-10T11:27:37+01:00
+IP:   88.155.70.42
+========================================
+RAW BODY (php://input):
+raw_text=NST+1%0A020697+64546%0ADE+64546%0AKontakt%0APostleltzahl%0ANotiz%0ANotiz%0ADE+120+03+08.122025+10%3A59%3A011.13+ka+001%2F001+RTG+05122025+F2.00.0%0AKoliExpress+Chinare+Salamanzade+Salmanza%0AStarkenburgstra%C3%9Fe+10+KL418475+Koli%0ARef.+Nr.%0AIhre+GLS+Track-lD%0Agls-group.eu%2Fdatap%C4%B1+oectien%0AYVMHRROV%0A121120283032%0Astormationen+z0r+GL%24+Datenschwtzichtlinie+unter%0AKunden-Nr.%0ADE%0AM%C3%B6rtelden-Walldorf%0A06911869751000100037-54494896658%0AF%0A621%0A62-020%0ARherus+WS+Polska+Sp+z+o.0+Rabowicka+67%0APL%0ASwarzdz%0AOINDITEX-+Swarzecz+-+Zara%0ACust+ID%0A2760319870+Con+ID%0A276a45e3Yw
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => NST 1
+020697 64546
+DE 64546
+Kontakt
+Postleltzahl
+Notiz
+Notiz
+DE 120 03 08.122025 10:59:011.13 ka 001/001 RTG 05122025 F2.00.0
+KoliExpress Chinare Salamanzade Salmanza
+Starkenburgstraße 10 KL418475 Koli
+Ref. Nr.
+Ihre GLS Track-lD
+gls-group.eu/datapı oectien
+YVMHRROV
+121120283032
+stormationen z0r GL$ Datenschwtzichtlinie unter
+Kunden-Nr.
+DE
+Mörtelden-Walldorf
+06911869751000100037-54494896658
+F
+621
+62-020
+Rherus WS Polska Sp z o.0 Rabowicka 67
+PL
+Swarzdz
+OINDITEX- Swarzecz - Zara
+Cust ID
+2760319870 Con ID
+276a45e3Yw
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+NST 1
+020697 64546
+DE 64546
+Kontakt
+Postleltzahl
+Notiz
+Notiz
+DE 120 03 08.122025 10:59:011.13 ka 001/001 RTG 05122025 F2.00.0
+KoliExpress Chinare Salamanzade Salmanza
+Starkenburgstraße 10 KL418475 Koli
+Ref. Nr.
+Ihre GLS Track-lD
+gls-group.eu/datapı oectien
+YVMHRROV
+121120283032
+stormationen z0r GL$ Datenschwtzichtlinie unter
+Kunden-Nr.
+DE
+Mörtelden-Walldorf
+06911869751000100037-54494896658
+F
+621
+62-020
+Rherus WS Polska Sp z o.0 Rabowicka 67
+PL
+Swarzdz
+OINDITEX- Swarzecz - Zara
+Cust ID
+2760319870 Con ID
+276a45e3Yw
+
+
+
+<form>
+file_name: sample_20251210_112737_cb2b09.txt
+tracking_no: 06911869751000100037-54494896658
+receiver_country_code: AZB
+receiver_forwarder_code: KOLLI
+receiver_company: Kolli MMC
+receiver_cell_code: KL418475
+receiver_name: KL418475
+label_type: 
+</form>

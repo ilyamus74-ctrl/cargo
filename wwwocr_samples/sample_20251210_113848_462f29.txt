@@ -1,0 +1,51 @@
+TIME: 2025-12-10T11:38:48+01:00
+IP:   88.155.70.42
+========================================
+RAW BODY (php://input):
+raw_text=4-01%0AAINZ%0A44+D%0ACOLIBRIEXPRESS+-Hecer+Emirova%0AStarkenburgstra%C3%9Fe+10C%0A64546+M%C3%B6rfelden-Walldorf%0ARA%0AH1000844699421001044%0ATHermes%0ANEG
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => 4-01
+AINZ
+44 D
+COLIBRIEXPRESS -Hecer Emirova
+Starkenburgstraße 10C
+64546 Mörfelden-Walldorf
+RA
+H1000844699421001044
+THermes
+NEG
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+4-01
+AINZ
+44 D
+COLIBRIEXPRESS -Hecer Emirova
+Starkenburgstraße 10C
+64546 Mörfelden-Walldorf
+RA
+H1000844699421001044
+THermes
+NEG
+
+
+<form>
+file_name: sample_20251210_113848_462f29.txt
+tracking_no: H1000844699421001044
+receiver_country_code: AZB
+receiver_forwarder_code: COLIBRI
+receiver_company: Colibri Express
+receiver_cell_code: 
+receiver_name: Hecer Emirova
+label_type: HERMES
+</form>

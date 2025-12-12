@@ -1,0 +1,55 @@
+TIME: 2025-12-10T11:45:34+01:00
+IP:   88.155.70.42
+========================================
+RAW BODY (php://input):
+raw_text=n+ntrum%0AAzizova%0AGew.%3A+0.19+kg.%0ABRI+EXPRESS+-+SACLI+AZIZOVA+C158842%0AKENBURGSTRASSE+10C%0A5+M%C3%96RFELDEN-WALLDORF%0A7ANY%0A403+%29+27664546+%2B+99000900211010%0A%2800+%29+340434687515022705%0A-2HL%0AGoGreen%0A64
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => n ntrum
+Azizova
+Gew.: 0.19 kg.
+BRI EXPRESS - SACLI AZIZOVA C158842
+KENBURGSTRASSE 10C
+5 MÖRFELDEN-WALLDORF
+7ANY
+403 ) 27664546 + 99000900211010
+(00 ) 340434687515022705
+-2HL
+GoGreen
+64
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+n ntrum
+Azizova
+Gew.: 0.19 kg.
+BRI EXPRESS - SACLI AZIZOVA C158842
+KENBURGSTRASSE 10C
+5 MÖRFELDEN-WALLDORF
+7ANY
+403 ) 27664546 + 99000900211010
+(00 ) 340434687515022705
+-2HL
+GoGreen
+64
+
+
+<form>
+file_name: sample_20251210_114534_2177e4.txt
+tracking_no: 
+receiver_country_code: AZB
+receiver_forwarder_code: COLIBRI
+receiver_company: Colibri Express
+receiver_cell_code: C158842
+receiver_name: SACLI AZIZOVA
+label_type: 
+</form>

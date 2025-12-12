@@ -1,0 +1,66 @@
+TIME: 2025-12-10T11:32:48+01:00
+IP:   88.155.70.42
+========================================
+RAW BODY (php://input):
+raw_text=44+D%0AMAINZ%0AZAL+DEU%0AHi024531310319701044%0A34+-+01%0ADE%0AHHermes%0ADiana+Nurlanova%0ACAMARAKG+K20962%0AStarkenburgstr.+10E%0A64546+M%C3%B6rfelden-Walldorf%2C+He%0ADeutschland%0AFremdbarcode%0AD811866977%0AFremdbarcode%0AWE+DO%21%0A1041040438318616%0A1%2F1
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => 44 D
+MAINZ
+ZAL DEU
+Hi024531310319701044
+34 - 01
+DE
+HHermes
+Diana Nurlanova
+CAMARAKG K20962
+Starkenburgstr. 10E
+64546 Mörfelden-Walldorf, He
+Deutschland
+Fremdbarcode
+D811866977
+Fremdbarcode
+WE DO!
+1041040438318616
+1/1
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+44 D
+MAINZ
+ZAL DEU
+Hi024531310319701044
+34 - 01
+DE
+HHermes
+Diana Nurlanova
+CAMARAKG K20962
+Starkenburgstr. 10E
+64546 Mörfelden-Walldorf, He
+Deutschland
+Fremdbarcode
+D811866977
+Fremdbarcode
+WE DO!
+1041040438318616
+1/1
+
+<form>
+file_name: sample_20251210_113248_d61837.txt
+tracking_no: H1024531310319701044
+receiver_country_code: KG
+receiver_forwarder_code: CAMARATC
+receiver_company: Camaratc
+receiver_cell_code: K20962
+receiver_name: Diana Nurlanova
+label_type:HERMES
+</form>

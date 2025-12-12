@@ -1,0 +1,69 @@
+TIME: 2025-12-10T12:00:55+01:00
+IP:   88.155.70.42
+========================================
+RAW BODY (php://input):
+raw_text=ZAL+DEU%0A44+D%0AMAINZ%0AH1824531296991601044%0A34+-+01%0AHHermes%0ADE%0AMehriban+Zeynalova%0AKARGOFLEX+FX381137%0AStarkenburgstr.+10%0AFremdbarcode%0A64546+M%C3%B6rtelden-Walldorf%0ADeutschland%0A9806699640%0AWE+DO%21%0AFremdbarcode%0AHERAES+MWE00COM%0A1041040437124668%0A1%2F1
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => ZAL DEU
+44 D
+MAINZ
+H1824531296991601044
+34 - 01
+HHermes
+DE
+Mehriban Zeynalova
+KARGOFLEX FX381137
+Starkenburgstr. 10
+Fremdbarcode
+64546 Mörtelden-Walldorf
+Deutschland
+9806699640
+WE DO!
+Fremdbarcode
+HERAES MWE00COM
+1041040437124668
+1/1
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+ZAL DEU
+44 D
+MAINZ
+H1824531296991601044
+34 - 01
+HHermes
+DE
+Mehriban Zeynalova
+KARGOFLEX FX381137
+Starkenburgstr. 10
+Fremdbarcode
+64546 Mörtelden-Walldorf
+Deutschland
+9806699640
+WE DO!
+Fremdbarcode
+HERAES MWE00COM
+1041040437124668
+1/1
+
+
+<form>
+file_name: sample_20251210_120055_ccd58d.txt
+tracking_no: H1824531296991601044
+receiver_country_code: AZB
+receiver_forwarder_code: KARGOFLEX
+receiver_company: KargoFlex
+receiver_cell_code: FX381137
+receiver_name: Mehriban Zeynalova
+label_type: HERMES
+</form>

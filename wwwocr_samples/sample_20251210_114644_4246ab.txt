@@ -1,0 +1,67 @@
+TIME: 2025-12-10T11:46:44+01:00
+IP:   88.155.70.42
+========================================
+RAW BODY (php://input):
+raw_text=Ruecksendung+an%3A%0AAmazon%0AAmazonstrasse%0A86836+Graben%0AGermany%0AR%C3%BCcksendezentrum%0A300%0AAnar+Babayev%0AGew.%3A+0.19+kg.%0ACOLIBRI+EKPRESS+-ANAR+BABAYEV%0AC158697%0ASTARKENBURGSTR.+10C%0AS1546+M%C3%94%C3%96RFELDEN-+WALLDORF%0AGERMANY%0A%28+403+%29+27664546+%2B+99000900211010%0A0%29340434687513713377%0AGoGreer%0A64
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => Ruecksendung an:
+Amazon
+Amazonstrasse
+86836 Graben
+Germany
+Rücksendezentrum
+300
+Anar Babayev
+Gew.: 0.19 kg.
+COLIBRI EKPRESS -ANAR BABAYEV
+C158697
+STARKENBURGSTR. 10C
+S1546 MÔÖRFELDEN- WALLDORF
+GERMANY
+( 403 ) 27664546 + 99000900211010
+0)340434687513713377
+GoGreer
+64
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+Ruecksendung an:
+Amazon
+Amazonstrasse
+86836 Graben
+Germany
+Rücksendezentrum
+300
+Anar Babayev
+Gew.: 0.19 kg.
+COLIBRI EKPRESS -ANAR BABAYEV
+C158697
+STARKENBURGSTR. 10C
+S1546 MÔÖRFELDEN- WALLDORF
+GERMANY
+( 403 ) 27664546 + 99000900211010
+0)340434687513713377
+GoGreer
+64
+
+
+<form>
+file_name: sample_20251210_114644_4246ab.txt
+tracking_no: 0340434687513713377
+receiver_country_code: AZB
+receiver_forwarder_code: COLIBRI
+receiver_company: Colibri Express
+receiver_cell_code: C158697
+receiver_name: Anar Babayev
+label_type: AMAZON
+</form>

@@ -1,0 +1,91 @@
+TIME: 2025-12-09T21:07:04+01:00
+IP:   84.166.213.45
+========================================
+RAW BODY (php://input):
+raw_text=0Gre%0AWir+reduzierer%0AC02-Emissior%0A96%29093017%0AVUSCHLAND+%2B+EU%0AVound+Nachname%0AAnzahl%3A%0AGewieht%3A%0A430kg%0AEmpf%C3%A5ngerin+%2FAddressee%0AASER+bahman+Ma+mmadoJ%0AAS2%2C4+14+Yo%0A1%2F%0AAdresszusatz+%2FPostnr.+f%C3%BCr+Packstatlon+Tel.+%28hur+bei+EU-Versand+oder+Sperrgut%29%0AStar+cen+bunes+to%2C+lo+G%0A6454G%0APostleitzahl%0AStra%C3%9Fe+und+Hausnr.+%28kein+Postfach%29+DHL+Packstation%0ALand+Destination%0AOrt%0AHessen%0AMo+elden%0AInklusive+nachhaltigem+Versand.%0AWallds%0ACOe-Emissionen+werden+durch+Investitionen+in+Klimaschutzprojekte%0Aausgeglichen.+Mehr+Informationen+unter+dhl.de%2Fgogreen%0AZul%C3%A4ssige+Ma%C3%9Fe%2C+Gewichte%2C+Services+und+Bestimmungsl%C3%A4nder%3A%0Asiehe+R%C5%AAckseite+oder+unter+dhl.de%0A1ieen%0A912-685-000+07%2F24
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => 0Gre
+Wir reduzierer
+C02-Emissior
+96)093017
+VUSCHLAND + EU
+Vound Nachname
+Anzahl:
+Gewieht:
+430kg
+Empfångerin /Addressee
+ASER bahman Ma mmadoJ
+AS2,4 14 Yo
+1/
+Adresszusatz /Postnr. für Packstatlon Tel. (hur bei EU-Versand oder Sperrgut)
+Star cen bunes to, lo G
+6454G
+Postleitzahl
+Straße und Hausnr. (kein Postfach) DHL Packstation
+Land Destination
+Ort
+Hessen
+Mo elden
+Inklusive nachhaltigem Versand.
+Wallds
+COe-Emissionen werden durch Investitionen in Klimaschutzprojekte
+ausgeglichen. Mehr Informationen unter dhl.de/gogreen
+Zulässige Maße, Gewichte, Services und Bestimmungsländer:
+siehe RŪckseite oder unter dhl.de
+1ieen
+912-685-000 07/24
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+0Gre
+Wir reduzierer
+C02-Emissior
+96)093017
+VUSCHLAND + EU
+Vound Nachname
+Anzahl:
+Gewieht:
+430kg
+Empfångerin /Addressee
+ASER bahman Ma mmadoJ
+AS2,4 14 Yo
+1/
+Adresszusatz /Postnr. für Packstatlon Tel. (hur bei EU-Versand oder Sperrgut)
+Star cen bunes to, lo G
+6454G
+Postleitzahl
+Straße und Hausnr. (kein Postfach) DHL Packstation
+Land Destination
+Ort
+Hessen
+Mo elden
+Inklusive nachhaltigem Versand.
+Wallds
+COe-Emissionen werden durch Investitionen in Klimaschutzprojekte
+ausgeglichen. Mehr Informationen unter dhl.de/gogreen
+Zulässige Maße, Gewichte, Services und Bestimmungsländer:
+siehe RŪckseite oder unter dhl.de
+1ieen
+912-685-000 07/24
+
+
+<form>
+file_name: sample_20251209_210704_22a3a2.txt
+tracking_no: 
+receiver_country_code: AZB
+receiver_forwarder_code: ASER
+receiver_company: AserCargo
+receiver_cell_code: AS24
+receiver_name: bahman Ma mmadoJ
+label_type: DHL
+</form>

@@ -1,0 +1,67 @@
+TIME: 2025-12-09T21:03:50+01:00
+IP:   84.166.213.45
+========================================
+RAW BODY (php://input):
+raw_text=ZAL+DEU%0AH1024562520863001g44%0A44+D%0AMAINZ%0A34+-+01%0ADE%0AHermes%0AJamila+RamazanOva%0AA66050+Camex+LLC%0AStarkenburgstr+10A%0AFremdbarcode%0A64546+M%C3%B6rfelden+-Walldorf%0ADeutschland%0Aa89364637%0AFremdbarcode%0AWE+DO%21%0A10410e04341+72800%0AHERIAEs+wE+O0cOM
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => ZAL DEU
+H1024562520863001g44
+44 D
+MAINZ
+34 - 01
+DE
+Hermes
+Jamila RamazanOva
+A66050 Camex LLC
+Starkenburgstr 10A
+Fremdbarcode
+64546 Mörfelden -Walldorf
+Deutschland
+a89364637
+Fremdbarcode
+WE DO!
+10410e04341 72800
+HERIAEs wE O0cOM
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+ZAL DEU
+H1024562520863001g44
+44 D
+MAINZ
+34 - 01
+DE
+Hermes
+Jamila RamazanOva
+A66050 Camex LLC
+Starkenburgstr 10A
+Fremdbarcode
+64546 Mörfelden -Walldorf
+Deutschland
+a89364637
+Fremdbarcode
+WE DO!
+10410e04341 72800
+HERIAEs wE O0cOM
+
+
+<form>
+file_name: sample_20251209_210350_b0b24d.txt
+tracking_no: H1024562520863001944
+receiver_country_code: AZ
+receiver_forwarder_code: CAMEX
+receiver_company: Camex LLC
+receiver_cell_code: A66050
+receiver_name: Jamila RamazanOva
+label_type: HERMES
+</form>

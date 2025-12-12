@@ -1,0 +1,52 @@
+TIME: 2025-12-10T12:00:06+01:00
+IP:   88.155.70.42
+========================================
+RAW BODY (php://input):
+raw_text=preh%3Abet%0A1-635553692%0A1025022708322001044%0AVusale+Musayeva%0AASER+Vusale+Musayeva+AS235309%0A44+D%0AMAINZ%0AStarkenburgstr.+10G+Hessen%0A64546+M%C3%B5rfelden-Walldorf%0ADeutschland%0A34-01
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => preh:bet
+1-635553692
+1025022708322001044
+Vusale Musayeva
+ASER Vusale Musayeva AS235309
+44 D
+MAINZ
+Starkenburgstr. 10G Hessen
+64546 Mõrfelden-Walldorf
+Deutschland
+34-01
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+preh:bet
+1-635553692
+1025022708322001044
+Vusale Musayeva
+ASER Vusale Musayeva AS235309
+44 D
+MAINZ
+Starkenburgstr. 10G Hessen
+64546 Mõrfelden-Walldorf
+Deutschland
+34-01
+
+<form>
+file_name: sample_20251210_120006_d6cfc3.txt
+tracking_no: 
+receiver_country_code: AZB
+receiver_forwarder_code: ASER
+receiver_company: AserCargo
+receiver_cell_code: AS235309
+receiver_name: Vusale Musayeva
+label_type: 
+</form>

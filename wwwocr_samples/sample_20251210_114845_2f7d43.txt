@@ -1,0 +1,57 @@
+TIME: 2025-12-10T11:48:45+01:00
+IP:   88.155.70.42
+========================================
+RAW BODY (php://input):
+raw_text=CYCLE%0ALYS8%0A05%2F01%0ADHE1%0ADE3132777292%0A64546+M%C3%B6rfelden-Walldorf+%2C+Germany%0AN1%0AHessernring+23c%0A0.2+Kgs%0ACOLIBRI+EXP+Ziya+Mikayilov+C114692%0A17W5ADIC%0A1VIUC3%0AWS2
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => CYCLE
+LYS8
+05/01
+DHE1
+DE3132777292
+64546 Mörfelden-Walldorf , Germany
+N1
+Hessernring 23c
+0.2 Kgs
+COLIBRI EXP Ziya Mikayilov C114692
+17W5ADIC
+1VIUC3
+WS2
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+CYCLE
+LYS8
+05/01
+DHE1
+DE3132777292
+64546 Mörfelden-Walldorf , Germany
+N1
+Hessernring 23c
+0.2 Kgs
+COLIBRI EXP Ziya Mikayilov C114692
+17W5ADIC
+1VIUC3
+WS2
+
+
+<form>
+file_name: sample_20251210_114845_2f7d43.txt
+tracking_no: 
+receiver_country_code: AZB
+receiver_forwarder_code: COLIBRI
+receiver_company: Colibri Express
+receiver_cell_code: C114692
+receiver_name: Ziya Mikayilov
+label_type: 
+</form>

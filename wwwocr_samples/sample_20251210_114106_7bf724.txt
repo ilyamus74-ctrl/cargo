@@ -1,0 +1,65 @@
+TIME: 2025-12-10T11:41:06+01:00
+IP:   88.155.70.42
+========================================
+RAW BODY (php://input):
+raw_text=DEUTSCHLAND%0A64546+M%C3%B6rfelden-Walldorf%0AStarkenburgstr+10C%0AColibri+C190459%0ACOLIBRI+EXPRESS+Taravat+Hasanova%0AEmpf%C3%A4nger%3A%0A67346+Speyer%0AAlois-Gruber+Weg+13%0AHedwig+Kamensek%0AAbsender%3A%0A62341144321676%0ASendungs-ID%3A%0Abereits+bezahlt%0AEntgelt+ist%0A34-01%0A44%0Aketschein
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => DEUTSCHLAND
+64546 Mörfelden-Walldorf
+Starkenburgstr 10C
+Colibri C190459
+COLIBRI EXPRESS Taravat Hasanova
+Empfänger:
+67346 Speyer
+Alois-Gruber Weg 13
+Hedwig Kamensek
+Absender:
+62341144321676
+Sendungs-ID:
+bereits bezahlt
+Entgelt ist
+34-01
+44
+ketschein
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+DEUTSCHLAND
+64546 Mörfelden-Walldorf
+Starkenburgstr 10C
+Colibri C190459
+COLIBRI EXPRESS Taravat Hasanova
+Empfänger:
+67346 Speyer
+Alois-Gruber Weg 13
+Hedwig Kamensek
+Absender:
+62341144321676
+Sendungs-ID:
+bereits bezahlt
+Entgelt ist
+34-01
+44
+ketschein
+
+
+<form>
+file_name: sample_20251210_114106_7bf724.txt
+tracking_no: 
+receiver_country_code: AZB
+receiver_forwarder_code: COLIBRI
+receiver_company: Colibri Express
+receiver_cell_code: C190459
+receiver_name: Taravat Hasanova
+label_type: 
+</form>

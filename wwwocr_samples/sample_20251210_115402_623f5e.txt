@@ -1,0 +1,52 @@
+TIME: 2025-12-10T11:54:02+01:00
+IP:   88.155.70.42
+========================================
+RAW BODY (php://input):
+raw_text=An+Turkan+Alizada%0AGERIMANY%0A64546+MMorfelden-Walldorf%0AColiori+Express+C148366+Starkenburgstr.+10C%0AGERMANY%0AB5585%0APoing%0AParsdorer+Strasse+13%0AVon+bestSecret+GmbH%0AKontakt+Abse+nder%3A%0ADHL+PAKET
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => An Turkan Alizada
+GERIMANY
+64546 MMorfelden-Walldorf
+Coliori Express C148366 Starkenburgstr. 10C
+GERMANY
+B5585
+Poing
+Parsdorer Strasse 13
+Von bestSecret GmbH
+Kontakt Abse nder:
+DHL PAKET
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+An Turkan Alizada
+GERIMANY
+64546 MMorfelden-Walldorf
+Coliori Express C148366 Starkenburgstr. 10C
+GERMANY
+B5585
+Poing
+Parsdorer Strasse 13
+Von bestSecret GmbH
+Kontakt Abse nder:
+DHL PAKET
+
+<form>
+file_name: sample_20251210_115402_623f5e.txt
+tracking_no: 
+receiver_country_code: AZB
+receiver_forwarder_code: COLIBRI
+receiver_company: Colibri Express
+receiver_cell_code: C148366
+receiver_name: Turkan Alizada
+label_type: DHL
+</form>

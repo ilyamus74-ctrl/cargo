@@ -60,7 +60,7 @@ $smarty->assign('jsonOcrTemplates', $jsonOcrTemplates);
 
     $result = [];
 
-    $sql = "SELECT id, code_iso2, code_iso3, name_en, name_local, aliases
+    $sql = "SELECT id, code_iso2, code_iso3, name_en, name_local, aliases, forwarders_json
               FROM dest_countries
              WHERE is_active = 1";
     if ($res = $dbcnx->query($sql)) {
@@ -78,6 +78,13 @@ $smarty->assign('jsonOcrTemplates', $jsonOcrTemplates);
                 }
             }
 
+    $forwarders = [];
+    if (!empty($row['forwarders_json'])) {
+        $tmp = json_decode($row['forwarders_json'], true);
+        if (is_array($tmp)) {
+            $forwarders = $tmp;
+        }
+    }
             $result[] = [
                 'id'         => (int)$row['id'],
                 'code_iso2'  => $row['code_iso2'],
@@ -85,6 +92,7 @@ $smarty->assign('jsonOcrTemplates', $jsonOcrTemplates);
                 'name_en'    => $row['name_en'],
                 'name_local' => $row['name_local'],
                 'aliases'    => $aliases,
+                'forwarders' => $forwarders,   // НОВОЕ ПОЛЕ
             ];
         }
         $res->free();

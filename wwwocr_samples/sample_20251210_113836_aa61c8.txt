@@ -1,0 +1,74 @@
+TIME: 2025-12-10T11:38:36+01:00
+IP:   88.155.70.42
+========================================
+RAW BODY (php://input):
+raw_text=Paketschein%0A44%0A-01%0Areits%0Ae%0ASendungs-ID%3A%0A0234114400350+1%0AAbsender%3A%0AMichael+Wagenstetter%0AFurtwaenglerstr.+4%0A83707+Bad+Wiessee%0AEmpf%C3%A4nger%3A%0ASAMIR+KARIMOV+137327%0AHESSEN%2C+COLIBRI+EXPR%0ASTARKENBURGSTR.+10C%0A64546+M%C3%96RFELDEN-WALLDORF%0ADEUTSCHLAND%0Abitte+auf+das+Pake%0AHerme%3A%0Ain+Kooperation+m%0Aebay%0A07.12.2025+1
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => Paketschein
+44
+-01
+reits
+e
+Sendungs-ID:
+0234114400350 1
+Absender:
+Michael Wagenstetter
+Furtwaenglerstr. 4
+83707 Bad Wiessee
+Empfänger:
+SAMIR KARIMOV 137327
+HESSEN, COLIBRI EXPR
+STARKENBURGSTR. 10C
+64546 MÖRFELDEN-WALLDORF
+DEUTSCHLAND
+bitte auf das Pake
+Herme:
+in Kooperation m
+ebay
+07.12.2025 1
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+Paketschein
+44
+-01
+reits
+e
+Sendungs-ID:
+0234114400350 1
+Absender:
+Michael Wagenstetter
+Furtwaenglerstr. 4
+83707 Bad Wiessee
+Empfänger:
+SAMIR KARIMOV 137327
+HESSEN, COLIBRI EXPR
+STARKENBURGSTR. 10C
+64546 MÖRFELDEN-WALLDORF
+DEUTSCHLAND
+bitte auf das Pake
+Herme:
+in Kooperation m
+ebay
+07.12.2025 1
+
+<form>
+file_name: sample_20251210_113836_aa61c8.txt
+tracking_no: 
+receiver_country_code: AZB
+receiver_forwarder_code: COLIBRI
+receiver_company: Colibri Express
+receiver_cell_code: C137327
+receiver_name: SAMIR KARIMOV
+label_type: HERMES
+</form>

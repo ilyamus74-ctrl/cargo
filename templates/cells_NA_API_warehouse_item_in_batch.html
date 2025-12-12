@@ -1,8 +1,14 @@
+
+
+
 <form id="item-in-modal-form" class="row g-3">
   <input type="hidden" name="batch_uid" value="{$batch_uid}">
 
   <div class="col-md-4">
-    <label for="tuid" class="form-label">TUID</label>
+    <label for="tuid" class="form-label">
+      TUID
+      <span id="ocrCarrierInfo" class="text-muted"></span>
+    </label>
     <input type="text" class="form-control" id="tuid" name="tuid" required>
   </div>
 
@@ -18,8 +24,15 @@
   </div>
 
   <div class="col-md-4">
-    <label for="receiverCountry" class="form-label">Страна получателя</label>
-    <input type="text" class="form-control" id="receiverCountry" name="receiver_country_name" placeholder="Germany / DE">
+    <label class="form-label" for="receiverCountry">Страна получателя</label>
+    <select class="form-select"
+            id="receiverCountry"
+            name="receiver_country_code">
+              {foreach $dest_country as $b}
+              <option value="{$b.code_iso2}">{$b.name_en}</option>
+              {/foreach}
+      <!-- опции будем заполнять JS-ом -->
+    </select>
   </div>
 
   <div class="col-md-6">
@@ -82,6 +95,7 @@
       <th>Трек</th>
       <th>Получатель</th>
       <th>Вес</th>
+      <th></th>
       <th>Габариты</th>
       <th>Создано</th>
     </tr>
@@ -93,6 +107,14 @@
         <td>{$p.tracking_no|escape}</td>
         <td>{$p.receiver_name|escape}</td>
         <td>{if $p.weight_kg}{$p.weight_kg} кг{/if}</td>
+        <td class="text-end">
+          <button type="button"
+                  class="btn btn-sm btn-outline-danger js-core-link"
+                  data-core-action="delete_item_in"
+                  data-item-id="{$p.id}">
+            Удалить
+          </button>
+        </td>
         <td>
           {if $p.size_l_cm || $p.size_w_cm || $p.size_h_cm}
             {$p.size_l_cm}×{$p.size_w_cm}×{$p.size_h_cm} см

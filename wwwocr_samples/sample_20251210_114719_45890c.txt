@@ -1,0 +1,46 @@
+TIME: 2025-12-10T11:47:19+01:00
+IP:   88.155.70.42
+========================================
+RAW BODY (php://input):
+raw_text=VNR+Velag+f%C3%BCr+d.+Dt.+Wirtschaft+AG-+Theodor-Heuss-Str.+2-4%2C+53095+Bonn%0ADP+AG%2C+Stbztg.%0AHerrn%0AElnur+Babayev%0A-+pers%C3%B6nlich+-%0AStarkenburgstr.+1+0c%0A64546+M%C3%B6rfelden-Walldorf%0ASTI
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => VNR Velag für d. Dt. Wirtschaft AG- Theodor-Heuss-Str. 2-4, 53095 Bonn
+DP AG, Stbztg.
+Herrn
+Elnur Babayev
+- persönlich -
+Starkenburgstr. 1 0c
+64546 Mörfelden-Walldorf
+STI
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+VNR Velag für d. Dt. Wirtschaft AG- Theodor-Heuss-Str. 2-4, 53095 Bonn
+DP AG, Stbztg.
+Herrn
+Elnur Babayev
+- persönlich -
+Starkenburgstr. 1 0c
+64546 Mörfelden-Walldorf
+STI
+
+<form>
+file_name: sample_20251210_114719_45890c.txt
+tracking_no: 
+receiver_country_code: AZB
+receiver_forwarder_code: COLIBRI
+receiver_company: Colibri Express
+receiver_cell_code: 
+receiver_name: Elnur Babayev
+label_type: 
+</form>

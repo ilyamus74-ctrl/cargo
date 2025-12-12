@@ -1,0 +1,66 @@
+TIME: 2025-12-10T11:37:01+01:00
+IP:   88.155.70.42
+========================================
+RAW BODY (php://input):
+raw_text=Von%3A+H%26M%0A39158+Magdeburg%0AGERMANY%0AAn%3A+Koliexpress+Nermin+Musayeva%0AStarkenburgstr.+1Ok+%2F12%0ADHL+PAKET%0A64546+M%C3%B6rfelden-Walldort%0AGERMANY%0AAbrechnungsnr.%3A%0AReferenznr%3A%0ASendungsnr.%3A%0A5004268487+01+07%0A85723537514%0A00340434730240978998%0AAbsende%0ATag%0AGewich%0A0%2C19+kg
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => Von: H&M
+39158 Magdeburg
+GERMANY
+An: Koliexpress Nermin Musayeva
+Starkenburgstr. 1Ok /12
+DHL PAKET
+64546 Mörfelden-Walldort
+GERMANY
+Abrechnungsnr.:
+Referenznr:
+Sendungsnr.:
+5004268487 01 07
+85723537514
+00340434730240978998
+Absende
+Tag
+Gewich
+0,19 kg
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+Von: H&M
+39158 Magdeburg
+GERMANY
+An: Koliexpress Nermin Musayeva
+Starkenburgstr. 1Ok /12
+DHL PAKET
+64546 Mörfelden-Walldort
+GERMANY
+Abrechnungsnr.:
+Referenznr:
+Sendungsnr.:
+5004268487 01 07
+85723537514
+00340434730240978998
+Absende
+Tag
+Gewich
+0,19 kg
+
+<form>
+file_name: sample_20251210_113701_8f523f.txt
+tracking_no: 00340434730240978998
+receiver_country_code: AZB
+receiver_forwarder_code: KOLLI
+receiver_company: Kolli MMC
+receiver_cell_code: 
+receiver_name: Nermin Musayeva
+label_type: DHL
+</form>

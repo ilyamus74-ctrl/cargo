@@ -1,0 +1,61 @@
+TIME: 2025-12-09T21:06:00+01:00
+IP:   84.166.213.45
+========================================
+RAW BODY (php://input):
+raw_text=ZAL+DEU%0A44+D%0AMAINZ%0AD%0AH1024541809743501044%0A00-+00%0ATHerme%21%0ALale+Qullyeva%0AStarkenburgstr.+10C%0ACOLIBRI+EXPRESS+-Lale+Qulilyeva+C41%0A64546+M%C3%B6rfelden+-Walldorf%0ADeutschland%0AFremdbarcode%0A0892153448%0A1%2F1
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => ZAL DEU
+44 D
+MAINZ
+D
+H1024541809743501044
+00- 00
+THerme!
+Lale Qullyeva
+Starkenburgstr. 10C
+COLIBRI EXPRESS -Lale Qulilyeva C41
+64546 Mörfelden -Walldorf
+Deutschland
+Fremdbarcode
+0892153448
+1/1
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+ZAL DEU
+44 D
+MAINZ
+D
+H1024541809743501044
+00- 00
+THerme!
+Lale Qullyeva
+Starkenburgstr. 10C
+COLIBRI EXPRESS -Lale Qulilyeva C41
+64546 Mörfelden -Walldorf
+Deutschland
+Fremdbarcode
+0892153448
+1/1
+
+<form>
+file_name: sample_20251209_210600_5b588f.txt
+tracking_no: H1024541809743501044
+receiver_country_code: AZB
+receiver_forwarder_code: COLIBRI
+receiver_company: Colibri Express
+receiver_cell_code: C41
+receiver_name: Lale Qulilyeva
+label_type: HERMES
+</form>
+

@@ -1,0 +1,77 @@
+TIME: 2025-12-10T11:56:49+01:00
+IP:   88.155.70.42
+========================================
+RAW BODY (php://input):
+raw_text=2005+9185099832%2C%0AFrom%3A+Apothe+ke+Doc+Morris%0APostfach%0A52098+Aachen%0AGermany%0ATo%3A+Elnur+Adishirinov+Aser+Cargo+%2FAS226%0ASlarkenburgstr+10+G%0A64546+Moerlelden+-Walldort%0AGERMANY%0ABilling+No.%3A%0ARef.+No.%3A%0ADHL+Paket%0A5204026001+01+12%0A9185099832%0AShipment+No%3A+00340435060624692110%0ABestell-Nr%3A+1e60eo%0A%28+403%0AFilial+-Routing%0AWeight%3A%0A1%2C445+KG%0ADHL%0A43%0APiece%3A
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => 2005 9185099832,
+From: Apothe ke Doc Morris
+Postfach
+52098 Aachen
+Germany
+To: Elnur Adishirinov Aser Cargo /AS226
+Slarkenburgstr 10 G
+64546 Moerlelden -Walldort
+GERMANY
+Billing No.:
+Ref. No.:
+DHL Paket
+5204026001 01 12
+9185099832
+Shipment No: 00340435060624692110
+Bestell-Nr: 1e60eo
+( 403
+Filial -Routing
+Weight:
+1,445 KG
+DHL
+43
+Piece:
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+2005 9185099832,
+From: Apothe ke Doc Morris
+Postfach
+52098 Aachen
+Germany
+To: Elnur Adishirinov Aser Cargo /AS226
+Slarkenburgstr 10 G
+64546 Moerlelden -Walldort
+GERMANY
+Billing No.:
+Ref. No.:
+DHL Paket
+5204026001 01 12
+9185099832
+Shipment No: 00340435060624692110
+Bestell-Nr: 1e60eo
+( 403
+Filial -Routing
+Weight:
+1,445 KG
+DHL
+43
+Piece:
+
+
+<form>
+file_name: sample_20251210_115649_db3b9c.txt
+tracking_no: 00340435060624692110
+receiver_country_code: AZB
+receiver_forwarder_code: ASER
+receiver_company: AserCargo
+receiver_cell_code: AS226
+receiver_name: Elnur Adishirinov
+label_type: DHL
+</form>

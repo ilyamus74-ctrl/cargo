@@ -1,0 +1,60 @@
+TIME: 2025-12-10T11:35:48+01:00
+IP:   88.155.70.42
+========================================
+RAW BODY (php://input):
+raw_text=901044%0A1%0AEmpf%C3%A4nger%3A%0ACult+Beauty+-+THG%0AAltrincham%0APostbus+9002%0AKL417899%0A%28XBS+G3+GB%29%0AKoli+express+Ulker+Ezizova%0A2500+MC+Den+Haag%0ANetherlands%0AKoli+express%0AGermany%0A10%2C+Starkenburgstra%C3%9Fe+10k%2C%0A64546+M%C3%B6rfelden-Walldorf
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => 901044
+1
+Empfänger:
+Cult Beauty - THG
+Altrincham
+Postbus 9002
+KL417899
+(XBS G3 GB)
+Koli express Ulker Ezizova
+2500 MC Den Haag
+Netherlands
+Koli express
+Germany
+10, Starkenburgstraße 10k,
+64546 Mörfelden-Walldorf
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+901044
+1
+Empfänger:
+Cult Beauty - THG
+Altrincham
+Postbus 9002
+KL417899
+(XBS G3 GB)
+Koli express Ulker Ezizova
+2500 MC Den Haag
+Netherlands
+Koli express
+Germany
+10, Starkenburgstraße 10k,
+64546 Mörfelden-Walldorf
+
+<form>
+file_name: sample_20251210_113548_d1ae25.txt
+tracking_no: 
+receiver_country_code: AZB
+receiver_forwarder_code: KOLLI
+receiver_company: Kolli MMC
+receiver_cell_code: KL417899
+receiver_name: Ulker Ezizova
+label_type: 
+</form>

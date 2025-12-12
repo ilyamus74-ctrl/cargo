@@ -1,0 +1,79 @@
+TIME: 2025-12-10T11:55:58+01:00
+IP:   88.155.70.42
+========================================
+RAW BODY (php://input):
+raw_text=EondurIgr.%0ARgfererznr%0AO034043472970SO7048%0AAtbrechriungorI%0AHS8131+86774%0A500426B487+01+21%0A1%2C41+kg%0AGewicht%0A1%2F1%0AGERMANY%0A64546+M%C3%B6rfelden-Walldorf%0AStarkerburgstr+1CA%0ATag%0ANigar+Gerayzade%0AAn%3A+AZCAMEXA200841+NigarGerayzade%0AZeit%0AGERMANY%0A47308+KREFELD%0AVon%0AC%2FO+GXO+SUPPLY+CHAIN%0AEmpf%C3%A4nger+Telefon%3A%0AH%26M+with+Friends%0ADHL+PAKET%0AAbsender+Telefo%3A
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => EondurIgr.
+Rgfererznr
+O034043472970SO7048
+AtbrechriungorI
+HS8131 86774
+500426B487 01 21
+1,41 kg
+Gewicht
+1/1
+GERMANY
+64546 Mörfelden-Walldorf
+Starkerburgstr 1CA
+Tag
+Nigar Gerayzade
+An: AZCAMEXA200841 NigarGerayzade
+Zeit
+GERMANY
+47308 KREFELD
+Von
+C/O GXO SUPPLY CHAIN
+Empfänger Telefon:
+H&M with Friends
+DHL PAKET
+Absender Telefo:
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+EondurIgr.
+Rgfererznr
+O034043472970SO7048
+AtbrechriungorI
+HS8131 86774
+500426B487 01 21
+1,41 kg
+Gewicht
+1/1
+GERMANY
+64546 Mörfelden-Walldorf
+Starkerburgstr 1CA
+Tag
+Nigar Gerayzade
+An: AZCAMEXA200841 NigarGerayzade
+Zeit
+GERMANY
+47308 KREFELD
+Von
+C/O GXO SUPPLY CHAIN
+Empfänger Telefon:
+H&M with Friends
+DHL PAKET
+Absender Telefo:
+
+
+<form>
+file_name: sample_20251210_115558_02f516.txt
+tracking_no: 0034043472970SO7048
+receiver_country_code: AZB
+receiver_forwarder_code: CAMEX
+receiver_company: Camex
+receiver_cell_code: AZCAMEXA200841
+receiver_name: NigarGerayzade
+label_type: DHL
+</form>

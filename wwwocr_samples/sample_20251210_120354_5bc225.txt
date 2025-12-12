@@ -1,0 +1,96 @@
+TIME: 2025-12-10T12:03:54+01:00
+IP:   88.155.70.42
+========================================
+RAW BODY (php://input):
+raw_text=l22025+F2.000%0AX-+SwatZEdZ+-+Zara%0ACust+ID%0APL%0ARhenus+WS+Polska+Snp.+200+Rabowicka+67%0A52-020%0ASwarzd%3A%0A2760312370+CorD%0AKunden-Nr.%0ALeyla+Rashidova%0AA201229%0AStarkenburgstr+10A+Camex-Leyla+Rashidova%0AM%C3%B6rfelden-Walldorf%0ADE+64546%0AKontakt%0A76245e3V%0ANotiz%0ANotiz%0A06910646033900100039-54067775941%0ARef.+Nr.%0Aeomationn+zor+GLS-DaterschatZrCktlinie+unter%0Agls-group+Eu%2Fdataproectien%0AGLS+service+_flexdelivery%0ADE%0ADE+GLS+STD%0A08.12.2025%0ALeyla%0ARashidova%0A01%2F01Order+num.+54067775941%0ASTD%0AO6910646033900+1O0039%0A8
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => l22025 F2.000
+X- SwatZEdZ - Zara
+Cust ID
+PL
+Rhenus WS Polska Snp. 200 Rabowicka 67
+52-020
+Swarzd:
+2760312370 CorD
+Kunden-Nr.
+Leyla Rashidova
+A201229
+Starkenburgstr 10A Camex-Leyla Rashidova
+Mörfelden-Walldorf
+DE 64546
+Kontakt
+76245e3V
+Notiz
+Notiz
+06910646033900100039-54067775941
+Ref. Nr.
+eomationn zor GLS-DaterschatZrCktlinie unter
+gls-group Eu/dataproectien
+GLS service _flexdelivery
+DE
+DE GLS STD
+08.12.2025
+Leyla
+Rashidova
+01/01Order num. 54067775941
+STD
+O6910646033900 1O0039
+8
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+l22025 F2.000
+X- SwatZEdZ - Zara
+Cust ID
+PL
+Rhenus WS Polska Snp. 200 Rabowicka 67
+52-020
+Swarzd:
+2760312370 CorD
+Kunden-Nr.
+Leyla Rashidova
+A201229
+Starkenburgstr 10A Camex-Leyla Rashidova
+Mörfelden-Walldorf
+DE 64546
+Kontakt
+76245e3V
+Notiz
+Notiz
+06910646033900100039-54067775941
+Ref. Nr.
+eomationn zor GLS-DaterschatZrCktlinie unter
+gls-group Eu/dataproectien
+GLS service _flexdelivery
+DE
+DE GLS STD
+08.12.2025
+Leyla
+Rashidova
+01/01Order num. 54067775941
+STD
+O6910646033900 1O0039
+8
+
+
+
+<form>
+file_name: sample_20251210_120354_5bc225.txt
+tracking_no: 
+receiver_country_code: AZB
+receiver_forwarder_code: CAMEX
+receiver_company: Camex
+receiver_cell_code: A201229
+receiver_name: Leyla Rashidova
+label_type: GLS
+</form>

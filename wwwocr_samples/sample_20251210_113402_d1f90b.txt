@@ -1,0 +1,68 @@
+TIME: 2025-12-10T11:34:02+01:00
+IP:   88.155.70.42
+========================================
+RAW BODY (php://input):
+raw_text=ZAL+DEU%0AH1924551192459101944%0A44+D%0AMAINZ%0A34+-+01%0ADE%0AHermes%0AAltynai+Turdumambetova%0ACAMARAKG+K20765%0AStarkenburgstr.+1OE%0AFremdbarcode%0A64546+M%C3%B6rfelden+-+Walldorf%0ADeutschland%0A9811382138%0AWE+DO%21%0AFremdbarcode%0AHERMESWE-00.COM%0A10410G9372267623%0A1%2F1
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => ZAL DEU
+H1924551192459101944
+44 D
+MAINZ
+34 - 01
+DE
+Hermes
+Altynai Turdumambetova
+CAMARAKG K20765
+Starkenburgstr. 1OE
+Fremdbarcode
+64546 Mörfelden - Walldorf
+Deutschland
+9811382138
+WE DO!
+Fremdbarcode
+HERMESWE-00.COM
+10410G9372267623
+1/1
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+ZAL DEU
+H1924551192459101944
+44 D
+MAINZ
+34 - 01
+DE
+Hermes
+Altynai Turdumambetova
+CAMARAKG K20765
+Starkenburgstr. 1OE
+Fremdbarcode
+64546 Mörfelden - Walldorf
+Deutschland
+9811382138
+WE DO!
+Fremdbarcode
+HERMESWE-00.COM
+10410G9372267623
+1/1
+
+<form>
+file_name: sample_20251210_113402_d1f90b.txt
+tracking_no: H1924551192459101944
+receiver_country_code: KG
+receiver_forwarder_code: CAMARATC
+receiver_company: Camaratc
+receiver_cell_code: K20765
+receiver_name: Altynai Turdumambetova
+label_type: HERMES
+</form>

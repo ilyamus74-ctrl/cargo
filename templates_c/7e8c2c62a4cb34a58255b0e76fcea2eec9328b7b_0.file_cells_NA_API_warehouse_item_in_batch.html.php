@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2025-12-09 13:12:48
+/* Smarty version 5.3.1, created on 2025-12-09 17:18:28
   from 'file:cells_NA_API_warehouse_item_in_batch.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_69382050c06d36_18725530',
+  'unifunc' => 'content_693859e4941bd7_31826256',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '7e8c2c62a4cb34a58255b0e76fcea2eec9328b7b' => 
     array (
       0 => 'cells_NA_API_warehouse_item_in_batch.html',
-      1 => 1765279186,
+      1 => 1765298645,
       2 => 'file',
     ),
   ),
@@ -20,14 +20,20 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_69382050c06d36_18725530 (\Smarty\Template $_smarty_tpl) {
+function content_693859e4941bd7_31826256 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
-?><form id="item-in-modal-form" class="row g-3">
+?>
+
+
+<form id="item-in-modal-form" class="row g-3">
   <input type="hidden" name="batch_uid" value="<?php echo $_smarty_tpl->getValue('batch_uid');?>
 ">
 
   <div class="col-md-4">
-    <label for="tuid" class="form-label">TUID</label>
+    <label for="tuid" class="form-label">
+      TUID
+      <span id="ocrCarrierInfo" class="text-muted"></span>
+    </label>
     <input type="text" class="form-control" id="tuid" name="tuid" required>
   </div>
 
@@ -43,8 +49,24 @@ $_smarty_current_dir = '/home/cells/web/templates';
   </div>
 
   <div class="col-md-4">
-    <label for="receiverCountry" class="form-label">Страна получателя</label>
-    <input type="text" class="form-control" id="receiverCountry" name="receiver_country_name" placeholder="Germany / DE">
+    <label class="form-label" for="receiverCountry">Страна получателя</label>
+    <select class="form-select"
+            id="receiverCountry"
+            name="receiver_country_code">
+              <?php
+$_from = $_smarty_tpl->getSmarty()->getRuntime('Foreach')->init($_smarty_tpl, $_smarty_tpl->getValue('dest_country'), 'b');
+$foreach0DoElse = true;
+foreach ($_from ?? [] as $_smarty_tpl->getVariable('b')->value) {
+$foreach0DoElse = false;
+?>
+              <option value="<?php echo $_smarty_tpl->getValue('b')['code_iso2'];?>
+"><?php echo $_smarty_tpl->getValue('b')['name_en'];?>
+</option>
+              <?php
+}
+$_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
+      <!-- опции будем заполнять JS-ом -->
+    </select>
   </div>
 
   <div class="col-md-6">
@@ -108,6 +130,7 @@ $_smarty_current_dir = '/home/cells/web/templates';
       <th>Трек</th>
       <th>Получатель</th>
       <th>Вес</th>
+      <th></th>
       <th>Габариты</th>
       <th>Создано</th>
     </tr>
@@ -115,9 +138,9 @@ $_smarty_current_dir = '/home/cells/web/templates';
   <tbody>
     <?php
 $_from = $_smarty_tpl->getSmarty()->getRuntime('Foreach')->init($_smarty_tpl, $_smarty_tpl->getValue('items'), 'p');
-$foreach0DoElse = true;
+$foreach1DoElse = true;
 foreach ($_from ?? [] as $_smarty_tpl->getVariable('p')->value) {
-$foreach0DoElse = false;
+$foreach1DoElse = false;
 ?>
       <tr>
         <td><?php echo $_smarty_tpl->getValue('p')['id'];?>
@@ -129,6 +152,15 @@ $foreach0DoElse = false;
         <td><?php if ($_smarty_tpl->getValue('p')['weight_kg']) {
 echo $_smarty_tpl->getValue('p')['weight_kg'];?>
  кг<?php }?></td>
+        <td class="text-end">
+          <button type="button"
+                  class="btn btn-sm btn-outline-danger js-core-link"
+                  data-core-action="delete_item_in"
+                  data-item-id="<?php echo $_smarty_tpl->getValue('p')['id'];?>
+">
+            Удалить
+          </button>
+        </td>
         <td>
           <?php if ($_smarty_tpl->getValue('p')['size_l_cm'] || $_smarty_tpl->getValue('p')['size_w_cm'] || $_smarty_tpl->getValue('p')['size_h_cm']) {?>
             <?php echo $_smarty_tpl->getValue('p')['size_l_cm'];?>

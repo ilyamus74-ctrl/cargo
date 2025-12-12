@@ -1,0 +1,60 @@
+TIME: 2025-12-10T11:38:56+01:00
+IP:   88.155.70.42
+========================================
+RAW BODY (php://input):
+raw_text=Sima+Veliyeva%0A-Sima+Veliyeva+C382815%0AStarkenburgstr.+10C+COLIBRI+EXPRESS%0AMorfelden-Walldort%0ADE+64546%0AKontakt%0ANotiz%0ANotiz%0ARef.+Nr.%0Aelomaionen+zor+GL%24+aterscrm+cttir+e+Lat%0As-gp.eu%2C+datzerecisn%0AKundee-N%0ADE%0A06909953722500100037-54057233807%0AGLS+servieA+oaino
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => Sima Veliyeva
+-Sima Veliyeva C382815
+Starkenburgstr. 10C COLIBRI EXPRESS
+Morfelden-Walldort
+DE 64546
+Kontakt
+Notiz
+Notiz
+Ref. Nr.
+elomaionen zor GL$ aterscrm cttir e Lat
+s-gp.eu, datzerecisn
+Kundee-N
+DE
+06909953722500100037-54057233807
+GLS servieA oaino
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+Sima Veliyeva
+-Sima Veliyeva C382815
+Starkenburgstr. 10C COLIBRI EXPRESS
+Morfelden-Walldort
+DE 64546
+Kontakt
+Notiz
+Notiz
+Ref. Nr.
+elomaionen zor GL$ aterscrm cttir e Lat
+s-gp.eu, datzerecisn
+Kundee-N
+DE
+06909953722500100037-54057233807
+GLS servieA oaino
+
+<form>
+file_name: sample_20251210_113856_c6d969.txt
+tracking_no: 0690995372250010003754057233807
+receiver_country_code: AZB
+receiver_forwarder_code: COLIBRI
+receiver_company: Colibri Express
+receiver_cell_code: C382815
+receiver_name: Sima Veliyeva
+label_type: GLS
+</form>

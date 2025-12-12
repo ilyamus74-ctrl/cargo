@@ -1,0 +1,73 @@
+TIME: 2025-12-10T11:44:57+01:00
+IP:   88.155.70.42
+========================================
+RAW BODY (php://input):
+raw_text=Datum%0AKundenreferenz%0AGewicht+in+kg%0A302-7490760-5288337%0A2024-10-30%0A0%2C001%0A64546+M%C3%B6rfelden-Walldof%0AStarkenburgstra%C3%9Fe+10c%0AEXPRESS-Sevinj+Huseynova+C1596%0AD%0AEmpf%C3%A4nger%3A%0A34-01%0ADE+40668+Meerbusch%0ARobert-Bosch-Stra%C3%9Fe+13%0AAbsender%3A%0AUandu+GmbH%0A44%0AMAINZ%0AWE+DO%21%0ADE40904+Moorbusch%0ARobsrBoschSrafbe+13
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => Datum
+Kundenreferenz
+Gewicht in kg
+302-7490760-5288337
+2024-10-30
+0,001
+64546 Mörfelden-Walldof
+Starkenburgstraße 10c
+EXPRESS-Sevinj Huseynova C1596
+D
+Empfänger:
+34-01
+DE 40668 Meerbusch
+Robert-Bosch-Straße 13
+Absender:
+Uandu GmbH
+44
+MAINZ
+WE DO!
+DE40904 Moorbusch
+RobsrBoschSrafbe 13
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+Datum
+Kundenreferenz
+Gewicht in kg
+302-7490760-5288337
+2024-10-30
+0,001
+64546 Mörfelden-Walldof
+Starkenburgstraße 10c
+EXPRESS-Sevinj Huseynova C1596
+D
+Empfänger:
+34-01
+DE 40668 Meerbusch
+Robert-Bosch-Straße 13
+Absender:
+Uandu GmbH
+44
+MAINZ
+WE DO!
+DE40904 Moorbusch
+RobsrBoschSrafbe 13
+
+
+<form>
+file_name: sample_20251210_114457_805bd3.txt
+tracking_no: 
+receiver_country_code: AZB
+receiver_forwarder_code: COLIBRI
+receiver_company: Colibri Express
+receiver_cell_code: C1596
+receiver_name: Sevinj Huseynova
+label_type: 
+</form>

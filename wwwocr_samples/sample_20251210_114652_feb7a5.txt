@@ -1,0 +1,51 @@
+TIME: 2025-12-10T11:46:52+01:00
+IP:   88.155.70.42
+========================================
+RAW BODY (php://input):
+raw_text=700%0AX-+HARDWARE.de+GmbH+%2F+Patrick+Pusch%2C+Reichsstr.+58%2C+Emafa+Passage+1.%0AA0+031F+FBE6+00+0D23+5E1A%0AIM+13.05.24+1%2C60+Deutsche+Post%0ACOLIBRI+EXPRESS+-MIKAYIL+AE%0ASTARKENBURGSTR.+10C%0A64546+M%C3%96RFELDEN-WALLDORF%0AHESSEN+DE%0Ain+Kooperatlon+mit%0Aebay
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => 700
+X- HARDWARE.de GmbH / Patrick Pusch, Reichsstr. 58, Emafa Passage 1.
+A0 031F FBE6 00 0D23 5E1A
+IM 13.05.24 1,60 Deutsche Post
+COLIBRI EXPRESS -MIKAYIL AE
+STARKENBURGSTR. 10C
+64546 MÖRFELDEN-WALLDORF
+HESSEN DE
+in Kooperatlon mit
+ebay
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+700
+X- HARDWARE.de GmbH / Patrick Pusch, Reichsstr. 58, Emafa Passage 1.
+A0 031F FBE6 00 0D23 5E1A
+IM 13.05.24 1,60 Deutsche Post
+COLIBRI EXPRESS -MIKAYIL AE
+STARKENBURGSTR. 10C
+64546 MÖRFELDEN-WALLDORF
+HESSEN DE
+in Kooperatlon mit
+ebay
+
+
+<form>
+file_name: sample_20251210_114652_feb7a5.txt
+tracking_no: 
+receiver_country_code: AZB
+receiver_forwarder_code: COLIBRI
+receiver_company: Colibri Express
+receiver_cell_code: 
+receiver_name: MIKAYIL AE
+label_type: 
+</form>

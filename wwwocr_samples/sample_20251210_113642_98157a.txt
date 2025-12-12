@@ -1,0 +1,69 @@
+TIME: 2025-12-10T11:36:42+01:00
+IP:   88.155.70.42
+========================================
+RAW BODY (php://input):
+raw_text=H182454188R399G1044%0A44+D%0AMAINZ%0AZAL+DEU%0A34+-+01%0ADE%0AHermnes%0AStarkenburgstr.+10%0AKoliExpress+xuraman+Ehmedova%0AKL418471+Koli%0AFremdbarcode%0A64546+M%C3%B6rfelden+-Walldorf%0ADeutschland%0A9811641444%0AWE+DO%21%0AFremdbarcode%0AHERMES+Ws.00.COM%0A1940930371809604%0A11
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => H182454188R399G1044
+44 D
+MAINZ
+ZAL DEU
+34 - 01
+DE
+Hermnes
+Starkenburgstr. 10
+KoliExpress xuraman Ehmedova
+KL418471 Koli
+Fremdbarcode
+64546 Mörfelden -Walldorf
+Deutschland
+9811641444
+WE DO!
+Fremdbarcode
+HERMES Ws.00.COM
+1940930371809604
+11
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+H182454188R399G1044
+44 D
+MAINZ
+ZAL DEU
+34 - 01
+DE
+Hermnes
+Starkenburgstr. 10
+KoliExpress xuraman Ehmedova
+KL418471 Koli
+Fremdbarcode
+64546 Mörfelden -Walldorf
+Deutschland
+9811641444
+WE DO!
+Fremdbarcode
+HERMES Ws.00.COM
+1940930371809604
+11
+
+
+<form>
+file_name: sample_20251210_113642_98157a.txt
+tracking_no: H182454188R399G1044
+receiver_country_code: AZB
+receiver_forwarder_code: KOLLI
+receiver_company: Kolli MMC
+receiver_cell_code: KL418471
+receiver_name: Xuraman Ehmedova
+label_type: HERMES
+</form>

@@ -1,0 +1,81 @@
+TIME: 2025-12-10T11:44:49+01:00
+IP:   88.155.70.42
+========================================
+RAW BODY (php://input):
+raw_text=Routingoode+Paketzentrum+63+Fran+kturt%0ABitte+nicht+an+Kinder+oder+Nachbarn+abgeben%21+Vorsicht%21+Zerbrechlich%21%0A0%0ASendungsnr.%3A%0AReferenznr.%3A%0A01903378420002%0A00340434735311793845%0AAbrechnungsnr.%3A+6328177313+01+27%0A1%2C00+kg+1%2F1%0AGewicht%3A%0AAnzahl%3A%0A%7CAn%3A%0ASlarkenburgstr.+10C%0A64546+Mortelden-Walldort%0ACOLIBRI+EXPRESS+Abulfaz+Huseynov+C1%0AEmpf%C3%A4nger+Telefon%3A%0A44803+Bochum%0AGrete+-Schickedan2-Str.+500%0AVon%3A%0Aapolux.de%0AAPO+Pharmacy+B.V.%0A0800+8321321%0AAbsender+Telefon%3A%0ADHL+PAKET%0A-DH
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => Routingoode Paketzentrum 63 Fran kturt
+Bitte nicht an Kinder oder Nachbarn abgeben! Vorsicht! Zerbrechlich!
+0
+Sendungsnr.:
+Referenznr.:
+01903378420002
+00340434735311793845
+Abrechnungsnr.: 6328177313 01 27
+1,00 kg 1/1
+Gewicht:
+Anzahl:
+|An:
+Slarkenburgstr. 10C
+64546 Mortelden-Walldort
+COLIBRI EXPRESS Abulfaz Huseynov C1
+Empfänger Telefon:
+44803 Bochum
+Grete -Schickedan2-Str. 500
+Von:
+apolux.de
+APO Pharmacy B.V.
+0800 8321321
+Absender Telefon:
+DHL PAKET
+-DH
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+Routingoode Paketzentrum 63 Fran kturt
+Bitte nicht an Kinder oder Nachbarn abgeben! Vorsicht! Zerbrechlich!
+0
+Sendungsnr.:
+Referenznr.:
+01903378420002
+00340434735311793845
+Abrechnungsnr.: 6328177313 01 27
+1,00 kg 1/1
+Gewicht:
+Anzahl:
+|An:
+Slarkenburgstr. 10C
+64546 Mortelden-Walldort
+COLIBRI EXPRESS Abulfaz Huseynov C1
+Empfänger Telefon:
+44803 Bochum
+Grete -Schickedan2-Str. 500
+Von:
+apolux.de
+APO Pharmacy B.V.
+0800 8321321
+Absender Telefon:
+DHL PAKET
+-DH
+
+
+<form>
+file_name: sample_20251210_114449_852a78.txt
+tracking_no: 00340434735311793845
+receiver_country_code: AZB
+receiver_forwarder_code: COLIBRI
+receiver_company: Colibri Express
+receiver_cell_code: C1
+receiver_name: Abulfaz Huseynov
+label_type: DHL
+</form>

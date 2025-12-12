@@ -1112,25 +1112,6 @@ case 'open_item_in_batch':
     $smarty->assign('items',        $items);
     $smarty->assign('current_user', $current);
 
-        $dest_country = [];
-        $sql = "SELECT `id`,`code_iso2`,`code_iso3`,`name_en`,`name_local` FROM `dest_countries` WHERE `is_active` = '1' ORDER BY `id`";
-        $stmt = $dbcnx->prepare($sql);
-        $stmt->execute();
-        $res3 = $stmt->get_result();
-
-
-        if ($res3 = $dbcnx->query($sql)) {
-            while ($row = $res3->fetch_assoc()) {
-                $dest_country[] = $row;
-            }
-            $res3->free();
-        }
-    $stmt->close();
-
-    $smarty->assign('dest_country', $dest_country);
-
-
-
     ob_start();
     $smarty->display('cells_NA_API_warehouse_item_in_batch.html');
     $html = ob_get_clean();
@@ -1140,6 +1121,8 @@ case 'open_item_in_batch':
         'html'   => $html,
     ];
     break;
+
+
 
 case 'add_new_item_in':
     auth_require_login();
@@ -1152,11 +1135,11 @@ case 'add_new_item_in':
     $batchUid = isset($_POST['batch_uid']) ? (int)$_POST['batch_uid'] : 0;
     if ($batchUid <= 0) {
         // новая партия — владелец = текущий пользователь
-        $batchUid     = (int)(microtime(true) * 1000000); // uid_created
+        $batchUid     = (int)(microtime(true) * 1000000); // как uid_created
         $ownerUserId  = $operatorUserId;
     } else {
         // существующая партия — ищем её владельца
-        $ownerUserId = $operatorUserId; // по умолчанию
+        $ownerUserId = $operatorUserId; // значение по умолчанию
 
         $stmtOwner = $dbcnx->prepare(
             "SELECT user_id
@@ -1177,36 +1160,28 @@ case 'add_new_item_in':
         }
     }
 
-    // 2) поля из формы
+    // 2) поля из формы / JSON
     $tuid        = trim($_POST['tuid']        ?? '');
     $tracking    = trim($_POST['tracking_no'] ?? '');
-
     $carrierCode = trim($_POST['carrier_code'] ?? '');
     $carrierName = trim($_POST['carrier_name'] ?? '');
 
     $rcCountryCode = trim($_POST['receiver_country_code'] ?? '');
-    // имя страны сейчас не приходит, можно оставить пустым
-    $rcCountryName = '';
-
-    $rcName        = trim($_POST['receiver_name']    ?? '');
+    $rcCountryName = trim($_POST['receiver_country_name'] ?? '');
+    $rcName        = trim($_POST['receiver_name'] ?? '');
     $rcCompany     = trim($_POST['receiver_company'] ?? '');
     $rcAddress     = trim($_POST['receiver_address'] ?? '');
 
-    $sndName       = trim($_POST['sender_name']    ?? '');
-    $sndCompany    = trim($_POST['sender_company'] ?? '');
+    $countryCode = trim($_POST['receiver_country_code'] ?? ''); // DE / AZ / ...
 
-    // вес и габариты: если пусто → 0
-    $weightKg = $_POST['weight_kg'] ?? '';
-    $sizeL    = $_POST['size_l_cm'] ?? '';
-    $sizeW    = $_POST['size_w_cm'] ?? '';
-    $sizeH    = $_POST['size_h_cm'] ?? '';
+    $sndName    = trim($_POST['sender_name']    ?? '');
+    $sndCompany = trim($_POST['sender_company'] ?? '');
 
-    $weightKg = ($weightKg === '' || $weightKg === null) ? 0.0 : (float)$weightKg;
-    $sizeL    = ($sizeL    === '' || $sizeL    === null) ? 0.0 : (float)$sizeL;
-    $sizeW    = ($sizeW    === '' || $sizeW    === null) ? 0.0 : (float)$sizeW;
-    $sizeH    = ($sizeH    === '' || $sizeH    === null) ? 0.0 : (float)$sizeH;
+    $weightKg = $_POST['weight_kg'] ?? null;
+    $sizeL    = $_POST['size_l_cm'] ?? null;
+    $sizeW    = $_POST['size_w_cm'] ?? null;
+    $sizeH    = $_POST['size_h_cm'] ?? null;
 
-    // пока не используем
     $labelImage = null;
     $boxImage   = null;
 
@@ -1219,7 +1194,7 @@ case 'add_new_item_in':
     }
 
     $uidCreated = (int)(microtime(true) * 1000000);
-    $deviceId   = 0; // для веба 0, для мобилки можно класть реальный device_id
+    $deviceId   = null; // для веба; для мобилки можно сюда класть device_id
 
     $sql = "INSERT INTO warehouse_item_in (
                 batch_uid, uid_created, user_id, device_id, committed,
@@ -1248,12 +1223,11 @@ case 'add_new_item_in':
         break;
     }
 
-    // iiiisssssssssssddddss  = 21 параметр
     $stmt->bind_param(
-        "iiiisssssssssssddddss",
+        "iiiisssssssssssssssss",
         $batchUid,
         $uidCreated,
-        $ownerUserId,    // владелец партии
+        $ownerUserId, // В БД кладём ВЛАДЕЛЬЦА партии
         $deviceId,
         $tuid,
         $tracking,
@@ -1277,7 +1251,7 @@ case 'add_new_item_in':
     $stmt->close();
 
     audit_log(
-        $operatorUserId,                 // кто реально добавил
+        $operatorUserId,                 // в audit_logs.user_id — кто реально добавил
         'WAREHOUSE_IN_ADD_PARCEL',
         'WAREHOUSE_IN',
         $batchUid,                       // entity_id = batch_uid
@@ -1298,7 +1272,6 @@ case 'add_new_item_in':
     ];
     break;
 
-
 case 'commit_item_in_batch':
     auth_require_login();
     $current  = $user;
@@ -1313,9 +1286,10 @@ case 'commit_item_in_batch':
         break;
     }
 
+    // Админ или нет — для аудита
     $isAdmin = auth_has_role('ADMIN');
 
-    // 1) сколько незакоммиченных
+    // 1) Сколько ещё НЕзакоммиченных посылок в этой партии (без привязки к user_id!)
     $stmt = $dbcnx->prepare(
         "SELECT COUNT(*) AS cnt
            FROM warehouse_item_in
@@ -1338,6 +1312,7 @@ case 'commit_item_in_batch':
     $cnt = (int)($res['cnt'] ?? 0);
 
     if ($cnt === 0) {
+        // Партия уже пустая или ранее была завершена — НЕ считаем это ошибкой
         $response = [
             'status'  => 'ok',
             'message' => 'Партия уже была завершена или пустая',
@@ -1345,7 +1320,7 @@ case 'commit_item_in_batch':
         break;
     }
 
-    // 2) копируем в stock
+    // 2) Копируем все незавершённые строки партии в warehouse_item_stock
     $sqlCopy = "INSERT INTO warehouse_item_stock (
                     batch_uid, uid_created, user_id, device_id, created_at,
                     tuid, tracking_no, carrier_code, carrier_name,
@@ -1380,7 +1355,7 @@ case 'commit_item_in_batch':
     $stmt->execute();
     $stmt->close();
 
-    // 3) помечаем как committed
+    // 3) Помечаем исходные записи как committed = 1
     $stmt = $dbcnx->prepare(
         "UPDATE warehouse_item_in
             SET committed = 1
@@ -1399,12 +1374,12 @@ case 'commit_item_in_batch':
     $stmt->execute();
     $stmt->close();
 
-    // 4) аудит
+    // 4) Аудит — кто реально нажал "Готово"
     audit_log(
-        $userId,
+        $userId,                       // кто нажал
         'WAREHOUSE_IN_COMMIT',
         'WAREHOUSE_IN',
-        $batchUid,
+        $batchUid,                     // entity_id = UID партии
         'Партия прихода переведена на склад',
         [
             'batch_uid'    => $batchUid,
@@ -1419,7 +1394,6 @@ case 'commit_item_in_batch':
         'message' => 'Партия прихода завершена и перенесена на склад',
     ];
     break;
-
 
     // === 2) Заготовка под "Устройства" ===
 /*    case 'view_devices':

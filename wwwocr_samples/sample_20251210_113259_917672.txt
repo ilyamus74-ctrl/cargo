@@ -1,0 +1,91 @@
+TIME: 2025-12-10T11:32:59+01:00
+IP:   88.155.70.42
+========================================
+RAW BODY (php://input):
+raw_text=asos%0AAbsender%3A%0AASOS%0AAn+der+Anhalter+Bahn+6%0ADE-+14979+Gross+beeren%0AEmpf%C3%A4nger%3A%0AK14096+Taulan+Shakhanov%0AStarkenburgstr.+10e%0A64546+Morfelden-Walldorf%0AGewicht+in+kg%0ADalurrn%0AKundenreferenz%0A91047377%0A0%2C96%0A2025-12-07%0A1021394891%0A1021394891%0A44%0AMAINZ%0A34-01%0AD%0ASIHermes%0A26341144301133%0AREF%0A1021394891%0ARetour+enadresse%3A%0AABO%0AAn+der+Anhalter+Bahn+6%0ADE+14979+Grossbeerern%0AHHermes
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => asos
+Absender:
+ASOS
+An der Anhalter Bahn 6
+DE- 14979 Gross beeren
+Empfänger:
+K14096 Taulan Shakhanov
+Starkenburgstr. 10e
+64546 Morfelden-Walldorf
+Gewicht in kg
+Dalurrn
+Kundenreferenz
+91047377
+0,96
+2025-12-07
+1021394891
+1021394891
+44
+MAINZ
+34-01
+D
+SIHermes
+26341144301133
+REF
+1021394891
+Retour enadresse:
+ABO
+An der Anhalter Bahn 6
+DE 14979 Grossbeerern
+HHermes
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+asos
+Absender:
+ASOS
+An der Anhalter Bahn 6
+DE- 14979 Gross beeren
+Empfänger:
+K14096 Taulan Shakhanov
+Starkenburgstr. 10e
+64546 Morfelden-Walldorf
+Gewicht in kg
+Dalurrn
+Kundenreferenz
+91047377
+0,96
+2025-12-07
+1021394891
+1021394891
+44
+MAINZ
+34-01
+D
+SIHermes
+26341144301133
+REF
+1021394891
+Retour enadresse:
+ABO
+An der Anhalter Bahn 6
+DE 14979 Grossbeerern
+HHermes
+
+
+<form>
+file_name: sample_20251210_113259_917672.txt
+tracking_no: 26341144301133
+receiver_country_code: KG
+receiver_forwarder_code: CAMARATC
+receiver_company: Camaratc
+receiver_cell_code: K14096
+receiver_name: Taulan Shakhanov
+label_type: HERMES
+</form>

@@ -1,0 +1,60 @@
+TIME: 2025-12-10T11:55:45+01:00
+IP:   88.155.70.42
+========================================
+RAW BODY (php://input):
+raw_text=DHL+PAKET%0ARel+NaSee.+Ret%0ADate%0AZalando+SE%0A17240+Neustrelitz%0ADeutsehland%0A1041020436470006%0A2025-12-05%0A0704438046%0ATo%3A+Rufet+Bagirov%0AStarkenburgstr.+10%0ACOLIBRI+EXPRESS+C162898%0A64546+M%C3%B6felden-Walldorf%0ADeutschland%0ADE
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => DHL PAKET
+Rel NaSee. Ret
+Date
+Zalando SE
+17240 Neustrelitz
+Deutsehland
+1041020436470006
+2025-12-05
+0704438046
+To: Rufet Bagirov
+Starkenburgstr. 10
+COLIBRI EXPRESS C162898
+64546 Möfelden-Walldorf
+Deutschland
+DE
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+DHL PAKET
+Rel NaSee. Ret
+Date
+Zalando SE
+17240 Neustrelitz
+Deutsehland
+1041020436470006
+2025-12-05
+0704438046
+To: Rufet Bagirov
+Starkenburgstr. 10
+COLIBRI EXPRESS C162898
+64546 Möfelden-Walldorf
+Deutschland
+DE
+
+<form>
+file_name: sample_20251210_115545_8b560b.txt
+tracking_no: 1041020436470006
+receiver_country_code: AZB
+receiver_forwarder_code: COLIBRI
+receiver_company: Colibri Express
+receiver_cell_code: C162898
+receiver_name: Rufet Bagirov
+label_type: DHL
+</form>

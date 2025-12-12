@@ -1,0 +1,60 @@
+TIME: 2025-12-10T12:01:03+01:00
+IP:   88.155.70.42
+========================================
+RAW BODY (php://input):
+raw_text=Fremdbarcode%0A34+-+01%0AMAINZ%0A44+D%0ADeutschland%0A64546+M%C3%B6rfelden-Walldorf%0AStarkenburgstr+10T+kargoflex%0AFX03030%0AAYNURA+SAMADOVA%0AH1024531304973901044%0AHERMES-WE-00.COM%0AWE+DO%21%0AZAL+DEU%0AHHermes
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => Fremdbarcode
+34 - 01
+MAINZ
+44 D
+Deutschland
+64546 Mörfelden-Walldorf
+Starkenburgstr 10T kargoflex
+FX03030
+AYNURA SAMADOVA
+H1024531304973901044
+HERMES-WE-00.COM
+WE DO!
+ZAL DEU
+HHermes
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+Fremdbarcode
+34 - 01
+MAINZ
+44 D
+Deutschland
+64546 Mörfelden-Walldorf
+Starkenburgstr 10T kargoflex
+FX03030
+AYNURA SAMADOVA
+H1024531304973901044
+HERMES-WE-00.COM
+WE DO!
+ZAL DEU
+HHermes
+
+<form>
+file_name: sample_20251210_120103_ef2e48.txt
+tracking_no: H1024531304973901044
+receiver_country_code: AZB
+receiver_forwarder_code: KARGOFLEX
+receiver_company: KargoFlex
+receiver_cell_code: FX03030
+receiver_name: AYNURA SAMADOVA
+label_type: HERMES
+</form>
+
+

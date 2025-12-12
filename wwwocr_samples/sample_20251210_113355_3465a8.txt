@@ -1,0 +1,60 @@
+TIME: 2025-12-10T11:33:55+01:00
+IP:   88.155.70.42
+========================================
+RAW BODY (php://input):
+raw_text=Ref.+76594851%0A08.12.2025%0APuma%0AH1029440071468001044%0A44+D%0AMAINZ%0AAsel+Rezerv%0ACAMARAKG+K16793%0AStarkenburgstr.+10E%0A64546+M%C3%B6rfeldenWaildort%0A34-01%0AIA.%0AHHermnes%0AWE+DO%21%0AHERMES-WE-DOCOM
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => Ref. 76594851
+08.12.2025
+Puma
+H1029440071468001044
+44 D
+MAINZ
+Asel Rezerv
+CAMARAKG K16793
+Starkenburgstr. 10E
+64546 MörfeldenWaildort
+34-01
+IA.
+HHermnes
+WE DO!
+HERMES-WE-DOCOM
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+Ref. 76594851
+08.12.2025
+Puma
+H1029440071468001044
+44 D
+MAINZ
+Asel Rezerv
+CAMARAKG K16793
+Starkenburgstr. 10E
+64546 MörfeldenWaildort
+34-01
+IA.
+HHermnes
+WE DO!
+HERMES-WE-DOCOM
+
+<form>
+file_name: sample_20251210_113355_3465a8.txt
+tracking_no: H1029440071468001044
+receiver_country_code: KG
+receiver_forwarder_code: Camaratc
+receiver_company:  CAMARATC
+receiver_cell_code: K16793
+receiver_name: Asel Rezerv
+label_type: HERMES
+</form>

@@ -1,0 +1,95 @@
+TIME: 2025-12-10T11:57:18+01:00
+IP:   88.155.70.42
+========================================
+RAW BODY (php://input):
+raw_text=NST+1%0A020692+64546%0APostleitzanl%0AStarkenburgstra%C3%9Fe+00%0ADE+64546%0AKontakt%0ANotiz%0ANotiz%0AKoliExpress+Narmin+Gurbanova%0ARef.+Nr.%0AIhre+GLS+Track+iD%0ADE+120+03+03.12.2025+1744%3A531.31+kg+001%2F001+RTG+02122025+F2+00.0%0AYVMHORVM%0A121119827544%0Aatormationen+2or+GLS-Datenscnmtzcktlinie+uater%0Agls-group.eu%2Fdateai+otesten%0AKunden-Nr.%0ADE%0AM%C3%B6rfelden-Walldort%0A06911473918800100033-54488994186%0AF%0A621%0A62-020%0ARhenus+WS+Poiska+Sp.+z+o.o%0ARabowicka+67%0AP%0ASwarzdz%0AVersender%0AINDITEX-+Swarzedz+-+Zara%0ACust+ID%0A2760319870+Con+ID%0A276245e3w
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => NST 1
+020692 64546
+Postleitzanl
+Starkenburgstraße 00
+DE 64546
+Kontakt
+Notiz
+Notiz
+KoliExpress Narmin Gurbanova
+Ref. Nr.
+Ihre GLS Track iD
+DE 120 03 03.12.2025 1744:531.31 kg 001/001 RTG 02122025 F2 00.0
+YVMHORVM
+121119827544
+atormationen 2or GLS-Datenscnmtzcktlinie uater
+gls-group.eu/dateai otesten
+Kunden-Nr.
+DE
+Mörfelden-Walldort
+06911473918800100033-54488994186
+F
+621
+62-020
+Rhenus WS Poiska Sp. z o.o
+Rabowicka 67
+P
+Swarzdz
+Versender
+INDITEX- Swarzedz - Zara
+Cust ID
+2760319870 Con ID
+276245e3w
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+NST 1
+020692 64546
+Postleitzanl
+Starkenburgstraße 00
+DE 64546
+Kontakt
+Notiz
+Notiz
+KoliExpress Narmin Gurbanova
+Ref. Nr.
+Ihre GLS Track iD
+DE 120 03 03.12.2025 1744:531.31 kg 001/001 RTG 02122025 F2 00.0
+YVMHORVM
+121119827544
+atormationen 2or GLS-Datenscnmtzcktlinie uater
+gls-group.eu/dateai otesten
+Kunden-Nr.
+DE
+Mörfelden-Walldort
+06911473918800100033-54488994186
+F
+621
+62-020
+Rhenus WS Poiska Sp. z o.o
+Rabowicka 67
+P
+Swarzdz
+Versender
+INDITEX- Swarzedz - Zara
+Cust ID
+2760319870 Con ID
+276245e3w
+
+
+<form>
+file_name: sample_20251210_115718_b2333b.txt
+tracking_no: 0691147391880010003354488994186
+receiver_country_code: AZB
+receiver_forwarder_code: KOLLI
+receiver_company: Kolli MMC
+receiver_cell_code: 
+receiver_name: Narmin Gurbanova
+label_type: GLS
+</form>

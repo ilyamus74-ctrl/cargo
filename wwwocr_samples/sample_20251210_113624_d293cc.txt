@@ -1,0 +1,72 @@
+TIME: 2025-12-10T11:36:24+01:00
+IP:   88.155.70.42
+========================================
+RAW BODY (php://input):
+raw_text=622801044%0AD%0ANZ%0A-01%0AEmpf%C3%A4nger%3A%0AAbsender%0ARevolution+Beauty%0AGermany%0ALimited%0ARevolution+Beauty%2C%0AStatham+Road%0AHHermnes%0AWN8+8UY+Skelrmnersdale%0AGreat+Britain%0ANigarkoli+MamedovaKoliExp%0AStarkenburgstra%C3%9Fe+10k%2C%0AKL417802+Koli%0A64546+M%C3%B6rfelden-Walldorf%0A25%0AGECO%0ASEU
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => 622801044
+D
+NZ
+-01
+Empfänger:
+Absender
+Revolution Beauty
+Germany
+Limited
+Revolution Beauty,
+Statham Road
+HHermnes
+WN8 8UY Skelrmnersdale
+Great Britain
+Nigarkoli MamedovaKoliExp
+Starkenburgstraße 10k,
+KL417802 Koli
+64546 Mörfelden-Walldorf
+25
+GECO
+SEU
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+622801044
+D
+NZ
+-01
+Empfänger:
+Absender
+Revolution Beauty
+Germany
+Limited
+Revolution Beauty,
+Statham Road
+HHermnes
+WN8 8UY Skelrmnersdale
+Great Britain
+Nigarkoli MamedovaKoliExp
+Starkenburgstraße 10k,
+KL417802 Koli
+64546 Mörfelden-Walldorf
+25
+GECO
+SEU
+
+<form>
+file_name: sample_20251210_113624_d293cc.txt
+tracking_no: 
+receiver_country_code: AZB
+receiver_forwarder_code: KOLLI
+receiver_company: Kolli MMC
+receiver_cell_code: KL417802
+receiver_name: Nigarkoli Mamedova
+label_type: HERMES
+</form>

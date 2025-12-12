@@ -1,0 +1,74 @@
+TIME: 2025-12-10T11:39:50+01:00
+IP:   88.155.70.42
+========================================
+RAW BODY (php://input):
+raw_text=WE+DOI%0AAbsenee%3A%0ASunday+Natural+Products+GmbH%0AGewerbcebiet+Etzin%0ADE-146e+Ketzin%0AEmpf%C3%A4nger%3A%0AStarkenburgstr.+10C%0A64546+M%C3%B6rfelden-Walldort%0AEXPRESS-C175293+Namiq+Meh%2C+CO+D%0AGewicht+in+kg%0ADatum%0AKunderreferenz%0A44%0A106%0A2025-12-08%0A10138827758%0AMAINZ%0A34-01%0A70342144902888%0ANermes%0ARetonrenxre%0ABuney+Ntr+Ps
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => WE DOI
+Absenee:
+Sunday Natural Products GmbH
+Gewerbcebiet Etzin
+DE-146e Ketzin
+Empfänger:
+Starkenburgstr. 10C
+64546 Mörfelden-Walldort
+EXPRESS-C175293 Namiq Meh, CO D
+Gewicht in kg
+Datum
+Kunderreferenz
+44
+106
+2025-12-08
+10138827758
+MAINZ
+34-01
+70342144902888
+Nermes
+Retonrenxre
+Buney Ntr Ps
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+WE DOI
+Absenee:
+Sunday Natural Products GmbH
+Gewerbcebiet Etzin
+DE-146e Ketzin
+Empfänger:
+Starkenburgstr. 10C
+64546 Mörfelden-Walldort
+EXPRESS-C175293 Namiq Meh, CO D
+Gewicht in kg
+Datum
+Kunderreferenz
+44
+106
+2025-12-08
+10138827758
+MAINZ
+34-01
+70342144902888
+Nermes
+Retonrenxre
+Buney Ntr Ps
+
+<form>
+file_name: sample_20251210_113950_ab7e61.txt
+tracking_no: 
+receiver_country_code: AZB
+receiver_forwarder_code: COLIBRI
+receiver_company: Colibri Express
+receiver_cell_code: C175293
+receiver_name: Namiq Meh
+label_type: HERMES
+</form>

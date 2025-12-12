@@ -1,0 +1,70 @@
+TIME: 2025-12-10T12:02:48+01:00
+IP:   88.155.70.42
+========================================
+RAW BODY (php://input):
+raw_text=DHL+PAKET%0ACoe%0AAbsender+Telefor%0ACOS%0ACO+GXO+SUPPLY+CHAIN%0A47308+KPEFELI%0AGERMANY%0AErmpfanger+Telefon%0AOPE%0ACamexf+192120%0AStsskernburgotre%C3%9Fe+108%0A6446+Mtokin-Vwalldort%0ACEEMAIiY%0ATag%0A1%2F1%0AGewcht%0A1%2C34+ka%0A600426S48Y+O1+05%0AE1871HOLSA%0ACKAOA34TA81+554
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => DHL PAKET
+Coe
+Absender Telefor
+COS
+CO GXO SUPPLY CHAIN
+47308 KPEFELI
+GERMANY
+Ermpfanger Telefon
+OPE
+Camexf 192120
+Stsskernburgotreße 108
+6446 Mtokin-Vwalldort
+CEEMAIiY
+Tag
+1/1
+Gewcht
+1,34 ka
+600426S48Y O1 05
+E1871HOLSA
+CKAOA34TA81 554
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+DHL PAKET
+Coe
+Absender Telefor
+COS
+CO GXO SUPPLY CHAIN
+47308 KPEFELI
+GERMANY
+Ermpfanger Telefon
+OPE
+Camexf 192120
+Stsskernburgotreße 108
+6446 Mtokin-Vwalldort
+CEEMAIiY
+Tag
+1/1
+Gewcht
+1,34 ka
+600426S48Y O1 05
+E1871HOLSA
+CKAOA34TA81 554
+
+<form>
+file_name: sample_20251210_120248_5df767.txt
+tracking_no: 
+receiver_country_code: AZB
+receiver_forwarder_code: CAMEX
+receiver_company: Camex
+receiver_cell_code: 
+receiver_name: 
+label_type: 
+</form>

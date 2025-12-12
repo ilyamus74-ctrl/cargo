@@ -1,0 +1,92 @@
+TIME: 2025-12-10T11:45:17+01:00
+IP:   88.155.70.42
+========================================
+RAW BODY (php://input):
+raw_text=908%0A23%2F06%2F%0ASERVICE%0APM4%0ARuecksendung+at%3A%0AAmazon+EU+Sarl%0AAmazonstrasse+1%0ABad+Herseld+36251%0AGermany%0ASZ0+09TO%0ACOLIBRI+Abulfaz+Ahmadov%0APO8Z91+O0000LOEa%0AGERMANY%0ATRACK%0ACOLIBRI+EXPRESS+-+ABULFAZ+AHMABOV+C151629%0ASTARKENBURGSTRASSE+10C%0A64546+MORFELDEN+-WALLDORF%0A0944+7058+5774+66+J%0AXnE%0A944+7858+5774+6+J%0AddG%0A4+66J%0AGew.%3A+0.44+Ka.%0A1+922+b88+99%0Aa+5774+66J%0ADE-DE%0A-%0A2A5%0APM4%0ASERVICE%0AE
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => 908
+23/06/
+SERVICE
+PM4
+Ruecksendung at:
+Amazon EU Sarl
+Amazonstrasse 1
+Bad Herseld 36251
+Germany
+SZ0 09TO
+COLIBRI Abulfaz Ahmadov
+PO8Z91 O0000LOEa
+GERMANY
+TRACK
+COLIBRI EXPRESS - ABULFAZ AHMABOV C151629
+STARKENBURGSTRASSE 10C
+64546 MORFELDEN -WALLDORF
+0944 7058 5774 66 J
+XnE
+944 7858 5774 6 J
+ddG
+4 66J
+Gew.: 0.44 Ka.
+1 922 b88 99
+a 5774 66J
+DE-DE
+-
+2A5
+PM4
+SERVICE
+E
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+908
+23/06/
+SERVICE
+PM4
+Ruecksendung at:
+Amazon EU Sarl
+Amazonstrasse 1
+Bad Herseld 36251
+Germany
+SZ0 09TO
+COLIBRI Abulfaz Ahmadov
+PO8Z91 O0000LOEa
+GERMANY
+TRACK
+COLIBRI EXPRESS - ABULFAZ AHMABOV C151629
+STARKENBURGSTRASSE 10C
+64546 MORFELDEN -WALLDORF
+0944 7058 5774 66 J
+XnE
+944 7858 5774 6 J
+ddG
+4 66J
+Gew.: 0.44 Ka.
+1 922 b88 99
+a 5774 66J
+DE-DE
+-
+2A5
+PM4
+SERVICE
+E
+
+<form>
+file_name: sample_20251210_114517_fa15b8.txt
+tracking_no: 
+receiver_country_code: AZB
+receiver_forwarder_code: COLIBRI
+receiver_company: Colibri Express
+receiver_cell_code: C151629
+receiver_name: Abulfaz Ahmadov
+label_type: AMAZON
+</form>

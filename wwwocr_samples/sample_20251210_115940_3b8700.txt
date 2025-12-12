@@ -1,0 +1,51 @@
+TIME: 2025-12-10T11:59:40+01:00
+IP:   88.155.70.42
+========================================
+RAW BODY (php://input):
+raw_text=1044%0A1%0AEPG+ONE%3A+ISS-2.13.0%0A1-637583507%0AAser+terane+Mohsunova%0AAs229906%0AHermes%0AStarkenburgstr.+10g%0A64546+M%C3%B6rfelden+-Walldort%0ADeutschland
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => 1044
+1
+EPG ONE: ISS-2.13.0
+1-637583507
+Aser terane Mohsunova
+As229906
+Hermes
+Starkenburgstr. 10g
+64546 Mörfelden -Walldort
+Deutschland
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+1044
+1
+EPG ONE: ISS-2.13.0
+1-637583507
+Aser terane Mohsunova
+As229906
+Hermes
+Starkenburgstr. 10g
+64546 Mörfelden -Walldort
+Deutschland
+
+
+<form>
+file_name: sample_20251210_115940_3b8700.txt
+tracking_no: 
+receiver_country_code: AZB
+receiver_forwarder_code: ASER
+receiver_company: AserCargo
+receiver_cell_code: AS229906
+receiver_name: Terane Mohsunova
+label_type: HERMES
+</form>
