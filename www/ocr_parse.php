@@ -353,12 +353,19 @@ function detect_cell_code(string $text): ?string {
         $digits = strtr($p[2], ['O' => '0']);
         $normalizedCode = $prefix . $digits;
 
+        $variants = [$normalizedCode];
+
+        // OCR иногда путает буквы в префиксе:
+        //  - KI → KL в кодах Колли
+        if (preg_match('/^KI(\d+)$/', $normalizedCode, $kiParts)) {
+            $variants[] = 'KL' . $kiParts[1];
+        }
+
         // OCR иногда вставляет лишнюю букву "O" после префикса вместо нуля, например PLO0152
         // вместо PL00152. Пытаемся восстановить такую ошибку.
-        $variants = [$normalizedCode];
         if (preg_match('/O$/', $prefix)) {
             $variants[] = substr($prefix, 0, -1) . '0' . $digits;
-            }
+        }
         foreach ($variants as $variant) {
             $forwarder = detect_forwarder_by_cell_code($variant);
             if ($forwarder === null) {
@@ -394,6 +401,13 @@ function detect_cell_code(string $text): ?string {
         $byScore = $b['score'] <=> $a['score'];
         if ($byScore !== 0) {
             return $byScore;
+        }
+
+        // При равном счёте предпочитаем более длинные коды (чаще истинные ячейки),
+        // а уже потом — те, что встретились раньше в тексте.
+        $byLength = strlen($b['code']) <=> strlen($a['code']);
+        if ($byLength !== 0) {
+            return $byLength;
         }
 
         return $a['idx'] <=> $b['idx'];
