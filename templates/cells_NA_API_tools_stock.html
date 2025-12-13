@@ -16,10 +16,11 @@
 
           <div class="card">
             <div class="card-body">
-              <h5 class="card-title">Добавдение / Редактирования инструмента</h5>
-              <button type="button" class="btn btn-primary js-core-link"  data-bs-toggle="modal" data-bs-target="#fullscreenModal" data-core-action="form_new_user">Добавить</button>
+              <h5 class="card-title">Добавление / Редактирования инструмента</h5>
+              <button type="button" class="btn btn-primary js-core-link"  data-bs-toggle="modal" data-bs-target="#fullscreenModal" data-core-action="form_new_tool_stock">Добавить</button>
               {if $current_user.role == 'ADMIN'}
-              <button type="button" class="btn btn-outline-secondary btn-sm js-core-link" data-core-action="users_regen_qr" style="margin-left: 10px;">Обновить QR для всех </button>
+              <!--<button type="button" class="btn btn-outline-secondary btn-sm js-core-link" data-core-action="users_regen_qr" style="margin-left: 10px;">Обновить QR для всех </button>
+              -->
               {/if}
               <!--class="js-core-link" data-core-action="view_users"-->
               <!--<p>Highlight a table row or cell by adding a <code>.table-active</code> class.</p>-->
@@ -65,7 +66,7 @@
                   <div class="modal-content">
                  
                     <div class="modal-header">
-                      <h5 class="modal-title">Создание / Редактировния пользователя</h5>
+                      <h5 class="modal-title">Добавление / Редактировния инструмента</h5>
                       <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                     </div>
                     <div class="modal-body">

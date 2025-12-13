@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2025-12-13 21:06:32
+/* Smarty version 5.3.1, created on 2025-12-13 21:32:21
   from 'file:cells_NA_API_tools_stock.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_693dd558c5baa6_01120923',
+  'unifunc' => 'content_693ddb65638da4_81572603',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '7c780fb2eca0e4916b5d0e2c80c6661f7e49fa56' => 
     array (
       0 => 'cells_NA_API_tools_stock.html',
-      1 => 1765659903,
+      1 => 1765661536,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_693dd558c5baa6_01120923 (\Smarty\Template $_smarty_tpl) {
+function content_693ddb65638da4_81572603 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>    <div class="pagetitle">
       <h1>Инструменты обортные</h1>
@@ -40,10 +40,11 @@ $_smarty_current_dir = '/home/cells/web/templates';
 
           <div class="card">
             <div class="card-body">
-              <h5 class="card-title">Добавдение / Редактирования инструмента</h5>
-              <button type="button" class="btn btn-primary js-core-link"  data-bs-toggle="modal" data-bs-target="#fullscreenModal" data-core-action="form_new_user">Добавить</button>
+              <h5 class="card-title">Добавление / Редактирования инструмента</h5>
+              <button type="button" class="btn btn-primary js-core-link"  data-bs-toggle="modal" data-bs-target="#fullscreenModal" data-core-action="form_new_tool_stock">Добавить</button>
               <?php if ($_smarty_tpl->getValue('current_user')['role'] == 'ADMIN') {?>
-              <button type="button" class="btn btn-outline-secondary btn-sm js-core-link" data-core-action="users_regen_qr" style="margin-left: 10px;">Обновить QR для всех </button>
+              <!--<button type="button" class="btn btn-outline-secondary btn-sm js-core-link" data-core-action="users_regen_qr" style="margin-left: 10px;">Обновить QR для всех </button>
+              -->
               <?php }?>
               <!--class="js-core-link" data-core-action="view_users"-->
               <!--<p>Highlight a table row or cell by adding a <code>.table-active</code> class.</p>-->
@@ -102,7 +103,7 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
                   <div class="modal-content">
                  
                     <div class="modal-header">
-                      <h5 class="modal-title">Создание / Редактировния пользователя</h5>
+                      <h5 class="modal-title">Добавление / Редактировния инструмента</h5>
                       <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                     </div>
                     <div class="modal-body">

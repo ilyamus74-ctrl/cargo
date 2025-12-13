@@ -47,14 +47,10 @@ function fetch_tools_list(mysqli $dbcnx): array
     $users = [];
 
     $sql = "SELECT id,
-                   username,
-                   full_name,
-                   email,
-                   is_active,
-                   created_at,
-                   last_login_at,
-                   login_count
-              FROM users
+                   name,
+                   serial_number,
+                   registered_at
+              FROM tool_resources
           ORDER BY id";
     if ($res = $dbcnx->query($sql)) {
         while ($row = $res->fetch_assoc()) {
