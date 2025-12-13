@@ -29,6 +29,34 @@ function reloadUserList() {
         });
 }
 
+// Перерисовать список оборотных инструментов (Раздел «Ресурсы»)
+function reloadToolsStock() {
+    const main = document.getElementById('main');
+    if (!main) return;
+
+    const fd = new FormData();
+    fd.append('action', 'view_tools_stock');
+
+    fetch('/core_api.php', {
+        method: 'POST',
+        body: fd
+    })
+        .then(r => r.json())
+        .then(d => {
+            if (!d || d.status !== 'ok') {
+                console.error('core_api error (reloadToolsStock):', d);
+                return;
+            }
+            if (d.html) {
+                main.innerHTML = d.html;
+            }
+        })
+        .catch(err => {
+            console.error('core_api fetch error (reloadToolsStock):', err);
+        });
+}
+
+
 function emitDeviceContext(){
   try{
     function read(id){

@@ -15,6 +15,57 @@ $response = [
     'message' => 'Unknown action',
 ];
 
+/**
+ * Получить список пользователей для таблиц (используется в нескольких разделах).
+ */
+function fetch_users_list(mysqli $dbcnx): array
+{
+    $users = [];
+
+    $sql = "SELECT id,
+                   username,
+                   full_name,
+                   email,
+                   is_active,
+                   created_at,
+                   last_login_at,
+                   login_count
+              FROM users
+          ORDER BY id";
+    if ($res = $dbcnx->query($sql)) {
+        while ($row = $res->fetch_assoc()) {
+            $users[] = $row;
+        }
+        $res->free();
+    }
+
+    return $users;
+}
+
+function fetch_tools_list(mysqli $dbcnx): array
+{
+    $users = [];
+
+    $sql = "SELECT id,
+                   username,
+                   full_name,
+                   email,
+                   is_active,
+                   created_at,
+                   last_login_at,
+                   login_count
+              FROM users
+          ORDER BY id";
+    if ($res = $dbcnx->query($sql)) {
+        while ($row = $res->fetch_assoc()) {
+            $users[] = $row;
+        }
+        $res->free();
+    }
+
+    return $users;
+}
+
 // текущий пользователь
 $user = auth_current_user();
 
@@ -80,7 +131,7 @@ switch ($action) {
 
     // === 1) Показать список пользователей (центральный main) ===
     case 'view_users':
-        $users = [];
+/*        $users = [];
 
         // тянем пользователей из БД
         $sql = "SELECT id,
@@ -99,10 +150,12 @@ switch ($action) {
             }
             $res->free();
         }
-
+*/
+        $users = fetch_users_list($dbcnx);
         // отдаём в шаблон
         $smarty->assign('users', $users);
-        $smarty->assign('current_user', $currentUser);
+//        $smarty->assign('current_user', $currentUser);
+        $smarty->assign('current_user', $user);
 
         // рендерим ТОЛЬКО внутренность main в отдельный шаблон
         ob_start();
@@ -455,6 +508,25 @@ case 'form_edit_user':
         'html'   => $html,
     ];
     break;
+
+    // === Ресурсы -> Инструменты ===
+    case 'view_tools_stock':
+    case 'tools_stock':
+        $users = fetch_tools_list($dbcnx);
+
+        $smarty->assign('users', $users);
+        $smarty->assign('current_user', $user);
+
+        ob_start();
+        $smarty->display('cells_NA_API_tools_stock.html');
+        $html = ob_get_clean();
+
+        $response = [
+            'status' => 'ok',
+            'html'   => $html,
+        ];
+        break;
+
 
     case 'view_devices':
         $devices = [];

@@ -16,7 +16,7 @@
 
           <div class="card">
             <div class="card-body">
-              <h5 class="card-title">Создание / Редактирования пользоватея</h5>
+              <h5 class="card-title">Добавдение / Редактирования инструмента</h5>
               <button type="button" class="btn btn-primary js-core-link"  data-bs-toggle="modal" data-bs-target="#fullscreenModal" data-core-action="form_new_user">Добавить</button>
               {if $current_user.role == 'ADMIN'}
               <button type="button" class="btn btn-outline-secondary btn-sm js-core-link" data-core-action="users_regen_qr" style="margin-left: 10px;">Обновить QR для всех </button>
@@ -29,16 +29,16 @@
 
           <div class="card table-responsive users-table-wrapper">
             <div class="card-body">
-              <h5 class="card-title">Пользователи</h5>
+              <h5 class="card-title">Инструменты</h5>
               <!-- Default Table -->
               <input type="hidden" id="userListDirty" value="0">
               <table class="table table-sm align-middle users-table">
                 <thead>
                   <tr>
                     <th scope="col">#</th>
-                    <th scope="col">Name</th>
-                    <th scope="col">Position</th>
-                    <th scope="col">Login count</th>
+                    <th scope="col">Название</th>
+                    <th scope="col">Серийный/н</th>
+                    <th scope="col"></th>
                     <th scope="col">Add Date</th>
                   </tr>
                 </thead>
