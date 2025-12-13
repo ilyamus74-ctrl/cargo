@@ -1,0 +1,86 @@
+    <div class="pagetitle">
+      <h1>Инструменты обортные</h1>
+      <nav>
+        <ol class="breadcrumb">
+          <li class="breadcrumb-item"><a href="index.html">Main</a></li>
+          <li class="breadcrumb-item">Ресурсы</li>
+          <li class="breadcrumb-item active">Инструменты</li>
+        </ol>
+      </nav>
+    </div><!-- End Page Title -->
+
+    <section class="section">
+      <div class="row">
+        <div class="col-lg-6">
+
+
+          <div class="card">
+            <div class="card-body">
+              <h5 class="card-title">Создание / Редактирования пользоватея</h5>
+              <button type="button" class="btn btn-primary js-core-link"  data-bs-toggle="modal" data-bs-target="#fullscreenModal" data-core-action="form_new_user">Добавить</button>
+              {if $current_user.role == 'ADMIN'}
+              <button type="button" class="btn btn-outline-secondary btn-sm js-core-link" data-core-action="users_regen_qr" style="margin-left: 10px;">Обновить QR для всех </button>
+              {/if}
+              <!--class="js-core-link" data-core-action="view_users"-->
+              <!--<p>Highlight a table row or cell by adding a <code>.table-active</code> class.</p>-->
+            </div>
+          </div>
+
+
+          <div class="card table-responsive users-table-wrapper">
+            <div class="card-body">
+              <h5 class="card-title">Пользователи</h5>
+              <!-- Default Table -->
+              <input type="hidden" id="userListDirty" value="0">
+              <table class="table table-sm align-middle users-table">
+                <thead>
+                  <tr>
+                    <th scope="col">#</th>
+                    <th scope="col">Name</th>
+                    <th scope="col">Position</th>
+                    <th scope="col">Login count</th>
+                    <th scope="col">Add Date</th>
+                  </tr>
+                </thead>
+                <tbody>
+
+                  {foreach $users as $value}
+                  <tr>
+                    <th scope="row">{$value.id}</th>
+                    <td> <a href="#" class="js-core-link" data-core-action="form_edit_user" data-user-id="{$value.id}">{$value.full_name|escape}</a></td>
+                    <td>{$value.username}</td>
+                    <td>{$value.login_count}</td>
+                    <td>{$value.last_login_at}</td>
+                  </tr>
+                  {/foreach}
+                </tbody>
+              </table>
+              <!-- End Default Table Example -->
+            </div>
+          </div>
+
+              <!-- Full Screen Modal -->
+              <div class="modal fade" id="fullscreenModal" tabindex="-1">
+                <div class="modal-dialog modal-fullscreen">
+                  <div class="modal-content">
+                 
+                    <div class="modal-header">
+                      <h5 class="modal-title">Создание / Редактировния пользователя</h5>
+                      <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                      Тут не должно быть приведения, если ты его видешь значить что то пошло не так или не туда :)
+                    </div>
+                    <div class="modal-footer">
+                      <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                      <!--<button type="button" class="btn btn-primary">Save changes</button>-->
+                    </div>
+                  </div>
+                </div>
+              </div><!-- End Full Screen Modal-->
+
+
+        </div>
+      </div>
+    </section>
+

@@ -748,50 +748,6 @@ function detect_forwarder_by_cell_code(string $cell): ?string {
 }
 
 
-
-function detect_local_carrier_name(string $text): ?string {
-    $t = mb_strtolower($text, 'UTF-8');
-
-    if (preg_match('/\bhermes\b/u', $t)) return 'HERMES';
-    if (preg_match('/\bgls\b/u', $t)) return 'GLS';
-    if (preg_match('/\bups\b/u', $t) || preg_match('/\b1z[0-9a-z]{16}\b/iu', $text)) return 'UPS';
-    if (preg_match('/\bazamazon\b/u', $t) || preg_match('/\btba\d{10,}\b/iu', $text)) return 'AMAZON';
-    if (preg_match('/\bdhl\b/u', $t) || mb_strpos($t, 'deutsche post') !== false) return 'DHL';
-
-    return null;
-}
-
-function detect_local_tracking_no(string $text, ?string $carrier): ?string {
-    $up = strtoupper(str_replace(["\r","\n"], " ", $text));
-
-    // UPS
-    if (preg_match('/\b1Z[0-9A-Z]{16}\b/', $up, $m)) return $m[0];
-
-    // Amazon
-    if (preg_match('/\bTBA\d{10,}\b/', $up, $m)) return $m[0];
-
-    // digits-only кандидаты
-    if (!preg_match_all('/\b\d{11,20}\b/', $up, $mm)) return null;
-    $cands = $mm[0];
-
-    $best = null;
-    $bestScore = -1;
-
-    foreach ($cands as $v) {
-        $score = strlen($v);
-
-        if ($carrier === 'GLS' && strlen($v) === 11) $score += 50;
-        if ($carrier === 'HERMES' && (strlen($v) === 14 || strlen($v) === 15 || strlen($v) === 16)) $score += 50;
-        if ($carrier === 'DHL' && strlen($v) >= 12) $score += 20;
-
-        if ($score > $bestScore) {
-            $bestScore = $score;
-            $best = $v;
-        }
-    }
-
-    return $best;
-}
 // --------------------------------------------------
 // 6) Запуск детекторов
 // --------------------------------------------------
@@ -799,8 +755,6 @@ function detect_local_tracking_no(string $text, ?string $carrier): ?string {
 $dest     = detect_dest_country_and_forwarder($text, $DEST_CONFIG);
 $cellCode = detect_cell_code($text);
 $tracking = detect_tracking_no($text);
-$localCarrier  = detect_local_carrier_name($text);
-$localTracking = detect_local_tracking_no($text, $localCarrier);
 
 // --- KOLLI всегда AZB ---
 // форвардеры, которые считаем "только AZB"
@@ -982,8 +936,6 @@ $data = [
     'receiver_company'        => $forwarderName,
     'receiver_cell_code'      => $cellCode,
     'receiver_name'           => $client,
-    'local_carrier_name'      => $localCarrier,
-    'local_tracking_no'       => $localTracking,
 ];
 
 echo json_encode(

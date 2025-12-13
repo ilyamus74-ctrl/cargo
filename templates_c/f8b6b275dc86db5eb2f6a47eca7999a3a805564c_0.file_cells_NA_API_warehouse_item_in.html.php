@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2025-12-09 14:04:16
+/* Smarty version 5.3.1, created on 2025-12-13 19:12:34
   from 'file:cells_NA_API_warehouse_item_in.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_69382c60211d43_55103435',
+  'unifunc' => 'content_693dbaa290ff13_53167249',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     'f8b6b275dc86db5eb2f6a47eca7999a3a805564c' => 
     array (
       0 => 'cells_NA_API_warehouse_item_in.html',
-      1 => 1765289040,
+      1 => 1765652932,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_69382c60211d43_55103435 (\Smarty\Template $_smarty_tpl) {
+function content_693dbaa290ff13_53167249 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>    <div class="pagetitle">
       <h1>Warehouse Item In</h1>

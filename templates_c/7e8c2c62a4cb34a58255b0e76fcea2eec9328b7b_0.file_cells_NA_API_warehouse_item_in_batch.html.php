@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2025-12-13 14:50:01
+/* Smarty version 5.3.1, created on 2025-12-13 19:09:02
   from 'file:cells_NA_API_warehouse_item_in_batch.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_693d7d19395d88_09323291',
+  'unifunc' => 'content_693db9ce79cd62_57271602',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '7e8c2c62a4cb34a58255b0e76fcea2eec9328b7b' => 
     array (
       0 => 'cells_NA_API_warehouse_item_in_batch.html',
-      1 => 1765637361,
+      1 => 1765652938,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_693d7d19395d88_09323291 (\Smarty\Template $_smarty_tpl) {
+function content_693db9ce79cd62_57271602 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>
 
@@ -46,7 +46,7 @@ $_smarty_current_dir = '/home/cells/web/templates';
   <div class="col-md-4">
      <label for="carrierName" class="form-label">Перевозчик</label>
      <input type="text" class="form-control" id="carrierName" name="carrier_name" readonly>
-     <input type="hidden" id="carrierCode" name="carrier_code">
+     <input type="hidden" id="senderName" name="carrier_code">
   </div>
 
   <div class="col-md-4">
@@ -76,18 +76,18 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
   </div>
 
   <div class="col-md-6">
-    <label for="receiverAddress" class="form-label">Адрес</label>
+    <label for="receiverAddress" class="form-label">Ячейка</label>
     <input type="text" class="form-control" id="receiverAddress" name="receiver_address">
   </div>
 
   <div class="col-md-6">
-    <label for="receiverCompany" class="form-label">Компания получателя</label>
+    <label for="receiverCompany" class="form-label">Компания форвард</label>
     <input type="text" class="form-control" id="receiverCompany" name="receiver_company">
   </div>
 
   <div class="col-md-6">
-    <label for="senderName" class="form-label">Отправитель</label>
-    <input type="text" class="form-control" id="senderName" name="sender_name">
+    <label for="senderName" class="form-label">Форвард CODE</label>
+    <input type="text" class="form-control" id="carrierCode" name="sender_code">
   </div>
 
   <div class="col-md-3">
@@ -195,5 +195,32 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
     Завершить партию (на склад)
   </button>
 </div>
+
+
+<?php echo '<script'; ?>
+ id="device-scan-config" type="application/json">
+{
+  "task_id": "warehouse_in",
+  "default_mode": "ocr",
+  "modes": ["ocr"],
+  "barcode": { "action": "fill_field", "field_id": "trackingNo" },
+  "qr":      { "action": "api_check",  "endpoint": "/api/qr_check.php" }
+}
+<?php echo '</script'; ?>
+>
+<div id="ocr-templates" style="display:none">
+    <?php echo $_smarty_tpl->getValue('jsonOcrTemplates');?>
+
+</div>
+<div id="ocr-templates-destcountry" style="display:none">
+    <?php echo $_smarty_tpl->getValue('jsonDestCountry');?>
+
+</div>
+
+<div id="ocr-dicts" style="display:none">
+    <?php echo $_smarty_tpl->getValue('jsonOcrDicts');?>
+
+</div>
+
 <?php }
 }

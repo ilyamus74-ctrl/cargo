@@ -21,7 +21,7 @@
   <div class="col-md-4">
      <label for="carrierName" class="form-label">Перевозчик</label>
      <input type="text" class="form-control" id="carrierName" name="carrier_name" readonly>
-     <input type="hidden" id="carrierCode" name="carrier_code">
+     <input type="hidden" id="senderName" name="carrier_code">
   </div>
 
   <div class="col-md-4">
@@ -42,18 +42,18 @@
   </div>
 
   <div class="col-md-6">
-    <label for="receiverAddress" class="form-label">Адрес</label>
+    <label for="receiverAddress" class="form-label">Ячейка</label>
     <input type="text" class="form-control" id="receiverAddress" name="receiver_address">
   </div>
 
   <div class="col-md-6">
-    <label for="receiverCompany" class="form-label">Компания получателя</label>
+    <label for="receiverCompany" class="form-label">Компания форвард</label>
     <input type="text" class="form-control" id="receiverCompany" name="receiver_company">
   </div>
 
   <div class="col-md-6">
-    <label for="senderName" class="form-label">Отправитель</label>
-    <input type="text" class="form-control" id="senderName" name="sender_name">
+    <label for="senderName" class="form-label">Форвард CODE</label>
+    <input type="text" class="form-control" id="carrierCode" name="sender_code">
   </div>
 
   <div class="col-md-3">
@@ -142,3 +142,25 @@
     Завершить партию (на склад)
   </button>
 </div>
+
+
+<script id="device-scan-config" type="application/json">
+{
+  "task_id": "warehouse_in",
+  "default_mode": "ocr",
+  "modes": ["ocr"],
+  "barcode": { "action": "fill_field", "field_id": "trackingNo" },
+  "qr":      { "action": "api_check",  "endpoint": "/api/qr_check.php" }
+}
+</script>
+<div id="ocr-templates" style="display:none">
+    {$jsonOcrTemplates}
+</div>
+<div id="ocr-templates-destcountry" style="display:none">
+    {$jsonDestCountry}
+</div>
+
+<div id="ocr-dicts" style="display:none">
+    {$jsonOcrDicts}
+</div>
+

@@ -2,8 +2,8 @@
 //echo "main.php";
 //session_start();
 //require_once __DIR__ . '/../configs/secure.php';
-require_once __DIR__ . '/ocr_templates.php';
-require_once __DIR__ . '/ocr_dicts.php';
+///////require_once __DIR__ . '/ocr_templates.php';
+///////require_once __DIR__ . '/ocr_dicts.php';
 /*
 
 //include("/home/zsuauto/web/configs/connectDB.php");

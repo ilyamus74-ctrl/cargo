@@ -1129,6 +1129,8 @@ case 'open_item_in_batch':
 
     $smarty->assign('dest_country', $dest_country);
 
+    require_once __DIR__ . '/ocr_templates.php';
+    require_once __DIR__ . '/ocr_dicts.php';
 
 
     ob_start();

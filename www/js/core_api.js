@@ -29,6 +29,38 @@ function reloadUserList() {
         });
 }
 
+function emitDeviceContext(){
+  try{
+    function read(id){
+      var el = document.getElementById(id);
+      if(!el) return null;
+      var t = (el.textContent || el.innerText || "").trim();
+      if (!t || t === "null" || t === "undefined") return null;
+      return t;
+    }
+    var payload = {
+      task: read("device-scan-config"),
+      ocr_templates: read("ocr-templates"),
+      destcountry: read("ocr-templates-destcountry"),
+      dicts: read("ocr-dicts")
+    };
+    if (window.DeviceApp && window.DeviceApp.onMainContext) {
+      window.DeviceApp.onMainContext(JSON.stringify(payload));
+    }
+  }catch(e){}
+}
+
+
+function setSelectValWait(id,v,tries){
+  var e=document.getElementById(id);
+  if(!e) return;
+  e.value=v;
+  e.dispatchEvent(new Event('change',{bubbles:true}));
+  if(e.value!==v && tries>0){
+    setTimeout(function(){ setSelectValWait(id,v,tries-1); }, 120);
+  }
+}
+
 // Перерисовать список незавершённых приходов
 function reloadWarehouseItemIn() {
     const main = document.getElementById('main');
@@ -92,6 +124,7 @@ function loadIntoMain(html) {
     const main = document.getElementById('main');
     if (main && typeof html === 'string') {
         main.innerHTML = html;
+        emitDeviceContext(); // <-- вот т
     }
 }
 

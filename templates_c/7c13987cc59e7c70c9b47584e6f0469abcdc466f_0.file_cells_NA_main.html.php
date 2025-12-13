@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2025-12-13 07:42:06
+/* Smarty version 5.3.1, created on 2025-12-13 18:47:10
   from 'file:cells_NA_main.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_693d18ce6ed294_16272494',
+  'unifunc' => 'content_693db4ae64cf15_59755963',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '7c13987cc59e7c70c9b47584e6f0469abcdc466f' => 
     array (
       0 => 'cells_NA_main.html',
-      1 => 1765611269,
+      1 => 1765651561,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_693d18ce6ed294_16272494 (\Smarty\Template $_smarty_tpl) {
+function content_693db4ae64cf15_59755963 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>
   <main id="main" class="main">
@@ -673,20 +673,6 @@ $_smarty_current_dir = '/home/cells/web/templates';
         </div><!-- End Right side columns -->
 
       </div>
-<div id="ocr-templates" style="display:none">
-    <?php echo $_smarty_tpl->getValue('jsonOcrTemplates');?>
-
-</div>
-<div id="ocr-templates-destcountry" style="display:none">
-    <?php echo $_smarty_tpl->getValue('jsonDestCountry');?>
-
-</div>
-
-<div id="ocr-dicts" style="display:none">
-    <?php echo $_smarty_tpl->getValue('jsonOcrDicts');?>
-
-</div>
-
 
     </section>
 
