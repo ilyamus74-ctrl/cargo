@@ -419,6 +419,37 @@ function detect_cell_code(string $text): ?string {
 // --------------------------------------------------
 // 4) ФИО клиента
 // --------------------------------------------------
+function load_ocr_name_dict(): array {
+    static $dict = null;
+    if ($dict !== null) {
+        return $dict;
+    }
+
+    $dict = [
+        'exact_bad'  => [],
+        'substr_bad' => [],
+    ];
+
+    $path = __DIR__ . '/ocr_name_dict.json';
+    if (is_file($path)) {
+        $content = file_get_contents($path);
+        if ($content !== false) {
+            $data = json_decode($content, true);
+            if (is_array($data)) {
+                foreach (['exact_bad', 'substr_bad'] as $key) {
+                    if (isset($data[$key]) && is_array($data[$key])) {
+                        $dict[$key] = array_values(array_map(
+                            fn($v) => mb_strtolower((string)$v, 'UTF-8'),
+                            $data[$key]
+                        ));
+                    }
+                }
+            }
+        }
+    }
+
+    return $dict;
+}
 
 function looks_like_person_name(string $line): bool {
     $line = trim($line);
@@ -430,38 +461,9 @@ function looks_like_person_name(string $line): bool {
     }
 
     $low = mb_strtolower($line, 'UTF-8');
-
+    $dict = load_ocr_name_dict();
     // чисто служебные/мусорные значения 1:1
-    $exactBad = [
-        'llc','gmbh','gimbh','cmr',
-        'telefon','kontakt','datum',
-        'paketschein','paket','fremdbarcode','time','weight',
-        'de','d','co2','kg','kg paket',
-        'absender','absenderin/sender',
-        'postleitzahl','postleitzanl','postleitzah','postieitzah','pastleitzahl',
-        'day','dhl','phl','ed','h&m',
-        'mainz','hamm','nürtingen','nuertingen','leitcode routingcode',
-        'rack','gusensberg',
-        'vus chland + eu','vuschland + eu','vuschland+eu','vuschland',
-        'herrn',
-        'llg','desc, cosmetics','desc','cosmetics',
-        'expres',
-        'cos',
-        'hermes','hhermes','ghermnes',
-        'xun','|am','|an','|an:','fron ce','do not use for returns','postage paid',
-        'puma',
-        'ainz',
-        'koli',
-        'revolution beauty',
-        'sunday natural products','paket nr','frmeswe do cg',
-        'apo pharmacy b.v','apo pharmacy b v','kunden nr',
-        'gewicht in kg',
-        'billing no','yor gls track',
-        'cust id','customer id','ioerffl deh holldore',
-        'service sperrgut aencorbrant','service sperrgut','sperrgut','fedex aerm eny',
-        'cho gxo supply chain','co gxo supply chain','koliexp','orthopädie geld','we lg h','contsct',
-        'delivery address','deiivery address','entglt ezaht','mehr kommfort ein','dror code',
-    ];
+    $exactBad = $dict['exact_bad'] ?? [];
     if (in_array($low, $exactBad, true)) {
         return false;
     }
@@ -480,56 +482,7 @@ function looks_like_person_name(string $line): bool {
     }
 
     // мусор / организации по подстрокам
-    $badSubstrings = [
-        ' llc',' gmbh',' gimbh','gm bh',
-        ' online',' shop',' lounge',' hub',
-        ' paket','päckchen','paketschein',' gewicht','anzahl',
-        ' datum','kontakt',' telefon','contsct',
-        'postleit','fremdbarcode','id no','cust.','customer',
-        'shipment','sendungs','abrechnungsnr','referenznr','ref.',
-        'epg one','co2','emiss','we lg h',
-        'starkenburgstr','starkenburgstraße',' str.','straße','strasse',
-        'deutschland','germany','hessen',
-        'mörfelden','morfelden','harfelden','nharfelden','walldorf','wal ldorf','unna',
-        'kg paket','ups s tandard','ups standard','dp ag',
-        'warenpost','parcel connect',
-        'billing p/p','biling. p/p','biling p/p','billing no',' billing',
-        'wir reduzierer','pl ieutschiond',
-        'wir kompensieren','wir kompens','wir kormip','wir kormi',
-        'labex','l.t.d','empfanger','empfänger','sender','leitcode routingcode',
-        'online - shop','ioerffl deh holldore',
-        'veepee','best secret','best secrel','dhl hub',
-        'inditex',' zara','zalando lounge','zalando se','zalando ',
-        'deutsche post','post dhl hub','|am',
-        'c/o deutsche post','c/o dhl','c/o ',
-        'nürtingen','nuertingen','mainz','hamm','gusensberg',
-        ' vound nachname','vor- und nachname','nachname',
-        ' gewicht','gew\'cht','gew.cht','do not use for returns',
-        ' empf nger','empf nger','empfi nger','empfaenger','empfänger',
-        ' kundenreferenz','notiz',
-        ' orthopädie','orthopädie-geld',
-        ' poing','potsdam','krefeld','magdeburg','neum ark','neumark',
-        ' @rmany',' germany','deutschland','kunden nr','paket nr','frmeswe do cg',
-        'asos',
-        ' we do','we-do','ve do','ve do!',
-        'es naalbaceie',
-        'revolution beauty',' beauty',
-        'sunday natural products',' natural products',' products',
-        'inklusive nachhaltigem versand',' nachhaltigem versand',' versand',
-        'apo pharmacy',' pharmacy',
-        'autosevice baudisch','autosevice','baudisch',
-        'gxo supply chain',' supply chain',
-        'rel nasee. ret','rel nasee','destnstire','orthopädie geld',
-        'absen der','koliexp','yor gls track',
-        'gewicht in kg','|an','|an:','fron ce',
-        'apo pharmacy b.v','apo pharmacy b v',
-        'service sperrgut aencorbrant','service sperrgut','sperrgut',
-        'inklusive nachhaltigem versand',
-        'billing no','desc, cosmetics','desc','cosmetics',
-        'cust id','mehr kommfort ein','postage paid',
-        'empfång','entglt','entgelt','dror code','fedex aerm eny',
-        'siehe rückseite','unter dhl.de','mit dhl',
-    ];
+    $badSubstrings = $dict['substr_bad'] ?? [];
     foreach ($badSubstrings as $b) {
         if ($b !== '' && mb_strpos($low, $b) !== false) {
             return false;

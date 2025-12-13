@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2025-12-09 17:18:28
+/* Smarty version 5.3.1, created on 2025-12-13 14:50:01
   from 'file:cells_NA_API_warehouse_item_in_batch.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_693859e4941bd7_31826256',
+  'unifunc' => 'content_693d7d19395d88_09323291',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '7e8c2c62a4cb34a58255b0e76fcea2eec9328b7b' => 
     array (
       0 => 'cells_NA_API_warehouse_item_in_batch.html',
-      1 => 1765298645,
+      1 => 1765637361,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_693859e4941bd7_31826256 (\Smarty\Template $_smarty_tpl) {
+function content_693d7d19395d88_09323291 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>
 
@@ -28,6 +28,7 @@ $_smarty_current_dir = '/home/cells/web/templates';
 <form id="item-in-modal-form" class="row g-3">
   <input type="hidden" name="batch_uid" value="<?php echo $_smarty_tpl->getValue('batch_uid');?>
 ">
+  <input type="hidden" name="carrierCode" value="">
 
   <div class="col-md-4">
     <label for="tuid" class="form-label">
