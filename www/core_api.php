@@ -523,6 +523,19 @@ case 'form_edit_user':
         ];
         break;
 
+    case 'form_new_tool_stock':
+        $smarty->assign('current_user', $user);
+
+        ob_start();
+        $smarty->display('cells_NA_API_tools_stock_form.html');
+        $html = ob_get_clean();
+
+        $response = [
+            'status' => 'ok',
+            'html'   => $html,
+        ];
+        break;
+
 
     case 'view_devices':
         $devices = [];

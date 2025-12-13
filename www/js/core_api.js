@@ -313,7 +313,8 @@ document.addEventListener('click', function (e) {
             // Формы в модалке (пользователь / устройство)
             if (action === 'form_new_user' ||
                 action === 'form_edit_user' ||
-                action === 'form_edit_device') {
+                action === 'form_edit_device' ||
+                action === 'form_new_tool_stock') {
 
                 showInModal(data.html);
                 return;
