@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2025-12-15 09:38:46
+/* Smarty version 5.3.1, created on 2025-12-15 10:02:13
   from 'file:cells_NA_API_tools_stock_form.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_693fd726423022_18137765',
+  'unifunc' => 'content_693fdca533c3f6_56962059',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '6d55e47b00793e3a8ae1867fa293107185d64564' => 
     array (
       0 => 'cells_NA_API_tools_stock_form.html',
-      1 => 1765791522,
+      1 => 1765792930,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_693fd726423022_18137765 (\Smarty\Template $_smarty_tpl) {
+function content_693fdca533c3f6_56962059 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>
 <section class="section profile">
@@ -64,8 +64,6 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
           <!-- ОДИН общий form на все вкладки -->
           <form id="tool-profile-form">
             <input type="hidden" name="tool_id" id="tool_id" value="<?php echo (($tmp = $_smarty_tpl->getValue('edit_tool')['id'] ?? null)===null||$tmp==='' ? '' ?? null : $tmp);?>
-">
-            <input type="hidden" name="AddInSystem" value="<?php echo (($tmp = $_smarty_tpl->getValue('edit_tool')['AddInSystem'] ?? null)===null||$tmp==='' ? '' ?? null : $tmp);?>
 ">
             <!-- Bordered Tabs -->
             <ul class="nav nav-tabs nav-tabs-bordered">
@@ -228,7 +226,7 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
                   <div class="col-md-8 col-lg-9">
                     <input name="AddInSystem" type="date" class="form-control" id="AddInSystem"
                            value="<?php echo $_smarty_tpl->getValue('edit_tool')['AddInSystem'];?>
-" disabled>
+" readonly>
                   </div>
                 </div>
 
@@ -247,7 +245,7 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
                   <div class="col-md-8 col-lg-9">
                     <input name="ResourceEndDate" type="date" class="form-control" id="ResourceEndDate"
                            value="<?php echo $_smarty_tpl->getValue('edit_tool')['ResourceEndDate'];?>
-" disabled>
+" readonly>
                   </div>
                 </div>
 
@@ -368,5 +366,7 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
     </div>
   </div>
 </section>
+
+
 <?php }
 }

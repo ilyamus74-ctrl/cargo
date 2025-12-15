@@ -74,16 +74,32 @@ function generate_uuid(): string
 
 function map_tool_to_template(array $tool): array
 {
+    $formatDate = static function ($value): string {
+        if (!$value) {
+            return '';
+        }
+
+        try {
+            $dt = new DateTime($value);
+            return $dt->format('Y-m-d');
+        } catch (Exception $e) {
+            return '';
+        }
+    };
+
     return [
         'id'              => $tool['id'] ?? '',
         'NameTool'        => $tool['name'] ?? '',
         'SerialNumber'    => $tool['serial_number'] ?? '',
         'WarantyDays'     => $tool['warranty_days'] ?? 0,
         'PriceBuy'        => $tool['price_buy'] ?? '',
-        'DateBuy'         => $tool['purchase_date'] ?? '',
-        'AddInSystem'     => $tool['registered_at'] ?? '',
+//        'DateBuy'         => $tool['purchase_date'] ?? '',
+//        'AddInSystem'     => $tool['registered_at'] ?? '',
+        'DateBuy'         => $formatDate($tool['purchase_date'] ?? ''),
+        'AddInSystem'     => $formatDate($tool['registered_at'] ?? ''),
         'ResourceDays'    => $tool['resource_days'] ?? 0,
-        'ResourceEndDate' => $tool['operational_until'] ?? '',
+//        'ResourceEndDate' => $tool['operational_until'] ?? '',
+        'ResourceEndDate' => $formatDate($tool['operational_until'] ?? ''),
         'status'          => $tool['status'] ?? 'active',
         'notes'           => $tool['notes'] ?? '',
         'img_patch'       => $tool['img_patch'] ?? [],
@@ -630,7 +646,7 @@ case 'save_tool':
     $purchaseDate  = trim($_POST['DateBuy'] ?? '');
     $registeredAt  = trim($_POST['AddInSystem'] ?? '') ?: date('Y-m-d');
     $resourceDays  = (int)($_POST['ResourceDays'] ?? 0);
-    $resourceEnd   = trim($_POST['ResourceEndDate'] ?? '');
+//    $resourceEnd   = trim($_POST['ResourceEndDate'] ?? '');
     $notes         = trim($_POST['notes'] ?? '');
     $status        = !empty($_POST['status']) ? 'active' : 'inactive';
 
@@ -644,6 +660,18 @@ case 'save_tool':
 
     $purchaseDateObj = DateTime::createFromFormat('Y-m-d', $purchaseDate);
     if (!$purchaseDateObj) {
+        $purchaseDateObj = DateTime::createFromFormat('Y-m-d H:i:s', $purchaseDate);
+    }
+
+    if (!$purchaseDateObj) {
+        try {
+            $purchaseDateObj = new DateTime($purchaseDate);
+        } catch (Exception $e) {
+            $purchaseDateObj = null;
+        }
+    }
+
+    if (!$purchaseDateObj) {
         $response = [
             'status'  => 'error',
             'message' => 'Неверный формат даты покупки',
@@ -651,17 +679,53 @@ case 'save_tool':
         break;
     }
 
-    $priceBuy = ($priceBuyRaw === '' ? null : (float)$priceBuyRaw);
+    $purchaseDate = $purchaseDateObj->format('Y-m-d');
 
-    if ($resourceEnd === '' && $resourceDays > 0) {
-        $resourceEnd = $purchaseDateObj->modify('+' . $resourceDays . ' days')->format('Y-m-d');
-    }
+    try {
+        $registeredAt = (new DateTime($registeredAt))->format('Y-m-d');
+    } catch (Exception $e) {
+        $registeredAt = date('Y-m-d');
+        }
 
-    if ($resourceEnd === '') {
-        $resourceEnd = null;
-    }
+    $priceBuy    = ($priceBuyRaw === '' ? null : (float)$priceBuyRaw);
+    $resourceEnd = null;
+
+    if ($resourceDays > 0) {
+        $resourceEnd = (clone $purchaseDateObj)->modify('+' . $resourceDays . ' days')->format('Y-m-d');
+        }
 
     if ($toolId > 0) {
+            $oldTool = null;
+        $stmtOld = $dbcnx->prepare('SELECT * FROM tool_resources WHERE id = ? LIMIT 1');
+        if ($stmtOld) {
+            $stmtOld->bind_param('i', $toolId);
+            $stmtOld->execute();
+            $resOld = $stmtOld->get_result();
+            $oldTool = $resOld ? $resOld->fetch_assoc() : null;
+            $stmtOld->close();
+        }
+
+        if ($resourceDays <= 0 && $oldTool && !empty($oldTool['operational_until'])) {
+            try {
+                $resourceEnd = (new DateTime($oldTool['operational_until']))->format('Y-m-d');
+            } catch (Exception $e) {
+                $resourceEnd = null;
+            }
+        }
+
+        $newValues = [
+            'name'              => $name,
+            'serial_number'     => $serialNumber,
+            'warranty_days'     => $warrantyDays,
+            'price_buy'         => $priceBuy,
+            'purchase_date'     => $purchaseDate,
+            'registered_at'     => $registeredAt,
+            'resource_days'     => $resourceDays,
+            'operational_until' => $resourceEnd,
+            'notes'             => $notes,
+            'status'            => $status,
+        ];
+
         $sql = "UPDATE tool_resources
                    SET name = ?,
                        serial_number = ?,
@@ -698,6 +762,25 @@ case 'save_tool':
         $stmt->execute();
         $stmt->close();
 
+        $changes = [];
+        if ($oldTool) {
+            foreach ($newValues as $field => $value) {
+                $oldValue = $oldTool[$field] ?? null;
+                if ($oldValue != $value) {
+                    $changes[$field] = ['old' => $oldValue, 'new' => $value];
+                }
+            }
+        }
+
+        audit_log(
+            $user['id'] ?? null,
+            'TOOL_UPDATE',
+            'TOOL',
+            $toolId,
+            'Обновление инструмента',
+            $changes ?: $newValues
+        );
+
         $response = [
             'status'  => 'ok',
             'message' => 'Инструмент обновлён',
@@ -709,6 +792,20 @@ case 'save_tool':
         $qrPath   = sprintf('/img/tool/%s/qr.png', $uid);
         $imgPatch = sprintf('/img/tool/%s/photo.png', $uid);
         $location = 'warehouse';
+
+        $newValues = [
+            'name'              => $name,
+            'serial_number'     => $serialNumber,
+            'warranty_days'     => $warrantyDays,
+            'price_buy'         => $priceBuy,
+            'purchase_date'     => $purchaseDate,
+            'registered_at'     => $registeredAt,
+            'resource_days'     => $resourceDays,
+            'operational_until' => $resourceEnd,
+            'notes'             => $notes,
+            'status'            => $status,
+        ];
+
 
         $sql = "INSERT INTO tool_resources (
                     uid,
@@ -756,6 +853,16 @@ case 'save_tool':
         $stmt->execute();
         $newToolId = $stmt->insert_id;
         $stmt->close();
+
+
+        audit_log(
+            $user['id'] ?? null,
+            'TOOL_CREATE',
+            'TOOL',
+            $newToolId,
+            'Создание инструмента',
+            $newValues
+        );
 
         $response = [
             'status'  => 'ok',
