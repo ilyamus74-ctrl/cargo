@@ -85,6 +85,25 @@ function get_subdomain_label(): string
     return strtoupper($parts[0] ?? '');
 }
 
+function collect_tool_qr_images(string $uid, string $baseDir): array
+{
+    $result = [];
+
+    foreach (glob($baseDir . '/qr_*.png') as $filePath) {
+        $fileName = basename($filePath);
+
+        if (preg_match('/^qr_([^\\.]+)\\.png$/', $fileName, $m)) {
+            $suffix = $m[1];
+            $result[$suffix] = sprintf('/img/tools_stock/%s/%s', $uid, $fileName);
+        }
+    }
+
+    ksort($result);
+
+    return $result;
+}
+
+
 function generate_tool_qr_images(string $uid, string $labelText): array
 {
     $baseDir = __DIR__ . '/img/tools_stock/' . $uid;
@@ -169,12 +188,17 @@ function generate_tool_qr_images(string $uid, string $labelText): array
     imagedestroy($canvas);
     imagedestroy($rawImage);
 
+    if (!$result) {
+        $result = collect_tool_qr_images($uid, $baseDir);
+    }
+
     return $result;
 }
 function map_tool_to_template(array $tool): array
 {
     $qrPathsRaw = $tool['qr_path'] ?? '';
     $qrCodes    = [];
+    $toolUid    = $tool['uid'] ?? '';
 
     if ($qrPathsRaw !== '') {
         $decoded = json_decode((string)$qrPathsRaw, true);
@@ -194,6 +218,22 @@ function map_tool_to_template(array $tool): array
                 'path' => (string)$qrPathsRaw,
             ];
         }
+    }
+
+
+    if (!$qrCodes && $toolUid !== '') {
+        $qrCodes = collect_tool_qr_images($toolUid, __DIR__ . '/img/tools_stock/' . $toolUid);
+
+        $qrCodes = array_map(
+            static function ($path, $size): array {
+                return [
+                    'size' => (string)$size,
+                    'path' => $path,
+                ];
+            },
+            $qrCodes,
+            array_keys($qrCodes)
+        );
     }
 
     $formatDate = static function ($value): string {
@@ -950,10 +990,13 @@ case 'save_tool':
         ];
 
     } else {
-        $uid      = generate_uuid();
+        $uid         = generate_uuid();
         $domainLabel = get_subdomain_label();
         $qrImages    = generate_tool_qr_images($uid, $domainLabel);
-        $qrPath      = json_encode($qrImages, JSON_UNESCAPED_SLASHES);
+        if (!$qrImages) {
+            $qrImages = collect_tool_qr_images($uid, __DIR__ . '/img/tools_stock/' . $uid);
+        }
+        $qrPath = json_encode($qrImages, JSON_UNESCAPED_SLASHES);
         $imgPatch = sprintf('/img/tool/%s/photo.png', $uid);
         $location = 'warehouse';
 
