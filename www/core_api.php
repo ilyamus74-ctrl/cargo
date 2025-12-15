@@ -691,10 +691,13 @@ case 'save_tool':
     $priceBuy    = ($priceBuyRaw === '' ? null : (float)$priceBuyRaw);
     $resourceEnd = null;
 
-    if ($resourceDays > 0) {
-        $resourceEnd = (clone $purchaseDateObj)->modify('+' . $resourceDays . ' days')->format('Y-m-d');
-        }
 
+/*    if ($resourceDays > 0 && $purchaseDateObj instanceof DateTime) {
+        $resourceEnd = (clone $purchaseDateObj)
+            ->modify('+' . $resourceDays . ' days')
+            ->format('Y-m-d');
+    }
+*/
     if ($toolId > 0) {
             $oldTool = null;
         $stmtOld = $dbcnx->prepare('SELECT * FROM tool_resources WHERE id = ? LIMIT 1');
@@ -706,13 +709,6 @@ case 'save_tool':
             $stmtOld->close();
         }
 
-        if ($resourceDays <= 0 && $oldTool && !empty($oldTool['operational_until'])) {
-            try {
-                $resourceEnd = (new DateTime($oldTool['operational_until']))->format('Y-m-d');
-            } catch (Exception $e) {
-                $resourceEnd = null;
-            }
-        }
 
         $newValues = [
             'name'              => $name,
