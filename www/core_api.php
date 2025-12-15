@@ -112,6 +112,7 @@ function map_tool_to_template(array $tool): array
 // текущий пользователь
 $user = auth_current_user();
 
+try {
 switch ($action) {
 
     case 'get_user_info':
@@ -1864,6 +1865,16 @@ case 'commit_item_in_batch':
     // и т.д.
 }
 
+} catch (Throwable $e) {
+    error_log('core_api exception: ' . $e->getMessage());
+
+    http_response_code(500);
+    $response = [
+        'status'  => 'error',
+        'message' => 'Внутренняя ошибка сервера',
+        'error'   => $e->getMessage(),
+    ];
+}
 echo json_encode($response, JSON_UNESCAPED_UNICODE);
 
 
