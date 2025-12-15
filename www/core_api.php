@@ -334,7 +334,7 @@ function map_tool_to_template(array $tool): array
         'status'          => $tool['status'] ?? 'active',
         'notes'           => $tool['notes'] ?? '',
         'qr_codes'        => $qrCodes,
-        'img_path'       => $photos,
+        'img_path'        => $photos,
     ];
 }
 
@@ -991,6 +991,40 @@ case 'save_tool':
             $stmtOld->close();
         }
 
+
+        $deletePhotosRaw = $_POST['delete_photos'] ?? [];
+        $deletePhotos    = [];
+
+        if (is_array($deletePhotosRaw)) {
+            foreach ($deletePhotosRaw as $photoPath) {
+                $photoPath = trim((string)$photoPath);
+                if ($photoPath !== '') {
+                    $deletePhotos[] = $photoPath;
+                }
+            }
+        }
+
+        $photos = parse_tool_photos($oldTool['img_path'] ?? []);
+
+        if ($deletePhotos) {
+            $photos = array_values(array_filter($photos, static function ($path) use ($deletePhotos) {
+                return !in_array($path, $deletePhotos, true);
+            }));
+
+            foreach ($deletePhotos as $photoPath) {
+                if (!str_starts_with($photoPath, '/img/tools_stock/')) {
+                    continue;
+                }
+
+                $absolutePath = __DIR__ . $photoPath;
+                if (is_file($absolutePath)) {
+                    @unlink($absolutePath);
+                }
+            }
+        }
+
+        $photosJson = json_encode($photos, JSON_UNESCAPED_SLASHES);
+
 $toolUid = (string)($oldTool['uid'] ?? '');
 $qrPath  = null;
 
@@ -1014,6 +1048,7 @@ if ($toolUid !== '') {
             'resource_days'     => $resourceDays,
             'operational_until' => $resourceEnd,
             'qr_path'           => $qrPath,
+            'img_path'          => $photosJson,
             'notes'             => $notes,
             'status'            => $status,
         ];
@@ -1028,6 +1063,7 @@ if ($toolUid !== '') {
                        resource_days = ?,
                        operational_until = ?,
                        qr_path = ?,
+                       img_path = ?,
                        notes = ?,
                        status = ?,
                        updated_at = CURRENT_TIMESTAMP()
@@ -1039,7 +1075,7 @@ if ($toolUid !== '') {
         }
 
         $stmt->bind_param(
-            'ssidssissssi',
+            'ssidssisssssi',
             $name,
             $serialNumber,
             $warrantyDays,
@@ -1049,6 +1085,7 @@ if ($toolUid !== '') {
             $resourceDays,
             $resourceEnd,
             $qrPath,
+            $photosJson,
             $notes,
             $status,
             $toolId

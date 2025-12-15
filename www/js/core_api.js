@@ -171,22 +171,46 @@ function renderToolPhotos(photos) {
     const container = document.querySelector('[data-tool-photos="list"]');
     if (!container) return;
 
+    container.innerHTML = '';
+    container.classList.add('d-flex', 'flex-column', 'gap-3');
+
     if (!Array.isArray(photos) || photos.length === 0) {
         container.innerHTML = '<span class="text-muted small">Фото инструмента пока нет</span>';
         return;
     }
 
-    container.innerHTML = '';
+    photos.forEach((path, index) => {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'tool-photo-item border rounded p-2 d-flex flex-column gap-2';
 
-    photos.forEach(path => {
         const img = document.createElement('img');
         img.src = path;
         img.alt = 'Tool photo';
-        img.className = 'rounded-circle';
-        img.style.width = '96px';
-        img.style.height = '96px';
+        img.className = 'img-fluid w-100 border';
         img.style.objectFit = 'cover';
-        container.appendChild(img);
+        img.style.aspectRatio = '1 / 1';
+        wrapper.appendChild(img);
+
+        const formCheck = document.createElement('div');
+        formCheck.className = 'form-check mb-0';
+
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.className = 'form-check-input';
+        checkbox.name = 'delete_photos[]';
+        checkbox.value = path;
+        checkbox.id = `delete-photo-${index + 1}`;
+        formCheck.appendChild(checkbox);
+
+        const label = document.createElement('label');
+        label.className = 'form-check-label small';
+        label.setAttribute('for', checkbox.id);
+        label.textContent = 'Удалить фото';
+        formCheck.appendChild(label);
+
+        wrapper.appendChild(formCheck);
+
+        container.appendChild(wrapper);
     });
 }
 

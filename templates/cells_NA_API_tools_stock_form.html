@@ -10,8 +10,14 @@
           <h3>{$edit_tool.SerialNumber}</h3>
           <div class="social-links mt-2 tool-photo-thumbs d-flex flex-column gap-2" data-tool-photos="list">
           {if $edit_tool.img_path}
-            {foreach $edit_tool.img_path as $photo}
-              <img src="{$photo}" alt="Tool photo" class="rounded-circle" style="width: 96px; height: 96px; object-fit: cover;">
+            {foreach $edit_tool.img_path as $photo name=photos}
+              <div class="tool-photo-item border rounded p-2 d-flex flex-column gap-2">
+                <img src="{$photo}" alt="Tool photo" class="img-fluid w-100 border" style="object-fit: cover; aspect-ratio: 1 / 1;">
+                <div class="form-check mb-0">
+                  <input class="form-check-input" type="checkbox" name="delete_photos[]" value="{$photo}" id="delete-photo-{$smarty.foreach.photos.iteration}">
+                  <label class="form-check-label small" for="delete-photo-{$smarty.foreach.photos.iteration}">Удалить фото</label>
+                </div>
+              </div>
             {/foreach}
           {else}
             <span class="text-muted small">Фото инструмента пока нет</span>

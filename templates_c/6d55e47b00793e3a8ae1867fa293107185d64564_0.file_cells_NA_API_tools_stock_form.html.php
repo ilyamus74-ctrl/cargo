@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2025-12-15 14:25:26
+/* Smarty version 5.3.1, created on 2025-12-15 14:35:17
   from 'file:cells_NA_API_tools_stock_form.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_69401a56cbff54_89117988',
+  'unifunc' => 'content_69401ca5c99761_66396754',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '6d55e47b00793e3a8ae1867fa293107185d64564' => 
     array (
       0 => 'cells_NA_API_tools_stock_form.html',
-      1 => 1765808639,
+      1 => 1765809309,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_69401a56cbff54_89117988 (\Smarty\Template $_smarty_tpl) {
+function content_69401ca5c99761_66396754 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>
 <section class="section profile">
@@ -37,13 +37,25 @@ $_smarty_current_dir = '/home/cells/web/templates';
           <div class="social-links mt-2 tool-photo-thumbs d-flex flex-column gap-2" data-tool-photos="list">
           <?php if ($_smarty_tpl->getValue('edit_tool')['img_path']) {?>
             <?php
-$_from = $_smarty_tpl->getSmarty()->getRuntime('Foreach')->init($_smarty_tpl, $_smarty_tpl->getValue('edit_tool')['img_path'], 'photo');
+$_from = $_smarty_tpl->getSmarty()->getRuntime('Foreach')->init($_smarty_tpl, $_smarty_tpl->getValue('edit_tool')['img_path'], 'photo', false, NULL, 'photos', array (
+  'iteration' => true,
+));
 $foreach0DoElse = true;
 foreach ($_from ?? [] as $_smarty_tpl->getVariable('photo')->value) {
 $foreach0DoElse = false;
+$_smarty_tpl->tpl_vars['__smarty_foreach_photos']->value['iteration']++;
 ?>
-              <img src="<?php echo $_smarty_tpl->getValue('photo');?>
-" alt="Tool photo" class="rounded-circle" style="width: 96px; height: 96px; object-fit: cover;">
+              <div class="tool-photo-item border rounded p-2 d-flex flex-column gap-2">
+                <img src="<?php echo $_smarty_tpl->getValue('photo');?>
+" alt="Tool photo" class="img-fluid w-100 border" style="object-fit: cover; aspect-ratio: 1 / 1;">
+                <div class="form-check mb-0">
+                  <input class="form-check-input" type="checkbox" name="delete_photos[]" value="<?php echo $_smarty_tpl->getValue('photo');?>
+" id="delete-photo-<?php echo ($_smarty_tpl->getValue('__smarty_foreach_photos')['iteration'] ?? null);?>
+">
+                  <label class="form-check-label small" for="delete-photo-<?php echo ($_smarty_tpl->getValue('__smarty_foreach_photos')['iteration'] ?? null);?>
+">Удалить фото</label>
+                </div>
+              </div>
             <?php
 }
 $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
