@@ -650,6 +650,47 @@ case 'save_tool':
 //    $resourceEnd   = trim($_POST['ResourceEndDate'] ?? '');
     $notes         = trim($_POST['notes'] ?? '');
     $status        = !empty($_POST['status']) ? 'active' : 'inactive';
+    $deleteFlag    = !empty($_POST['delete']);
+
+    // Удаление инструмента
+    if ($toolId > 0 && $deleteFlag) {
+
+        $stmtOld = $dbcnx->prepare('SELECT * FROM tool_resources WHERE id = ? LIMIT 1');
+        if ($stmtOld) {
+            $stmtOld->bind_param('i', $toolId);
+            $stmtOld->execute();
+            $resOld = $stmtOld->get_result();
+            $oldTool = $resOld ? $resOld->fetch_assoc() : null;
+            $stmtOld->close();
+        } else {
+            $oldTool = null;
+        }
+
+        $stmtDel = $dbcnx->prepare('DELETE FROM tool_resources WHERE id = ?');
+        if ($stmtDel) {
+            $stmtDel->bind_param('i', $toolId);
+            $stmtDel->execute();
+            $stmtDel->close();
+        }
+
+        audit_log(
+            $user['id'] ?? null,
+            'TOOL_DELETE',
+            'TOOL',
+            $toolId,
+            'Инструмент удалён из профиля',
+            $oldTool ?: []
+        );
+
+        $response = [
+            'status'  => 'ok',
+            'message' => 'Инструмент удалён',
+            'deleted' => true,
+        ];
+        break;
+    }
+
+    
 
     if ($name === '' || $serialNumber === '' || $purchaseDate === '') {
         $response = [

@@ -445,6 +445,23 @@ document.addEventListener('click', function (e) {
             }
 
             if (action === 'save_tool') {
+            
+                if (data.deleted) {
+                    alert(data.message || 'Инструмент удалён');
+
+                    setReloadOnModalCloseOnce(reloadToolsStock);
+
+                    const modalEl = document.getElementById('fullscreenModal');
+                    if (modalEl && window.bootstrap && bootstrap.Modal) {
+                        const modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+                        modal.hide();
+                    } else {
+                        reloadToolsStock();
+                    }
+
+                    return;
+                }
+
                 alert(data.message || 'Сохранено');
 
                 const newToolId = data.tool_id || null;
