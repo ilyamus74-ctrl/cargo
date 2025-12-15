@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2025-12-15 14:18:01
+/* Smarty version 5.3.1, created on 2025-12-15 14:25:26
   from 'file:cells_NA_API_tools_stock_form.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_69401899174df8_40481971',
+  'unifunc' => 'content_69401a56cbff54_89117988',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '6d55e47b00793e3a8ae1867fa293107185d64564' => 
     array (
       0 => 'cells_NA_API_tools_stock_form.html',
-      1 => 1765808186,
+      1 => 1765808639,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_69401899174df8_40481971 (\Smarty\Template $_smarty_tpl) {
+function content_69401a56cbff54_89117988 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>
 <section class="section profile">
@@ -34,7 +34,7 @@ $_smarty_current_dir = '/home/cells/web/templates';
 </h2>
           <h3><?php echo $_smarty_tpl->getValue('edit_tool')['SerialNumber'];?>
 </h3>
-          <div class="social-links mt-2 tool-photo-thumbs" data-tool-photos="list">
+          <div class="social-links mt-2 tool-photo-thumbs d-flex flex-column gap-2" data-tool-photos="list">
           <?php if ($_smarty_tpl->getValue('edit_tool')['img_path']) {?>
             <?php
 $_from = $_smarty_tpl->getSmarty()->getRuntime('Foreach')->init($_smarty_tpl, $_smarty_tpl->getValue('edit_tool')['img_path'], 'photo');

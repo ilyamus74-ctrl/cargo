@@ -319,6 +319,8 @@ function map_tool_to_template(array $tool): array
         }
     };
 
+
+    $photos = parse_tool_photos($tool['img_path'] ?? $tool['img_patch'] ?? null);
     return [
         'id'              => $tool['id'] ?? '',
         'NameTool'        => $tool['name'] ?? '',
@@ -331,9 +333,8 @@ function map_tool_to_template(array $tool): array
         'ResourceEndDate' => $formatDate($tool['operational_until'] ?? ''),
         'status'          => $tool['status'] ?? 'active',
         'notes'           => $tool['notes'] ?? '',
-        'img_patch'       => $tool['img_patch'] ?? [],
         'qr_codes'        => $qrCodes,
-        'img_patch'       => $photos,
+        'img_path'       => $photos,
     ];
 }
 
@@ -815,7 +816,7 @@ case 'form_edit_user':
             'ResourceEndDate' => '',
             'status'          => 'active',
             'notes'           => '',
-            'img_patch'       => [],
+            'img_path'       => [],
             'qr_codes'        => [],
         ];
 

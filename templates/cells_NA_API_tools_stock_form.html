@@ -8,7 +8,7 @@
 
           <h2>{$edit_tool.NameTool}</h2>
           <h3>{$edit_tool.SerialNumber}</h3>
-          <div class="social-links mt-2 tool-photo-thumbs" data-tool-photos="list">
+          <div class="social-links mt-2 tool-photo-thumbs d-flex flex-column gap-2" data-tool-photos="list">
           {if $edit_tool.img_path}
             {foreach $edit_tool.img_path as $photo}
               <img src="{$photo}" alt="Tool photo" class="rounded-circle" style="width: 96px; height: 96px; object-fit: cover;">
