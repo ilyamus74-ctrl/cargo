@@ -8,11 +8,15 @@
 
           <h2>{$edit_tool.NameTool}</h2>
           <h3>{$edit_user.SerialNumber}</h3>
-          <div class="social-links mt-2">
-          {foreach $edit_tool.img_patch as $r}
-          <img src="/img/tool/{$edit_tool.id}/r.png" alt="Profile" class="rounded-circle">
-          {/foreach}
-            <!--<a href="#" class="twitter"><i class="bi bi-twitter"></i></a>
+          <div class="social-links mt-2 tool-photo-thumbs" data-tool-photos="list">
+          {if $edit_tool.img_patch}
+            {foreach $edit_tool.img_patch as $photo}
+              <img src="{$photo}" alt="Tool photo" class="rounded-circle" style="width: 96px; height: 96px; object-fit: cover;">
+            {/foreach}
+          {else}
+            <span class="text-muted small">Фото инструмента пока нет</span>
+          {/if}
+          <!--<a href="#" class="twitter"><i class="bi bi-twitter"></i></a>
             <a href="#" class="facebook"><i class="bi bi-facebook"></i></a>
             <a href="#" class="instagram"><i class="bi bi-instagram"></i></a>
             <a href="#" class="linkedin"><i class="bi bi-linkedin"></i></a>-->
@@ -131,8 +135,9 @@
                   <div class="col-md-8 col-lg-9">
                     <!--<img src="assets/img/profile-img.jpg" alt="Profile">-->
                     <div class="pt-2" id="uploadPhoto" {if !$edit_tool.id} style="display:none"{/if}>
-                      <a href="#" class="btn btn-primary btn-sm" title="Upload new profile image"><i class="bi bi-upload"></i></a>
-                      <a href="#" class="btn btn-danger btn-sm" title="Remove my profile image"><i class="bi bi-trash"></i></a>
+                      <a href="#" class="btn btn-primary btn-sm js-core-link" data-core-action="upload_tool_photo" data-tool-id="{$edit_tool.id}" title="Upload new profile image"><i class="bi bi-upload"></i></a>
+                      <a href="#" class="btn btn-danger btn-sm disabled" title="Remove my profile image"><i class="bi bi-trash"></i></a>
+                      <input type="file" accept="image/*" capture="environment" id="tool-photo-input" class="d-none">
                     </div>
                   </div>
                 </div>

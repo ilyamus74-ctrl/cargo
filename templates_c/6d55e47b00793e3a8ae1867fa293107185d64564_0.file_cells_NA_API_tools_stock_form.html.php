@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2025-12-15 13:46:26
+/* Smarty version 5.3.1, created on 2025-12-15 14:03:35
   from 'file:cells_NA_API_tools_stock_form.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_69401132543d22_21006261',
+  'unifunc' => 'content_694015371523b8_07409262',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '6d55e47b00793e3a8ae1867fa293107185d64564' => 
     array (
       0 => 'cells_NA_API_tools_stock_form.html',
-      1 => 1765806376,
+      1 => 1765807410,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_69401132543d22_21006261 (\Smarty\Template $_smarty_tpl) {
+function content_694015371523b8_07409262 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>
 <section class="section profile">
@@ -34,19 +34,23 @@ $_smarty_current_dir = '/home/cells/web/templates';
 </h2>
           <h3><?php echo $_smarty_tpl->getValue('edit_user')['SerialNumber'];?>
 </h3>
-          <div class="social-links mt-2">
-          <?php
-$_from = $_smarty_tpl->getSmarty()->getRuntime('Foreach')->init($_smarty_tpl, $_smarty_tpl->getValue('edit_tool')['img_patch'], 'r');
+          <div class="social-links mt-2 tool-photo-thumbs" data-tool-photos="list">
+          <?php if ($_smarty_tpl->getValue('edit_tool')['img_patch']) {?>
+            <?php
+$_from = $_smarty_tpl->getSmarty()->getRuntime('Foreach')->init($_smarty_tpl, $_smarty_tpl->getValue('edit_tool')['img_patch'], 'photo');
 $foreach0DoElse = true;
-foreach ($_from ?? [] as $_smarty_tpl->getVariable('r')->value) {
+foreach ($_from ?? [] as $_smarty_tpl->getVariable('photo')->value) {
 $foreach0DoElse = false;
 ?>
-          <img src="/img/tool/<?php echo $_smarty_tpl->getValue('edit_tool')['id'];?>
-/r.png" alt="Profile" class="rounded-circle">
-          <?php
+              <img src="<?php echo $_smarty_tpl->getValue('photo');?>
+" alt="Tool photo" class="rounded-circle" style="width: 96px; height: 96px; object-fit: cover;">
+            <?php
 }
 $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
-            <!--<a href="#" class="twitter"><i class="bi bi-twitter"></i></a>
+          <?php } else { ?>
+            <span class="text-muted small">Фото инструмента пока нет</span>
+          <?php }?>
+          <!--<a href="#" class="twitter"><i class="bi bi-twitter"></i></a>
             <a href="#" class="facebook"><i class="bi bi-facebook"></i></a>
             <a href="#" class="instagram"><i class="bi bi-instagram"></i></a>
             <a href="#" class="linkedin"><i class="bi bi-linkedin"></i></a>-->
@@ -185,8 +189,10 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
                   <div class="col-md-8 col-lg-9">
                     <!--<img src="assets/img/profile-img.jpg" alt="Profile">-->
                     <div class="pt-2" id="uploadPhoto" <?php if (!$_smarty_tpl->getValue('edit_tool')['id']) {?> style="display:none"<?php }?>>
-                      <a href="#" class="btn btn-primary btn-sm" title="Upload new profile image"><i class="bi bi-upload"></i></a>
-                      <a href="#" class="btn btn-danger btn-sm" title="Remove my profile image"><i class="bi bi-trash"></i></a>
+                      <a href="#" class="btn btn-primary btn-sm js-core-link" data-core-action="upload_tool_photo" data-tool-id="<?php echo $_smarty_tpl->getValue('edit_tool')['id'];?>
+" title="Upload new profile image"><i class="bi bi-upload"></i></a>
+                      <a href="#" class="btn btn-danger btn-sm disabled" title="Remove my profile image"><i class="bi bi-trash"></i></a>
+                      <input type="file" accept="image/*" capture="environment" id="tool-photo-input" class="d-none">
                     </div>
                   </div>
                 </div>
