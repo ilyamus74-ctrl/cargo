@@ -17,107 +17,105 @@
         <!-- Left side columns -->
         <div class="col-lg-8">
           <div class="row">
-            <!-- Processed Today Card -->
+
+            <!-- Sales Card -->
             <div class="col-xxl-4 col-md-6">
               <div class="card info-card sales-card">
 
-
                 <div class="filter">
                   <a class="icon" href="#" data-bs-toggle="dropdown"><i class="bi bi-three-dots"></i></a>
                   <ul class="dropdown-menu dropdown-menu-end dropdown-menu-arrow">
                     <li class="dropdown-header text-start">
-                      <h6>Фильтр</h6>
+                      <h6>Filter</h6>
                     </li>
 
-                    <li><a class="dropdown-item" href="#">Сегодня</a></li>
-                    <li><a class="dropdown-item" href="#">Этот месяц</a></li>
-                    <li><a class="dropdown-item" href="#">Этот год</a></li>
+                    <li><a class="dropdown-item" href="#">Today</a></li>
+                    <li><a class="dropdown-item" href="#">This Month</a></li>
+                    <li><a class="dropdown-item" href="#">This Year</a></li>
                   </ul>
                 </div>
 
                 <div class="card-body">
-                  <h5 class="card-title">Обработано посылок <span>| Сегодня</span></h5>
+                  <h5 class="card-title">Sales <span>| Today</span></h5>
 
                   <div class="d-flex align-items-center">
                     <div class="card-icon rounded-circle d-flex align-items-center justify-content-center">
-                      <i class="bi bi-box-seam"></i>
+                      <i class="bi bi-cart"></i>
                     </div>
                     <div class="ps-3">
-                      <h6>{$packagesToday|default:0}</h6>
-                      <span class="text-success small pt-1 fw-bold">{$packagesTodayChange|default:"0%"}</span> <span class="text-muted small pt-2 ps-1">к вчера</span>
+                      <h6>145</h6>
+                      <span class="text-success small pt-1 fw-bold">12%</span> <span class="text-muted small pt-2 ps-1">increase</span>
 
                     </div>
                   </div>
                 </div>
 
               </div>
-            </div><!-- End Processed Today Card -->
+            </div><!-- End Sales Card -->
 
-            <!-- Processed This Month Card -->
+            <!-- Revenue Card -->
             <div class="col-xxl-4 col-md-6">
               <div class="card info-card revenue-card">
 
-
                 <div class="filter">
                   <a class="icon" href="#" data-bs-toggle="dropdown"><i class="bi bi-three-dots"></i></a>
                   <ul class="dropdown-menu dropdown-menu-end dropdown-menu-arrow">
                     <li class="dropdown-header text-start">
-                      <h6>Фильтр</h6>
+                      <h6>Filter</h6>
                     </li>
 
-                    <li><a class="dropdown-item" href="#">Сегодня</a></li>
-                    <li><a class="dropdown-item" href="#">Этот месяц</a></li>
-                    <li><a class="dropdown-item" href="#">Этот год</a></li>
+                    <li><a class="dropdown-item" href="#">Today</a></li>
+                    <li><a class="dropdown-item" href="#">This Month</a></li>
+                    <li><a class="dropdown-item" href="#">This Year</a></li>
                   </ul>
                 </div>
 
                 <div class="card-body">
-                  <h5 class="card-title">Обработано посылок <span>| Этот месяц</span></h5>
+                  <h5 class="card-title">Revenue <span>| This Month</span></h5>
 
                   <div class="d-flex align-items-center">
                     <div class="card-icon rounded-circle d-flex align-items-center justify-content-center">
-                      <i class="bi bi-calendar3"></i>
+                      <i class="bi bi-currency-dollar"></i>
                     </div>
                     <div class="ps-3">
-                      <h6>{$packagesMonth|default:0}</h6>
-                      <span class="text-success small pt-1 fw-bold">{$packagesMonthChange|default:"0%"}</span> <span class="text-muted small pt-2 ps-1">к прошлому месяцу</span>
+                      <h6>$3,264</h6>
+                      <span class="text-success small pt-1 fw-bold">8%</span> <span class="text-muted small pt-2 ps-1">increase</span>
 
                     </div>
                   </div>
                 </div>
 
               </div>
-            </div><!-- End Processed This Month Card -->
+            </div><!-- End Revenue Card -->
 
-            <!-- Processed This Year Card -->
+            <!-- Customers Card -->
             <div class="col-xxl-4 col-xl-12">
 
               <div class="card info-card customers-card">
 
-
                 <div class="filter">
                   <a class="icon" href="#" data-bs-toggle="dropdown"><i class="bi bi-three-dots"></i></a>
                   <ul class="dropdown-menu dropdown-menu-end dropdown-menu-arrow">
                     <li class="dropdown-header text-start">
-                      <h6>Фильтр</h6>
+                      <h6>Filter</h6>
                     </li>
 
-                    <li><a class="dropdown-item" href="#">Сегодня</a></li>
-                    <li><a class="dropdown-item" href="#">Этот месяц</a></li>
-                    <li><a class="dropdown-item" href="#">Этот год</a></li>
+                    <li><a class="dropdown-item" href="#">Today</a></li>
+                    <li><a class="dropdown-item" href="#">This Month</a></li>
+                    <li><a class="dropdown-item" href="#">This Year</a></li>
                   </ul>
                 </div>
 
                 <div class="card-body">
-                  <h5 class="card-title">Обработано посылок <span>| Этот год</span></h5>
+                  <h5 class="card-title">Customers <span>| This Year</span></h5>
 
                   <div class="d-flex align-items-center">
                     <div class="card-icon rounded-circle d-flex align-items-center justify-content-center">
-                      <i class="bi bi-warehouse"></i>
+                      <i class="bi bi-people"></i>
                     </div>
                     <div class="ps-3">
-                      <h6>{$packagesYear|default:0}</h6>
-                      <span class="text-success small pt-1 fw-bold">{$packagesYearChange|default:"0%"}</span> <span class="text-muted small pt-2 ps-1">к прошлому году</span>
+                      <h6>1244</h6>
+                      <span class="text-danger small pt-1 fw-bold">12%</span> <span class="text-muted small pt-2 ps-1">decrease</span>
 
                     </div>
                   </div>
@@ -125,8 +123,7 @@
                 </div>
               </div>
 
-            </div><!-- End Processed This Year Card -->
-
+            </div><!-- End Customers Card -->
 
             <!-- Reports -->
             <div class="col-12">
@@ -146,7 +143,7 @@
                 </div>
 
                 <div class="card-body">
-                  <h5 class="card-title">График обработки посылок <span>| Текущая vs прошлая неделя</span></h5>
+                  <h5 class="card-title">Reports <span>/Today</span></h5>
 
                   <!-- Line Chart -->
                   <div id="reportsChart"></div>
@@ -155,11 +152,14 @@
                     document.addEventListener("DOMContentLoaded", () => {
                       new ApexCharts(document.querySelector("#reportsChart"), {
                         series: [{
-                          name: 'Текущая неделя',
-                          data: {$currentWeekPackages|default:"[5, 6, 7, 8, 10, 9, 11]"},
+                          name: 'Sales',
+                          data: [31, 40, 28, 51, 42, 82, 56],
                         }, {
-                          name: 'Прошлая неделя',
-                          data: {$previousWeekPackages|default:"[4, 5, 6, 6, 7, 8, 9]"}
+                          name: 'Revenue',
+                          data: [11, 32, 45, 32, 34, 52, 41]
+                        }, {
+                          name: 'Customers',
+                          data: [15, 11, 32, 18, 9, 24, 11]
                         }],
                         chart: {
                           height: 350,
@@ -171,7 +171,7 @@
                         markers: {
                           size: 4
                         },
-                        colors: ['#2eca6a', '#4154f1'],
+                        colors: ['#4154f1', '#2eca6a', '#ff771d'],
                         fill: {
                           type: "gradient",
                           gradient: {
@@ -189,12 +189,13 @@
                           width: 2
                         },
                         xaxis: {
-                          categories: ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
+                          type: 'datetime',
+                          categories: ["2018-09-19T00:00:00.000Z", "2018-09-19T01:30:00.000Z", "2018-09-19T02:30:00.000Z", "2018-09-19T03:30:00.000Z", "2018-09-19T04:30:00.000Z", "2018-09-19T05:30:00.000Z", "2018-09-19T06:30:00.000Z"]
                         },
                         tooltip: {
-                          y: {
-                            formatter: (val) =>  val + ` пос.`
-                          }
+                          x: {
+                            format: 'dd/MM/yy HH:mm'
+                          },
                         }
                       }).render();
                     });

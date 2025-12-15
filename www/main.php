@@ -1,80 +1,134 @@
 <?php
-//echo "main.php";
-//session_start();
-//require_once __DIR__ . '/../configs/secure.php';
-///////require_once __DIR__ . '/ocr_templates.php';
-///////require_once __DIR__ . '/ocr_dicts.php';
-/*
 
-//include("/home/zsuauto/web/configs/connectDB.php");
-*/
-/*
-$preg_list="SELECT * FROM `zs_announce_auto_uk` WHERE  `active_announce` != 'S' AND DATE(`date_in_announce`) > (NOW() - INTERVAL 3 DAY)  ORDER BY `id` DESC LIMIT 8";
-$sss1=$dbcnx->query($preg_list);
-	while($idpp = $sss1->fetch_assoc()){
-	$idpp['img_announce']=json_decode($idpp['img_announce']);
-	$newCars[]=$idpp;
-	}
-
-$preg_list="SELECT * FROM `zs_announce_auto_uk` WHERE `active_announce` != 'S'  ORDER BY `id` ASC LIMIT 8";
-$sss1=$dbcnx->query($preg_list);
-	while($idpp = $sss1->fetch_assoc()){
-	$idpp['img_announce']=json_decode($idpp['img_announce']);
-	$allCars[]=$idpp;
-	}
-
-$smarty->assign("newCars",$newCars);
-$smarty->assign("allCars",$allCars);
-//$data['main_text']="Цей ресурс саме для тебе! Ми шукаємо та викладаємо надійні, технічно справні та доступні авто з Европи за адекватні кошти.<br>Є питання ?";
-$data['main_text_h1']="Gräßler Sicherheitsdienste ";
-$data['main_text_h2']="Die Sicherheit Ihres Unternehmens rund um die Uhr.";
-$data['main_text_h3']="Sicherheit an schwierigen Orten";
-$data['description']="Gräßler Sicherheitsdienste";
-$data['title']="Gräßler Sicherheitsdienste";
-$data['keywords']="Gräßler Sicherheitsdienste , Sicherheit, Familiensicherheitsunternehmen, Zuverlässigkeit, Proffessiolität, Schutz, Sicherheitssystem ";
-$data['mainMenu']="main";
-
-//$smarty->assign("SESSION",$_SESSION);
-$smarty->assign("data",$data);
-$smarty->display('index.html');
-*/
-// простой хендлер главной страницы
-// ожидает, что $smarty уже инициализирован в index.php
-/*
-if (!isset($smarty)) {
-    // на случай кривого вызова
-    require_once __DIR__ . '/../libs/Smarty.class.php';
-    $smarty = class_exists('\\Smarty\\Smarty') ? new \Smarty\Smarty : new Smarty();
-    require_once __DIR__ . '/patch.php';
-}
-*/
-/*
-$lang = $_SESSION['lang'] ?? 'uk'; // пример
-$base = 'https://easytrade.one';
-$pathByLang = ['ru'=>'/ru/','uk'=>'/ua/','en'=>'/en/','de'=>'/de/'];
-$canonical = $base . ($pathByLang[$lang] ?? '/');
-*/
-// заголовки/мета — по желанию
-//$smarty->assign('page_title', _('Home'));
-/*
-$header_data['domainName']=$domainName;
-$header_data['title']="mainTitle";
-$header_data['description']="mainDescription";
-$header_data['keywords']="mainKeywords";
-$header_data['author']="";
-$header_data['canonical']=$canonical;
-$header_data['siteName']="";
-$header_data['http-equiv']="";
-$header_data['charset']="";
-$header_data['soc_og_title']="main_soc_og_title";
-$header_data['soc_og_description']="main_soc_og_dscription";
-$header_data['twitter_title']="main_twitter_title";
-$header_data['twitter_description']="main_twitter_description";
-
-*/
 $smarty->assign('user_settings', $_SESSION['user']);
 $smarty->assign('header_data', $header_data);
 $smarty->assign('main','main');
+
+// === Dashboard metrics ===
+/**
+ * Calculate percentage change between two numbers.
+ */
+function calc_percent_change(int $current, int $previous): string {
+    if ($previous === 0) {
+        return $current > 0 ? '100%' : '0%';
+    }
+
+    $delta = (($current - $previous) / $previous) * 100;
+    return sprintf('%.0f%%', $delta);
+}
+
+/**
+ * Get a single integer result from a COUNT(*) query.
+ */
+function fetch_scalar_count(mysqli $dbcnx, string $sql, string $types = '', array $params = []): int {
+    $stmt = $dbcnx->prepare($sql);
+    if (!$stmt) {
+        return 0;
+    }
+
+    if ($types !== '' && $params) {
+        $stmt->bind_param($types, ...$params);
+    }
+
+    $stmt->execute();
+    $res = $stmt->get_result();
+    $row = $res ? $res->fetch_row() : [0];
+    $stmt->close();
+
+    return isset($row[0]) ? (int)$row[0] : 0;
+}
+
+// Counts for today/month/year
+$packagesToday = fetch_scalar_count(
+    $dbcnx,
+    "SELECT COUNT(*) FROM warehouse_item_in WHERE committed = 1 AND DATE(created_at) = CURDATE()"
+);
+
+$packagesYesterday = fetch_scalar_count(
+    $dbcnx,
+    "SELECT COUNT(*) FROM warehouse_item_in WHERE committed = 1 AND DATE(created_at) = (CURDATE() - INTERVAL 1 DAY)"
+);
+
+$packagesMonth = fetch_scalar_count(
+    $dbcnx,
+    "SELECT COUNT(*) FROM warehouse_item_in
+      WHERE committed = 1
+        AND YEAR(created_at) = YEAR(CURDATE())
+        AND MONTH(created_at) = MONTH(CURDATE())"
+);
+
+$packagesPrevMonth = fetch_scalar_count(
+    $dbcnx,
+    "SELECT COUNT(*) FROM warehouse_item_in
+      WHERE committed = 1
+        AND YEAR(created_at) = YEAR(DATE_SUB(CURDATE(), INTERVAL 1 MONTH))
+        AND MONTH(created_at) = MONTH(DATE_SUB(CURDATE(), INTERVAL 1 MONTH))"
+);
+
+$packagesYear = fetch_scalar_count(
+    $dbcnx,
+    "SELECT COUNT(*) FROM warehouse_item_in
+      WHERE committed = 1
+        AND YEAR(created_at) = YEAR(CURDATE())"
+);
+
+$packagesPrevYear = fetch_scalar_count(
+    $dbcnx,
+    "SELECT COUNT(*) FROM warehouse_item_in
+      WHERE committed = 1
+        AND YEAR(created_at) = YEAR(DATE_SUB(CURDATE(), INTERVAL 1 YEAR))"
+);
+
+// Week-by-week chart data (Mon-Sun)
+function build_week_series(mysqli $dbcnx, string $targetWeekSql): array {
+    $data = array_fill(0, 7, 0);
+
+    $stmt = $dbcnx->prepare($targetWeekSql);
+    if (!$stmt) {
+        return $data;
+    }
+
+    $stmt->execute();
+    $res = $stmt->get_result();
+    while ($row = $res->fetch_assoc()) {
+        // MySQL DAYOFWEEK: 1=Sunday ... 7=Saturday; shift to 0=Mon ... 6=Sun
+        $dow     = (int)$row['dow'];
+        $mapped  = ($dow + 5) % 7; // Sunday (1) -> 6
+        $data[$mapped] = (int)$row['cnt'];
+    }
+    $stmt->close();
+
+    return $data;
+}
+
+$currentWeekPackages = build_week_series(
+    $dbcnx,
+    "SELECT DAYOFWEEK(created_at) AS dow, COUNT(*) AS cnt
+       FROM warehouse_item_in
+      WHERE committed = 1
+        AND YEARWEEK(created_at, 1) = YEARWEEK(CURDATE(), 1)
+      GROUP BY dow"
+);
+
+$previousWeekPackages = build_week_series(
+    $dbcnx,
+    "SELECT DAYOFWEEK(created_at) AS dow, COUNT(*) AS cnt
+       FROM warehouse_item_in
+      WHERE committed = 1
+        AND YEARWEEK(created_at, 1) = YEARWEEK(DATE_SUB(CURDATE(), INTERVAL 1 WEEK), 1)
+      GROUP BY dow"
+);
+
+// Assign metrics to template
+$smarty->assign('packagesToday',        $packagesToday);
+$smarty->assign('packagesTodayChange',  calc_percent_change($packagesToday, $packagesYesterday));
+$smarty->assign('packagesMonth',        $packagesMonth);
+$smarty->assign('packagesMonthChange',  calc_percent_change($packagesMonth, $packagesPrevMonth));
+$smarty->assign('packagesYear',         $packagesYear);
+$smarty->assign('packagesYearChange',   calc_percent_change($packagesYear, $packagesPrevYear));
+
+$smarty->assign('currentWeekPackages',  json_encode($currentWeekPackages));
+$smarty->assign('previousWeekPackages', json_encode($previousWeekPackages));
 
 $smarty->display('cells_NA_index.html');
 

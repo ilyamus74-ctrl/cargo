@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2025-12-15 17:26:36
+/* Smarty version 5.3.1, created on 2025-12-15 19:22:19
   from 'file:cells_NA_main.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_694044ccf3c387_19154059',
+  'unifunc' => 'content_69405feb6ba3c0_30954961',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '7c13987cc59e7c70c9b47584e6f0469abcdc466f' => 
     array (
       0 => 'cells_NA_main.html',
-      1 => 1765819593,
+      1 => 1765826204,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_694044ccf3c387_19154059 (\Smarty\Template $_smarty_tpl) {
+function content_69405feb6ba3c0_30954961 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>
   <main id="main" class="main">
@@ -42,104 +42,113 @@ $_smarty_current_dir = '/home/cells/web/templates';
         <div class="col-lg-8">
           <div class="row">
 
-            <!-- Sales Card -->
+            <!-- Processed Today Card -->
             <div class="col-xxl-4 col-md-6">
               <div class="card info-card sales-card">
 
+
                 <div class="filter">
                   <a class="icon" href="#" data-bs-toggle="dropdown"><i class="bi bi-three-dots"></i></a>
                   <ul class="dropdown-menu dropdown-menu-end dropdown-menu-arrow">
                     <li class="dropdown-header text-start">
-                      <h6>Filter</h6>
+                      <h6>Фильтр</h6>
                     </li>
 
-                    <li><a class="dropdown-item" href="#">Today</a></li>
-                    <li><a class="dropdown-item" href="#">This Month</a></li>
-                    <li><a class="dropdown-item" href="#">This Year</a></li>
+                    <li><a class="dropdown-item" href="#">Сегодня</a></li>
+                    <li><a class="dropdown-item" href="#">Этот месяц</a></li>
+                    <li><a class="dropdown-item" href="#">Этот год</a></li>
                   </ul>
                 </div>
 
                 <div class="card-body">
-                  <h5 class="card-title">Sales <span>| Today</span></h5>
+                  <h5 class="card-title">Обработано посылок <span>| Сегодня</span></h5>
 
                   <div class="d-flex align-items-center">
                     <div class="card-icon rounded-circle d-flex align-items-center justify-content-center">
-                      <i class="bi bi-cart"></i>
+                      <i class="bi bi-box-seam"></i>
                     </div>
                     <div class="ps-3">
-                      <h6>145</h6>
-                      <span class="text-success small pt-1 fw-bold">12%</span> <span class="text-muted small pt-2 ps-1">increase</span>
+                      <h6><?php echo (($tmp = $_smarty_tpl->getValue('packagesToday') ?? null)===null||$tmp==='' ? 0 ?? null : $tmp);?>
+</h6>
+                      <span class="text-success small pt-1 fw-bold"><?php echo (($tmp = $_smarty_tpl->getValue('packagesTodayChange') ?? null)===null||$tmp==='' ? "0%" ?? null : $tmp);?>
+</span> <span class="text-muted small pt-2 ps-1">к вчера</span>
 
                     </div>
                   </div>
                 </div>
 
               </div>
-            </div><!-- End Sales Card -->
+            </div><!-- End Processed Today Card -->
 
-            <!-- Revenue Card -->
+            <!-- Processed This Month Card -->
             <div class="col-xxl-4 col-md-6">
               <div class="card info-card revenue-card">
 
+
                 <div class="filter">
                   <a class="icon" href="#" data-bs-toggle="dropdown"><i class="bi bi-three-dots"></i></a>
                   <ul class="dropdown-menu dropdown-menu-end dropdown-menu-arrow">
                     <li class="dropdown-header text-start">
-                      <h6>Filter</h6>
+                      <h6>Фильтр</h6>
                     </li>
 
-                    <li><a class="dropdown-item" href="#">Today</a></li>
-                    <li><a class="dropdown-item" href="#">This Month</a></li>
-                    <li><a class="dropdown-item" href="#">This Year</a></li>
+                    <li><a class="dropdown-item" href="#">Сегодня</a></li>
+                    <li><a class="dropdown-item" href="#">Этот месяц</a></li>
+                    <li><a class="dropdown-item" href="#">Этот год</a></li>
                   </ul>
                 </div>
 
                 <div class="card-body">
-                  <h5 class="card-title">Revenue <span>| This Month</span></h5>
+                  <h5 class="card-title">Обработано посылок <span>| Этот месяц</span></h5>
 
                   <div class="d-flex align-items-center">
                     <div class="card-icon rounded-circle d-flex align-items-center justify-content-center">
-                      <i class="bi bi-currency-dollar"></i>
+                      <i class="bi bi-calendar3"></i>
                     </div>
                     <div class="ps-3">
-                      <h6>$3,264</h6>
-                      <span class="text-success small pt-1 fw-bold">8%</span> <span class="text-muted small pt-2 ps-1">increase</span>
+                      <h6><?php echo (($tmp = $_smarty_tpl->getValue('packagesMonth') ?? null)===null||$tmp==='' ? 0 ?? null : $tmp);?>
+</h6>
+                      <span class="text-success small pt-1 fw-bold"><?php echo (($tmp = $_smarty_tpl->getValue('packagesMonthChange') ?? null)===null||$tmp==='' ? "0%" ?? null : $tmp);?>
+</span> <span class="text-muted small pt-2 ps-1">к прошлому месяцу</span>
 
                     </div>
                   </div>
                 </div>
 
               </div>
-            </div><!-- End Revenue Card -->
+            </div><!-- End Processed This Month Card -->
 
-            <!-- Customers Card -->
+            <!-- Processed This Year Card -->
             <div class="col-xxl-4 col-xl-12">
 
               <div class="card info-card customers-card">
 
+
                 <div class="filter">
                   <a class="icon" href="#" data-bs-toggle="dropdown"><i class="bi bi-three-dots"></i></a>
                   <ul class="dropdown-menu dropdown-menu-end dropdown-menu-arrow">
                     <li class="dropdown-header text-start">
-                      <h6>Filter</h6>
+                      <h6>Фильтр</h6>
                     </li>
 
-                    <li><a class="dropdown-item" href="#">Today</a></li>
-                    <li><a class="dropdown-item" href="#">This Month</a></li>
-                    <li><a class="dropdown-item" href="#">This Year</a></li>
+                    <li><a class="dropdown-item" href="#">Сегодня</a></li>
+                    <li><a class="dropdown-item" href="#">Этот месяц</a></li>
+                    <li><a class="dropdown-item" href="#">Этот год</a></li>
                   </ul>
                 </div>
 
                 <div class="card-body">
-                  <h5 class="card-title">Customers <span>| This Year</span></h5>
+                  <h5 class="card-title">Обработано посылок <span>| Этот год</span></h5>
 
                   <div class="d-flex align-items-center">
                     <div class="card-icon rounded-circle d-flex align-items-center justify-content-center">
-                      <i class="bi bi-people"></i>
+                      <i class="bi bi-warehouse"></i>
                     </div>
                     <div class="ps-3">
-                      <h6>1244</h6>
-                      <span class="text-danger small pt-1 fw-bold">12%</span> <span class="text-muted small pt-2 ps-1">decrease</span>
+                      <h6><?php echo (($tmp = $_smarty_tpl->getValue('packagesYear') ?? null)===null||$tmp==='' ? 0 ?? null : $tmp);?>
+</h6>
+                      <span class="text-success small pt-1 fw-bold"><?php echo (($tmp = $_smarty_tpl->getValue('packagesYearChange') ?? null)===null||$tmp==='' ? "0%" ?? null : $tmp);?>
+</span> <span class="text-muted small pt-2 ps-1">к прошлому году</span>
 
                     </div>
                   </div>
@@ -147,7 +156,8 @@ $_smarty_current_dir = '/home/cells/web/templates';
                 </div>
               </div>
 
-            </div><!-- End Customers Card -->
+            </div><!-- End Processed This Year Card -->
+
 
             <!-- Reports -->
             <div class="col-12">
@@ -167,7 +177,7 @@ $_smarty_current_dir = '/home/cells/web/templates';
                 </div>
 
                 <div class="card-body">
-                  <h5 class="card-title">Reports <span>/Today</span></h5>
+                  <h5 class="card-title">График обработки посылок <span>| Текущая vs прошлая неделя</span></h5>
 
                   <!-- Line Chart -->
                   <div id="reportsChart"></div>
@@ -177,14 +187,13 @@ $_smarty_current_dir = '/home/cells/web/templates';
                     document.addEventListener("DOMContentLoaded", () => {
                       new ApexCharts(document.querySelector("#reportsChart"), {
                         series: [{
-                          name: 'Sales',
-                          data: [31, 40, 28, 51, 42, 82, 56],
+                          name: 'Текущая неделя',
+                          data: <?php echo (($tmp = $_smarty_tpl->getValue('currentWeekPackages') ?? null)===null||$tmp==='' ? "[5, 6, 7, 8, 10, 9, 11]" ?? null : $tmp);?>
+,
                         }, {
-                          name: 'Revenue',
-                          data: [11, 32, 45, 32, 34, 52, 41]
-                        }, {
-                          name: 'Customers',
-                          data: [15, 11, 32, 18, 9, 24, 11]
+                          name: 'Прошлая неделя',
+                          data: <?php echo (($tmp = $_smarty_tpl->getValue('previousWeekPackages') ?? null)===null||$tmp==='' ? "[4, 5, 6, 6, 7, 8, 9]" ?? null : $tmp);?>
+
                         }],
                         chart: {
                           height: 350,
@@ -196,7 +205,7 @@ $_smarty_current_dir = '/home/cells/web/templates';
                         markers: {
                           size: 4
                         },
-                        colors: ['#4154f1', '#2eca6a', '#ff771d'],
+                        colors: ['#2eca6a', '#4154f1'],
                         fill: {
                           type: "gradient",
                           gradient: {
@@ -214,13 +223,12 @@ $_smarty_current_dir = '/home/cells/web/templates';
                           width: 2
                         },
                         xaxis: {
-                          type: 'datetime',
-                          categories: ["2018-09-19T00:00:00.000Z", "2018-09-19T01:30:00.000Z", "2018-09-19T02:30:00.000Z", "2018-09-19T03:30:00.000Z", "2018-09-19T04:30:00.000Z", "2018-09-19T05:30:00.000Z", "2018-09-19T06:30:00.000Z"]
+                          categories: ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс']
                         },
                         tooltip: {
-                          x: {
-                            format: 'dd/MM/yy HH:mm'
-                          },
+                          y: {
+                            formatter: (val) =>  val + ` пос.`
+                          }
                         }
                       }).render();
                     });
