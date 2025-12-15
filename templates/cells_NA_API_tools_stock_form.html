@@ -101,8 +101,18 @@
 
                 <div class="row">
                   <div class="col-lg-3 col-md-4 label">QR Code tool</div>
-                  <img src="/img/tool/{$edit_tool.id}/qr.png" alt="" class="rounded-circle">
-                  <!--<div class="col-lg-9 col-md-8">{$edit_user.email}</div>-->
+                  <div class="col-lg-9 col-md-8 d-flex gap-2 flex-wrap">
+                    {if $edit_tool.qr_codes}
+                      {foreach $edit_tool.qr_codes as $qr}
+                        <div class="d-flex flex-column align-items-center">
+                          <img src="{$qr.path}" alt="QR {$qr.size}" class="rounded-circle" style="width:90px; height:90px; object-fit:cover;">
+                          <small class="text-muted">{$qr.size}</small>
+                        </div>
+                      {/foreach}
+                    {else}
+                      <span class="text-muted">QR code will be generated after saving</span>
+                    {/if}
+                  </div>
                 </div>
               </div>
 

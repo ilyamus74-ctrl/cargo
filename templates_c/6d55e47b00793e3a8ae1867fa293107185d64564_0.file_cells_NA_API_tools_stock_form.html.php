@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2025-12-15 11:25:02
+/* Smarty version 5.3.1, created on 2025-12-15 11:38:36
   from 'file:cells_NA_API_tools_stock_form.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_693ff00ec14d15_81976068',
+  'unifunc' => 'content_693ff33c583d33_93752710',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '6d55e47b00793e3a8ae1867fa293107185d64564' => 
     array (
       0 => 'cells_NA_API_tools_stock_form.html',
-      1 => 1765797898,
+      1 => 1765798580,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_693ff00ec14d15_81976068 (\Smarty\Template $_smarty_tpl) {
+function content_693ff33c583d33_93752710 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>
 <section class="section profile">
@@ -145,10 +145,28 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
 
                 <div class="row">
                   <div class="col-lg-3 col-md-4 label">QR Code tool</div>
-                  <img src="/img/tool/<?php echo $_smarty_tpl->getValue('edit_tool')['id'];?>
-/qr.png" alt="" class="rounded-circle">
-                  <!--<div class="col-lg-9 col-md-8"><?php echo $_smarty_tpl->getValue('edit_user')['email'];?>
-</div>-->
+                  <div class="col-lg-9 col-md-8 d-flex gap-2 flex-wrap">
+                    <?php if ($_smarty_tpl->getValue('edit_tool')['qr_codes']) {?>
+                      <?php
+$_from = $_smarty_tpl->getSmarty()->getRuntime('Foreach')->init($_smarty_tpl, $_smarty_tpl->getValue('edit_tool')['qr_codes'], 'qr');
+$foreach1DoElse = true;
+foreach ($_from ?? [] as $_smarty_tpl->getVariable('qr')->value) {
+$foreach1DoElse = false;
+?>
+                        <div class="d-flex flex-column align-items-center">
+                          <img src="<?php echo $_smarty_tpl->getValue('qr')['path'];?>
+" alt="QR <?php echo $_smarty_tpl->getValue('qr')['size'];?>
+" class="rounded-circle" style="width:90px; height:90px; object-fit:cover;">
+                          <small class="text-muted"><?php echo $_smarty_tpl->getValue('qr')['size'];?>
+</small>
+                        </div>
+                      <?php
+}
+$_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
+                    <?php } else { ?>
+                      <span class="text-muted">QR code will be generated after saving</span>
+                    <?php }?>
+                  </div>
                 </div>
               </div>
 
@@ -285,9 +303,9 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
                           <option value="0" selected="">Выбрать один из</option>
                           <?php
 $_from = $_smarty_tpl->getSmarty()->getRuntime('Foreach')->init($_smarty_tpl, $_smarty_tpl->getValue('roles'), 'r');
-$foreach1DoElse = true;
+$foreach2DoElse = true;
 foreach ($_from ?? [] as $_smarty_tpl->getVariable('r')->value) {
-$foreach1DoElse = false;
+$foreach2DoElse = false;
 ?>
                             <option value="<?php echo $_smarty_tpl->getValue('r')['code'];?>
 " <?php if ((($tmp = $_smarty_tpl->getValue('edit_user')['role'] ?? null)===null||$tmp==='' ? '' ?? null : $tmp) == $_smarty_tpl->getValue('r')['code']) {?>selected<?php }?>><?php echo $_smarty_tpl->getValue('r')['code'];?>

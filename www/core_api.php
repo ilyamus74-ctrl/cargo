@@ -72,8 +72,130 @@ function generate_uuid(): string
     return vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($data), 4));
 }
 
+function cm_to_px(float $cm, int $dpi = 300): int
+{
+    return (int)round($cm * $dpi / 2.54);
+}
+
+function get_subdomain_label(): string
+{
+    $host = preg_replace('/:\\d+$/', '', $_SERVER['HTTP_HOST'] ?? '');
+    $parts = array_filter(explode('.', $host));
+
+    return strtoupper($parts[0] ?? '');
+}
+
+function generate_tool_qr_images(string $uid, string $labelText): array
+{
+    $baseDir = __DIR__ . '/img/tools_stock/' . $uid;
+    if (!is_dir($baseDir) && !mkdir($baseDir, 0775, true) && !is_dir($baseDir)) {
+        error_log("QR: cannot create dir {$baseDir}");
+        return [];
+    }
+
+    $qrPayload = $uid;
+    $rawPath   = $baseDir . '/qr_raw.png';
+
+    $cmd = sprintf(
+        'qrencode -o %s -s 8 -l M %s 2>/dev/null',
+        escapeshellarg($rawPath),
+        escapeshellarg($qrPayload)
+    );
+    exec($cmd, $out, $ret);
+    if ($ret !== 0 || !is_file($rawPath)) {
+        error_log("QR: qrencode failed for tool {$uid}, rc={$ret}");
+        return [];
+    }
+
+    $rawImage = imagecreatefrompng($rawPath);
+    if (!$rawImage) {
+        error_log("QR: cannot open raw QR for tool {$uid}");
+        return [];
+    }
+
+    $qrWidth     = imagesx($rawImage);
+    $qrHeight    = imagesy($rawImage);
+    $labelHeight = 36;
+    $canvas      = imagecreatetruecolor($qrWidth, $qrHeight + $labelHeight);
+
+    $white = imagecolorallocate($canvas, 255, 255, 255);
+    $black = imagecolorallocate($canvas, 0, 0, 0);
+
+    imagefill($canvas, 0, 0, $white);
+    imagecopy($canvas, $rawImage, 0, 0, 0, 0, $qrWidth, $qrHeight);
+
+    $font      = 5;
+    $text      = $labelText ?: 'QR';
+    $textWidth = imagefontwidth($font) * strlen($text);
+    $textX     = max(0, (int)(($qrWidth - $textWidth) / 2));
+    $textY     = $qrHeight + (int)(($labelHeight - imagefontheight($font)) / 2);
+    imagestring($canvas, $font, $textX, $textY, $text, $black);
+
+    $sizesCm = [
+        '5x5' => 5.0,
+        '3x3' => 3.0,
+        '2x2' => 2.0,
+    ];
+
+    $result = [];
+
+    foreach ($sizesCm as $suffix => $cm) {
+        $targetSize = cm_to_px($cm);
+        $resized    = imagecreatetruecolor($targetSize, $targetSize);
+
+        imagefill($resized, 0, 0, $white);
+        imagecopyresampled(
+            $resized,
+            $canvas,
+            0,
+            0,
+            0,
+            0,
+            $targetSize,
+            $targetSize,
+            imagesx($canvas),
+            imagesy($canvas)
+        );
+
+        $fileName = sprintf('qr_%s.png', $suffix);
+        $filePath = $baseDir . '/' . $fileName;
+
+        imagepng($resized, $filePath);
+        imagedestroy($resized);
+
+        $result[$suffix] = sprintf('/img/tools_stock/%s/%s', $uid, $fileName);
+    }
+
+    imagedestroy($canvas);
+    imagedestroy($rawImage);
+
+    return $result;
+}
 function map_tool_to_template(array $tool): array
 {
+    $qrPathsRaw = $tool['qr_path'] ?? '';
+    $qrCodes    = [];
+
+    if ($qrPathsRaw !== '') {
+        $decoded = json_decode((string)$qrPathsRaw, true);
+
+        if (is_array($decoded)) {
+            foreach ($decoded as $size => $path) {
+                if (is_string($path)) {
+                    $qrCodes[] = [
+                        'size' => (string)$size,
+                        'path' => $path,
+                    ];
+                }
+            }
+        } elseif (is_string($qrPathsRaw)) {
+            $qrCodes[] = [
+                'size' => 'default',
+                'path' => (string)$qrPathsRaw,
+            ];
+        }
+    }
+
     $formatDate = static function ($value): string {
         if (!$value) {
             return '';
@@ -93,16 +215,14 @@ function map_tool_to_template(array $tool): array
         'SerialNumber'    => $tool['serial_number'] ?? '',
         'WarantyDays'     => $tool['warranty_days'] ?? 0,
         'PriceBuy'        => $tool['price_buy'] ?? '',
-//        'DateBuy'         => $tool['purchase_date'] ?? '',
-//        'AddInSystem'     => $tool['registered_at'] ?? '',
         'DateBuy'         => $formatDate($tool['purchase_date'] ?? ''),
         'AddInSystem'     => $formatDate($tool['registered_at'] ?? ''),
         'ResourceDays'    => $tool['resource_days'] ?? 0,
-//        'ResourceEndDate' => $tool['operational_until'] ?? '',
         'ResourceEndDate' => $formatDate($tool['operational_until'] ?? ''),
         'status'          => $tool['status'] ?? 'active',
         'notes'           => $tool['notes'] ?? '',
         'img_patch'       => $tool['img_patch'] ?? [],
+        'qr_codes'        => $qrCodes,
     ];
 }
 
@@ -585,6 +705,7 @@ case 'form_edit_user':
             'status'          => 'active',
             'notes'           => '',
             'img_patch'       => [],
+            'qr_codes'        => [],
         ];
 
         $smarty->assign('edit_tool', $emptyTool);
@@ -830,7 +951,9 @@ case 'save_tool':
 
     } else {
         $uid      = generate_uuid();
-        $qrPath   = sprintf('/img/tool/%s/qr.png', $uid);
+        $domainLabel = get_subdomain_label();
+        $qrImages    = generate_tool_qr_images($uid, $domainLabel);
+        $qrPath      = json_encode($qrImages, JSON_UNESCAPED_SLASHES);
         $imgPatch = sprintf('/img/tool/%s/photo.png', $uid);
         $location = 'warehouse';
 
