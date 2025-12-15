@@ -687,17 +687,19 @@ case 'save_tool':
     } catch (Exception $e) {
         $registeredAt = date('Y-m-d');
         }
+   $priceBuy = ($priceBuyRaw === '' ? null : (float)$priceBuyRaw);
 
-    $priceBuy    = ($priceBuyRaw === '' ? null : (float)$priceBuyRaw);
-    $resourceEnd = null;
+   $resourceEnd = null;
+       if ($resourceDays > 0) {
+               try {
+            $resourceEnd = (new DateTimeImmutable($purchaseDate))
+                ->modify('+' . $resourceDays . ' days')
+                ->format('Y-m-d');
+        } catch (Exception $e) {
+            $resourceEnd = null;
+        }
+       }
 
-
-/*    if ($resourceDays > 0 && $purchaseDateObj instanceof DateTime) {
-        $resourceEnd = (clone $purchaseDateObj)
-            ->modify('+' . $resourceDays . ' days')
-            ->format('Y-m-d');
-    }
-*/
     if ($toolId > 0) {
             $oldTool = null;
         $stmtOld = $dbcnx->prepare('SELECT * FROM tool_resources WHERE id = ? LIMIT 1');
