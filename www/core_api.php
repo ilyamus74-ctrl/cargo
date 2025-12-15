@@ -690,16 +690,17 @@ case 'save_tool':
    $priceBuy = ($priceBuyRaw === '' ? null : (float)$priceBuyRaw);
 
    $resourceEnd = null;
-/*       if ($resourceDays > 0) {
-               try {
-            $resourceEnd = (new DateTimeImmutable($purchaseDate))
-                ->modify('+' . $resourceDays . ' days')
-                ->format('Y-m-d');
-        } catch (Exception $e) {
-            $resourceEnd = null;
+ 
+   if ($resourceDays > 0) {
+    $resourceDays = max(0, (int)($_POST['ResourceDays'] ?? 0));
+
+    $resourceEndObj = clone $purchaseDateObj;
+        if ($resourceDays > 0) {
+          $resourceEndObj->modify('+' . $resourceDays . ' days');
         }
-       }
-*/
+    }
+   $resourceEnd = $resourceEndObj->format('Y-m-d');
+//print_r($resourceEnd);
     if ($toolId > 0) {
             $oldTool = null;
         $stmtOld = $dbcnx->prepare('SELECT * FROM tool_resources WHERE id = ? LIMIT 1');
