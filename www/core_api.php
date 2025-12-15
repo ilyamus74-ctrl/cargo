@@ -690,7 +690,7 @@ case 'save_tool':
    $priceBuy = ($priceBuyRaw === '' ? null : (float)$priceBuyRaw);
 
    $resourceEnd = null;
-       if ($resourceDays > 0) {
+/*       if ($resourceDays > 0) {
                try {
             $resourceEnd = (new DateTimeImmutable($purchaseDate))
                 ->modify('+' . $resourceDays . ' days')
@@ -699,7 +699,7 @@ case 'save_tool':
             $resourceEnd = null;
         }
        }
-
+*/
     if ($toolId > 0) {
             $oldTool = null;
         $stmtOld = $dbcnx->prepare('SELECT * FROM tool_resources WHERE id = ? LIMIT 1');
