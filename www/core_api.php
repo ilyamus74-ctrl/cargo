@@ -42,6 +42,27 @@ function fetch_users_list(mysqli $dbcnx): array
     return $users;
 }
 
+function build_tool_qr_path_json(string $uid): string
+{
+    $dir = __DIR__ . '/img/tools_stock/' . $uid;
+
+    // сначала пробуем собрать то, что уже лежит
+    $qr = collect_tool_qr_images($uid, $dir);
+
+    // если пусто — генерим и собираем заново (чтобы попал и qr_raw.png)
+    if (!$qr) {
+        generate_tool_qr_images($uid, get_subdomain_label());
+        $qr = collect_tool_qr_images($uid, $dir);
+    }
+
+    if (!$qr) {
+        return '{}';
+    }
+
+    return json_encode($qr, JSON_UNESCAPED_SLASHES) ?: '{}';
+}
+
+
 function fetch_tools_list(mysqli $dbcnx): array
 {
     $tools = [];
@@ -915,6 +936,18 @@ case 'save_tool':
             $stmtOld->close();
         }
 
+$toolUid = (string)($oldTool['uid'] ?? '');
+$qrPath  = null;
+
+if ($toolUid !== '') {
+    $qrImages = collect_tool_qr_images($toolUid, __DIR__ . '/img/tools_stock/' . $toolUid);
+    if (!$qrImages) {
+        $qrImages = generate_tool_qr_images($toolUid, get_subdomain_label());
+    }
+    $qrPath = json_encode($qrImages, JSON_UNESCAPED_SLASHES);
+    //$qrPath = build_tool_qr_path_json($uid);
+}
+//$qrPath = build_tool_qr_path_json($uid);
 
         $newValues = [
             'name'              => $name,
@@ -925,6 +958,7 @@ case 'save_tool':
             'registered_at'     => $registeredAt,
             'resource_days'     => $resourceDays,
             'operational_until' => $resourceEnd,
+            'qr_path'           => $qrPath,
             'notes'             => $notes,
             'status'            => $status,
         ];
@@ -938,6 +972,7 @@ case 'save_tool':
                        registered_at = ?,
                        resource_days = ?,
                        operational_until = ?,
+                       qr_path = ?,
                        notes = ?,
                        status = ?,
                        updated_at = CURRENT_TIMESTAMP()
@@ -949,7 +984,7 @@ case 'save_tool':
         }
 
         $stmt->bind_param(
-            'ssidssisssi',
+            'ssidssissssi',
             $name,
             $serialNumber,
             $warrantyDays,
@@ -958,6 +993,7 @@ case 'save_tool':
             $registeredAt,
             $resourceDays,
             $resourceEnd,
+            $qrPath,
             $notes,
             $status,
             $toolId
@@ -998,6 +1034,8 @@ case 'save_tool':
             $qrImages = collect_tool_qr_images($uid, __DIR__ . '/img/tools_stock/' . $uid);
         }
         $qrPath = json_encode($qrImages, JSON_UNESCAPED_SLASHES);
+        //$qrPath = build_tool_qr_path_json($uid);
+
         $imgPatch = sprintf('/img/tool/%s/photo.png', $uid);
         $location = 'warehouse';
 
@@ -1030,7 +1068,7 @@ case 'save_tool':
                     operational_until,
                     status,
                     qr_path,
-                    img_patch,
+                    img_path,
                     notes
                 ) VALUES (
                     ?, ?, ?, ?, ?, ?, ?, ?, 0, ?, 0, ?, ?, ?, ?, ?
