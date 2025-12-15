@@ -14,7 +14,7 @@
               <div class="tool-photo-item border rounded p-2 d-flex flex-column gap-2">
                 <img src="{$photo}" alt="Tool photo" class="img-fluid w-100 border" style="object-fit: cover; aspect-ratio: 1 / 1;">
                 <div class="form-check mb-0">
-                  <input class="form-check-input" type="checkbox" name="delete_photos[]" value="{$photo}" id="delete-photo-{$smarty.foreach.photos.iteration}">
+                  <input class="form-check-input" type="checkbox" name="delete_photos[]" value="{$photo}" id="delete-photo-{$smarty.foreach.photos.iteration}" form="tool-profile-form">
                   <label class="form-check-label small" for="delete-photo-{$smarty.foreach.photos.iteration}">Удалить фото</label>
                 </div>
               </div>

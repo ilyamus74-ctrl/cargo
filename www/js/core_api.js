@@ -200,6 +200,7 @@ function renderToolPhotos(photos) {
         checkbox.name = 'delete_photos[]';
         checkbox.value = path;
         checkbox.id = `delete-photo-${index + 1}`;
+        checkbox.setAttribute('form', 'tool-profile-form');
         formCheck.appendChild(checkbox);
 
         const label = document.createElement('label');

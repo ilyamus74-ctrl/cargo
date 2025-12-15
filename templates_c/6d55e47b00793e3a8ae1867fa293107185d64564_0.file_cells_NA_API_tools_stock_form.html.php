@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2025-12-15 14:35:17
+/* Smarty version 5.3.1, created on 2025-12-15 14:53:15
   from 'file:cells_NA_API_tools_stock_form.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_69401ca5c99761_66396754',
+  'unifunc' => 'content_694020dbed1683_91136009',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '6d55e47b00793e3a8ae1867fa293107185d64564' => 
     array (
       0 => 'cells_NA_API_tools_stock_form.html',
-      1 => 1765809309,
+      1 => 1765810348,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_69401ca5c99761_66396754 (\Smarty\Template $_smarty_tpl) {
+function content_694020dbed1683_91136009 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>
 <section class="section profile">
@@ -51,7 +51,7 @@ $_smarty_tpl->tpl_vars['__smarty_foreach_photos']->value['iteration']++;
                 <div class="form-check mb-0">
                   <input class="form-check-input" type="checkbox" name="delete_photos[]" value="<?php echo $_smarty_tpl->getValue('photo');?>
 " id="delete-photo-<?php echo ($_smarty_tpl->getValue('__smarty_foreach_photos')['iteration'] ?? null);?>
-">
+" form="tool-profile-form">
                   <label class="form-check-label small" for="delete-photo-<?php echo ($_smarty_tpl->getValue('__smarty_foreach_photos')['iteration'] ?? null);?>
 ">Удалить фото</label>
                 </div>

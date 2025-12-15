@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2025-12-06 12:30:53
+/* Smarty version 5.3.1, created on 2025-12-15 15:29:56
   from 'file:cells_NA_API_devices.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_693421fda02064_15084010',
+  'unifunc' => 'content_69402974e8e774_71207712',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '84e20e00b4988c57a4fafb80fd27e532568006c4' => 
     array (
       0 => 'cells_NA_API_devices.html',
-      1 => 1765024242,
+      1 => 1765812591,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_693421fda02064_15084010 (\Smarty\Template $_smarty_tpl) {
+function content_69402974e8e774_71207712 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>    <div class="pagetitle">
       <h1>Settings devices</h1>
@@ -53,6 +53,7 @@ $_smarty_current_dir = '/home/cells/web/templates';
             <div class="card-body">
               <h5 class="card-title">Устройства</h5>
               <!-- Default Table -->
+              <a class="btn btn-secondary" href="/download/OcrScanner.apk" download>Скачать APP OcrScanner</a>
               <input type="hidden" id="userListDirty" value="0">
               <table class="table table-sm align-middle users-table">
                 <thead>
