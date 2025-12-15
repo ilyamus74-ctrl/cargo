@@ -423,6 +423,22 @@ document.addEventListener('click', function (e) {
 
             // Сохранение устройства
             if (action === 'save_device') {
+                if (data.deleted) {
+                    alert(data.message || 'Устройство удалено');
+
+                    setReloadOnModalCloseOnce(reloadDevices);
+
+                    const modalEl = document.getElementById('fullscreenModal');
+                    if (modalEl && window.bootstrap && bootstrap.Modal) {
+                        const modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+                        modal.hide();
+                    } else {
+                        reloadDevices();
+                    }
+
+                    return;
+                }
+
                 alert(data.message || 'Сохранено');
 
                 // Закрыть модалку
@@ -432,27 +448,12 @@ document.addEventListener('click', function (e) {
                     modal.hide();
                 }
 
-                // Обновить список устройств
-                const fd = new FormData();
-                fd.append('action', 'view_devices');
-
-                fetch('/core_api.php', { method: 'POST', body: fd })
-                    .then(r => r.json())
-                    .then(d2 => {
-                        if (d2 && d2.status === 'ok') {
-                            loadIntoMain(d2.html);
-                        }
-                    })
-                    .catch(err => {
-                        console.error('core_api fetch error (view_devices after save_device):', err);
-                    });
-
+                reloadDevices();
                 return;
             }
 
             // Сохранение пользователя (create/update/delete)
             if (action === 'save_user') {
-
                 // Вариант: пользователь удалён
                 if (data.deleted) {
                     alert(data.message || 'Пользователь удалён');

@@ -1506,6 +1506,46 @@ if ($toolUid !== '') {
             break;
         }
 
+
+        $deleteFlag = !empty($_POST['delete']);
+
+        // Удаление устройства
+        if ($deviceId > 0 && $deleteFlag) {
+
+            $oldDevice = null;
+            if ($stmtOld = $dbcnx->prepare('SELECT * FROM devices WHERE id = ? LIMIT 1')) {
+                $stmtOld->bind_param('i', $deviceId);
+                $stmtOld->execute();
+                $resOld   = $stmtOld->get_result();
+                $oldDevice = $resOld ? $resOld->fetch_assoc() : null;
+                $stmtOld->close();
+            }
+
+            $stmtDel = $dbcnx->prepare('DELETE FROM devices WHERE id = ?');
+            if ($stmtDel) {
+                $stmtDel->bind_param('i', $deviceId);
+                $stmtDel->execute();
+                $stmtDel->close();
+            }
+
+            audit_log(
+                $user['id'] ?? null,
+                'DEVICE_DELETE',
+                'DEVICE',
+                $deviceId,
+                'Устройство удалено из профиля',
+                $oldDevice ?: []
+            );
+
+            $response = [
+                'status'  => 'ok',
+                'message' => 'Устройство удалено',
+                'deleted' => true,
+            ];
+            break;
+        }
+
+
         // Если не нужны редактируемые name/notes — можно вообще не трогать их.
         // Я оставляю поддержку, раз они уже были.
         $name  = trim($_POST['name']  ?? '');

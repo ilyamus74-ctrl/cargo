@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2025-12-06 13:46:15
+/* Smarty version 5.3.1, created on 2025-12-15 15:36:31
   from 'file:cells_NA_API_devices_profile.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_693433a7626f81_17779786',
+  'unifunc' => 'content_69402affe2ed79_87257330',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '66c932c2de09ea981a94eea94e66fa27ebd20013' => 
     array (
       0 => 'cells_NA_API_devices_profile.html',
-      1 => 1765028763,
+      1 => 1765812915,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_693433a7626f81_17779786 (\Smarty\Template $_smarty_tpl) {
+function content_69402affe2ed79_87257330 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>
 <section class="section profile">
@@ -190,12 +190,20 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
 
                     <div class="mt-3">
 
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" id="delete" name="delete">
+                  <label class="form-check-label" for="securityNotify">
+                    Удалить устройство
+                  </label>
+                </div>
+
 
                   <div class="form-check"">
                   <input class="form-check-input" type="checkbox" id="status" name="is_active" value="1" <?php if ($_smarty_tpl->getValue('device')['is_active'] == 1) {?>checked<?php }?>>  <label class="form-check-label" for="status">
                   Статус регистрации в системе
                   </label>
                   </div>
+
 
 
                   </div>
