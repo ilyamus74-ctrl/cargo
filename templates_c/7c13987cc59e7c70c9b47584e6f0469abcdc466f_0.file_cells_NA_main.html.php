@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2025-12-13 18:47:10
+/* Smarty version 5.3.1, created on 2025-12-15 17:26:36
   from 'file:cells_NA_main.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_693db4ae64cf15_59755963',
+  'unifunc' => 'content_694044ccf3c387_19154059',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '7c13987cc59e7c70c9b47584e6f0469abcdc466f' => 
     array (
       0 => 'cells_NA_main.html',
-      1 => 1765651561,
+      1 => 1765819593,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_693db4ae64cf15_59755963 (\Smarty\Template $_smarty_tpl) {
+function content_694044ccf3c387_19154059 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>
   <main id="main" class="main">
@@ -308,6 +308,7 @@ $_smarty_current_dir = '/home/cells/web/templates';
             </div><!-- End Recent Sales -->
 
             <!-- Top Selling -->
+            <!--
             <div class="col-12">
               <div class="card top-selling overflow-auto">
 
@@ -617,6 +618,7 @@ $_smarty_current_dir = '/home/cells/web/templates';
           </div><!-- End Website Traffic -->
 
           <!-- News & Updates Traffic -->
+          <!--
           <div class="card">
             <div class="filter">
               <a class="icon" href="#" data-bs-toggle="dropdown"><i class="bi bi-three-dots"></i></a>
