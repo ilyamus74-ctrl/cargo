@@ -106,6 +106,33 @@ function get_subdomain_label(): string
     return strtoupper($parts[0] ?? '');
 }
 
+function remove_directory_recursive(string $dir): void
+{
+    if (!is_dir($dir)) {
+        return;
+    }
+
+    $items = scandir($dir);
+    if ($items === false) {
+        return;
+    }
+
+    foreach ($items as $item) {
+        if ($item === '.' || $item === '..') {
+            continue;
+        }
+
+        $path = $dir . DIRECTORY_SEPARATOR . $item;
+        if (is_dir($path)) {
+            remove_directory_recursive($path);
+        } else {
+            @unlink($path);
+        }
+    }
+
+    @rmdir($dir);
+}
+
 function collect_tool_qr_images(string $uid, string $baseDir): array
 {
     $result = [];
@@ -854,6 +881,11 @@ case 'save_tool':
             $stmtDel->bind_param('i', $toolId);
             $stmtDel->execute();
             $stmtDel->close();
+        }
+        $toolUid = $oldTool['uid'] ?? '';
+        if ($toolUid !== '') {
+            $toolDir = __DIR__ . '/img/tools_stock/' . $toolUid;
+            remove_directory_recursive($toolDir);
         }
 
         audit_log(
