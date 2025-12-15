@@ -196,7 +196,8 @@ function generate_tool_qr_images(string $uid, string $labelText): array
 }
 function map_tool_to_template(array $tool): array
 {
-    $qrPathsRaw = $tool['qr_path'] ?? '';
+//    $qrPathsRaw = $tool['qr_path'] ?? '';
+    $qrPathsRaw = $tool['qr_path'] ?? $tool['qr_patch'] ?? '';
     $qrCodes    = [];
     $toolUid    = $tool['uid'] ?? '';
 
