@@ -2212,6 +2212,185 @@ case 'add_new_item_in':
     break;
 
 
+case 'delete_item_in':
+    auth_require_login();
+
+    $current = $user;
+    $userId  = (int)$current['id'];
+    $isAdmin = auth_has_role('ADMIN');
+
+    $itemId = (int)($_POST['item_id'] ?? 0);
+    if ($itemId <= 0) {
+        $response = [
+            'status'  => 'error',
+            'message' => 'item_id не задан',
+        ];
+        break;
+    }
+
+    $stmtItem = $dbcnx->prepare(
+        "SELECT id, batch_uid, user_id, committed\n           FROM warehouse_item_in\n          WHERE id = ?"
+    );
+    if (!$stmtItem) {
+        $response = [
+            'status'  => 'error',
+            'message' => 'DB error (prepare select item): ' . $dbcnx->error,
+        ];
+        break;
+    }
+
+    $stmtItem->bind_param("i", $itemId);
+    $stmtItem->execute();
+    $itemRow = $stmtItem->get_result()->fetch_assoc();
+    $stmtItem->close();
+
+    if (!$itemRow) {
+        $response = [
+            'status'  => 'error',
+            'message' => 'Посылка не найдена',
+        ];
+        break;
+    }
+
+    $batchUid   = (int)($itemRow['batch_uid'] ?? 0);
+    $itemUserId = (int)($itemRow['user_id']   ?? 0);
+    $committed  = (int)($itemRow['committed'] ?? 0);
+
+    if ($committed !== 0) {
+        $response = [
+            'status'  => 'error',
+            'message' => 'Нельзя удалить завершённую посылку',
+        ];
+        break;
+    }
+
+    if (!$isAdmin && $itemUserId !== $userId) {
+        $response = [
+            'status'  => 'error',
+            'message' => 'Недостаточно прав для удаления посылки',
+        ];
+        break;
+    }
+
+    if ($isAdmin) {
+        $stmtDel = $dbcnx->prepare(
+            "DELETE FROM warehouse_item_in\n             WHERE id = ?\n               AND committed = 0"
+        );
+        if ($stmtDel) {
+            $stmtDel->bind_param("i", $itemId);
+        }
+    } else {
+        $stmtDel = $dbcnx->prepare(
+            "DELETE FROM warehouse_item_in\n             WHERE id = ?\n               AND user_id = ?\n               AND committed = 0"
+        );
+        if ($stmtDel) {
+            $stmtDel->bind_param("ii", $itemId, $userId);
+        }
+    }
+
+    if (!$stmtDel) {
+        $response = [
+            'status'  => 'error',
+            'message' => 'DB error (prepare delete): ' . $dbcnx->error,
+        ];
+        break;
+    }
+
+    $stmtDel->execute();
+    $stmtDel->close();
+
+    $items = [];
+
+    if ($isAdmin) {
+        $sql = "
+            SELECT
+                id,
+                tuid,
+                tracking_no,
+                receiver_name,
+                receiver_company,
+                receiver_address,
+                weight_kg,
+                size_l_cm,
+                size_w_cm,
+                size_h_cm,
+                created_at
+            FROM warehouse_item_in
+            WHERE batch_uid = ?
+              AND committed = 0
+            ORDER BY created_at ASC
+        ";
+        $stmt = $dbcnx->prepare($sql);
+        $stmt->bind_param("i", $batchUid);
+    } else {
+        $sql = "
+            SELECT
+                id,
+                tuid,
+                tracking_no,
+                receiver_name,
+                receiver_company,
+                receiver_address,
+                weight_kg,
+                size_l_cm,
+                size_w_cm,
+                size_h_cm,
+                created_at
+            FROM warehouse_item_in
+            WHERE batch_uid = ?
+              AND user_id   = ?
+              AND committed = 0
+            ORDER BY created_at ASC
+        ";
+        $stmt = $dbcnx->prepare($sql);
+        $stmt->bind_param("ii", $batchUid, $userId);
+    }
+
+    $stmt->execute();
+    $res = $stmt->get_result();
+    while ($row = $res->fetch_assoc()) {
+        $items[] = $row;
+    }
+    $stmt->close();
+
+    $smarty->assign('batch_uid',    $batchUid);
+    $smarty->assign('items',        $items);
+    $smarty->assign('current_user', $current);
+
+        $dest_country = [];
+        $sql = "SELECT `id`,`code_iso2`,`code_iso3`,`name_en`,`name_local` FROM `dest_countries` WHERE `is_active` = '1' ORDER BY `id`";
+        $stmt = $dbcnx->prepare($sql);
+        $stmt->execute();
+        $res3 = $stmt->get_result();
+
+
+        if ($res3 = $dbcnx->query($sql)) {
+            while ($row = $res3->fetch_assoc()) {
+                $dest_country[] = $row;
+            }
+            $res3->free();
+        }
+    $stmt->close();
+
+    $smarty->assign('dest_country', $dest_country);
+
+    require_once __DIR__ . '/ocr_templates.php';
+    require_once __DIR__ . '/ocr_dicts.php';
+
+
+    ob_start();
+    $smarty->display('cells_NA_API_warehouse_item_in_batch.html');
+    $html = ob_get_clean();
+
+    $response = [
+        'status'  => 'ok',
+        'message' => 'Посылка удалена',
+        'html'    => $html,
+    ];
+    break;
+
+
+
 case 'commit_item_in_batch':
     auth_require_login();
     $current  = $user;

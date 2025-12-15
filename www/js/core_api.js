@@ -361,6 +361,14 @@ document.addEventListener('click', function (e) {
         } else {
             formData = new FormData();
         }
+    } else if (action === 'delete_item_in') {
+        formData = new FormData();
+        formData.append('item_id', link.getAttribute('data-item-id') || '');
+
+        const batchUid = document.querySelector('#item-in-modal-form [name="batch_uid"]')?.value;
+        if (batchUid) {
+            formData.append('batch_uid', batchUid);
+        }
     } else if (action === 'commit_item_in_batch') {
         formData = new FormData();
         formData.append('batch_uid', link.getAttribute('data-batch-uid') || '');
@@ -650,6 +658,20 @@ document.addEventListener('click', function (e) {
                 .catch(err => {
                     console.error('core_api fetch error (open_item_in_batch after add):', err);
                 });
+        }
+
+        return;
+    }
+
+    // === Удаление посылки из партии ===
+    if (action === 'delete_item_in') {
+        alert(data.message || 'Посылка удалена');
+
+        if (data.html) {
+            const modalBody = document.querySelector('#fullscreenModal .modal-body');
+            if (modalBody) {
+                modalBody.innerHTML = data.html;
+            }
         }
 
         return;
