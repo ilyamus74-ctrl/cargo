@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2025-12-13 21:32:21
+/* Smarty version 5.3.1, created on 2025-12-15 09:22:40
   from 'file:cells_NA_API_tools_stock.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_693ddb65638da4_81572603',
+  'unifunc' => 'content_693fd36034d284_83694648',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '7c780fb2eca0e4916b5d0e2c80c6661f7e49fa56' => 
     array (
       0 => 'cells_NA_API_tools_stock.html',
-      1 => 1765661536,
+      1 => 1765789998,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_693ddb65638da4_81572603 (\Smarty\Template $_smarty_tpl) {
+function content_693fd36034d284_83694648 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>    <div class="pagetitle">
       <h1>Инструменты обортные</h1>
@@ -63,29 +63,29 @@ $_smarty_current_dir = '/home/cells/web/templates';
                     <th scope="col">#</th>
                     <th scope="col">Название</th>
                     <th scope="col">Серийный/н</th>
-                    <th scope="col"></th>
+                    <th scope="col">Статус</th>
                     <th scope="col">Add Date</th>
                   </tr>
                 </thead>
                 <tbody>
 
                   <?php
-$_from = $_smarty_tpl->getSmarty()->getRuntime('Foreach')->init($_smarty_tpl, $_smarty_tpl->getValue('users'), 'value');
+$_from = $_smarty_tpl->getSmarty()->getRuntime('Foreach')->init($_smarty_tpl, $_smarty_tpl->getValue('tools'), 'tool');
 $foreach0DoElse = true;
-foreach ($_from ?? [] as $_smarty_tpl->getVariable('value')->value) {
+foreach ($_from ?? [] as $_smarty_tpl->getVariable('tool')->value) {
 $foreach0DoElse = false;
 ?>
                   <tr>
-                    <th scope="row"><?php echo $_smarty_tpl->getValue('value')['id'];?>
+                    <th scope="row"><?php echo $_smarty_tpl->getValue('tool')['id'];?>
 </th>
-                    <td> <a href="#" class="js-core-link" data-core-action="form_edit_user" data-user-id="<?php echo $_smarty_tpl->getValue('value')['id'];?>
-"><?php echo htmlspecialchars((string)$_smarty_tpl->getValue('value')['full_name'], ENT_QUOTES, 'UTF-8', true);?>
+                    <td> <a href="#" class="js-core-link" data-core-action="form_edit_tool_stock" data-tool-id="<?php echo $_smarty_tpl->getValue('tool')['id'];?>
+"><?php echo htmlspecialchars((string)$_smarty_tpl->getValue('tool')['name'], ENT_QUOTES, 'UTF-8', true);?>
 </a></td>
-                    <td><?php echo $_smarty_tpl->getValue('value')['username'];?>
+                    <td><?php echo $_smarty_tpl->getValue('tool')['serial_number'];?>
 </td>
-                    <td><?php echo $_smarty_tpl->getValue('value')['login_count'];?>
+                    <td><?php echo (($tmp = $_smarty_tpl->getValue('tool')['status'] ?? null)===null||$tmp==='' ? 'active' ?? null : $tmp);?>
 </td>
-                    <td><?php echo $_smarty_tpl->getValue('value')['last_login_at'];?>
+                    <td><?php echo $_smarty_tpl->getValue('tool')['registered_at'];?>
 </td>
                   </tr>
                   <?php

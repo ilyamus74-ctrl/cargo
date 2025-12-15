@@ -39,19 +39,19 @@
                     <th scope="col">#</th>
                     <th scope="col">Название</th>
                     <th scope="col">Серийный/н</th>
-                    <th scope="col"></th>
+                    <th scope="col">Статус</th>
                     <th scope="col">Add Date</th>
                   </tr>
                 </thead>
                 <tbody>
 
-                  {foreach $users as $value}
+                  {foreach $tools as $tool}
                   <tr>
-                    <th scope="row">{$value.id}</th>
-                    <td> <a href="#" class="js-core-link" data-core-action="form_edit_user" data-user-id="{$value.id}">{$value.full_name|escape}</a></td>
-                    <td>{$value.username}</td>
-                    <td>{$value.login_count}</td>
-                    <td>{$value.last_login_at}</td>
+                    <th scope="row">{$tool.id}</th>
+                    <td> <a href="#" class="js-core-link" data-core-action="form_edit_tool_stock" data-tool-id="{$tool.id}">{$tool.name|escape}</a></td>
+                    <td>{$tool.serial_number}</td>
+                    <td>{$tool.status|default:'active'}</td>
+                    <td>{$tool.registered_at}</td>
                   </tr>
                   {/foreach}
                 </tbody>

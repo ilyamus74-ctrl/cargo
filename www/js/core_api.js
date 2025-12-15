@@ -201,6 +201,14 @@ document.addEventListener('click', function (e) {
         } else {
             formData = new FormData();
         }
+    } else if (action === 'save_tool') {
+        // Сохранение оборотного инструмента
+        const toolForm = document.getElementById('tool-profile-form');
+        if (toolForm) {
+            formData = new FormData(toolForm);
+        } else {
+            formData = new FormData();
+        }
 
     } else if (action === 'save_device') {
         // Сохранение устройства
@@ -269,6 +277,13 @@ document.addEventListener('click', function (e) {
         formData = new FormData();
         formData.append('batch_uid', link.getAttribute('data-batch-uid') || '');
 
+    } else if (action === 'form_edit_tool_stock') {
+        formData = new FormData();
+        const toolId = link.getAttribute('data-tool-id');
+        if (toolId) {
+            formData.append('tool_id', toolId);
+        }
+
      }else {
         // Все остальные действия, которым не нужны дополнительные поля
         formData = new FormData();
@@ -314,8 +329,8 @@ document.addEventListener('click', function (e) {
             if (action === 'form_new_user' ||
                 action === 'form_edit_user' ||
                 action === 'form_edit_device' ||
-                action === 'form_new_tool_stock') {
-
+                action === 'form_new_tool_stock' ||
+                action === 'form_edit_tool_stock') {
                 showInModal(data.html);
                 return;
             }
@@ -426,6 +441,38 @@ document.addEventListener('click', function (e) {
                 }
 
                 // Модалка остаётся открытой, список обновится при её закрытии
+                return;
+            }
+
+            if (action === 'save_tool') {
+                alert(data.message || 'Сохранено');
+
+                const newToolId = data.tool_id || null;
+
+                setReloadOnModalCloseOnce(reloadToolsStock);
+
+                if (newToolId) {
+                    const fd = new FormData();
+                    fd.append('action', 'form_edit_tool_stock');
+                    fd.append('tool_id', newToolId);
+
+                    fetch('/core_api.php', {
+                        method: 'POST',
+                        body: fd
+                    })
+                        .then(r => r.json())
+                        .then(d2 => {
+                            if (!d2 || d2.status !== 'ok') {
+                                console.error('core_api error (form_edit_tool_stock after save):', d2);
+                                return;
+                            }
+                            showInModal(d2.html);
+                        })
+                        .catch(err => {
+                            console.error('core_api fetch error (form_edit_tool_stock after save):', err);
+                        });
+                }
+
                 return;
             }
 

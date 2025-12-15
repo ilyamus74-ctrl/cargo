@@ -555,60 +555,6 @@ case 'form_edit_user':
         break;
 
     case 'form_new_tool_stock':
-            $emptyTool = [
-            'id'              => '',
-            'NameTool'        => '',
-            'SerialNumber'    => '',
-            'WarantyDays'     => 0,
-            'PriceBuy'        => '',
-            'DateBuy'         => '',
-            'AddInSystem'     => date('Y-m-d'),
-            'ResourceDays'    => 0,
-            'ResourceEndDate' => '',
-            'status'          => 'active',
-            'notes'           => '',
-            'img_patch'       => [],
-        ];
-
-        $smarty->assign('edit_tool', $emptyTool);
-        $smarty->assign('current_user', $user);
-
-        ob_start();
-        $smarty->display('cells_NA_API_tools_stock_form.html');
-        $html = ob_get_clean();
-
-        $response = [
-            'status' => 'ok',
-            'html'   => $html,
-        ];
-        break;
-
-    case 'form_edit_tool_stock':
-        $toolId = (int)($_POST['tool_id'] ?? 0);
-        if ($toolId <= 0) {
-            $response = [
-                'status'  => 'error',
-                'message' => 'tool_id required',
-            ];
-            break;
-        }
-
-        $stmt = $dbcnx->prepare('SELECT * FROM tool_resources WHERE id = ?');
-        $stmt->bind_param('i', $toolId);
-        $stmt->execute();
-        $res = $stmt->get_result();
-        $toolRow = $res ? $res->fetch_assoc() : null;
-        $stmt->close();
-
-        if (!$toolRow) {
-            $response = [
-                'status'  => 'error',
-                'message' => 'Инструмент не найден',
-            ];
-            break;
-        }
-
-        $smarty->assign('edit_tool', map_tool_to_template($toolRow));
         $smarty->assign('current_user', $user);
 
         ob_start();

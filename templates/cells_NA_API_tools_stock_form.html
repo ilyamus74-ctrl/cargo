@@ -30,7 +30,7 @@
           <!-- ОДИН общий form на все вкладки -->
           <form id="tool-profile-form">
             <input type="hidden" name="tool_id" id="tool_id" value="{$edit_tool.id|default:''}">
-
+            <input type="hidden" name="AddInSystem" value="{$edit_tool.AddInSystem|default:''}">
             <!-- Bordered Tabs -->
             <ul class="nav nav-tabs nav-tabs-bordered">
               <li class="nav-item">
@@ -121,7 +121,7 @@
                   <label for="profileImage" class="col-md-4 col-lg-3 col-form-label">Tool Image</label>
                   <div class="col-md-8 col-lg-9">
                     <!--<img src="assets/img/profile-img.jpg" alt="Profile">-->
-                    <div class="pt-2" id="uploadPhoto" display="none">
+                    <div class="pt-2" id="uploadPhoto" {if !$edit_tool.id} style="display:none"{/if}>
                       <a href="#" class="btn btn-primary btn-sm" title="Upload new profile image"><i class="bi bi-upload"></i></a>
                       <a href="#" class="btn btn-danger btn-sm" title="Remove my profile image"><i class="bi bi-trash"></i></a>
                     </div>
@@ -150,7 +150,7 @@
                 <div class="row mb-3">
                   <label for="Job" class="col-md-4 col-lg-3 col-form-label">Waranty / days</label>
                   <div class="col-md-8 col-lg-9">
-                    <input name="WarantyDays" type="numer" class="form-control" id="WarantyDays"
+                    <input name="WarantyDays" type="number" class="form-control" id="WarantyDays"
                            value="{$edit_tool.WarantyDays}">
                   </div>
                 </div>
@@ -182,7 +182,7 @@
                 <div class="row mb-3">
                   <label for="Email" class="col-md-4 col-lg-3 col-form-label">Resource / days</label>
                   <div class="col-md-8 col-lg-9">
-                    <input name="ResourceDays" type="nuber" class="form-control" id="ResourceDays"
+                    <input name="ResourceDays" type="number" class="form-control" id="ResourceDays"
                            value="{$edit_tool.ResourceDays}">
                   </div>
                 </div>
@@ -200,8 +200,8 @@
                   <label for="Email" class="col-md-4 col-lg-3 col-form-label">Статус</label>
                   <div class="col-md-8 col-lg-9">
                   <div class="form-check form-switch">
-                      <input class="form-check-input" type="checkbox" id="statusCheck" 
-                      {if $edit_tool.status == '1' } checked="true" {else} checked ="false" {/if}> 
+                      <input class="form-check-input" type="checkbox" name="status" id="statusCheck"
+                      {if $edit_tool.status == 'active' } checked="true" {/if}>
                       <label class="form-check-label" for="statusCheck">Если активный инструмент он доступен для работы</label>
                   </div>
                   </div>

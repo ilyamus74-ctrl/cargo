@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2025-12-15 08:42:20
+/* Smarty version 5.3.1, created on 2025-12-15 09:38:46
   from 'file:cells_NA_API_tools_stock_form.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_693fc9ec60bc51_92322003',
+  'unifunc' => 'content_693fd726423022_18137765',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '6d55e47b00793e3a8ae1867fa293107185d64564' => 
     array (
       0 => 'cells_NA_API_tools_stock_form.html',
-      1 => 1765788131,
+      1 => 1765791522,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_693fc9ec60bc51_92322003 (\Smarty\Template $_smarty_tpl) {
+function content_693fd726423022_18137765 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>
 <section class="section profile">
@@ -65,7 +65,8 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
           <form id="tool-profile-form">
             <input type="hidden" name="tool_id" id="tool_id" value="<?php echo (($tmp = $_smarty_tpl->getValue('edit_tool')['id'] ?? null)===null||$tmp==='' ? '' ?? null : $tmp);?>
 ">
-
+            <input type="hidden" name="AddInSystem" value="<?php echo (($tmp = $_smarty_tpl->getValue('edit_tool')['AddInSystem'] ?? null)===null||$tmp==='' ? '' ?? null : $tmp);?>
+">
             <!-- Bordered Tabs -->
             <ul class="nav nav-tabs nav-tabs-bordered">
               <li class="nav-item">
@@ -167,7 +168,7 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
                   <label for="profileImage" class="col-md-4 col-lg-3 col-form-label">Tool Image</label>
                   <div class="col-md-8 col-lg-9">
                     <!--<img src="assets/img/profile-img.jpg" alt="Profile">-->
-                    <div class="pt-2" id="uploadPhoto" display="none">
+                    <div class="pt-2" id="uploadPhoto" <?php if (!$_smarty_tpl->getValue('edit_tool')['id']) {?> style="display:none"<?php }?>>
                       <a href="#" class="btn btn-primary btn-sm" title="Upload new profile image"><i class="bi bi-upload"></i></a>
                       <a href="#" class="btn btn-danger btn-sm" title="Remove my profile image"><i class="bi bi-trash"></i></a>
                     </div>
@@ -198,7 +199,7 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
                 <div class="row mb-3">
                   <label for="Job" class="col-md-4 col-lg-3 col-form-label">Waranty / days</label>
                   <div class="col-md-8 col-lg-9">
-                    <input name="WarantyDays" type="numer" class="form-control" id="WarantyDays"
+                    <input name="WarantyDays" type="number" class="form-control" id="WarantyDays"
                            value="<?php echo $_smarty_tpl->getValue('edit_tool')['WarantyDays'];?>
 ">
                   </div>
@@ -234,7 +235,7 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
                 <div class="row mb-3">
                   <label for="Email" class="col-md-4 col-lg-3 col-form-label">Resource / days</label>
                   <div class="col-md-8 col-lg-9">
-                    <input name="ResourceDays" type="nuber" class="form-control" id="ResourceDays"
+                    <input name="ResourceDays" type="number" class="form-control" id="ResourceDays"
                            value="<?php echo $_smarty_tpl->getValue('edit_tool')['ResourceDays'];?>
 ">
                   </div>
@@ -254,8 +255,8 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
                   <label for="Email" class="col-md-4 col-lg-3 col-form-label">Статус</label>
                   <div class="col-md-8 col-lg-9">
                   <div class="form-check form-switch">
-                      <input class="form-check-input" type="checkbox" id="statusCheck" 
-                      <?php if ($_smarty_tpl->getValue('edit_tool')['status'] == '1') {?> checked="true" <?php } else { ?> checked ="false" <?php }?>> 
+                      <input class="form-check-input" type="checkbox" name="status" id="statusCheck"
+                      <?php if ($_smarty_tpl->getValue('edit_tool')['status'] == 'active') {?> checked="true" <?php }?>>
                       <label class="form-check-label" for="statusCheck">Если активный инструмент он доступен для работы</label>
                   </div>
                   </div>
