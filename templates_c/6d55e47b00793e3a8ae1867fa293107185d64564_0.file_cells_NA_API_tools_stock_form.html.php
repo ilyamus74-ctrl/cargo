@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2025-12-15 10:25:53
+/* Smarty version 5.3.1, created on 2025-12-15 11:16:52
   from 'file:cells_NA_API_tools_stock_form.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_693fe23151e4d9_47589478',
+  'unifunc' => 'content_693fee24a89c15_03815607',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '6d55e47b00793e3a8ae1867fa293107185d64564' => 
     array (
       0 => 'cells_NA_API_tools_stock_form.html',
-      1 => 1765794347,
+      1 => 1765797406,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_693fe23151e4d9_47589478 (\Smarty\Template $_smarty_tpl) {
+function content_693fee24a89c15_03815607 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>
 <section class="section profile">
@@ -259,6 +259,14 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
                   </div>
                   </div>
                 </div>
+
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" id="delete" name="delete">
+                  <label class="form-check-label" for="securityNotify">
+                    Удалить Инструмент
+                  </label>
+                </div>
+
 
                 <div class="text-center">
                   <button type="button"
