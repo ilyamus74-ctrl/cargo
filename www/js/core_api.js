@@ -56,6 +56,33 @@ function reloadToolsStock() {
         });
 }
 
+// Перерисовать список устройств
+function reloadDevices() {
+    const main = document.getElementById('main');
+    if (!main) return;
+
+    const fd = new FormData();
+    fd.append('action', 'view_devices');
+
+    fetch('/core_api.php', {
+        method: 'POST',
+        body: fd
+    })
+        .then(r => r.json())
+        .then(d => {
+            if (!d || d.status !== 'ok') {
+                console.error('core_api error (reloadDevices):', d);
+                return;
+            }
+            if (d.html) {
+                loadIntoMain(d.html);
+            }
+        })
+        .catch(err => {
+            console.error('core_api fetch error (reloadDevices):', err);
+        });
+}
+
 
 function emitDeviceContext(){
   try{
