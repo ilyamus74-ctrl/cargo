@@ -7,10 +7,10 @@
         <div class="card-body profile-card pt-4 d-flex flex-column align-items-center">
 
           <h2>{$edit_tool.NameTool}</h2>
-          <h3>{$edit_user.SerialNumber}</h3>
+          <h3>{$edit_tool.SerialNumber}</h3>
           <div class="social-links mt-2 tool-photo-thumbs" data-tool-photos="list">
-          {if $edit_tool.img_patch}
-            {foreach $edit_tool.img_patch as $photo}
+          {if $edit_tool.img_path}
+            {foreach $edit_tool.img_path as $photo}
               <img src="{$photo}" alt="Tool photo" class="rounded-circle" style="width: 96px; height: 96px; object-fit: cover;">
             {/foreach}
           {else}

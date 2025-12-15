@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2025-12-15 14:03:35
+/* Smarty version 5.3.1, created on 2025-12-15 14:18:01
   from 'file:cells_NA_API_tools_stock_form.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_694015371523b8_07409262',
+  'unifunc' => 'content_69401899174df8_40481971',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '6d55e47b00793e3a8ae1867fa293107185d64564' => 
     array (
       0 => 'cells_NA_API_tools_stock_form.html',
-      1 => 1765807410,
+      1 => 1765808186,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_694015371523b8_07409262 (\Smarty\Template $_smarty_tpl) {
+function content_69401899174df8_40481971 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>
 <section class="section profile">
@@ -32,12 +32,12 @@ $_smarty_current_dir = '/home/cells/web/templates';
 
           <h2><?php echo $_smarty_tpl->getValue('edit_tool')['NameTool'];?>
 </h2>
-          <h3><?php echo $_smarty_tpl->getValue('edit_user')['SerialNumber'];?>
+          <h3><?php echo $_smarty_tpl->getValue('edit_tool')['SerialNumber'];?>
 </h3>
           <div class="social-links mt-2 tool-photo-thumbs" data-tool-photos="list">
-          <?php if ($_smarty_tpl->getValue('edit_tool')['img_patch']) {?>
+          <?php if ($_smarty_tpl->getValue('edit_tool')['img_path']) {?>
             <?php
-$_from = $_smarty_tpl->getSmarty()->getRuntime('Foreach')->init($_smarty_tpl, $_smarty_tpl->getValue('edit_tool')['img_patch'], 'photo');
+$_from = $_smarty_tpl->getSmarty()->getRuntime('Foreach')->init($_smarty_tpl, $_smarty_tpl->getValue('edit_tool')['img_path'], 'photo');
 $foreach0DoElse = true;
 foreach ($_from ?? [] as $_smarty_tpl->getVariable('photo')->value) {
 $foreach0DoElse = false;
