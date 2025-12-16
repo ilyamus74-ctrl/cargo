@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2025-12-15 16:42:54
+/* Smarty version 5.3.1, created on 2025-12-16 15:52:23
   from 'file:cells_NA_API_warehouse_item_in_batch.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_69403a8e1708b2_50298451',
+  'unifunc' => 'content_69418037d7d458_06220280',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '7e8c2c62a4cb34a58255b0e76fcea2eec9328b7b' => 
     array (
       0 => 'cells_NA_API_warehouse_item_in_batch.html',
-      1 => 1765814294,
+      1 => 1765900296,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_69403a8e1708b2_50298451 (\Smarty\Template $_smarty_tpl) {
+function content_69418037d7d458_06220280 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>
 
@@ -80,10 +80,27 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
     <input type="text" class="form-control" id="receiverAddress" name="receiver_address">
   </div>
 
+
   <div class="col-md-6">
+    <label class="form-label" for="receiverCompany">Компания форвард</label>
+    <select class="form-select"
+            id="receiverCompany"
+            name="receiver_company">
+             <option value="COLIBRI">COLIBRI</option>
+             <option value="KOLLI">KOLLI</option>
+             <option value="ASER">ASER</option>
+             <option value="CAMEX">CAMEX</option>
+             <option value="KARGOFLEX">KARGOFLEX</option>
+             <option value="CAMARATC">CAMARATC</option>
+             <option value="POSTLINK">POSTLINK</option>
+
+                  </select>
+  </div>
+
+<!--  <div class="col-md-6">
     <label for="receiverCompany" class="form-label">Компания форвард</label>
     <input type="text" class="form-control" id="receiverCompany" name="receiver_company">
-  </div>
+  </div>-->
 
   <div class="col-md-6">
     <label for="senderName" class="form-label">Форвард CODE</label>

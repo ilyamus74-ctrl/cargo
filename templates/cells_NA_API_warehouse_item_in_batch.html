@@ -46,10 +46,30 @@
     <input type="text" class="form-control" id="receiverAddress" name="receiver_address">
   </div>
 
+
   <div class="col-md-6">
+    <label class="form-label" for="receiverCompany">Компания форвард</label>
+    <select class="form-select"
+            id="receiverCompany"
+            name="receiver_company">
+             <option value="COLIBRI">COLIBRI</option>
+             <option value="KOLLI">KOLLI</option>
+             <option value="ASER">ASER</option>
+             <option value="CAMEX">CAMEX</option>
+             <option value="KARGOFLEX">KARGOFLEX</option>
+             <option value="CAMARATC">CAMARATC</option>
+             <option value="POSTLINK">POSTLINK</option>
+
+              {*foreach $dest_country as $b}
+     <option value="{$b.code_iso2}">{$b.name_en}</option>
+              {/foreach*}
+    </select>
+  </div>
+
+<!--  <div class="col-md-6">
     <label for="receiverCompany" class="form-label">Компания форвард</label>
     <input type="text" class="form-control" id="receiverCompany" name="receiver_company">
-  </div>
+  </div>-->
 
   <div class="col-md-6">
     <label for="senderName" class="form-label">Форвард CODE</label>

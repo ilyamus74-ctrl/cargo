@@ -243,7 +243,8 @@ fun AppRoot() {
                                 showBarcodeScan = true
                             }
                             WarehouseScanStep.OCR -> {
-                                ocrIsDefault = taskConfig == null                                showOcr = true
+                                ocrIsDefault = true
+                                showOcr = true
                             }
                             WarehouseScanStep.SUBMIT -> {
                                 webViewRef?.let { web -> prepareFormForNextScanInWebView(web) }
@@ -495,10 +496,8 @@ fun AppRoot() {
                         modifier = Modifier.fillMaxSize(),
                         onResult = { raw ->
                             showBarcodeScan = false
-                            val cleanBarcode = sanitizeBarcodeInput(raw)
-                            val data = buildParcelFromBarcode(cleanBarcode, sanitizeInput = false)
+                            val data = buildParcelFromBarcode(raw)
                             webViewRef?.let { web ->
-                                fillBarcodeUsingTemplate(web, cleanBarcode, taskConfig?.barcodeAction)
                                 fillParcelFormInWebView(web, data)
                             }
                             if (isWarehouseIn) {
@@ -1728,34 +1727,6 @@ data class OcrParcelData(
 
 )
 
-fun fillBarcodeUsingTemplate(webView: WebView, barcodeValue: String, action: ScanAction?) {
-    if (action?.action != "fill_field") return
-    val field = action.fieldId?.takeIf { it.isNotBlank() }
-        ?: action.fieldName?.takeIf { it.isNotBlank() }
-        ?: return
-
-    fun esc(str: String): String =
-        str.replace("\\", "\\\\")
-            .replace("'", "\\'")
-            .replace("\n", " ")
-            .replace("\r", " ")
-
-    val js = """
-        (function(){
-          function fill(id){
-            var el=document.getElementById(id) || document.querySelector('[name=""+id+""]');
-            if(!el) return;
-            el.value='${esc(barcodeValue)}';
-            el.dispatchEvent(new Event('input',{bubbles:true}));
-            el.dispatchEvent(new Event('change',{bubbles:true}));
-          }
-          fill('${esc(field)}');
-        })();
-    """.trimIndent()
-
-    webView.post { webView.evaluateJavascript(js, null) }
-}
-
 fun fillParcelFormInWebView(webView: WebView, data: OcrParcelData) {
     println("### fillParcelFormInWebView() data = $data")
 
@@ -1767,10 +1738,6 @@ fun fillParcelFormInWebView(webView: WebView, data: OcrParcelData) {
 
     val forwarderCode = data.receiverForwarderCode?.trim().takeUnless { it.isNullOrEmpty() }  // CAMEX/KOLLI/...
     val forwarderName = data.receiverCompany?.trim().takeUnless { it.isNullOrEmpty() }       // Camex/KoliExpress/...
-    val forwarderCodeForSelect = forwarderCode
-        ?: forwarderName?.let { detectForwarderByText(it) }
-        ?: cellCode?.let { detectForwarderByCellCode(it) }
-    val forwarderDisplayName = forwarderCodeForSelect?.let { forwarderCompanyByCode(it) } ?: forwarderName
     val receiverName  = data.receiverName?.trim().takeUnless { it.isNullOrEmpty() }          // SEVDA Farzaliyeva
     val cellCode      = data.receiverCellCode?.trim().takeUnless { it.isNullOrEmpty() }      // A176903
 
@@ -1779,14 +1746,13 @@ fun fillParcelFormInWebView(webView: WebView, data: OcrParcelData) {
     val localCarrier = data.localCarrierName?.trim()?.takeIf { it.isNotEmpty() }       // DHL/GLS/...
     val trackingForForm = data.localTrackingNo?.trim()?.takeIf { it.isNotEmpty() }
             ?: data.trackingNo?.trim()?.takeIf { isProbableTrackingNo(it) }
-            ?: data.tuid?.trim()?.takeIf { it.isNotEmpty() }
 
     // подпись рядом с TUID: показываем именно форвард/страну (не локального перевозчика)
     val carrierInfo = buildString {
-        if (!forwarderCodeForSelect.isNullOrBlank()) append(forwarderCodeForSelect)
-        if (!forwarderDisplayName.isNullOrBlank()) {
+        if (!forwarderCode.isNullOrBlank()) append(forwarderCode)
+        if (!forwarderName.isNullOrBlank()) {
             if (isNotEmpty()) append(" / ")
-            append(forwarderDisplayName)
+            append(forwarderName)
         }
         if (!countryForSelect.isNullOrBlank()) {
             if (isNotEmpty()) append(" / ")
@@ -1843,11 +1809,10 @@ fun fillParcelFormInWebView(webView: WebView, data: OcrParcelData) {
         //data.tuid?.trim()?.takeIf { it.isNotEmpty() }?.let {
         //    append("setValById('tuid','${esc(it)}');")
         //}
-        val tuidForForm = data.tuid?.trim()?.takeIf { it.isNotEmpty() } ?: trackingForForm
+        val tuidForForm = trackingForForm ?: data.tuid?.trim()?.takeIf { it.isNotEmpty() }
         tuidForForm?.let { append("setValIfEmpty('tuid','${esc(it)}');") }
         // 2) trackingNo — DHL/UPS/etc (если нашли), иначе обычный trackingNo (если похож)
-        val trackingFieldValue = trackingForForm ?: tuidForForm
-        trackingFieldValue?.let {
+        trackingForForm?.let {
             append("setValIfEmpty('trackingNo','${esc(it)}');")
         }
 
@@ -1866,13 +1831,14 @@ fun fillParcelFormInWebView(webView: WebView, data: OcrParcelData) {
         }
 
         // 4) receiverCompany — ТОЛЬКО название компании форварда
-        // 5) carrierCode (id=carrierCode) — ТОЛЬКО код форварда + селект форварда
-        forwarderCodeForSelect?.let {
+        forwarderName?.let {
+            append("setValById('receiverCompany','${esc(it)}');")
+        }
+
+        // 5) carrierCode (id=carrierCode) — ТОЛЬКО код форварда
+        forwarderCode?.let {
             val v = esc(it)
-            append("setSelectVal('receiverCompany','$v');")
             append("setValById('carrierCode','$v');")
-        } ?: forwarderCode?.let {
-            append("setValById('carrierCode','${esc(it)}');")
         }
 
         // 6) receiverName — ТОЛЬКО получатель
@@ -1905,13 +1871,14 @@ fun fillParcelFormInWebView(webView: WebView, data: OcrParcelData) {
 }
 
 
-fun buildParcelFromBarcode(raw: String, sanitizeInput: Boolean = true): OcrParcelData {
-    val clean = if (sanitizeInput) sanitizeBarcodeInput(raw) else raw
+fun buildParcelFromBarcode(raw: String): OcrParcelData {
+    val clean = sanitizeBarcodeInput(raw)
     val carrier = detectLocalCarrierName(clean)
     return OcrParcelData(
         tuid = clean,
         trackingNo = clean,
-        localCarrierName = carrier
+        localCarrierName = carrier,
+        receiverCompany = carrier
     )
 }
 
@@ -3276,31 +3243,11 @@ fun detectForwarderByText(textRaw: String): String? {
     }
 }
 
-
-data class ScanAction(
-    val action: String,
-    val fieldId: String? = null,
-    val fieldName: String? = null,
-    val endpoint: String? = null
-)
-
 data class ScanTaskConfig(
     val taskId: String,
     val defaultMode: String,   // "ocr" | "barcode" | "qr"
-    val modes: Set<String>,
-    val barcodeAction: ScanAction? = null,
-    val qrAction: ScanAction? = null,
+    val modes: Set<String>
 )
-
-
-fun parseScanAction(obj: JSONObject?): ScanAction? {
-    if (obj == null) return null
-    val action = obj.optString("action", "").takeIf { it.isNotBlank() } ?: return null
-    val fieldId = obj.optString("field_id", "").takeIf { it.isNotBlank() }
-    val fieldName = obj.optString("field_name", "").takeIf { it.isNotBlank() }
-    val endpoint = obj.optString("endpoint", "").takeIf { it.isNotBlank() }
-    return ScanAction(action = action, fieldId = fieldId, fieldName = fieldName, endpoint = endpoint)
-}
 
 fun parseScanTaskConfig(json: String): ScanTaskConfig? = try {
     val obj = JSONObject(json)
@@ -3309,7 +3256,5 @@ fun parseScanTaskConfig(json: String): ScanTaskConfig? = try {
     val arr = obj.optJSONArray("modes")
     val modes = mutableSetOf<String>()
     if (arr != null) for (i in 0 until arr.length()) modes += arr.optString(i)
-    val barcode = parseScanAction(obj.optJSONObject("barcode"))
-    val qr = parseScanAction(obj.optJSONObject("qr"))
-    ScanTaskConfig(taskId, def, modes, barcode, qr)
+    ScanTaskConfig(taskId, def, modes)
 } catch (e: Exception) { null }
