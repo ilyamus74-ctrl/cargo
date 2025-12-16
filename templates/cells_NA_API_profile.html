@@ -237,8 +237,8 @@
                               <div class="form-text">
                                 Отсканируйте этот QR в приложении сканера.
                               </div>
-                              <button type="button" class="btn btn-outline-primary mt-2" onclick="printUserQr()">Распечатать</button>
-                            </div>
+                              <!--<button type="button" class="btn btn-outline-primary mt-2" onclick="printUserQr()">Распечатать</button>
+                            --></div>
                           </div>
                         {else}
                           <span class="text-muted">QR ещё не сгенерирован. Нажмите «Обновить QR для всех».</span>
@@ -276,7 +276,11 @@
 
     </div>
   </div>
-  <script>
+  <script type="text/javascript" defer>
+  $(document).ready(function () {
+    $(document).on('click', '.btn-outline-primary', printUserQr);
+  });
+
   function printUserQr() {
     const qrImage = document.getElementById('user-qr-image');
     if (!qrImage) {
@@ -284,6 +288,10 @@
     }
 
     const printWindow = window.open('', 'print-qr');
+    if (!printWindow) {
+      return;
+    }
+
     printWindow.document.write('<html><head><title>QR</title></head><body style="margin:0; display:flex; justify-content:center; align-items:center; padding:20px;">');
     printWindow.document.write('<img src="' + qrImage.src + '" style="max-width:100%; height:auto;">');
     printWindow.document.write('</body></html>');
@@ -293,4 +301,5 @@
     printWindow.close();
   }
 </script>
+
 </section>

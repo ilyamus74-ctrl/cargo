@@ -62,50 +62,6 @@ import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import android.webkit.JavascriptInterface
-import android.os.Handler
-import android.os.Looper
-import android.net.Uri
-import androidx.compose.ui.text.font.FontWeight
-
-
-private val INSTALL_MAIN_OBSERVER_JS = """
-(function(){
-  if (window.__deviceMainObserverInstalled) return;
-  window.__deviceMainObserverInstalled = true;
-
-function read(id){
-  var el = document.getElementById(id);
-  if(!el) return null;
-  var t = (el.textContent || el.innerText || "").trim();
-  if (!t || t === "null" || t === "undefined") return null;
-  return t;
-}
-
-  function emit(){
-    try{
-      var payload = {
-        task: read("device-scan-config"),
-        ocr_templates: read("ocr-templates"),
-        destcountry: read("ocr-templates-destcountry"),
-        ////dicts: read("ocr-dicts")
-      };
-      if (window.DeviceApp && window.DeviceApp.onMainContext) {
-        window.DeviceApp.onMainContext(JSON.stringify(payload));
-      }
-    } catch(e){}
-  }
-
-  var t=null;
-  function schedule(){ clearTimeout(t); t=setTimeout(emit,120); }
-
-var root = document.getElementById("main") || document.body;
-if (root) new MutationObserver(schedule).observe(root, {childList:true, subtree:true});
-
-
-  emit();
-})();
-""".trimIndent()
 
 class MainActivity : ComponentActivity() {
     companion object {
@@ -181,10 +137,6 @@ fun AppRoot() {
     var sessionId by remember { mutableStateOf<String?>(null) }
 
     var menuExpanded by remember { mutableStateOf(false) }
-    var taskConfigJson by remember { mutableStateOf<String?>(null) }
-    var taskConfig by remember { mutableStateOf<ScanTaskConfig?>(null) }
-
-    var ocrIsDefault by remember { mutableStateOf(false) }
 
  // колбэк, который будет вызываться при VOL_DOWN, когда открыт OCR
     var ocrHardwareTrigger by remember { mutableStateOf<(() -> Unit)?>(null) }
@@ -201,24 +153,19 @@ fun AppRoot() {
             // Если открыт WebView (форма склада)
             showWebView -> {
                 MainActivity.onVolumeDown = {
-                    webViewRef?.let { web -> prepareFormForNextScanInWebView(web) }
-
-                    val hasTask = taskConfig != null
-                    ocrIsDefault = !hasTask
+                    // перед новым сканом — если форма заполнена, добавить посылку и очистить
+                    webViewRef?.let { web ->
+                        prepareFormForNextScanInWebView(web)
+                    }
+                    // открыть OCR
                     showOcr = true
-
-                    when (taskConfig?.defaultMode) {
-                        "qr"      -> { showQrScan = true }
-                        "barcode" -> { /* showBarcodeScan = true */ }
-                        "ocr"     -> { showOcr = true }
-                        else      -> { showOcr = true } // fallback
+                }
+                MainActivity.onVolumeUp = {
+                    // VOL_UP просто чистит форму
+                    webViewRef?.let { web ->
+                        clearParcelFormInWebView(web)
                     }
                 }
-
-                MainActivity.onVolumeUp = {
-                    webViewRef?.let { web -> clearParcelFormInWebView(web) }
-                }
-
             }
 
             // В остальных экранах кнопки громкости не трогаем
@@ -338,13 +285,7 @@ fun AppRoot() {
                                     val base = normalizeServerUrl(config.serverUrl)
                                     val cookieManager = CookieManager.getInstance()
                                     cookieManager.setAcceptCookie(true)
-                                   // val cookieStr = "PHPSESSID=${result.sessionId}; Path=/; Secure"
-                                    val isHttps = base.startsWith("https://", ignoreCase = true)
-
-                                    val cookieStr = buildString {
-                                        append("PHPSESSID=${result.sessionId}; Path=/; SameSite=Lax")
-                                        if (isHttps) append("; Secure")
-                                    }
+                                    val cookieStr = "PHPSESSID=${result.sessionId}; Path=/; Secure"
                                     cookieManager.setCookie(base, cookieStr)
                                     cookieManager.flush()
 
@@ -364,19 +305,28 @@ fun AppRoot() {
                     DeviceWebViewScreen(
                         modifier = Modifier.padding(innerPadding),
                         config = config,
-                        onWebViewReady = { webView -> webViewRef = webView },
+                        onWebViewReady = { webView ->
+                            // сохраняем ссылку, чтобы потом заполнять форму
+                            webViewRef = webView
 
-                        onContextUpdated = { taskJson: String?, tmplJson: String?, destJson: String?, dictJson: String? ->
-                            taskConfigJson = taskJson
-                            taskConfig = taskJson?.let { parseScanTaskConfig(it) }
+                            // грузим destcountry-конфиг
+                            webView.evaluateJavascript(
+                                "(function(){var el=document.getElementById('ocr-templates-destcountry');return el?el.textContent:'';})()"
+                            ) { json ->
+                                try {
+                                    val cleaned = json
+                                        ?.trim()
+                                        ?.removePrefix("\"")
+                                        ?.removeSuffix("\"")
+                                        ?.replace("\\\"", "\"")
+                                        ?: ""
 
-                            tmplJson?.let { ocrTemplates = parseOcrTemplates(it) }
-                            destJson?.let { destConfig = parseDestConfigJson(it) }
-
-                            dictJson?.let {
-                                val parsed = parseNameDictJson(it)
-                                if (config.syncNameDict && parsed != null) {
-                                    nameDict = parsed
+                                    if (cleaned.isNotBlank()) {
+                                        val list = parseDestConfigJson(cleaned)
+                                        destConfig = list
+                                    }
+                                } catch (e: Exception) {
+                                    e.printStackTrace()
                                 }
                             }
                         },
@@ -429,7 +379,6 @@ fun AppRoot() {
                         destConfig = destConfig,
                         config = config,
                         nameDict = nameDict,
-                        isDefaultMode = ocrIsDefault,
                         onResult = { ocrData ->
                             showOcr = false
                             webViewRef?.let { web ->
@@ -593,7 +542,6 @@ fun SettingsScreen(
                             useRemoteOcr = useRemoteOcr,
                             syncNameDict = syncNameDict
                         )
-
                         onConfigChanged(updated)
 
                         val result = enrollDeviceOnServer(context, updated)
@@ -758,8 +706,6 @@ fun QrScanScreen(
     Box(
         modifier = modifier.fillMaxSize()
     ) {
-
-
         if (!hasCameraPermission) {
             Column(
                 modifier = Modifier
@@ -1000,10 +946,6 @@ suspend fun callRemoteOcrParse(
             receiverCompany = optStringOrNull("receiver_company"),
             receiverForwarderCode = optStringOrNull("receiver_forwarder_code"),
             receiverCellCode = optStringOrNull("receiver_cell_code"),
-            // NEW:
-            localCarrierName = optStringOrNull("local_carrier_name"),
-            localTrackingNo  = optStringOrNull("local_tracking_no"),
-
             senderName = null,
             weightKg = null,
             sizeL = null,
@@ -1252,8 +1194,9 @@ suspend fun qrLoginOnServer(
     }
 }
 
-fun parseOcrTemplates(json: String): OcrTemplates? = try {
+fun parseOcrTemplates(json: String): OcrTemplates? {
     val root = JSONObject(json)
+
     val version = root.optInt("version", 1)
     val carriersObj = root.optJSONObject("carriers") ?: return null
 
@@ -1262,19 +1205,13 @@ fun parseOcrTemplates(json: String): OcrTemplates? = try {
     val carrierNames = carriersObj.keys()
     while (carrierNames.hasNext()) {
         val code = carrierNames.next()
-
-        val carrierVal = carriersObj.opt(code)
-        val cObj: JSONObject = when (carrierVal) {
-            is JSONObject -> carrierVal
-            is org.json.JSONArray -> carrierVal.optJSONObject(0) ?: continue
-            else -> continue
-        }
-
+        val cObj = carriersObj.optJSONObject(code) ?: continue
 
         val displayName = cObj.optString("display_name", code)
-        val rulesObj = cObj.optJSONObject("rules") ?: JSONObject()
 
+        val rulesObj = cObj.optJSONObject("rules") ?: JSONObject()
         val rulesMap = mutableMapOf<String, RuleConfig>()
+
         val ruleNames = rulesObj.keys()
         while (ruleNames.hasNext()) {
             val rk = ruleNames.next()
@@ -1284,18 +1221,20 @@ fun parseOcrTemplates(json: String): OcrTemplates? = try {
             if (type.isBlank()) continue
 
             val pattern = if (rObj.has("pattern")) rObj.optString("pattern") else null
-            val lines = if (rObj.has("lines")) rObj.optInt("lines") else null
+            val lines   = if (rObj.has("lines"))   rObj.optInt("lines")   else null
 
             val mvArr = rObj.optJSONArray("marker_variants")
             val markerVariants = mutableListOf<String>()
             if (mvArr != null) {
-                for (i in 0 until mvArr.length()) markerVariants += mvArr.optString(i)
+                for (i in 0 until mvArr.length()) {
+                    markerVariants += mvArr.optString(i)
+                }
             }
 
             rulesMap[rk] = RuleConfig(
                 type = type,
                 pattern = pattern,
-                markerVariants = markerVariants.takeIf { it.isNotEmpty() },
+                markerVariants = if (markerVariants.isEmpty()) null else markerVariants,
                 lines = lines
             )
         }
@@ -1306,12 +1245,11 @@ fun parseOcrTemplates(json: String): OcrTemplates? = try {
         )
     }
 
-    OcrTemplates(version = version, carriers = carriersMap)
-} catch (e: Exception) {
-    e.printStackTrace()
-    null
+    return OcrTemplates(
+        version = version,
+        carriers = carriersMap
+    )
 }
-
 @Composable
 fun DeviceWebViewScreen(
     config: DeviceConfig,
@@ -1319,46 +1257,12 @@ fun DeviceWebViewScreen(
     onSessionEnded: () -> Unit,
     modifier: Modifier = Modifier,
     onTemplatesLoaded: (OcrTemplates?) -> Unit,
-    onNameDictLoaded: (NameDict?) -> Unit,   // <<< НОВЫЙ колбэк
-    onContextUpdated: (taskJson: String?, tmplJson: String?, destJson: String?, dictJson: String?) -> Unit
-
+    onNameDictLoaded: (NameDict?) -> Unit    // <<< НОВЫЙ колбэк
 ) {
     AndroidView(
         modifier = modifier.fillMaxSize(),
         factory = { ctx ->
             WebView(ctx).apply {
-                val mainHandler = Handler(Looper.getMainLooper())
-
-                class DeviceBridge {
-                    @JavascriptInterface
-                    fun onMainContext(payload: String?) {
-                        if (payload.isNullOrBlank()) return
-                        try {
-                            val obj = JSONObject(payload)
-                            val task = obj.optString("task", "").takeIf { it.isNotBlank() }
-                            val tmpl = obj.optString("ocr_templates", "").takeIf { it.isNotBlank() }
-                            val dest = obj.optString("destcountry", "").takeIf { it.isNotBlank() }
-                            val dict = obj.optString("dicts", "").takeIf { it.isNotBlank() }
-
-                            mainHandler.post {
-                                fun clean(v: String?): String? {
-                                    val s = v?.trim()
-                                    if (s.isNullOrEmpty()) return null
-                                    if (s.equals("null", true) || s.equals("undefined", true)) return null
-                                    return s
-                                }
-
-                                val task = clean(obj.optString("task", null))
-                                val tmpl = clean(obj.optString("ocr_templates", null))
-                                val dest = clean(obj.optString("destcountry", null))
-                                val dict = clean(obj.optString("dicts", null))
-                                onContextUpdated(task, tmpl, dest, dict)
-                            }
-                        } catch (_: Exception) {}
-                    }
-                }
-
-                addJavascriptInterface(DeviceBridge(), "DeviceApp")
                 layoutParams = ViewGroup.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT,
                     ViewGroup.LayoutParams.MATCH_PARENT
@@ -1390,22 +1294,103 @@ fun DeviceWebViewScreen(
                         if (!firstPageLoaded && view != null) {
                             firstPageLoaded = true
                             onWebViewReady(view)
-                          ////  view.evaluateJavascript(INSTALL_MAIN_OBSERVER_JS, null)
                         }
-                        // ВАЖНО: всегда инжектим, потому что при реальном reload JS улетает
-                        view?.evaluateJavascript(INSTALL_MAIN_OBSERVER_JS, null)
 
                         val base = normalizeServerUrl(config.serverUrl)
-                        if (!url.isNullOrBlank() && base.isNotBlank()) {
-                            val u = Uri.parse(url)
-                            val b = Uri.parse(base)
 
-                            val sameHost = (u.scheme == b.scheme) && (u.host == b.host) && (u.port == b.port)
-                            val path = u.path ?: ""
+                        if (!url.isNullOrBlank()
+                            && url.startsWith(base)
+                            && url.contains("/login")
+                        ) {
+                            onSessionEnded()
+                        }
 
-                            // считаем "сессия закончилась" только если реально открылась страница логина
-                            if (sameHost && (path == "/login" || path.startsWith("/login/"))) {
-                                onSessionEnded()
+                        // 1) шаблоны перевозчиков
+                        view?.evaluateJavascript(
+                            """
+        (function(){
+          var el = document.getElementById('ocr-templates');
+          if (!el) return null;
+          return el.textContent || el.innerText || null;
+        })();
+        """.trimIndent()
+                        ) { raw ->
+                            try {
+                                if (raw == null || raw == "null") {
+                                    onTemplatesLoaded(null)
+                                } else {
+                                    val unquoted = raw
+                                        .removePrefix("\"")
+                                        .removeSuffix("\"")
+                                        .replace("\\\"", "\"")
+                                        .replace("\\n", "\n")
+                                        .replace("\\t", "\t")
+
+                                    val tmpl = parseOcrTemplates(unquoted)
+                                    onTemplatesLoaded(tmpl)
+                                }
+                            } catch (e: Exception) {
+                                e.printStackTrace()
+                                onTemplatesLoaded(null)
+                            }
+                        }
+
+                        // 2) словарь для имён
+                        view?.evaluateJavascript(
+                            """
+        (function(){
+          var el = document.getElementById('ocr-dicts');
+          if (!el) return null;
+          return el.textContent || el.innerText || null;
+        })();
+        """.trimIndent()
+                        ) { raw ->
+                            try {
+                                if (raw == null || raw == "null") {
+                                    onNameDictLoaded(null)
+                                } else {
+                                    val unquoted = raw
+                                        .removePrefix("\"")
+                                        .removeSuffix("\"")
+                                        .replace("\\\"", "\"")
+                                        .replace("\\n", "\n")
+                                        .replace("\\t", "\t")
+
+                                    val dict = parseNameDictJson(unquoted)
+                                    onNameDictLoaded(dict)
+                                }
+                            } catch (e: Exception) {
+                                e.printStackTrace()
+                                onNameDictLoaded(null)
+                            }
+                        }
+                        // НОВОЕ: словарь "ocr-dicts"
+                        view?.evaluateJavascript(
+                            """
+    (function(){
+      var el = document.getElementById('ocr-dicts');
+      if (!el) return null;
+      return el.textContent || el.innerText || null;
+    })();
+    """.trimIndent()
+                        ) { raw ->
+                            try {
+                                if (raw == null || raw == "null") {
+                                    onNameDictLoaded(null)
+                                } else {
+                                    val unquoted = raw
+                                        .removePrefix("\"")
+                                        .removeSuffix("\"")
+                                        .replace("\\\"", "\"")
+                                        .replace("\\n", "\n")
+                                        .replace("\\t", "\t")
+
+                                    val dict = parseNameDictJson(unquoted)
+                                    onNameDictLoaded(dict)
+                                }
+                            } catch (e: Exception) {
+                                e.printStackTrace()
+                                onNameDictLoaded(null)
                             }
                         }
                     }
@@ -1590,7 +1575,6 @@ fun parseNameDictJson(json: String): NameDict? {
 }
 
 data class OcrParcelData(
-    val tuid: String? = null,              // <--- NEW
     val trackingNo: String? = null,
 
     // ISO2, например "AZ", "DE", "KG"
@@ -1612,15 +1596,13 @@ data class OcrParcelData(
     val weightKg: Double? = null,
     val sizeL: Double? = null,
     val sizeW: Double? = null,
-    val sizeH: Double? = null,
-
-    // NEW: локальный перевозчик (DHL/GLS/HERMES/UPS/AMAZON) и его трек
-    val localCarrierName: String? = null,
-    val localTrackingNo: String? = null
-
+    val sizeH: Double? = null
 )
-
-fun fillParcelFormInWebView(webView: WebView, data: OcrParcelData) {
+fun fillParcelFormInWebView(
+    webView: WebView,
+    data: OcrParcelData
+) {
+    // для логов — чтобы понять, что реально прилетает
     println("### fillParcelFormInWebView() data = $data")
 
     fun esc(str: String): String =
@@ -1629,18 +1611,66 @@ fun fillParcelFormInWebView(webView: WebView, data: OcrParcelData) {
             .replace("\n", " ")
             .replace("\r", " ")
 
-    val forwarderCode = data.receiverForwarderCode?.trim().takeUnless { it.isNullOrEmpty() }  // CAMEX/KOLLI/...
-    val forwarderName = data.receiverCompany?.trim().takeUnless { it.isNullOrEmpty() }       // Camex/KoliExpress/...
-    val receiverName  = data.receiverName?.trim().takeUnless { it.isNullOrEmpty() }          // SEVDA Farzaliyeva
-    val cellCode      = data.receiverCellCode?.trim().takeUnless { it.isNullOrEmpty() }      // A176903
+    // ===== НОРМАЛИЗУЕМ ВСЁ, ЧТО ПРИШЛО =====
 
-    val countryForSelect = normalizeCountryForSelect(data.receiverCountryCode)               // AZ/GE/KG/DE
+    var tracking = data.trackingNo?.trim().takeUnless { it.isNullOrEmpty() }
 
-    val localCarrier = data.localCarrierName?.trim()?.takeIf { it.isNotEmpty() }       // DHL/GLS/...
-    val trackingForForm = data.localTrackingNo?.trim()?.takeIf { it.isNotEmpty() }
-            ?: data.trackingNo?.trim()?.takeIf { isProbableTrackingNo(it) }
+    // код страны, как пришёл от сервера (AZB, DE, KGZ и т.п.)
+    var rawCountry = data.receiverCountryCode?.trim().takeUnless { it.isNullOrEmpty() }
 
-    // подпись рядом с TUID: показываем именно форвард/страну (не локального перевозчика)
+    // имя как есть
+    var rawName = data.receiverName?.trim().takeUnless { it.isNullOrEmpty() }
+
+    // код форвардера и название
+    var forwarderCode = data.receiverForwarderCode?.trim().takeUnless { it.isNullOrEmpty() }
+    var forwarderName = data.receiverCompany?.trim().takeUnless { it.isNullOrEmpty() }
+
+    // код ячейки
+    val cellCode = data.receiverCellCode?.trim().takeUnless { it.isNullOrEmpty() }
+
+    // ===== если код форвардера не пришёл, но имя выглядит как "KOLLI AYXAN MUSAYEV" – режем =====
+    if (forwarderCode.isNullOrBlank() && !rawName.isNullOrBlank()) {
+        val m = Regex("^([A-Z]{3,8})\\s+(.+)$").find(rawName!!)
+        if (m != null) {
+            val candidate = m.groupValues[1]
+            val rest      = m.groupValues[2]
+            // простой хак: считаем это кодом
+            forwarderCode = candidate
+            rawName = rest.trim()
+            println("### parsed forwarderCode from name: $forwarderCode, name: $rawName")
+        }
+    }
+
+    // если код форвардера всё-таки есть — на всякий случай ещё раз уберём его из имени в начале
+    if (!forwarderCode.isNullOrBlank() && !rawName.isNullOrBlank()) {
+        val re = Regex("^\\s*${Regex.escape(forwarderCode!!)}\\s+", RegexOption.IGNORE_CASE)
+        val cleaned = re.replace(rawName!!, "").trim()
+        if (cleaned.isNotEmpty() && cleaned != rawName) {
+            println("### cleaned name by forwarderCode: '$rawName' -> '$cleaned'")
+            rawName = cleaned
+        }
+    }
+
+    // ===== код для select =====
+    val countryForSelect: String? = rawCountry?.let { c ->
+        when (c.uppercase()) {
+            "AZB", "AZE" -> "AZ"   // Azerbaijan
+            "DEU"        -> "DE"   // Germany
+            "GEO"        -> "GE"   // Georgia
+            "KGZ"        -> "KG"   // Kyrgyzstan
+            else         -> c.uppercase()
+        }
+    }
+
+    // ===== что писать в "Компания получателя" =====
+    // в приоритете красивое имя компании, если его нет — код форвардера (KOLLI)
+    val companyFieldValue: String? = when {
+        !forwarderName.isNullOrBlank() -> forwarderName
+        !forwarderCode.isNullOrBlank() -> forwarderCode
+        else -> null
+    }
+
+    // подпись рядом с TUID (маленький серый текст)
     val carrierInfo = buildString {
         if (!forwarderCode.isNullOrBlank()) append(forwarderCode)
         if (!forwarderName.isNullOrBlank()) {
@@ -1653,156 +1683,100 @@ fun fillParcelFormInWebView(webView: WebView, data: OcrParcelData) {
         }
     }
 
+    // ===== СКРИПТ ДЛЯ WEBVIEW =====
+
     val js = buildString {
         append("(function(){")
         append(
             """
-            function setValById(id,v){
+            function setVal(id,v){
               var e=document.getElementById(id);
               if(e){
                 e.value=v;
                 e.dispatchEvent(new Event('input',{bubbles:true}));
-                e.dispatchEvent(new Event('change',{bubbles:true}));
-              }
-            }
-            function setValByName(name,v){
-              var e=document.querySelector('[name="'+name+'"]');
-              if(e){
-                e.value=v;
-                e.dispatchEvent(new Event('input',{bubbles:true}));
-                e.dispatchEvent(new Event('change',{bubbles:true}));
               }
             }
             function setSelectVal(id,v){
               var e=document.getElementById(id);
               if(e){
-                e.value=v;
+                e.value = v;
                 e.dispatchEvent(new Event('change',{bubbles:true}));
               }
             }
             function setText(id,text){
               var e=document.getElementById(id);
-              if(e){ e.textContent=text; }
+              if(e){
+                e.textContent = text;
+              }
             }
             """.trimIndent()
         )
 
-            // писать в tuid/trackingNo только если это реально похоже на трек
-// 1) TUID — только если нашли
-        //data.tuid?.trim()?.takeIf { it.isNotEmpty() }?.let {
-        //    append("setValById('tuid','${esc(it)}');")
-        //}
-        val tuidForForm = trackingForForm ?: data.tuid?.trim()?.takeIf { it.isNotEmpty() }
-        tuidForForm?.let { append("setValById('tuid','${esc(it)}');") }
-// 2) trackingNo — DHL/UPS/etc (если нашли), иначе обычный trackingNo (если похож)
-        trackingForForm?.let {
-            append("setValById('trackingNo','${esc(it)}');")
-        }
-
-        // 2) carrierName (локальный перевозчик: DHL/GLS/HERMES/UPS/AMAZON)
-        // carrierName — можно отдельно
-        localCarrier?.let {
+        // TUID + трек
+        tracking?.let {
             val v = esc(it)
-            append("setValById('carrierName','$v');")
-
+            append("setVal('tuid','$v');")
+            append("setVal('trackingNo','$v');")
         }
 
-        // 3) receiverCountry (по назначению) — строго ISO2 из select
+        // страна
         countryForSelect?.let {
-            //append("setSelectVal('receiverCountry','${esc(it)}');")
             append("setSelectVal('receiverCountry','${esc(it)}');")
         }
 
-        // 4) receiverCompany — ТОЛЬКО название компании форварда
-        forwarderName?.let {
-            append("setValById('receiverCompany','${esc(it)}');")
-        }
-
-        // 5) carrierCode (id=carrierCode) — ТОЛЬКО код форварда
+        // перевозчик: код форвардера -> carrierName + hidden carrierCode
         forwarderCode?.let {
             val v = esc(it)
-            append("setValById('carrierCode','$v');")
+            append("setVal('carrierName','$v');")
+            append("setVal('carrierCode','$v');")
         }
 
-        // 6) receiverName — ТОЛЬКО получатель
-        receiverName?.let {
-            append("setValById('receiverName','${esc(it)}');")
+        // компания получателя (поле в форме)
+        companyFieldValue?.let {
+            append("setVal('receiverCompany','${esc(it)}');")
         }
 
-        // 7) receiverAddress — ТОЛЬКО ячейка
-        cellCode?.let {
-            append("setValById('receiverAddress','${esc(it)}');")
-        }
-
-        // 8) подпись рядом с TUID
+        // подпись рядом с TUID
         if (carrierInfo.isNotBlank()) {
             append("setText('ocrCarrierInfo',' (${esc(carrierInfo)})');")
         } else {
             append("setText('ocrCarrierInfo','');")
         }
 
-        // 9) вес/габариты — НЕ трогаем, если null (и НЕ пишем нули)
-        data.weightKg?.let { append("setValById('weightKg','${it}');") }
-        data.sizeL?.let   { append("setValById('sizeL','${it}');") }
-        data.sizeW?.let   { append("setValById('sizeW','${it}');") }
-        data.sizeH?.let   { append("setValById('sizeH','${it}');") }
+        // ФИО получателя
+        rawName?.let {
+            append("setVal('receiverName','${esc(it)}');")
+        }
+
+        // адрес -> номер ячейки
+        cellCode?.let {
+            append("setVal('receiverAddress','${esc(it)}');")
+        }
+
+        // вес/габариты — заполняем ТОЛЬКО если не null, без нулей по умолчанию
+        data.weightKg?.let {
+            append("setVal('weightKg','${it}');")
+        }
+        data.sizeL?.let {
+            append("setVal('sizeL','${it}');")
+        }
+        data.sizeW?.let {
+            append("setVal('sizeW','${it}');")
+        }
+        data.sizeH?.let {
+            append("setVal('sizeH','${it}');")
+        }
 
         append("})();")
     }
 
-    webView.post { webView.evaluateJavascript(js, null) }
-}
-
-fun detectForwarderByCellCode(cellRaw: String): String? {
-    val cell = cellRaw.trim().uppercase()
-
-    return when {
-        Regex("^(KL|KI)\\d+$").matches(cell) -> "KOLLI"
-        Regex("^C\\d+$").matches(cell) || Regex("^S\\d+$").matches(cell) || Regex("^OP\\d+$").matches(cell) -> "COLIBRI"
-        Regex("^AS\\d+$").matches(cell) -> "ASER"
-        Regex("^PL\\d+$").matches(cell) -> "POSTLINK"
-        Regex("^A\\d+$").matches(cell) -> "CAMEX"
-        Regex("^FX\\d+$").matches(cell) -> "KARGOFLEX"
-        Regex("^B\\d+$").matches(cell) || Regex("^K\\d+$").matches(cell) -> "CAMARATC"
-        else -> null
+    webView.post {
+        webView.evaluateJavascript(js, null)
     }
 }
 
-fun forwarderCompanyByCode(code: String): String = when (code) {
-    "COLIBRI"   -> "Colibri Express"
-    "KOLLI"     -> "KoliExpress"
-    "ASER"      -> "ASER Express"
-    "CAMEX"     -> "Camex"
-    "KARGOFLEX" -> "KargoFlex"
-    "CAMARATC"  -> "Camaratc"
-    "POSTLINK"  -> "Postlink"
-    else -> code
-}
 
-fun defaultCountryIso2ByForwarder(code: String, fullText: String): String? {
-    val t = fullText.lowercase()
 
-    return when (code) {
-        "COLIBRI","KOLLI","ASER","CAMEX","KARGOFLEX","POSTLINK" -> "AZ"
-        "CAMARATC" -> when {
-            t.contains("starkenburgstr.10b") || t.contains("starkenburgstr 10b") || t.contains("starkenburgstr10b") -> "GE"
-            t.contains("starkenburgstr.10e") || t.contains("starkenburgstr 10e") || t.contains("starkenburgstr10e") -> "KG"
-            else -> null
-        }
-        else -> null
-    }
-}
-
-fun isProbableTrackingNo(v: String?): Boolean {
-    val s = v?.trim()?.replace(" ", "")?.uppercase() ?: return false
-    if (s.length < 9) return false
-    if (!s.matches(Regex("^[A-Z0-9\\-]+$"))) return false
-
-    val digitCount = s.count { it.isDigit() }
-    if (digitCount < 8) return false   // режет “64546HESSEN”
-
-    return true
-}
 fun parseOcrText(text: String): OcrParcelData {
     // Разбиваем на строки
     val allLines = text.lines()
@@ -1812,9 +1786,10 @@ fun parseOcrText(text: String): OcrParcelData {
 
     // ===== ТРЕК =====
     // Длинная строка из латиницы/цифр/дефисов
-    // ===== ТРЕК =====
-// хотя бы 1 цифра, только A-Z0-9-, длина >= 10
-    val trackingCandidate = lines.firstOrNull { isProbableTrackingNo(it) }
+    val trackingCandidate = lines.firstOrNull {
+        it.matches(Regex("[A-Z0-9\\-]{8,}"))
+    } ?: lines.firstOrNull()
+
     // ===== ПОЛУЧАТЕЛЬ ПО МАРКЕРУ "an:" =====
     var receiverName: String? = null
     var receiverAddress: String? = null
@@ -1894,52 +1869,45 @@ fun parseOcrText(text: String): OcrParcelData {
 fun clearParcelFormInWebView(webView: WebView) {
     val js = """
         (function(){
-          function setValById(id,v){
+          function setVal(id,v){
             var e=document.getElementById(id);
             if(e){
               e.value=v;
               e.dispatchEvent(new Event('input',{bubbles:true}));
-              e.dispatchEvent(new Event('change',{bubbles:true}));
-            }
-          }
-          function setValByName(name,v){
-            var e=document.querySelector('[name="'+name+'"]');
-            if(e){
-              e.value=v;
-              e.dispatchEvent(new Event('input',{bubbles:true}));
-              e.dispatchEvent(new Event('change',{bubbles:true}));
             }
           }
           function setText(id,text){
             var e=document.getElementById(id);
-            if(e){ e.textContent=text; }
+            if(e){
+              e.textContent = text;
+            }
           }
 
-          setValById('tuid','');
-          setValById('trackingNo','');
+          setVal('tuid','');
+          setVal('trackingNo','');
 
-          setValById('carrierName','');
-          setValByName('carrierCode','');     // hidden name="carrierCode"
+          setVal('carrierName','');
+          setVal('carrierCode','');
 
-          setValById('receiverCountry','');   // если нет пустого option — визуально может не сброситься
-          setValById('receiverName','');
-          setValById('receiverAddress','');
-          setValById('receiverCompany','');
+          setVal('receiverCountry','');
+          setVal('receiverName','');
+          setVal('receiverAddress','');
+          setVal('receiverCompany','');
+          setVal('senderName','');
 
-          setValById('carrierCode','');       // <-- ВАЖНО: форвард CODE именно тут
-
-          setValById('weightKg','');
-          setValById('sizeL','');
-          setValById('sizeW','');
-          setValById('sizeH','');
+          setVal('weightKg','');
+          setVal('sizeL','');
+          setVal('sizeW','');
+          setVal('sizeH','');
 
           setText('ocrCarrierInfo','');
         })();
     """.trimIndent()
 
-    webView.post { webView.evaluateJavascript(js, null) }
+    webView.post {
+        webView.evaluateJavascript(js, null)
+    }
 }
-
 
 
 fun prepareFormForNextScanInWebView(webView: WebView) {
@@ -1947,27 +1915,20 @@ fun prepareFormForNextScanInWebView(webView: WebView) {
         (function(){
           function getVal(id){
             var e=document.getElementById(id);
-            return e ? (e.value||'').trim() : '';
+            return e ? e.value.trim() : '';
           }
-          function setValById(id,v){
+          function setVal(id,v){
             var e=document.getElementById(id);
             if(e){
               e.value=v;
               e.dispatchEvent(new Event('input',{bubbles:true}));
-              e.dispatchEvent(new Event('change',{bubbles:true}));
-            }
-          }
-          function setValByName(name,v){
-            var e=document.querySelector('[name="'+name+'"]');
-            if(e){
-              e.value=v;
-              e.dispatchEvent(new Event('input',{bubbles:true}));
-              e.dispatchEvent(new Event('change',{bubbles:true}));
             }
           }
           function setText(id,text){
             var e=document.getElementById(id);
-            if(e){ e.textContent=text; }
+            if(e){
+              e.textContent = text;
+            }
           }
 
           var tuid  = getVal('tuid');
@@ -1975,33 +1936,37 @@ fun prepareFormForNextScanInWebView(webView: WebView) {
 
           if (tuid || track) {
             var btn = document.querySelector('button.js-core-link[data-core-action="add_new_item_in"]');
-            if (btn) btn.click();
+            if (btn) {
+              btn.click();
+            }
 
-            setValById('tuid','');
-            setValById('trackingNo','');
+            setVal('tuid','');
+            setVal('trackingNo','');
 
-            setValById('carrierName','');
-            setValByName('carrierCode','');
+            setVal('carrierName','');
+            setVal('carrierCode','');
 
-            setValById('receiverCountry','');
-            setValById('receiverName','');
-            setValById('receiverAddress','');
-            setValById('receiverCompany','');
+            setVal('receiverCountry','');
+            setVal('receiverName','');
+            setVal('receiverAddress','');
+            setVal('receiverCompany','');
+            setVal('senderName','');
 
-            setValById('carrierCode',''); // форвард CODE
-
-            setValById('weightKg','');
-            setValById('sizeL','');
-            setValById('sizeW','');
-            setValById('sizeH','');
+            setVal('weightKg','');
+            setVal('sizeL','');
+            setVal('sizeW','');
+            setVal('sizeH','');
 
             setText('ocrCarrierInfo','');
           }
         })();
     """.trimIndent()
 
-    webView.post { webView.evaluateJavascript(js, null) }
+    webView.post {
+        webView.evaluateJavascript(js, null)
+    }
 }
+
 
 @Composable
 fun OcrScanScreen(
@@ -2009,7 +1974,6 @@ fun OcrScanScreen(
     destConfig: List<DestCountryCfg>,          // ДОБАВЛЕНО
     config: DeviceConfig,
     nameDict: NameDict?,                         // <<< НОВОЕ
-    isDefaultMode: Boolean,
     onResult: (OcrParcelData) -> Unit,
     onCancel: () -> Unit,
     onBindHardwareTrigger: ((() -> Unit)?) -> Unit
@@ -2124,26 +2088,7 @@ fun OcrScanScreen(
                                     if (config.useRemoteOcr) {
                                         val remote = callRemoteOcrParse(context, config, fullText)
                                         if (remote.ok && remote.data != null) {
-                                            val base = remote.data
-                                            val lc = detectLocalCarrierName(fullText)
-                                            val lt = detectLocalTrackingNo(fullText, lc)
-                                            //val tuid = detectTuid(fullText)
-                                            val tuid = lt ?: base.trackingNo
-
-                                            //onResult(
-                                            //    remote.data.copy(
-                                            //        tuid = tuid,
-                                            //        localCarrierName = lc,
-                                            //        localTrackingNo = lt
-                                            //    )
-                                            //)
-                                            onResult(
-                                                base.copy(
-                                                    tuid = tuid,
-                                                    localCarrierName = lc,
-                                                    localTrackingNo = lt
-                                                )
-                                            )
+                                            onResult(remote.data)
                                         } else {
                                             // fallback: локальный парсер
                                             val basic = parseOcrText(fullText)
@@ -2160,24 +2105,11 @@ fun OcrScanScreen(
                                                 receiverCellCode       = advanced.receiverCellCode       ?: basic.receiverCellCode,
                                                 receiverName           = advanced.receiverName           ?: basic.receiverName
                                             )
-
-                                            val lc = detectLocalCarrierName(fullText)
-                                            val lt = detectLocalTrackingNo(fullText, lc)
-                                            val tuid = detectTuid(fullText)
-
-                                            onResult(
-                                                merged.copy(
-                                                    tuid = tuid,
-                                                    localCarrierName = lc,
-                                                    localTrackingNo = lt
-                                                )
-                                            )
-
+                                            onResult(merged)
                                             errorText = remote.errorMessage?.let {
                                                 "Удалённый парсер не сработал: $it (использован локальный)"
                                             }
                                         }
-
                                     } else {
                                         val basic = parseOcrText(fullText)
                                         val advanced = buildOcrParcelDataFromText(
@@ -2193,17 +2125,7 @@ fun OcrScanScreen(
                                             receiverCellCode       = advanced.receiverCellCode       ?: basic.receiverCellCode,
                                             receiverName           = advanced.receiverName           ?: basic.receiverName
                                         )
-                                        val lc = detectLocalCarrierName(fullText)
-                                        val lt = detectLocalTrackingNo(fullText, lc)
-                                        val tuid = detectTuid(fullText)
-
-                                        onResult(
-                                            merged.copy(
-                                                tuid = tuid,
-                                                localCarrierName = lc,
-                                                localTrackingNo = lt
-                                            )
-                                        )
+                                        onResult(merged)
                                     }
                                 } finally {
                                     isProcessing = false
@@ -2265,23 +2187,6 @@ fun OcrScanScreen(
                 modifier = Modifier.fillMaxSize(),
                 factory = { previewView }
             )
-            // БАННЕР DEFAULT поверх камеры
-            if (isDefaultMode) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .fillMaxHeight(0.15f)
-                        .align(Alignment.TopCenter),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "DEFAULT",
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.headlineLarge,
-                        fontWeight = androidx.compose.ui.text.font.FontWeight.Black
-                    )
-                }
-            }
 
             // Нижняя панель с кнопками
             Column(
@@ -2330,58 +2235,45 @@ fun OcrScanScreen(
     }
 }
 
-fun parseDestConfigJson(json: String?): List<DestCountryCfg> {
-    val s = json?.trim()
-    if (s.isNullOrEmpty() || s.equals("null", true) || s.equals("undefined", true)) {
-        return emptyList()
-    }
+fun parseDestConfigJson(json: String): List<DestCountryCfg> {
+    val arr = org.json.JSONArray(json)
+    val result = mutableListOf<DestCountryCfg>()
 
-    return try {
-        val arr = org.json.JSONArray(s)
-        val result = mutableListOf<DestCountryCfg>()
+    for (i in 0 until arr.length()) {
+        val o = arr.getJSONObject(i)
+        val aliases = o.optJSONArray("aliases")?.let { ja ->
+            (0 until ja.length()).map { ja.optString(it) }
+        } ?: emptyList()
 
-        for (i in 0 until arr.length()) {
-            val o = arr.getJSONObject(i)
-
-            val aliases = o.optJSONArray("aliases")?.let { ja ->
-                (0 until ja.length()).map { ja.optString(it) }
-            } ?: emptyList()
-
-            val fwArr = o.optJSONArray("forwarders")
-            val forwarders = mutableListOf<DestForwarder>()
-            if (fwArr != null) {
-                for (j in 0 until fwArr.length()) {
-                    val f = fwArr.getJSONObject(j)
-                    val fAliases = f.optJSONArray("aliases")?.let { ja ->
-                        (0 until ja.length()).map { ja.optString(it) }
-                    } ?: emptyList()
-
-                    forwarders += DestForwarder(
-                        code = f.optString("code", ""),
-                        name = f.optString("name", ""),
-                        aliases = fAliases
-                    )
-                }
+        val fwArr = o.optJSONArray("forwarders")
+        val forwarders = mutableListOf<DestForwarder>()
+        if (fwArr != null) {
+            for (j in 0 until fwArr.length()) {
+                val f = fwArr.getJSONObject(j)
+                val fAliases = f.optJSONArray("aliases")?.let { ja ->
+                    (0 until ja.length()).map { ja.optString(it) }
+                } ?: emptyList()
+                forwarders += DestForwarder(
+                    code = f.optString("code", ""),
+                    name = f.optString("name", ""),
+                    aliases = fAliases
+                )
             }
-
-            result += DestCountryCfg(
-                id         = o.optInt("id"),
-                code_iso2  = o.optString("code_iso2", ""),
-                code_iso3  = o.optString("code_iso3", ""),
-                name_en    = o.optString("name_en", ""),
-                name_local = o.optString("name_local", ""),
-                aliases    = aliases,
-                forwarders = forwarders
-            )
         }
 
-        result
-    } catch (e: Exception) {
-        e.printStackTrace()
-        emptyList()
+        result += DestCountryCfg(
+            id         = o.optInt("id"),
+            code_iso2  = o.optString("code_iso2", ""),
+            code_iso3  = o.optString("code_iso3", ""),
+            name_en    = o.optString("name_en", ""),
+            name_local = o.optString("name_local", ""),
+            aliases    = aliases,
+            forwarders = forwarders
+        )
     }
-}
 
+    return result
+}
 
 fun detectDestCountryAndForwarder(
     textRaw: String,
@@ -2443,66 +2335,27 @@ fun buildOcrParcelDataFromText(
     nameDict: NameDict?
 ): OcrParcelData {
 
-    val detected = detectDestCountryAndForwarder(fullText, destConfig)
-    val cellCode = detectCellCode(fullText)
-
-    var forwarderCode = detected.forwarderCode
-    var forwarderName = detected.forwarderName
-    var countryIso2   = detected.countryCode
-
-    // 1) если не нашли по destConfig — пробуем по ячейке
-    if (forwarderCode == null && cellCode != null) {
-        detectForwarderByCellCode(cellCode)?.let { code ->
-            forwarderCode = code
-            forwarderName = forwarderCompanyByCode(code)
-        }
-    }
-
-    // 2) если всё ещё не нашли — пробуем по тексту (COLIBRI/KOLI/…)
-    if (forwarderCode == null) {
-        detectForwarderByText(fullText)?.let { code ->
-            forwarderCode = code
-            forwarderName = forwarderCompanyByCode(code)
-        }
-    }
-
-    // 3) страна: форвардер важнее “DE/Germany/Hessen” в тексте
-    if (forwarderCode != null) {
-        // форвардеры, которые всегда AZ
-        if (forwarderCode in setOf("COLIBRI","KOLLI","ASER","CAMEX","KARGOFLEX","POSTLINK")) {
-            countryIso2 = "AZ"
-        } else if (forwarderCode == "CAMARATC") {
-            // CAMARATC: GE/KG по адресу, если получилось распознать
-            defaultCountryIso2ByForwarder("CAMARATC", fullText)?.let { countryIso2 = it }
-            // если не получилось — лучше оставить null, чем DE
-            if (countryIso2 == "DE") countryIso2 = null
-        } else {
-            // общий fallback
-            if (countryIso2 == null || countryIso2 == "DE") {
-                defaultCountryIso2ByForwarder(forwarderCode!!, fullText)?.let { countryIso2 = it }
-            }
-        }
-    }
-
+    val detected  = detectDestCountryAndForwarder(fullText, destConfig)
+    val cellCode  = detectCellCode(fullText)
     val clientName = detectClientName(
-        text = fullText,
-        forwarderCode = forwarderCode,
-        cellCode = cellCode,
-        nameDict = nameDict
+            text = fullText,
+    forwarderCode = detected.forwarderCode,
+    cellCode = cellCode,
+    nameDict = nameDict
     )
 
     return OcrParcelData(
         trackingNo            = trackingNo,
-        receiverCountryCode   = countryIso2,
-        receiverCompany       = forwarderName,
-        receiverForwarderCode = forwarderCode,
+        receiverCountryCode   = detected.countryCode,
+        receiverCompany       = detected.forwarderName,
+        receiverForwarderCode = detected.forwarderCode,
         receiverCellCode      = cellCode,
         receiverName          = clientName,
         receiverAddress       = null,
-        weightKg              = null,
-        sizeL                 = null,
-        sizeW                 = null,
-        sizeH                 = null
+        weightKg              = 0.0,
+        sizeL                 = 0.0,
+        sizeW                 = 0.0,
+        sizeH                 = 0.0
     )
 }
 
@@ -2571,11 +2424,6 @@ fun cleanNameLine(
 
     // спец-слова по форвардеру
     val patterns = mutableListOf<Regex>()
-    // общие форвардер-бренды (работают даже когда forwarderCode == null)
-    patterns += Regex("\\bCOLIBR\\p{L}*(?:\\s+EXP\\p{L}*)?\\b", RegexOption.IGNORE_CASE)
-    patterns += Regex("\\bKOLI\\p{L}*(?:\\s*EXP\\p{L}*)?\\b", RegexOption.IGNORE_CASE)
-    patterns += Regex("\\b(CAMEX|ASER|POSTLINK|KARGOFLEX|CAMARATC)\\p{L}*\\b", RegexOption.IGNORE_CASE)
-
     when (forwarderCode) {
         "COLIBRI" -> {
             patterns += Regex("\\bCOLIBR\\p{L}*\\s+EXP\\p{L}*\\b", RegexOption.IGNORE_CASE)
@@ -2700,119 +2548,3 @@ fun detectClientName(
 
     return null
 }
-
-fun detectLocalCarrierName(textRaw: String): String? {
-    val t = textRaw.lowercase()
-
-    return when {
-        Regex("\\bhermes\\b").containsMatchIn(t) -> "HERMES"
-        Regex("\\bgls\\b").containsMatchIn(t) -> "GLS"
-        Regex("\\bups\\b").containsMatchIn(t) || Regex("\\b1z[0-9a-z]{16}\\b").containsMatchIn(t) -> "UPS"
-        Regex("\\bamazon\\b").containsMatchIn(t) || Regex("\\btba\\d{10,}\\b").containsMatchIn(t) -> "AMAZON"
-        Regex("\\bdhl\\b").containsMatchIn(t) || t.contains("deutsche post") -> "DHL"
-        else -> null
-    }
-}
-
-fun detectLocalTrackingNo(textRaw: String, carrier: String?): String? {
-    val text = textRaw.replace("\n", " ").replace("\r", " ").uppercase()
-
-    // UPS
-    Regex("\\b1Z[0-9A-Z]{16}\\b").find(text)?.let { return it.value }
-
-    // Amazon
-    Regex("\\bTBA\\d{10,}\\b").find(text)?.let { return it.value }
-
-    // ID No / IDNO
-    Regex("\\bID\\s*NO\\b\\s*[:#\\-]?\\s*(\\d{8,20})\\b").find(text)?.let {
-        return it.groupValues[1]
-    }
-
-    // digits candidates 8..20, но режем телефоны
-    val matches = Regex("\\b\\d{8,20}\\b").findAll(text).toList()
-    if (matches.isEmpty()) return null
-
-    fun isPhoneLike(m: MatchResult): Boolean {
-        val start = (m.range.first - 20).coerceAtLeast(0)
-        val ctx = text.substring(start, m.range.first)
-        return ctx.contains("PHONE") || ctx.contains("TEL") || ctx.contains("CONTACT")
-    }
-
-    val candidates = matches
-        .filterNot { isPhoneLike(it) }
-        .map { it.value }
-
-    if (candidates.isEmpty()) return null
-
-    fun score(v: String): Int {
-        var s = v.length
-
-        // типовые подсказки по длине
-        if (carrier == "GLS" && v.length == 11) s += 50
-        if (carrier == "HERMES" && v.length in 14..16) s += 50
-        if (carrier == "DHL" && v.length >= 12) s += 20
-
-        return s
-    }
-
-    return candidates.maxByOrNull { score(it) }
-}
-
-
-
-fun normalizeCountryForSelect(raw: String?): String? {
-    val c = raw?.trim()?.takeIf { it.isNotBlank() } ?: return null
-    return when (c.uppercase()) {
-        "AZB", "AZE", "AZE" -> "AZ"
-        "TBS", "GEO"        -> "GE"
-        "DEU", "DE"         -> "DE"
-        "KGZ", "KG"         -> "KG"
-        else                -> c.uppercase()
-    }
-}
-
-fun detectTuid(textRaw: String): String? {
-    val lines = textRaw.lines().map { it.trim() }.filter { it.isNotEmpty() }
-
-    val re = Regex(
-        "(?i)\\b(colibri\\s*express|colibriexpress|koli\\s*express|koliexpress|camex|aser\\s*express|postlink|kargoflex|camaratc)\\b\\s*[-–—:]?\\s*([A-Z]{1,3}\\d{3,8})\\b"
-    )
-
-    for (line in lines) {
-        val m = re.find(line) ?: continue
-        val fw = m.groupValues[1].uppercase().replace(Regex("\\s+"), " ").trim()
-        val cell = m.groupValues[2].uppercase()
-        return "$fw -$cell"
-    }
-    return null
-}
-fun detectForwarderByText(textRaw: String): String? {
-    val t = textRaw.lowercase()
-
-    return when {
-        Regex("\\bcolibri\\b").containsMatchIn(t) -> "COLIBRI"
-        Regex("\\b(koli|koliexp|koliexpress|koli\\s*express)\\b").containsMatchIn(t) -> "KOLLI"
-        Regex("\\bcamex\\b").containsMatchIn(t) -> "CAMEX"
-        Regex("\\baser\\b").containsMatchIn(t) -> "ASER"
-        Regex("\\bpostlink\\b").containsMatchIn(t) -> "POSTLINK"
-        Regex("\\bkargoflex\\b").containsMatchIn(t) -> "KARGOFLEX"
-        Regex("\\bcamaratc\\b").containsMatchIn(t) -> "CAMARATC"
-        else -> null
-    }
-}
-
-data class ScanTaskConfig(
-    val taskId: String,
-    val defaultMode: String,   // "ocr" | "barcode" | "qr"
-    val modes: Set<String>
-)
-
-fun parseScanTaskConfig(json: String): ScanTaskConfig? = try {
-    val obj = JSONObject(json)
-    val taskId = obj.optString("task_id", "unknown")
-    val def = obj.optString("default_mode", "ocr")
-    val arr = obj.optJSONArray("modes")
-    val modes = mutableSetOf<String>()
-    if (arr != null) for (i in 0 until arr.length()) modes += arr.optString(i)
-    ScanTaskConfig(taskId, def, modes)
-} catch (e: Exception) { null }

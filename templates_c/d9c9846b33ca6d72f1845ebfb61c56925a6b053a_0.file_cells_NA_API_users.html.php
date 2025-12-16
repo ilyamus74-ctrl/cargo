@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2025-12-05 16:20:36
+/* Smarty version 5.3.1, created on 2025-12-16 12:09:32
   from 'file:cells_NA_API_users.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_693306545e0cc1_33480921',
+  'unifunc' => 'content_69414bfc5151e0_73265429',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     'd9c9846b33ca6d72f1845ebfb61c56925a6b053a' => 
     array (
       0 => 'cells_NA_API_users.html',
-      1 => 1764951379,
+      1 => 1765886951,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_693306545e0cc1_33480921 (\Smarty\Template $_smarty_tpl) {
+function content_69414bfc5151e0_73265429 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>    <div class="pagetitle">
       <h1>Settings users</h1>
