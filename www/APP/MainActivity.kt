@@ -1772,6 +1772,16 @@ fun fillParcelFormInWebView(webView: WebView, data: OcrParcelData) {
                 e.dispatchEvent(new Event('change',{bubbles:true}));
               }
             }
+                        function setValIfEmpty(id,v){
+                          var e=document.getElementById(id);
+                          if(e){
+                            var isEmpty = !e.value || e.value.trim()==='';
+                            if(!isEmpty) return;
+                            e.value=v;
+                            e.dispatchEvent(new Event('input',{bubbles:true}));
+                            e.dispatchEvent(new Event('change',{bubbles:true}));
+                          }
+                        }
             function setValByName(name,v){
               var e=document.querySelector('[name="'+name+'"]');
               if(e){
@@ -1800,10 +1810,10 @@ fun fillParcelFormInWebView(webView: WebView, data: OcrParcelData) {
         //    append("setValById('tuid','${esc(it)}');")
         //}
         val tuidForForm = trackingForForm ?: data.tuid?.trim()?.takeIf { it.isNotEmpty() }
-        tuidForForm?.let { append("setValById('tuid','${esc(it)}');") }
-// 2) trackingNo — DHL/UPS/etc (если нашли), иначе обычный trackingNo (если похож)
+        tuidForForm?.let { append("setValIfEmpty('tuid','${esc(it)}');") }
+        // 2) trackingNo — DHL/UPS/etc (если нашли), иначе обычный trackingNo (если похож)
         trackingForForm?.let {
-            append("setValById('trackingNo','${esc(it)}');")
+            append("setValIfEmpty('trackingNo','${esc(it)}');")
         }
 
         // 2) carrierName (локальный перевозчик: DHL/GLS/HERMES/UPS/AMAZON)
@@ -1862,7 +1872,7 @@ fun fillParcelFormInWebView(webView: WebView, data: OcrParcelData) {
 
 
 fun buildParcelFromBarcode(raw: String): OcrParcelData {
-    val clean = raw.trim()
+    val clean = sanitizeBarcodeInput(raw)
     val carrier = detectLocalCarrierName(clean)
     return OcrParcelData(
         tuid = clean,
@@ -1871,6 +1881,26 @@ fun buildParcelFromBarcode(raw: String): OcrParcelData {
         receiverCompany = carrier
     )
 }
+
+
+fun sanitizeBarcodeInput(raw: String): String {
+    var s = raw.trim()
+
+    // Отбрасываем префиксы вида "]C1" / "]E0" (символика штрихкода)
+    val prefix = Regex("^\\][A-Za-z]\\d")
+    prefix.find(s)?.let { match ->
+        s = s.removePrefix(match.value)
+    }
+
+    // чистим неалфавитно-цифровые символы по краям
+    s = s.trim { !it.isLetterOrDigit() }
+
+    // выбираем самую длинную подходящую алфавитно-цифровую последовательность (8+)
+    val best = Regex("[A-Za-z0-9]{8,}").findAll(s).maxByOrNull { it.value.length }?.value
+
+    return (best ?: s).trim()
+}
+
 
 fun detectForwarderByCellCode(cellRaw: String): String? {
     val cell = cellRaw.trim().uppercase()
