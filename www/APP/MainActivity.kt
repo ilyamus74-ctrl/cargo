@@ -2985,16 +2985,16 @@ fun buildOcrParcelDataFromText(
 fun sanitizeCellCode(raw: String): String {
     val upper = raw.uppercase()
 
-    // 1) Основной случай: буквы + цифры (с возможными O в цифровой части)
+    // 1) Частый OCR-ошибочный вариант Postlink: PL"O"xxxx -> PL0xxxx
+    Regex("^([A-Z]{2})O(\\d{3,8})$").matchEntire(upper)?.let { m ->
+        return m.groupValues[1] + "0" + m.groupValues[2]
+    }
+
+    // 2) Основной случай: буквы + цифры (с возможными O в цифровой части)
     Regex("^([A-Z]{1,3})([0-9O]{3,8})$").matchEntire(upper)?.let { m ->
         val prefix = m.groupValues[1]
         val numeric = m.groupValues[2].replace('O', '0')
         return prefix + numeric
-    }
-
-    // 2) Частый OCR-ошибочный вариант Postlink: PL"O"xxxx -> PL0xxxx
-    Regex("^([A-Z]{2})O(\\d{3,8})$").matchEntire(upper)?.let { m ->
-        return m.groupValues[1] + "0" + m.groupValues[2]
     }
 
     // 3) Без распознавания шаблона просто возвращаем верхний регистр
@@ -3008,8 +3008,7 @@ fun sanitizeCellCode(raw: String): String {
 fun detectCellCode(text: String): String? {
     // Ищем что-то вроде A12345, AS228905, C163361
     val regex = Regex("\\b[A-Z]{1,3}\\d{3,8}\\b")
-    return regex.find(text.replace("\n", " "))?.value?.let(::sanitizeCellCode)
-}
+    return regex.find(text.replace("\n", " "))?.value?.let(::sanitizeCellCode)}
 
 /**
  * Пытаемся вытащить ФИО конечного клиента.
