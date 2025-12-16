@@ -1,3 +1,4 @@
+
 @file:OptIn(androidx.camera.core.ExperimentalGetImage::class)
 
 package com.example.ocrscannertest
@@ -242,8 +243,7 @@ fun AppRoot() {
                                 showBarcodeScan = true
                             }
                             WarehouseScanStep.OCR -> {
-                                ocrIsDefault = taskConfig == null
-                                showOcr = true
+                                ocrIsDefault = taskConfig == null                                showOcr = true
                             }
                             WarehouseScanStep.SUBMIT -> {
                                 webViewRef?.let { web -> prepareFormForNextScanInWebView(web) }
@@ -1767,13 +1767,12 @@ fun fillParcelFormInWebView(webView: WebView, data: OcrParcelData) {
 
     val forwarderCode = data.receiverForwarderCode?.trim().takeUnless { it.isNullOrEmpty() }  // CAMEX/KOLLI/...
     val forwarderName = data.receiverCompany?.trim().takeUnless { it.isNullOrEmpty() }       // Camex/KoliExpress/...
-    val cellCode      = data.receiverCellCode?.trim().takeUnless { it.isNullOrEmpty() }      // A176903
     val forwarderCodeForSelect = forwarderCode
         ?: forwarderName?.let { detectForwarderByText(it) }
         ?: cellCode?.let { detectForwarderByCellCode(it) }
     val forwarderDisplayName = forwarderCodeForSelect?.let { forwarderCompanyByCode(it) } ?: forwarderName
     val receiverName  = data.receiverName?.trim().takeUnless { it.isNullOrEmpty() }          // SEVDA Farzaliyeva
-
+    val cellCode      = data.receiverCellCode?.trim().takeUnless { it.isNullOrEmpty() }      // A176903
 
     val countryForSelect = normalizeCountryForSelect(data.receiverCountryCode)               // AZ/GE/KG/DE
 
