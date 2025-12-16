@@ -228,18 +228,22 @@
                     </div>
 
                     <div class="row mt-3">
-                       <div class="col-lg-3 col-md-4 label">QR для входа</div>
-                          <div class="col-lg-9 col-md-8">
-                             {if $edit_user.qr_image_url}
-                                <img src="{$edit_user.qr_image_url}" alt="QR для входа" class="img-fluid" style="max-width:220px;">
-                           <div class="form-text">
-                          Отсканируйте этот QR в приложении сканера.
-                        </div>
-                             {else}
-                        <span class="text-muted">QR ещё не сгенерирован. Нажмите «Обновить QR для всех».</span>
-                             {/if}
-                    </div>
-
+                      <div class="col-lg-3 col-md-4 label">QR для входа</div>
+                      <div class="col-lg-9 col-md-8">
+                        {if $edit_user.qr_image_url}
+                          <div class="d-flex flex-column flex-md-row align-items-start gap-3">
+                            <img id="user-qr-image" src="{$edit_user.qr_image_url}" alt="QR для входа" class="img-fluid" style="max-width:220px;">
+                            <div>
+                              <div class="form-text">
+                                Отсканируйте этот QR в приложении сканера.
+                              </div>
+                              <button type="button" class="btn btn-outline-primary mt-2" onclick="printUserQr()">Распечатать</button>
+                            </div>
+                          </div>
+                        {else}
+                          <span class="text-muted">QR ещё не сгенерирован. Нажмите «Обновить QR для всех».</span>
+                        {/if}
+                      </div>
                   </div>
                   </div>
                   <div class="text-center">
@@ -272,4 +276,21 @@
 
     </div>
   </div>
+  <script>
+  function printUserQr() {
+    const qrImage = document.getElementById('user-qr-image');
+    if (!qrImage) {
+      return;
+    }
+
+    const printWindow = window.open('', 'print-qr');
+    printWindow.document.write('<html><head><title>QR</title></head><body style="margin:0; display:flex; justify-content:center; align-items:center; padding:20px;">');
+    printWindow.document.write('<img src="' + qrImage.src + '" style="max-width:100%; height:auto;">');
+    printWindow.document.write('</body></html>');
+    printWindow.document.close();
+    printWindow.focus();
+    printWindow.print();
+    printWindow.close();
+  }
+</script>
 </section>
