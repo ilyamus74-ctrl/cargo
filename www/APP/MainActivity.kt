@@ -267,9 +267,9 @@ fun AppRoot() {
                     }
                 }
 
-                MainActivity.onVolumeUp = {
+                MainActivity.onVolumeUp = volumeUp@{
                     if (isWarehouseIn) {
-                        if (handleDoubleVolumeUp()) return@onVolumeUp
+                        if (handleDoubleVolumeUp()) return@volumeUp
 
                         when (warehouseScanStep) {
                             WarehouseScanStep.BARCODE -> {
@@ -2191,7 +2191,6 @@ fun prepareFormForNextScanInWebView(webView: WebView) {
 }
 
 @Composable
-@Composable
 fun BarcodeScanScreen(
     modifier: Modifier = Modifier,
     onResult: (String) -> Unit,
@@ -2393,6 +2392,7 @@ fun BarcodeScanScreen(
     }
 }
 
+@Composable
 fun OcrScanScreen(
     modifier: Modifier = Modifier,
     destConfig: List<DestCountryCfg>,          // ДОБАВЛЕНО
