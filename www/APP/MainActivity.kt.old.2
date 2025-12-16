@@ -1,4 +1,3 @@
-
 @file:OptIn(androidx.camera.core.ExperimentalGetImage::class)
 
 package com.example.ocrscannertest
@@ -108,7 +107,6 @@ if (root) new MutationObserver(schedule).observe(root, {childList:true, subtree:
 })();
 """.trimIndent()
 
-enum class WarehouseScanStep { BARCODE, OCR, SUBMIT }
 class MainActivity : ComponentActivity() {
     companion object {
         var onVolumeDown: (() -> Unit)? = null
@@ -188,28 +186,10 @@ fun AppRoot() {
 
     var ocrIsDefault by remember { mutableStateOf(false) }
 
-    // Шаги потока складского сканирования
-
-    var warehouseScanStep by remember { mutableStateOf(WarehouseScanStep.BARCODE) }
-
-    // Оверлей штрих-кодов
-    var showBarcodeScan by remember { mutableStateOf(false) }
-
-    // трекинг двойного нажатия
-    var lastVolumeUpTs by remember { mutableStateOf(0L) }
-
-    // колбэк, который будет вызываться при VOL_DOWN, когда открыт OCR
+ // колбэк, который будет вызываться при VOL_DOWN, когда открыт OCR
     var ocrHardwareTrigger by remember { mutableStateOf<(() -> Unit)?>(null) }
-    var barcodeHardwareTrigger by remember { mutableStateOf<(() -> Unit)?>(null) }
-    LaunchedEffect(showWebView, showOcr, showBarcodeScan, ocrHardwareTrigger, barcodeHardwareTrigger, webViewRef) {
+    LaunchedEffect(showWebView, showOcr, ocrHardwareTrigger, webViewRef) {
         when {
-            showBarcodeScan && barcodeHardwareTrigger != null -> {
-                MainActivity.onVolumeDown = {
-                    barcodeHardwareTrigger?.invoke()
-                }
-                MainActivity.onVolumeUp = null
-            }
-
             // Если открыт экран OCR и есть триггер — VOL_DOWN стреляет OCR
             showOcr && ocrHardwareTrigger != null -> {
                 MainActivity.onVolumeDown = {
@@ -220,69 +200,23 @@ fun AppRoot() {
 
             // Если открыт WebView (форма склада)
             showWebView -> {
-                val isWarehouseIn = taskConfig?.taskId == "warehouse_in"
-
-                fun handleDoubleVolumeUp(): Boolean {
-                    val now = System.currentTimeMillis()
-                    val delta = now - lastVolumeUpTs
-                    lastVolumeUpTs = now
-                    val isDouble = delta in 50..450
-                    if (isDouble) {
-                        webViewRef?.let { web -> clearParcelFormInWebView(web) }
-                        warehouseScanStep = WarehouseScanStep.BARCODE
-                        showOcr = false
-                        showBarcodeScan = false
-                    }
-                    return isDouble
-                }
                 MainActivity.onVolumeDown = {
-                    if (isWarehouseIn) {
-                        when (warehouseScanStep) {
-                            WarehouseScanStep.BARCODE -> {
-                                webViewRef?.let { web -> clearTrackingAndTuidInWebView(web) }
-                                showBarcodeScan = true
-                            }
-                            WarehouseScanStep.OCR -> {
-                                ocrIsDefault = true
-                                showOcr = true
-                            }
-                            WarehouseScanStep.SUBMIT -> {
-                                webViewRef?.let { web -> prepareFormForNextScanInWebView(web) }
-                                warehouseScanStep = WarehouseScanStep.BARCODE
-                            }
-                        }
-                    } else {
-                        webViewRef?.let { web -> prepareFormForNextScanInWebView(web) }
+                    webViewRef?.let { web -> prepareFormForNextScanInWebView(web) }
 
-                        val hasTask = taskConfig != null
-                        ocrIsDefault = !hasTask
-                        showOcr = true
+                    val hasTask = taskConfig != null
+                    ocrIsDefault = !hasTask
+                    showOcr = true
 
-                        when (taskConfig?.defaultMode) {
-                            "qr"      -> { showQrScan = true }
-                            "barcode" -> { /* showBarcodeScan = true */ }
-                            "ocr"     -> { showOcr = true }
-                            else      -> { showOcr = true } // fallback
-                        }
+                    when (taskConfig?.defaultMode) {
+                        "qr"      -> { showQrScan = true }
+                        "barcode" -> { /* showBarcodeScan = true */ }
+                        "ocr"     -> { showOcr = true }
+                        else      -> { showOcr = true } // fallback
                     }
                 }
 
                 MainActivity.onVolumeUp = {
-                    if (isWarehouseIn) {
-                        if (handleDoubleVolumeUp()) return@onVolumeUp
-
-                        when (warehouseScanStep) {
-                            WarehouseScanStep.BARCODE -> {
-                                webViewRef?.let { web -> clearTrackingAndTuidInWebView(web) }
-                            }
-                            WarehouseScanStep.OCR, WarehouseScanStep.SUBMIT -> {
-                                webViewRef?.let { web -> clearParcelFormExceptTrack(web) }
-                                warehouseScanStep = WarehouseScanStep.OCR
-                            }
-                        }
-                    } else {
-                        webViewRef?.let { web -> clearParcelFormInWebView(web) }
-                    }
+                    webViewRef?.let { web -> clearParcelFormInWebView(web) }
                 }
 
             }
@@ -484,43 +418,12 @@ fun AppRoot() {
                 }
             }
 
-
-            // Оверлей BARCODE поверх WebView
-            if (showBarcodeScan) {
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.background.copy(alpha = 0.98f)
-                ) {
-                    val isWarehouseIn = taskConfig?.taskId == "warehouse_in"
-                    BarcodeScanScreen(
-                        modifier = Modifier.fillMaxSize(),
-                        onResult = { raw ->
-                            showBarcodeScan = false
-                            val data = buildParcelFromBarcode(raw)
-                            webViewRef?.let { web ->
-                                fillParcelFormInWebView(web, data)
-                            }
-                            if (isWarehouseIn) {
-                                warehouseScanStep = WarehouseScanStep.OCR
-                            }
-                        },
-                        onCancel = {
-                            showBarcodeScan = false
-                        },
-                        onBindHardwareTrigger = { action ->
-                            barcodeHardwareTrigger = action
-                        }
-                    )
-                }
-            }
-
             // ОВЕРЛЕЙ OCR ПОВЕРХ WebView (и любого экрана)
             if (showOcr) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background.copy(alpha = 0.98f)
                 ) {
-                    val isWarehouseIn = taskConfig?.taskId == "warehouse_in"
                     OcrScanScreen(
                         modifier = Modifier.fillMaxSize(),
                         destConfig = destConfig,
@@ -532,22 +435,12 @@ fun AppRoot() {
                             webViewRef?.let { web ->
                                 fillParcelFormInWebView(web, ocrData)
                             }
-                            if (isWarehouseIn) {
-                                warehouseScanStep = WarehouseScanStep.SUBMIT
-                            }
                         },
                         onCancel = {
                             showOcr = false
                         },
                         onBindHardwareTrigger = { action ->
                             ocrHardwareTrigger = action
-                        },
-                        onBarcodeClick = {
-                            showOcr = false
-                            showBarcodeScan = true
-                        },
-                        onBpClick = {
-                            // зарезервировано под получение габаритов/веса
                         }
                     )
                 }
@@ -1860,18 +1753,6 @@ fun fillParcelFormInWebView(webView: WebView, data: OcrParcelData) {
     webView.post { webView.evaluateJavascript(js, null) }
 }
 
-
-fun buildParcelFromBarcode(raw: String): OcrParcelData {
-    val clean = raw.trim()
-    val carrier = detectLocalCarrierName(clean)
-    return OcrParcelData(
-        tuid = clean,
-        trackingNo = clean,
-        localCarrierName = carrier,
-        receiverCompany = carrier
-    )
-}
-
 fun detectForwarderByCellCode(cellRaw: String): String? {
     val cell = cellRaw.trim().uppercase()
 
@@ -2059,74 +1940,6 @@ fun clearParcelFormInWebView(webView: WebView) {
     webView.post { webView.evaluateJavascript(js, null) }
 }
 
-fun clearTrackingAndTuidInWebView(webView: WebView) {
-    val js = """
-        (function(){
-          function setValById(id,v){
-            var e=document.getElementById(id);
-            if(e){
-              e.value=v;
-              e.dispatchEvent(new Event('input',{bubbles:true}));
-              e.dispatchEvent(new Event('change',{bubbles:true}));
-            }
-          }
-
-          setValById('tuid','');
-          setValById('trackingNo','');
-        })();
-    """.trimIndent()
-
-    webView.post { webView.evaluateJavascript(js, null) }
-}
-
-fun clearParcelFormExceptTrack(webView: WebView) {
-    val js = """
-        (function(){
-          function setValById(id,v){
-            var e=document.getElementById(id);
-            if(e){
-              e.value=v;
-              e.dispatchEvent(new Event('input',{bubbles:true}));
-              e.dispatchEvent(new Event('change',{bubbles:true}));
-            }
-          }
-          function setValByName(name,v){
-            var e=document.querySelector('[name="'+name+'"]');
-            if(e){
-              e.value=v;
-              e.dispatchEvent(new Event('input',{bubbles:true}));
-              e.dispatchEvent(new Event('change',{bubbles:true}));
-            }
-          }
-          function setText(id,text){
-            var e=document.getElementById(id);
-            if(e){ e.textContent=text; }
-          }
-
-          // не трогаем tuid и trackingNo
-          setValById('carrierName','');
-          setValByName('carrierCode','');     // hidden name="carrierCode"
-
-          setValById('receiverCountry','');
-          setValById('receiverName','');
-          setValById('receiverAddress','');
-          setValById('receiverCompany','');
-
-          setValById('carrierCode','');
-
-          setValById('weightKg','');
-          setValById('sizeL','');
-          setValById('sizeW','');
-          setValById('sizeH','');
-
-          setText('ocrCarrierInfo','');
-        })();
-    """.trimIndent()
-
-    webView.post { webView.evaluateJavascript(js, null) }
-}
-
-
 
 
 fun prepareFormForNextScanInWebView(webView: WebView) {
@@ -2191,208 +2004,6 @@ fun prepareFormForNextScanInWebView(webView: WebView) {
 }
 
 @Composable
-@Composable
-fun BarcodeScanScreen(
-    modifier: Modifier = Modifier,
-    onResult: (String) -> Unit,
-    onCancel: () -> Unit,
-    onBindHardwareTrigger: ( (()->Unit)? ) -> Unit,
-) {
-    val context = LocalContext.current
-    val lifecycleOwner = LocalLifecycleOwner.current
-
-    var hasCameraPermission by remember {
-        mutableStateOf(
-            ContextCompat.checkSelfPermission(
-                context,
-                Manifest.permission.CAMERA
-            ) == PackageManager.PERMISSION_GRANTED
-        )
-    }
-
-    val permissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission(),
-        onResult = { granted -> hasCameraPermission = granted }
-    )
-
-    LaunchedEffect(Unit) {
-        if (!hasCameraPermission) {
-            permissionLauncher.launch(Manifest.permission.CAMERA)
-        }
-    }
-
-    // CameraX
-    val previewView = remember {
-        PreviewView(context).apply {
-            scaleType = PreviewView.ScaleType.FILL_CENTER
-        }
-    }
-
-    val imageCapture = remember {
-        ImageCapture.Builder()
-            .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
-            .build()
-    }
-
-    var errorText by remember { mutableStateOf<String?>(null) }
-    var isProcessing by remember { mutableStateOf(false) }
-
-    fun captureAndScan() {
-        if (isProcessing) return
-
-        errorText = null
-        isProcessing = true
-
-        val executor = ContextCompat.getMainExecutor(context)
-        imageCapture.takePicture(executor, object : ImageCapture.OnImageCapturedCallback() {
-            override fun onCaptureSuccess(image: ImageProxy) {
-                try {
-                    val mediaImage = image.image
-                    if (mediaImage == null) {
-                        errorText = "Нет данных изображения"
-                        return
-                    }
-
-                    val inputImage = InputImage.fromMediaImage(
-                        mediaImage,
-                        image.imageInfo.rotationDegrees
-                    )
-
-                    val options = BarcodeScannerOptions.Builder()
-                        .setBarcodeFormats(
-                            Barcode.FORMAT_CODE_128,
-                            Barcode.FORMAT_CODE_39,
-                            Barcode.FORMAT_CODE_93,
-                            Barcode.FORMAT_CODABAR,
-                            Barcode.FORMAT_EAN_8,
-                            Barcode.FORMAT_EAN_13,
-                            Barcode.FORMAT_UPC_A,
-                            Barcode.FORMAT_UPC_E,
-                            Barcode.FORMAT_QR_CODE
-                        )
-                        .build()
-
-                    val scanner = BarcodeScanning.getClient(options)
-                    scanner.process(inputImage)
-                        .addOnSuccessListener { codes ->
-                            val raw = codes.firstOrNull()?.rawValue
-                            if (raw.isNullOrBlank()) {
-                                errorText = "Штрихкод не найден"
-                            } else {
-                                onResult(raw)
-                            }
-                        }
-                        .addOnFailureListener { e ->
-                            errorText = "Ошибка сканера: ${e.message}"
-                        }
-                        .addOnCompleteListener {
-                            isProcessing = false
-                            image.close()
-                        }
-                } catch (e: Exception) {
-                    errorText = "Сбой камеры"
-                    isProcessing = false
-                    image.close()
-                }
-            }
-
-            override fun onError(exception: ImageCaptureException) {
-                errorText = "Ошибка камеры: ${exception.message}"
-                isProcessing = false
-            }
-        })
-    }
-
-    DisposableEffect(hasCameraPermission) {
-        if (hasCameraPermission) {
-            onBindHardwareTrigger { captureAndScan() }
-        } else {
-            onBindHardwareTrigger(null)
-        }
-
-        onDispose {
-            onBindHardwareTrigger(null)
-        }
-    }
-
-    LaunchedEffect(hasCameraPermission) {
-        if (!hasCameraPermission) return@LaunchedEffect
-
-        val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
-        val cameraProvider = cameraProviderFuture.get()
-
-        val preview = Preview.Builder()
-            .build()
-            .also { it.setSurfaceProvider(previewView.surfaceProvider) }
-
-        val selector = CameraSelector.DEFAULT_BACK_CAMERA
-
-        try {
-            cameraProvider.unbindAll()
-            cameraProvider.bindToLifecycle(
-                lifecycleOwner,
-                selector,
-                preview,
-                imageCapture
-            )
-        } catch (e: Exception) {
-            errorText = "Не удалось открыть камеру"
-        }
-    }
-
-    Box(modifier = modifier.fillMaxSize()) {
-        if (!hasCameraPermission) {
-            Column(
-                modifier = Modifier
-                    .align(Alignment.Center)
-                    .padding(16.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text("Нет доступа к камере")
-                Spacer(Modifier.height(16.dp))
-                OutlinedButton(onClick = onCancel) {
-                    Text("Назад")
-                }
-            }
-        } else {
-            AndroidView(
-                modifier = Modifier.fillMaxSize(),
-                factory = { previewView }
-            )
-
-            Column(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                errorText?.let {
-                    Text(it, color = MaterialTheme.colorScheme.error)
-                    Spacer(Modifier.height(8.dp))
-                }
-
-                if (isProcessing) {
-                    Text("Сканирование…")
-                }
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    OutlinedButton(onClick = onCancel, enabled = !isProcessing) {
-                        Text("Отмена")
-                    }
-
-                    Button(onClick = { captureAndScan() }, enabled = !isProcessing) {
-                        Text("BarScann")
-                    }
-                }
-            }
-        }
-    }
-}
-
 fun OcrScanScreen(
     modifier: Modifier = Modifier,
     destConfig: List<DestCountryCfg>,          // ДОБАВЛЕНО
@@ -2401,9 +2012,7 @@ fun OcrScanScreen(
     isDefaultMode: Boolean,
     onResult: (OcrParcelData) -> Unit,
     onCancel: () -> Unit,
-    onBindHardwareTrigger: ((() -> Unit)?) -> Unit,
-    onBarcodeClick: (() -> Unit)? = null,
-    onBpClick: (() -> Unit)? = null,
+    onBindHardwareTrigger: ((() -> Unit)?) -> Unit
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -2700,7 +2309,7 @@ fun OcrScanScreen(
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
+                    horizontalArrangement = Arrangement.SpaceEvenly
                 ) {
                     OutlinedButton(
                         onClick = onCancel,
@@ -2710,31 +2319,10 @@ fun OcrScanScreen(
                     }
 
                     Button(
-                        onClick = { onBarcodeClick?.invoke() },
-                        enabled = !isProcessing
-                    ) {
-                        Text("BarScann")
-                    }
-
-                    Button(
                         onClick = { captureAndRecognize() },
                         enabled = !isProcessing
                     ) {
-                        Text("OcrScann")
-                    }
-
-                    Button(
-                        onClick = { onBpClick?.invoke() },
-                        enabled = !isProcessing
-                    ) {
-                        Text("BP")
-                    }
-
-                    OutlinedButton(
-                        onClick = onCancel,
-                        enabled = !isProcessing
-                    ) {
-                        Text("Отмена")
+                        Text("Сканировать")
                     }
                 }
             }
