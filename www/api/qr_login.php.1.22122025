@@ -36,7 +36,6 @@ $stmt = $dbcnx->prepare("
      WHERE device_uid = ?
      LIMIT 1
 ");
-/*
 $stmt->bind_param("s", $deviceUid);
 $stmt->execute();
 $resDev = $stmt->get_result();
@@ -46,14 +45,9 @@ $stmt->close();
 if (!$dev) {
     http_response_code(403);
     echo json_encode(['status' => 'error', 'message' => 'device not registered'], JSON_UNESCAPED_UNICODE);
-*/
-$auth = auth_device_by_token($deviceUid, $deviceToken, true);
-if (!$auth['ok']) {
-    http_response_code($auth['http_code'] ?? 403);
-    echo json_encode(['status' => 'error', 'message' => $auth['message'] ?? 'auth error'], JSON_UNESCAPED_UNICODE);
     exit;
 }
-/*
+
 // проверяем токен устройства
 if (!hash_equals($dev['device_token'], $deviceToken)) {
     http_response_code(403);
@@ -67,8 +61,7 @@ if ((int)$dev['is_active'] !== 1) {
     echo json_encode(['status' => 'error', 'message' => 'device not activated'], JSON_UNESCAPED_UNICODE);
     exit;
 }
-*/
-$dev = $auth['device'];
+
 /**
  * 2) Ищем пользователя по QR-токену
  *    Имя колонки подставь своё: qr_login_token / qr_token / что сделал

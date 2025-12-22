@@ -137,7 +137,7 @@ switch ($mode) {
         }
 
         // Проверяем устройство и его активность
-        $stmt = $dbcnx->prepare("SELECT id, is_active FROM devices WHERE device_uid = ? AND device_token = ? LIMIT 1");
+/*        $stmt = $dbcnx->prepare("SELECT id, is_active FROM devices WHERE device_uid = ? AND device_token = ? LIMIT 1");
         $stmt->bind_param("ss", $deviceUid, $deviceToken);
         $stmt->execute();
         $res = $stmt->get_result();
@@ -153,15 +153,19 @@ switch ($mode) {
         }
 
         if ((int)$dev['is_active'] !== 1) {
+*/
+        $auth = auth_device_by_token($deviceUid, $deviceToken, true);
+        if (!$auth['ok']) {
             echo json_encode(
-                ['status' => 'error', 'message' => 'device not activated'],
+//                ['status' => 'error', 'message' => 'device not activated'],
+                ['status' => 'error', 'message' => $auth['message'] ?? 'auth error'],
                 JSON_UNESCAPED_UNICODE
             );
             exit;
         }
 
-        $deviceId = (int)$dev['id'];
-
+//        $deviceId = (int)$dev['id'];
+        $deviceId = (int)$auth['device']['id'];
         // Логиним пользователя по QR-токену
         $user = auth_login_by_qr_token($qrToken);
         if (!$user) {
