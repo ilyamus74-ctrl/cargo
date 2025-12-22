@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2025-12-04 16:18:36
+/* Smarty version 5.3.1, created on 2025-12-17 15:30:43
   from 'file:cells_NA_footer.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_6931b45c9a8672_64131433',
+  'unifunc' => 'content_6942cca3ef26d0_12003730',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     'b37ac842122f0dc38dc516cd64e3813a1a743d43' => 
     array (
       0 => 'cells_NA_footer.html',
-      1 => 1764843173,
+      1 => 1765985428,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_6931b45c9a8672_64131433 (\Smarty\Template $_smarty_tpl) {
+function content_6942cca3ef26d0_12003730 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>
   <!-- ======= Footer ======= -->
@@ -72,6 +72,35 @@ $_smarty_current_dir = '/home/cells/web/templates';
   <?php echo '<script'; ?>
  src="js/core_api.js"><?php echo '</script'; ?>
 >
+<?php echo '<script'; ?>
+>
+$(document).ready(function () {
+  // Используем делегирование событий
+  $(document).on('click', '.btn-outline-primary', function() {
+    printUserQr();  // Вызов функции при клике на кнопку
+  });
+});
 
+function printUserQr() {
+  const qrImage = document.getElementById('user-qr-image');
+  if (!qrImage) {
+    return;
+  }
+
+  const printWindow = window.open('', 'print-qr');
+  if (!printWindow) {
+    return;
+  }
+
+  printWindow.document.write('<html><head><title>QR</title></head><body style="margin:0; display:flex; justify-content:center; align-items:center; padding:20px;">');
+  printWindow.document.write('<img src="' + qrImage.src + '" style="max-width:100%; height:auto;">');
+  printWindow.document.write('</body></html>');
+  printWindow.document.close();
+  printWindow.focus();
+  printWindow.print();
+  printWindow.close();
+}
+<?php echo '</script'; ?>
+>
 <?php }
 }

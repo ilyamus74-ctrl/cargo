@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2025-12-16 12:17:06
+/* Smarty version 5.3.1, created on 2025-12-17 15:30:47
   from 'file:cells_NA_API_profile.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_69414dc297e7e4_10122394',
+  'unifunc' => 'content_6942cca76e1ad1_96206078',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '0d25ca146ef359be6b7ece6c255ef91c3f386b11' => 
     array (
       0 => 'cells_NA_API_profile.html',
-      1 => 1765887424,
+      1 => 1765985441,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_69414dc297e7e4_10122394 (\Smarty\Template $_smarty_tpl) {
+function content_6942cca76e1ad1_96206078 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>
 <section class="section profile">
@@ -290,8 +290,8 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
                               <div class="form-text">
                                 Отсканируйте этот QR в приложении сканера.
                               </div>
-                              <!--<button type="button" class="btn btn-outline-primary mt-2" onclick="printUserQr()">Распечатать</button>
-                            --></div>
+                              <button type="button" class="btn btn-outline-primary mt-2" onclick="printUserQr()">Распечатать</button>
+                            </div>
                           </div>
                         <?php } else { ?>
                           <span class="text-muted">QR ещё не сгенерирован. Нажмите «Обновить QR для всех».</span>
@@ -329,34 +329,6 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
 
     </div>
   </div>
-  <?php echo '<script'; ?>
- type="text/javascript" defer>
-  $(document).ready(function () {
-    $(document).on('click', '.btn-outline-primary', printUserQr);
-  });
-
-  function printUserQr() {
-    const qrImage = document.getElementById('user-qr-image');
-    if (!qrImage) {
-      return;
-    }
-
-    const printWindow = window.open('', 'print-qr');
-    if (!printWindow) {
-      return;
-    }
-
-    printWindow.document.write('<html><head><title>QR</title></head><body style="margin:0; display:flex; justify-content:center; align-items:center; padding:20px;">');
-    printWindow.document.write('<img src="' + qrImage.src + '" style="max-width:100%; height:auto;">');
-    printWindow.document.write('</body></html>');
-    printWindow.document.close();
-    printWindow.focus();
-    printWindow.print();
-    printWindow.close();
-  }
-<?php echo '</script'; ?>
->
-
 </section>
 <?php }
 }

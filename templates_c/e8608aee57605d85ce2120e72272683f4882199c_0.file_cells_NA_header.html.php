@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2025-12-04 16:18:36
+/* Smarty version 5.3.1, created on 2025-12-17 15:26:01
   from 'file:cells_NA_header.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_6931b45c981317_13308252',
+  'unifunc' => 'content_6942cb8986b746_91452004',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     'e8608aee57605d85ce2120e72272683f4882199c' => 
     array (
       0 => 'cells_NA_header.html',
-      1 => 1764843163,
+      1 => 1765984907,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_6931b45c981317_13308252 (\Smarty\Template $_smarty_tpl) {
+function content_6942cb8986b746_91452004 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>
 <head>
@@ -58,7 +58,6 @@ $_smarty_current_dir = '/home/cells/web/templates';
   * Author: BootstrapMade.com
   * License: https://bootstrapmade.com/license/
   ======================================================== -->
-
 
 </head>
 

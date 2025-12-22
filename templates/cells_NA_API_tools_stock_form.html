@@ -115,8 +115,10 @@
                     {if $edit_tool.qr_codes}
                       {foreach $edit_tool.qr_codes as $qr}
                         <div class="d-flex flex-column align-items-center">
-                          <img src="{$qr.path}" alt="QR {$qr.size}" class="" style="width:90px; height:90px; object-fit:cover;">
+                          <img src="{$qr.path}" id="user-qr-image" alt="QR {$qr.size}" class="" style="width:90px; height:90px; object-fit:cover;">
                           <small class="text-muted">{$qr.size}</small>
+                          <button type="button" class="btn btn-outline-primary mt-2" onclick="printUserQr()">Распечатать</button>
+
                         </div>
                       {/foreach}
                     {else}
