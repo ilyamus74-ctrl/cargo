@@ -71,6 +71,12 @@ import android.net.Uri
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.graphics.Color
+import androidx.compose.foundation.Image
+import androidx.compose.ui.graphics.asImageBitmap
+import android.graphics.Bitmap
+import android.graphics.Color as AndroidColor
+import com.google.zxing.BarcodeFormat
+import com.google.zxing.qrcode.QRCodeWriter
 
 private val INSTALL_MAIN_OBSERVER_JS = """
 (function(){
@@ -144,6 +150,98 @@ data class UsbUiState(
     val logText: String? = null,
     val calibrated: UsbCalibratedMetrics = UsbCalibratedMetrics()
 )
+
+private const val STABLE_CYCLES = 5
+private const val STABLE_WEIGHT_TOLERANCE_G = 30
+private const val STABLE_SIZE_TOLERANCE_MM = 5
+
+data class MeasurementValues(
+    val widthMm: Int,
+    val depthMm: Int,
+    val heightMm: Int,
+    val weightGrams: Int
+)
+
+data class MeasurementState(
+    val lastValues: MeasurementValues? = null,
+    val stableCount: Int = 0,
+    val isStable: Boolean = false,
+    val qrPayload: String? = null
+)
+
+fun updateMeasurementState(
+    previous: MeasurementState,
+    calibrated: UsbCalibratedMetrics
+): MeasurementState {
+    val current = buildMeasurementValues(calibrated) ?: return MeasurementState()
+    val previousValues = previous.lastValues
+    val stableCount = if (previousValues != null && isWithinTolerance(previousValues, current)) {
+        previous.stableCount + 1
+    } else {
+        1
+    }
+    val isStable = stableCount >= STABLE_CYCLES
+    val qrPayload = if (isStable) buildMeasurementPayload(current) else null
+    return MeasurementState(
+        lastValues = current,
+        stableCount = stableCount,
+        isStable = isStable,
+        qrPayload = qrPayload
+    )
+}
+
+fun buildMeasurementValues(calibrated: UsbCalibratedMetrics): MeasurementValues? {
+    val width = calibrated.widthMm
+    val depth = calibrated.depthMm
+    val height = calibrated.heightMm
+    val weight = calibrated.weightGrams
+    if (width == null || depth == null || height == null || weight == null) return null
+    if (width <= 0 || depth <= 0 || height <= 0 || weight <= 0) return null
+    return MeasurementValues(
+        widthMm = width,
+        depthMm = depth,
+        heightMm = height,
+        weightGrams = weight
+    )
+}
+
+fun isWithinTolerance(previous: MeasurementValues, current: MeasurementValues): Boolean {
+    val weightDelta = kotlin.math.abs(previous.weightGrams - current.weightGrams)
+    val widthDelta = kotlin.math.abs(previous.widthMm - current.widthMm)
+    val depthDelta = kotlin.math.abs(previous.depthMm - current.depthMm)
+    val heightDelta = kotlin.math.abs(previous.heightMm - current.heightMm)
+    return weightDelta <= STABLE_WEIGHT_TOLERANCE_G &&
+        widthDelta <= STABLE_SIZE_TOLERANCE_MM &&
+        depthDelta <= STABLE_SIZE_TOLERANCE_MM &&
+        heightDelta <= STABLE_SIZE_TOLERANCE_MM
+}
+
+fun buildMeasurementPayload(values: MeasurementValues): String {
+    return JSONObject()
+        .put("weight_g", values.weightGrams)
+        .put("width_mm", values.widthMm)
+        .put("depth_mm", values.depthMm)
+        .put("height_mm", values.heightMm)
+        .toString()
+}
+
+fun generateQrBitmap(payload: String, sizePx: Int): Bitmap? {
+    return try {
+        val bitMatrix = QRCodeWriter().encode(payload, BarcodeFormat.QR_CODE, sizePx, sizePx)
+        val width = bitMatrix.width
+        val height = bitMatrix.height
+        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        for (x in 0 until width) {
+            for (y in 0 until height) {
+                val color = if (bitMatrix[x, y]) AndroidColor.BLACK else AndroidColor.WHITE
+                bitmap.setPixel(x, y, color)
+            }
+        }
+        bitmap
+    } catch (e: Exception) {
+        null
+    }
+}
 class MainActivity : ComponentActivity() {
     companion object {
         var onVolumeDown: (() -> Unit)? = null
@@ -210,6 +308,7 @@ fun AppRoot() {
     var showUsbMetrics by remember { mutableStateOf(false) }
     var usbDisplayMode by remember { mutableStateOf(UsbDisplayMode.PROD) }
     var usbUiState by remember { mutableStateOf(UsbUiState()) }
+    var measurementState by remember { mutableStateOf(MeasurementState()) }
 
     // ссылка на WebView
     var webViewRef by remember { mutableStateOf<WebView?>(null) }
@@ -239,6 +338,10 @@ fun AppRoot() {
 
     // трекинг двойного нажатия
     var lastVolumeUpTs by remember { mutableStateOf(0L) }
+
+    LaunchedEffect(usbUiState.calibrated) {
+        measurementState = updateMeasurementState(measurementState, usbUiState.calibrated)
+    }
 
     // колбэк, который будет вызываться при VOL_DOWN, когда открыт OCR
     var ocrHardwareTrigger by remember { mutableStateOf<(() -> Unit)?>(null) }
@@ -642,6 +745,7 @@ fun AppRoot() {
                         modifier = Modifier.fillMaxSize(),
                         displayMode = usbDisplayMode,
                         uiState = usbUiState,
+                        measurementState = measurementState,
                         onClose = {
                             showUsbMetrics = false
                         }
@@ -978,6 +1082,7 @@ fun UsbMetricsScreen(
     modifier: Modifier = Modifier,
     displayMode: UsbDisplayMode,
     uiState: UsbUiState,
+    measurementState: MeasurementState,
     onClose: () -> Unit
 ) {
     val scrollState = rememberScrollState()
@@ -1110,6 +1215,30 @@ fun UsbMetricsScreen(
                     append(", размер=")
                     append(formatMm(deviation.sizeDeltaMm))
                 },
+                style = MaterialTheme.typography.bodySmall
+            )
+        }
+
+        Spacer(Modifier.height(20.dp))
+        Text(
+            text = "Стабильность: ${measurementState.stableCount}/$STABLE_CYCLES",
+            style = MaterialTheme.typography.bodyMedium
+        )
+        if (measurementState.isStable && measurementState.qrPayload != null) {
+            Spacer(Modifier.height(12.dp))
+            val qrBitmap = remember(measurementState.qrPayload) {
+                generateQrBitmap(measurementState.qrPayload, 512)
+            }
+            if (qrBitmap != null) {
+                Image(
+                    bitmap = qrBitmap.asImageBitmap(),
+                    contentDescription = "QR с измерениями",
+                    modifier = Modifier.size(220.dp)
+                )
+                Spacer(Modifier.height(8.dp))
+            }
+            Text(
+                text = measurementState.qrPayload,
                 style = MaterialTheme.typography.bodySmall
             )
         }
