@@ -225,6 +225,101 @@ fun buildMeasurementPayload(values: MeasurementValues): String {
         .toString()
 }
 
+
+data class StandMeasurementPushResult(
+    val ok: Boolean,
+    val errorMessage: String?
+)
+
+suspend fun pushStandMeasurement(
+    context: Context,
+    cfg: DeviceConfig,
+    values: MeasurementValues
+): StandMeasurementPushResult = withContext(Dispatchers.IO) {
+    val baseUrl = cfg.serverUrl.trim()
+    if (baseUrl.isEmpty()) {
+        return@withContext StandMeasurementPushResult(false, "Пустой Server URL")
+    }
+    if (cfg.deviceToken.isNullOrBlank()) {
+        return@withContext StandMeasurementPushResult(false, "Нет device_token (устройство не привязано)")
+    }
+
+    val urlStr = baseUrl.trimEnd('/') + "/api/stand_measurement_push.php"
+    val url = URL(urlStr)
+    val conn = (url.openConnection() as HttpURLConnection)
+
+    if (conn is HttpsURLConnection && cfg.allowInsecureSsl) {
+        val trustAllCerts = arrayOf<TrustManager>(
+            object : X509TrustManager {
+                override fun checkClientTrusted(chain: Array<X509Certificate>, authType: String) { }
+                override fun checkServerTrusted(chain: Array<X509Certificate>, authType: String) { }
+                override fun getAcceptedIssuers(): Array<X509Certificate> = emptyArray()
+            }
+        )
+
+        val sslContext = SSLContext.getInstance("TLS")
+        sslContext.init(null, trustAllCerts, SecureRandom())
+        conn.sslSocketFactory = sslContext.socketFactory
+        conn.hostnameVerifier = HostnameVerifier { _: String?, _: SSLSession? -> true }
+    }
+
+    try {
+        conn.requestMethod = "POST"
+        conn.connectTimeout = 5000
+        conn.readTimeout = 5000
+        conn.doOutput = true
+        conn.setRequestProperty("Content-Type", "application/json; charset=utf-8")
+
+        val json = JSONObject().apply {
+            put("stand_id", cfg.deviceUid)
+            put("device_uid", cfg.deviceUid)
+            put("device_token", cfg.deviceToken)
+            put("measurements", JSONObject().apply {
+                put("weight_g", values.weightGrams)
+                put("width_mm", values.widthMm)
+                put("depth_mm", values.depthMm)
+                put("height_mm", values.heightMm)
+            })
+        }
+
+        val bodyBytes = json.toString().toByteArray(Charsets.UTF_8)
+        conn.outputStream.use { it.write(bodyBytes) }
+
+        val code = conn.responseCode
+        val stream: InputStream? =
+            if (code in 200..299) conn.inputStream else conn.errorStream
+
+        val respText = stream
+            ?.bufferedReader(Charsets.UTF_8)
+            ?.use { it.readText() }
+            ?: ""
+
+        if (respText.isBlank()) {
+            return@withContext StandMeasurementPushResult(false, "Пустой ответ сервера (HTTP $code)")
+        }
+
+        val obj = try {
+            JSONObject(respText)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            return@withContext StandMeasurementPushResult(false, "Некорректный JSON ответа")
+        }
+
+        val status = obj.optString("status", "error")
+        if (status != "ok") {
+            val msg = obj.optString("message", "status != ok")
+            return@withContext StandMeasurementPushResult(false, msg)
+        }
+
+        StandMeasurementPushResult(true, null)
+    } catch (e: Exception) {
+        e.printStackTrace()
+        StandMeasurementPushResult(false, e.message ?: "Ошибка соединения")
+    } finally {
+        conn.disconnect()
+    }
+}
+
 fun generateQrBitmap(payload: String, sizePx: Int): Bitmap? {
     return try {
         val bitMatrix = QRCodeWriter().encode(payload, BarcodeFormat.QR_CODE, sizePx, sizePx)
@@ -309,6 +404,7 @@ fun AppRoot() {
     var usbDisplayMode by remember { mutableStateOf(UsbDisplayMode.PROD) }
     var usbUiState by remember { mutableStateOf(UsbUiState()) }
     var measurementState by remember { mutableStateOf(MeasurementState()) }
+    var lastSentMeasurementKey by remember { mutableStateOf<String?>(null) }
 
     // ссылка на WebView
     var webViewRef by remember { mutableStateOf<WebView?>(null) }
@@ -342,6 +438,22 @@ fun AppRoot() {
     LaunchedEffect(usbUiState.calibrated) {
         measurementState = updateMeasurementState(measurementState, usbUiState.calibrated)
     }
+
+    LaunchedEffect(measurementState.isStable, measurementState.lastValues, config.deviceToken, config.serverUrl) {
+        val values = measurementState.lastValues ?: return@LaunchedEffect
+        if (!measurementState.isStable) return@LaunchedEffect
+        if (config.deviceToken.isNullOrBlank()) return@LaunchedEffect
+        if (config.serverUrl.isBlank()) return@LaunchedEffect
+
+        val key = "${values.weightGrams}:${values.widthMm}:${values.depthMm}:${values.heightMm}"
+        if (key == lastSentMeasurementKey) return@LaunchedEffect
+
+        val result = pushStandMeasurement(context, config, values)
+        if (result.ok) {
+            lastSentMeasurementKey = key
+        }
+    }
+
 
     // колбэк, который будет вызываться при VOL_DOWN, когда открыт OCR
     var ocrHardwareTrigger by remember { mutableStateOf<(() -> Unit)?>(null) }

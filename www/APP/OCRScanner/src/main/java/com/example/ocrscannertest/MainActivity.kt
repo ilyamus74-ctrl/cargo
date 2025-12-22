@@ -67,6 +67,7 @@ import android.os.Handler
 import android.os.Looper
 import android.net.Uri
 import androidx.compose.ui.text.font.FontWeight
+import android.widget.Toast
 
 
 private val INSTALL_MAIN_OBSERVER_JS = """
@@ -547,9 +548,7 @@ fun AppRoot() {
                             showOcr = false
                             showBarcodeScan = true
                         },
-                        onBpClick = {
-                            // зарезервировано под получение габаритов/веса
-                        }
+                        onBpClick = null
                     )
                 }
             }
@@ -578,6 +577,7 @@ fun SettingsScreen(
 
     var serverUrl by remember { mutableStateOf(config.serverUrl) }
     var deviceName by remember { mutableStateOf(config.deviceName) }
+    var standId by remember { mutableStateOf(config.standId) }
     var statusText by remember { mutableStateOf("") }
     var isBusy by remember { mutableStateOf(false) }
     var allowInsecure by remember { mutableStateOf(config.allowInsecureSsl) }
@@ -610,6 +610,16 @@ fun SettingsScreen(
             value = deviceName,
             onValueChange = { newVal -> deviceName = newVal },
             label = { Text("Имя устройства") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        Spacer(Modifier.height(12.dp))
+
+        OutlinedTextField(
+            value = standId,
+            onValueChange = { newVal -> standId = newVal },
+            label = { Text("Stand ID") },
             singleLine = true,
             modifier = Modifier.fillMaxWidth()
         )
@@ -697,6 +707,7 @@ fun SettingsScreen(
                         val updated = config.copy(
                             serverUrl = serverUrl.trim(),
                             deviceName = deviceName.trim(),
+                            standId = standId.trim(),
                             allowInsecureSsl = allowInsecure,
                             useRemoteOcr = useRemoteOcr,
                             syncNameDict = syncNameDict
@@ -1123,6 +1134,98 @@ suspend fun callRemoteOcrParse(
     } catch (e: Exception) {
         e.printStackTrace()
         RemoteOcrResult(false, null, e.message ?: "Ошибка соединения")
+    } finally {
+        conn.disconnect()
+    }
+}
+
+
+data class StandMeasurementResult(
+    val ok: Boolean,
+    val payload: JSONObject?,
+    val errorMessage: String?
+)
+
+suspend fun fetchStandMeasurement(
+    context: Context,
+    cfg: DeviceConfig,
+    standId: String
+): StandMeasurementResult = withContext(Dispatchers.IO) {
+    val baseUrl = cfg.serverUrl.trim()
+    if (baseUrl.isEmpty()) {
+        return@withContext StandMeasurementResult(false, null, "Пустой Server URL")
+    }
+    if (cfg.deviceToken.isNullOrBlank()) {
+        return@withContext StandMeasurementResult(false, null, "Нет device_token (устройство не привязано)")
+    }
+    if (standId.isBlank()) {
+        return@withContext StandMeasurementResult(false, null, "Не указан stand_id")
+    }
+
+    val urlStr = baseUrl.trimEnd('/') + "/api/stand_measurement_get.php"
+    val url = URL(urlStr)
+    val conn = (url.openConnection() as HttpURLConnection)
+
+    if (conn is HttpsURLConnection && cfg.allowInsecureSsl) {
+        val trustAllCerts = arrayOf<TrustManager>(
+            object : X509TrustManager {
+                override fun checkClientTrusted(chain: Array<X509Certificate>, authType: String) {}
+                override fun checkServerTrusted(chain: Array<X509Certificate>, authType: String) {}
+                override fun getAcceptedIssuers(): Array<X509Certificate> = emptyArray()
+            }
+        )
+        val sslContext = SSLContext.getInstance("TLS")
+        sslContext.init(null, trustAllCerts, SecureRandom())
+        conn.sslSocketFactory = sslContext.socketFactory
+        conn.hostnameVerifier = HostnameVerifier { _: String?, _: SSLSession? -> true }
+    }
+
+    try {
+        conn.requestMethod = "POST"
+        conn.connectTimeout = 5000
+        conn.readTimeout = 5000
+        conn.doOutput = true
+        conn.setRequestProperty("Content-Type", "application/json; charset=utf-8")
+
+        val json = JSONObject().apply {
+            put("stand_id", standId)
+            put("device_uid", cfg.deviceUid)
+            put("device_token", cfg.deviceToken)
+        }
+
+        val bodyBytes = json.toString().toByteArray(Charsets.UTF_8)
+        conn.outputStream.use { it.write(bodyBytes) }
+
+        val code = conn.responseCode
+        val stream: InputStream? =
+            if (code in 200..299) conn.inputStream else conn.errorStream
+
+        val respText = stream
+            ?.bufferedReader(Charsets.UTF_8)
+            ?.use { it.readText() }
+            ?: ""
+
+        if (respText.isBlank()) {
+            return@withContext StandMeasurementResult(false, null, "Пустой ответ сервера (HTTP $code)")
+        }
+
+        val obj = try {
+            JSONObject(respText)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            return@withContext StandMeasurementResult(false, null, "Некорректный JSON ответа")
+        }
+
+        val status = obj.optString("status", "error")
+        if (status != "ok") {
+            val msg = obj.optString("message", "status != ok")
+            return@withContext StandMeasurementResult(false, null, msg)
+        }
+
+        StandMeasurementResult(true, obj.optJSONObject("data"), null)
+    } catch (e: Exception) {
+        e.printStackTrace()
+        StandMeasurementResult(false, null, e.message ?: "Ошибка соединения")
     } finally {
         conn.disconnect()
     }
@@ -2516,7 +2619,8 @@ fun OcrScanScreen(
 
     var isProcessing by remember { mutableStateOf(false) }
     var errorText by remember { mutableStateOf<String?>(null) }
-
+    var measurementText by remember { mutableStateOf<String?>(null) }
+    
     fun startCamera() {
         val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
         val cameraProvider = cameraProviderFuture.get()
@@ -2682,6 +2786,27 @@ fun OcrScanScreen(
         )
     }
 
+    fun requestStandMeasurement() {
+        if (isProcessing) return
+        measurementText = "Запрашиваю габариты…"
+
+        scope.launch {
+            val result = fetchStandMeasurement(context, config, config.standId)
+            if (result.ok && result.payload != null) {
+                val measurements = result.payload.optJSONObject("measurements")
+                val weight = measurements?.optInt("weight_g")
+                val width = measurements?.optInt("width_mm")
+                val depth = measurements?.optInt("depth_mm")
+                val height = measurements?.optInt("height_mm")
+                measurementText = "Габариты: ${width}×${depth}×${height} мм, ${weight} г"
+                Toast.makeText(context, measurementText, Toast.LENGTH_SHORT).show()
+            } else {
+                measurementText = "Ошибка: ${result.errorMessage ?: "нет данных"}"
+                Toast.makeText(context, measurementText, Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
 
 
     // ===== Привязка VOL_DOWN к captureAndRecognize =====
@@ -2754,6 +2879,11 @@ fun OcrScanScreen(
                     Spacer(Modifier.height(8.dp))
                 }
 
+                measurementText?.let {
+                    Text(text = it)
+                    Spacer(Modifier.height(8.dp))
+                }
+
                 if (isProcessing) {
                     Text("Обработка снимка…")
                     Spacer(Modifier.height(8.dp))
@@ -2788,7 +2918,7 @@ fun OcrScanScreen(
                     }
 
                     Button(
-                        onClick = { onBpClick?.invoke() },
+                        onClick = { (onBpClick ?: ::requestStandMeasurement).invoke() },
                         enabled = !isProcessing
                     ) {
                         Text("BP")
@@ -3330,4 +3460,5 @@ fun parseScanTaskConfig(json: String): ScanTaskConfig? = try {
     val barcode = parseScanAction(obj.optJSONObject("barcode"))
     val qr = parseScanAction(obj.optJSONObject("qr"))
     ScanTaskConfig(taskId, def, modes, barcode, qr)
+
 } catch (e: Exception) { null }
