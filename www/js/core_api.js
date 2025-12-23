@@ -186,6 +186,32 @@ document.addEventListener('click', function (event) {
 
 window.requestStandMeasurement = requestStandMeasurement;
 
+function initStandDevicePersistence() {
+    var select = document.getElementById('standDevice');
+    if (!select || !window.localStorage) return;
+    var storageKey = 'warehouse_stand_device_uid';
+    var storedValue = localStorage.getItem(storageKey);
+    if (storedValue) {
+        var hasOption = Array.prototype.some.call(select.options, function (opt) {
+            return opt.value === storedValue;
+        });
+        if (hasOption) {
+            select.value = storedValue;
+            select.dispatchEvent(new Event('change', { bubbles: true }));
+        } else {
+            localStorage.removeItem(storageKey);
+        }
+    }
+
+    select.addEventListener('change', function () {
+        if (select.value) {
+            localStorage.setItem(storageKey, select.value);
+        }
+    });
+}
+
+document.addEventListener('DOMContentLoaded', initStandDevicePersistence);
+
 function setSelectValWait(id,v,tries){
   var e=document.getElementById(id);
   if(!e) return;
