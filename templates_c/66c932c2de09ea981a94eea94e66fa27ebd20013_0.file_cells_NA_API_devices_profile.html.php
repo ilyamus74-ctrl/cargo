@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2025-12-15 15:54:53
+/* Smarty version 5.3.1, created on 2025-12-22 19:27:10
   from 'file:cells_NA_API_devices_profile.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_69402f4d100522_43765545',
+  'unifunc' => 'content_69499b8ebdad28_34693778',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '66c932c2de09ea981a94eea94e66fa27ebd20013' => 
     array (
       0 => 'cells_NA_API_devices_profile.html',
-      1 => 1765813759,
+      1 => 1765985650,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_69402f4d100522_43765545 (\Smarty\Template $_smarty_tpl) {
+function content_69499b8ebdad28_34693778 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>
 <section class="section profile">
@@ -236,6 +236,7 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
 
     </div>
   </div>
+
 </section>
 <?php }
 }

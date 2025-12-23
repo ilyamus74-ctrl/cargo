@@ -24,6 +24,7 @@ $ROUTES = [
     'logout.html'=> 'logout.php',
     'logout.php' => 'logout.php',
     'logout'     => 'logout.php',
+
     // сюда потом добавишь остальные страницы
 ];
 

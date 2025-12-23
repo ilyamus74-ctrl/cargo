@@ -1,6 +1,6 @@
 @file:OptIn(androidx.camera.core.ExperimentalGetImage::class)
 
-package com.example.ocrscannertest
+package com.example.testocrrawtext
 import android.content.Context
 import android.os.Build
 import kotlinx.coroutines.Dispatchers
@@ -32,11 +32,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleOwner
-import com.example.ocrscannertest.ui.theme.OcrScannerTestTheme
+import com.example.testocrrawtext.ui.theme.OcrScannerTestTheme
 import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.barcode.BarcodeScannerOptions
-import com.google.mlkit.vision.barcode.BarcodeScanning
-import com.google.mlkit.vision.common.InputImage
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import androidx.camera.core.*
@@ -58,15 +56,10 @@ import android.webkit.SslErrorHandler
 import android.net.http.SslError
 import android.webkit.CookieManager
 import android.view.KeyEvent
-import com.google.mlkit.vision.text.TextRecognition
-import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.background
 import androidx.compose.foundation.shape.RoundedCornerShape
-import android.webkit.JavascriptInterface
-import android.os.Handler
-import android.os.Looper
 import android.net.Uri
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.font.FontFamily
@@ -78,46 +71,7 @@ import android.graphics.Color as AndroidColor
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.qrcode.QRCodeWriter
 
-private val INSTALL_MAIN_OBSERVER_JS = """
-(function(){
-  if (window.__deviceMainObserverInstalled) return;
-  window.__deviceMainObserverInstalled = true;
 
-function read(id){
-  var el = document.getElementById(id);
-  if(!el) return null;
-  var t = (el.textContent || el.innerText || "").trim();
-  if (!t || t === "null" || t === "undefined") return null;
-  return t;
-}
-
-  function emit(){
-    try{
-      var payload = {
-        task: read("device-scan-config"),
-        ocr_templates: read("ocr-templates"),
-        destcountry: read("ocr-templates-destcountry"),
-        ////dicts: read("ocr-dicts")
-      };
-      if (window.DeviceApp && window.DeviceApp.onMainContext) {
-        window.DeviceApp.onMainContext(JSON.stringify(payload));
-      }
-    } catch(e){}
-  }
-
-  var t=null;
-  function schedule(){ clearTimeout(t); t=setTimeout(emit,120); }
-
-var root = document.getElementById("main") || document.body;
-if (root) new MutationObserver(schedule).observe(root, {childList:true, subtree:true});
-
-
-  emit();
-})();
-""".trimIndent()
-
-
-enum class WarehouseScanStep { BARCODE, OCR, SUBMIT }
 enum class UsbDisplayMode { DEBUG, PROD }
 
 data class UsbRawMetrics(
@@ -374,7 +328,7 @@ class MainActivity : ComponentActivity() {
         )
 
         setContent {
-            OcrScannerTestTheme {
+            TestOCRRawTextTheme {
                 AppRoot()
             }
         }
@@ -396,8 +350,6 @@ fun AppRoot() {
     var showWebView by remember { mutableStateOf(false) }
     // ===== Конец блока авторизации/настроек =====
 
-    // новый экран для OCR
-    var showOcr by remember { mutableStateOf(false) }
 
     // экран USB/габаритов
     var showUsbMetrics by remember { mutableStateOf(false) }
@@ -408,29 +360,14 @@ fun AppRoot() {
 
     // ссылка на WebView
     var webViewRef by remember { mutableStateOf<WebView?>(null) }
-    var ocrTemplates by remember { mutableStateOf<OcrTemplates?>(null) }
     var lastQr by remember { mutableStateOf<String?>(null) }
     var loginError by remember { mutableStateOf<String?>(null) }
     var isLoggingIn by remember { mutableStateOf(false) }
-    var destConfig by remember { mutableStateOf<List<DestCountryCfg>>(emptyList()) }
-
-    var nameDict by remember { mutableStateOf<NameDict?>(null) }
 
     // session_id из сервера (по факту сейчас только храним для информации)
     var sessionId by remember { mutableStateOf<String?>(null) }
 
     var menuExpanded by remember { mutableStateOf(false) }
-    var taskConfigJson by remember { mutableStateOf<String?>(null) }
-    var taskConfig by remember { mutableStateOf<ScanTaskConfig?>(null) }
-
-    var ocrIsDefault by remember { mutableStateOf(false) }
-
-    // Шаги потока складского сканирования
-
-    var warehouseScanStep by remember { mutableStateOf(WarehouseScanStep.BARCODE) }
-
-    // Оверлей штрих-кодов
-    var showBarcodeScan by remember { mutableStateOf(false) }
 
     // трекинг двойного нажатия
     var lastVolumeUpTs by remember { mutableStateOf(0L) }
@@ -455,17 +392,19 @@ fun AppRoot() {
     }
 
 
-    // колбэк, который будет вызываться при VOL_DOWN, когда открыт OCR
-    var ocrHardwareTrigger by remember { mutableStateOf<(() -> Unit)?>(null) }
-    var barcodeHardwareTrigger by remember { mutableStateOf<(() -> Unit)?>(null) }
-    LaunchedEffect(showWebView, showOcr, showBarcodeScan, ocrHardwareTrigger, barcodeHardwareTrigger, webViewRef) {
-        when {
-            showBarcodeScan && barcodeHardwareTrigger != null -> {
-                MainActivity.onVolumeDown = {
-                    barcodeHardwareTrigger?.invoke()
+    LaunchedEffect(showWebView, webViewRef) {
+        if (showWebView) {
+            fun handleDoubleVolumeUp(): Boolean {
+                val now = System.currentTimeMillis()
+                val delta = now - lastVolumeUpTs
+                lastVolumeUpTs = now
+                val isDouble = delta in 50..450
+                if (isDouble) {
+                    webViewRef?.let { web -> clearParcelFormInWebView(web) }
+
                 }
-                MainActivity.onVolumeUp = null
-            }
+                return isDouble
+        }
 
             // Если открыт экран OCR и есть триггер — VOL_DOWN стреляет OCR
             showOcr && ocrHardwareTrigger != null -> {
@@ -475,80 +414,17 @@ fun AppRoot() {
                 MainActivity.onVolumeUp = null
             }
 
-            // Если открыт WebView (форма склада)
-            showWebView -> {
-                val isWarehouseIn = taskConfig?.taskId == "warehouse_in"
-
-                fun handleDoubleVolumeUp(): Boolean {
-                    val now = System.currentTimeMillis()
-                    val delta = now - lastVolumeUpTs
-                    lastVolumeUpTs = now
-                    val isDouble = delta in 50..450
-                    if (isDouble) {
-                        webViewRef?.let { web -> clearParcelFormInWebView(web) }
-                        warehouseScanStep = WarehouseScanStep.BARCODE
-                        showOcr = false
-                        showBarcodeScan = false
-                    }
-                    return isDouble
-                }
-                MainActivity.onVolumeDown = {
-                    if (isWarehouseIn) {
-                        when (warehouseScanStep) {
-                            WarehouseScanStep.BARCODE -> {
-                                webViewRef?.let { web -> clearTrackingAndTuidInWebView(web) }
-                                showBarcodeScan = true
-                            }
-                            WarehouseScanStep.OCR -> {
-                                ocrIsDefault = taskConfig == null
-                                showOcr = true
-                            }
-                            WarehouseScanStep.SUBMIT -> {
-                                webViewRef?.let { web -> prepareFormForNextScanInWebView(web) }
-                                warehouseScanStep = WarehouseScanStep.BARCODE
-                            }
-                        }
-                    } else {
-                        webViewRef?.let { web -> prepareFormForNextScanInWebView(web) }
-
-                        val hasTask = taskConfig != null
-                        ocrIsDefault = !hasTask
-                        showOcr = true
-
-                        when (taskConfig?.defaultMode) {
-                            "qr"      -> { showQrScan = true }
-                            "barcode" -> { /* showBarcodeScan = true */ }
-                            "ocr"     -> { showOcr = true }
-                            else      -> { showOcr = true } // fallback
-                        }
-                    }
-                }
-
-                MainActivity.onVolumeUp = volumeUp@{
-                    if (isWarehouseIn) {
-                        if (handleDoubleVolumeUp()) return@volumeUp
-
-                        when (warehouseScanStep) {
-                            WarehouseScanStep.BARCODE -> {
-                                webViewRef?.let { web -> clearTrackingAndTuidInWebView(web) }
-                            }
-                            WarehouseScanStep.OCR, WarehouseScanStep.SUBMIT -> {
-                                webViewRef?.let { web -> clearParcelFormExceptTrack(web) }
-                                warehouseScanStep = WarehouseScanStep.OCR
-                            }
-                        }
-                    } else {
-                        webViewRef?.let { web -> clearParcelFormInWebView(web) }
-                    }
-                }
-
+            MainActivity.onVolumeDown = {
+                webViewRef?.let { web -> clearTrackingAndTuidInWebView(web) }
             }
 
-            // В остальных экранах кнопки громкости не трогаем
-            else -> {
-                MainActivity.onVolumeDown = null
-                MainActivity.onVolumeUp = null
+            MainActivity.onVolumeUp = volumeUp@{
+                if (handleDoubleVolumeUp()) return@volumeUp
+                webViewRef?.let { web -> clearParcelFormInWebView(web) }
             }
+        } else {
+            MainActivity.onVolumeDown = null
+            MainActivity.onVolumeUp = null
         }
     }
     Scaffold(
@@ -723,20 +599,6 @@ fun AppRoot() {
                         config = config,
                         onWebViewReady = { webView -> webViewRef = webView },
 
-                        onContextUpdated = { taskJson: String?, tmplJson: String?, destJson: String?, dictJson: String? ->
-                            taskConfigJson = taskJson
-                            taskConfig = taskJson?.let { parseScanTaskConfig(it) }
-
-                            tmplJson?.let { ocrTemplates = parseOcrTemplates(it) }
-                            destJson?.let { destConfig = parseDestConfigJson(it) }
-
-                            dictJson?.let {
-                                val parsed = parseNameDictJson(it)
-                                if (config.syncNameDict && parsed != null) {
-                                    nameDict = parsed
-                                }
-                            }
-                        },
                         onSessionEnded = {
                             val cm = CookieManager.getInstance()
                             cm.removeAllCookies(null)
@@ -746,16 +608,7 @@ fun AppRoot() {
                             showWebView = false
                             lastQr = null
                             loginError = "Сессия завершена"
-                        },
-                        onTemplatesLoaded = { tmpl ->
-                            ocrTemplates = tmpl
-                            // если хочешь проверить — можно временно повесить лог
-                            // println("OCR templates loaded: $tmpl")
-                        },
-                        onNameDictLoaded = { dict ->
-                            if (config.syncNameDict && dict != null) {
-                                nameDict = dict
-                            }
+
                         }
                     )
                 }
@@ -776,76 +629,6 @@ fun AppRoot() {
             }
 
 
-            // Оверлей BARCODE поверх WebView
-            if (showBarcodeScan) {
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.background.copy(alpha = 0.98f)
-                ) {
-                    val isWarehouseIn = taskConfig?.taskId == "warehouse_in"
-                    BarcodeScanScreen(
-                        modifier = Modifier.fillMaxSize(),
-                        onResult = { raw ->
-                            showBarcodeScan = false
-                            val cleanBarcode = sanitizeBarcodeInput(raw)
-                            val data = buildParcelFromBarcode(cleanBarcode, sanitizeInput = false)
-                            webViewRef?.let { web ->
-                                fillBarcodeUsingTemplate(web, cleanBarcode, taskConfig?.barcodeAction)
-                                fillParcelFormInWebView(web, data)
-                            }
-                            if (isWarehouseIn) {
-                                warehouseScanStep = WarehouseScanStep.OCR
-                            }
-                        },
-                        onCancel = {
-                            showBarcodeScan = false
-                        },
-                        onBindHardwareTrigger = { action ->
-                            barcodeHardwareTrigger = action
-                        }
-                    )
-                }
-            }
-
-            // ОВЕРЛЕЙ OCR ПОВЕРХ WebView (и любого экрана)
-            if (showOcr) {
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.background.copy(alpha = 0.98f)
-                ) {
-                    val isWarehouseIn = taskConfig?.taskId == "warehouse_in"
-                    OcrScanScreen(
-                        modifier = Modifier.fillMaxSize(),
-                        destConfig = destConfig,
-                        config = config,
-                        nameDict = nameDict,
-                        isDefaultMode = ocrIsDefault,
-                        onResult = { ocrData ->
-                            showOcr = false
-                            webViewRef?.let { web ->
-                                fillParcelFormInWebView(web, ocrData)
-                            }
-                            if (isWarehouseIn) {
-                                warehouseScanStep = WarehouseScanStep.SUBMIT
-                            }
-                        },
-                        onCancel = {
-                            showOcr = false
-                        },
-                        onBindHardwareTrigger = { action ->
-                            ocrHardwareTrigger = action
-                        },
-                        onBarcodeClick = {
-                            showOcr = false
-                            showBarcodeScan = true
-                        },
-                        onBpClick = {
-                            showOcr = false
-                            showUsbMetrics = true
-                        }
-                    )
-                }
-            }
 
             // ОВЕРЛЕЙ USB/габаритов поверх любого экрана
             if (showUsbMetrics) {
@@ -892,8 +675,6 @@ fun SettingsScreen(
     var statusText by remember { mutableStateOf("") }
     var isBusy by remember { mutableStateOf(false) }
     var allowInsecure by remember { mutableStateOf(config.allowInsecureSsl) }
-    var useRemoteOcr by remember { mutableStateOf(config.useRemoteOcr) }
-    var syncNameDict by remember { mutableStateOf(config.syncNameDict) }
 
     val scrollState = rememberScrollState()
 
@@ -950,41 +731,6 @@ fun SettingsScreen(
             }
         }
 
-        Spacer(Modifier.height(8.dp))
-
-        // --- удалённый OCR ---
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Checkbox(
-                checked = useRemoteOcr,
-                onCheckedChange = { useRemoteOcr = it }
-            )
-            Spacer(Modifier.width(8.dp))
-            Text(
-                "Удалённый OCR-парсер",
-                style = MaterialTheme.typography.bodyMedium
-            )
-        }
-
-        Spacer(Modifier.height(8.dp))
-
-        // --- словарь имён ---
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Checkbox(
-                checked = syncNameDict,
-                onCheckedChange = { syncNameDict = it }
-            )
-            Spacer(Modifier.width(8.dp))
-            Text(
-                "Словарь имён с сервера",
-                style = MaterialTheme.typography.bodyMedium
-            )
-        }
 
         Spacer(Modifier.height(16.dp))
 
@@ -1008,9 +754,7 @@ fun SettingsScreen(
                         val updated = config.copy(
                             serverUrl = serverUrl.trim(),
                             deviceName = deviceName.trim(),
-                            allowInsecureSsl = allowInsecure,
-                            useRemoteOcr = useRemoteOcr,
-                            syncNameDict = syncNameDict
+                            allowInsecureSsl = allowInsecure
                         )
 
                         onConfigChanged(updated)
@@ -1985,48 +1729,13 @@ fun DeviceWebViewScreen(
     config: DeviceConfig,
     onWebViewReady: (WebView) -> Unit,
     onSessionEnded: () -> Unit,
-    modifier: Modifier = Modifier,
-    onTemplatesLoaded: (OcrTemplates?) -> Unit,
-    onNameDictLoaded: (NameDict?) -> Unit,   // <<< НОВЫЙ колбэк
-    onContextUpdated: (taskJson: String?, tmplJson: String?, destJson: String?, dictJson: String?) -> Unit
-
+    modifier: Modifier = Modifier
 ) {
     AndroidView(
         modifier = modifier.fillMaxSize(),
         factory = { ctx ->
             WebView(ctx).apply {
-                val mainHandler = Handler(Looper.getMainLooper())
 
-                class DeviceBridge {
-                    @JavascriptInterface
-                    fun onMainContext(payload: String?) {
-                        if (payload.isNullOrBlank()) return
-                        try {
-                            val obj = JSONObject(payload)
-                            val task = obj.optString("task", "").takeIf { it.isNotBlank() }
-                            val tmpl = obj.optString("ocr_templates", "").takeIf { it.isNotBlank() }
-                            val dest = obj.optString("destcountry", "").takeIf { it.isNotBlank() }
-                            val dict = obj.optString("dicts", "").takeIf { it.isNotBlank() }
-
-                            mainHandler.post {
-                                fun clean(v: String?): String? {
-                                    val s = v?.trim()
-                                    if (s.isNullOrEmpty()) return null
-                                    if (s.equals("null", true) || s.equals("undefined", true)) return null
-                                    return s
-                                }
-
-                                val task = clean(obj.optString("task", null))
-                                val tmpl = clean(obj.optString("ocr_templates", null))
-                                val dest = clean(obj.optString("destcountry", null))
-                                val dict = clean(obj.optString("dicts", null))
-                                onContextUpdated(task, tmpl, dest, dict)
-                            }
-                        } catch (_: Exception) {}
-                    }
-                }
-
-                addJavascriptInterface(DeviceBridge(), "DeviceApp")
                 layoutParams = ViewGroup.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT,
                     ViewGroup.LayoutParams.MATCH_PARENT
@@ -2058,10 +1767,7 @@ fun DeviceWebViewScreen(
                         if (!firstPageLoaded && view != null) {
                             firstPageLoaded = true
                             onWebViewReady(view)
-                          ////  view.evaluateJavascript(INSTALL_MAIN_OBSERVER_JS, null)
                         }
-                        // ВАЖНО: всегда инжектим, потому что при реальном reload JS улетает
-                        view?.evaluateJavascript(INSTALL_MAIN_OBSERVER_JS, null)
 
                         val base = normalizeServerUrl(config.serverUrl)
                         if (!url.isNullOrBlank() && base.isNotBlank()) {
@@ -2814,557 +2520,6 @@ fun prepareFormForNextScanInWebView(webView: WebView) {
     webView.post { webView.evaluateJavascript(js, null) }
 }
 
-@Composable
-fun BarcodeScanScreen(
-    modifier: Modifier = Modifier,
-    onResult: (String) -> Unit,
-    onCancel: () -> Unit,
-    onBindHardwareTrigger: ( (()->Unit)? ) -> Unit,
-) {
-    val context = LocalContext.current
-    val lifecycleOwner = LocalLifecycleOwner.current
-
-    var hasCameraPermission by remember {
-        mutableStateOf(
-            ContextCompat.checkSelfPermission(
-                context,
-                Manifest.permission.CAMERA
-            ) == PackageManager.PERMISSION_GRANTED
-        )
-    }
-
-    val permissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission(),
-        onResult = { granted -> hasCameraPermission = granted }
-    )
-
-    LaunchedEffect(Unit) {
-        if (!hasCameraPermission) {
-            permissionLauncher.launch(Manifest.permission.CAMERA)
-        }
-    }
-
-    // CameraX
-    val previewView = remember {
-        PreviewView(context).apply {
-            scaleType = PreviewView.ScaleType.FILL_CENTER
-        }
-    }
-
-    val imageCapture = remember {
-        ImageCapture.Builder()
-            .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
-            .build()
-    }
-
-    var errorText by remember { mutableStateOf<String?>(null) }
-    var isProcessing by remember { mutableStateOf(false) }
-
-    fun captureAndScan() {
-        if (isProcessing) return
-
-        errorText = null
-        isProcessing = true
-
-        val executor = ContextCompat.getMainExecutor(context)
-        imageCapture.takePicture(executor, object : ImageCapture.OnImageCapturedCallback() {
-            override fun onCaptureSuccess(image: ImageProxy) {
-                try {
-                    val mediaImage = image.image
-                    if (mediaImage == null) {
-                        errorText = "Нет данных изображения"
-                        return
-                    }
-
-                    val inputImage = InputImage.fromMediaImage(
-                        mediaImage,
-                        image.imageInfo.rotationDegrees
-                    )
-
-                    val options = BarcodeScannerOptions.Builder()
-                        .setBarcodeFormats(
-                            Barcode.FORMAT_CODE_128,
-                            Barcode.FORMAT_CODE_39,
-                            Barcode.FORMAT_CODE_93,
-                            Barcode.FORMAT_CODABAR,
-                            Barcode.FORMAT_EAN_8,
-                            Barcode.FORMAT_EAN_13,
-                            Barcode.FORMAT_UPC_A,
-                            Barcode.FORMAT_UPC_E,
-                            Barcode.FORMAT_QR_CODE
-                        )
-                        .build()
-
-                    val scanner = BarcodeScanning.getClient(options)
-                    scanner.process(inputImage)
-                        .addOnSuccessListener { codes ->
-                            val raw = codes.firstOrNull()?.rawValue
-                            if (raw.isNullOrBlank()) {
-                                errorText = "Штрихкод не найден"
-                            } else {
-                                onResult(raw)
-                            }
-                        }
-                        .addOnFailureListener { e ->
-                            errorText = "Ошибка сканера: ${e.message}"
-                        }
-                        .addOnCompleteListener {
-                            isProcessing = false
-                            image.close()
-                        }
-                } catch (e: Exception) {
-                    errorText = "Сбой камеры"
-                    isProcessing = false
-                    image.close()
-                }
-            }
-
-            override fun onError(exception: ImageCaptureException) {
-                errorText = "Ошибка камеры: ${exception.message}"
-                isProcessing = false
-            }
-        })
-    }
-
-    DisposableEffect(hasCameraPermission) {
-        if (hasCameraPermission) {
-            onBindHardwareTrigger { captureAndScan() }
-        } else {
-            onBindHardwareTrigger(null)
-        }
-
-        onDispose {
-            onBindHardwareTrigger(null)
-        }
-    }
-
-    LaunchedEffect(hasCameraPermission) {
-        if (!hasCameraPermission) return@LaunchedEffect
-
-        val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
-        val cameraProvider = cameraProviderFuture.get()
-
-        val preview = Preview.Builder()
-            .build()
-            .also { it.setSurfaceProvider(previewView.surfaceProvider) }
-
-        val selector = CameraSelector.DEFAULT_BACK_CAMERA
-
-        try {
-            cameraProvider.unbindAll()
-            cameraProvider.bindToLifecycle(
-                lifecycleOwner,
-                selector,
-                preview,
-                imageCapture
-            )
-        } catch (e: Exception) {
-            errorText = "Не удалось открыть камеру"
-        }
-    }
-
-    Box(modifier = modifier.fillMaxSize()) {
-        if (!hasCameraPermission) {
-            Column(
-                modifier = Modifier
-                    .align(Alignment.Center)
-                    .padding(16.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text("Нет доступа к камере")
-                Spacer(Modifier.height(16.dp))
-                OutlinedButton(onClick = onCancel) {
-                    Text("Назад")
-                }
-            }
-        } else {
-            AndroidView(
-                modifier = Modifier.fillMaxSize(),
-                factory = { previewView }
-            )
-
-            Column(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                errorText?.let {
-                    Text(it, color = MaterialTheme.colorScheme.error)
-                    Spacer(Modifier.height(8.dp))
-                }
-
-                if (isProcessing) {
-                    Text("Сканирование…")
-                }
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    OutlinedButton(onClick = onCancel, enabled = !isProcessing) {
-                        Text("Отмена")
-                    }
-
-                    Button(onClick = { captureAndScan() }, enabled = !isProcessing) {
-                        Text("BarScann")
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun OcrScanScreen(
-    modifier: Modifier = Modifier,
-    destConfig: List<DestCountryCfg>,          // ДОБАВЛЕНО
-    config: DeviceConfig,
-    nameDict: NameDict?,                         // <<< НОВОЕ
-    isDefaultMode: Boolean,
-    onResult: (OcrParcelData) -> Unit,
-    onCancel: () -> Unit,
-    onBindHardwareTrigger: ((() -> Unit)?) -> Unit,
-    onBarcodeClick: (() -> Unit)? = null,
-    onBpClick: (() -> Unit)? = null,
-) {
-    val context = LocalContext.current
-    val lifecycleOwner = LocalLifecycleOwner.current
-    val scope = rememberCoroutineScope()
-
-    // ===== Разрешение камеры =====
-    var hasCameraPermission by remember {
-        mutableStateOf(
-            ContextCompat.checkSelfPermission(
-                context,
-                Manifest.permission.CAMERA
-            ) == PackageManager.PERMISSION_GRANTED
-        )
-    }
-
-    val permissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission()
-    ) { granted ->
-        hasCameraPermission = granted
-    }
-
-    LaunchedEffect(Unit) {
-        if (!hasCameraPermission) {
-            permissionLauncher.launch(Manifest.permission.CAMERA)
-        }
-    }
-
-    // ===== CameraX: превью + ImageCapture =====
-    val previewView = remember {
-        PreviewView(context).apply {
-            scaleType = PreviewView.ScaleType.FILL_CENTER
-        }
-    }
-
-    val imageCapture = remember {
-        ImageCapture.Builder()
-            .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
-            .build()
-    }
-
-    val executor = remember { Executors.newSingleThreadExecutor() }
-
-    val recognizer = remember {
-        TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
-    }
-
-    var isProcessing by remember { mutableStateOf(false) }
-    var errorText by remember { mutableStateOf<String?>(null) }
-
-    fun startCamera() {
-        val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
-        val cameraProvider = cameraProviderFuture.get()
-
-        val preview = Preview.Builder()
-            .build()
-            .also { it.setSurfaceProvider(previewView.surfaceProvider) }
-
-        val selector = CameraSelector.DEFAULT_BACK_CAMERA
-
-        try {
-            cameraProvider.unbindAll()
-            cameraProvider.bindToLifecycle(
-                lifecycleOwner,
-                selector,
-                preview,
-                imageCapture
-            )
-        } catch (e: Exception) {
-            e.printStackTrace()
-            errorText = "Ошибка запуска камеры: ${e.message}"
-        }
-    }
-
-    LaunchedEffect(hasCameraPermission) {
-        if (hasCameraPermission) {
-            startCamera()
-        }
-    }
-
-    fun captureAndRecognize() {
-        if (!hasCameraPermission || isProcessing) return
-
-        isProcessing = true
-        errorText = null
-
-        imageCapture.takePicture(
-            executor,
-            object : ImageCapture.OnImageCapturedCallback() {
-                override fun onCaptureSuccess(imageProxy: ImageProxy) {
-                    val mediaImage = imageProxy.image
-                    if (mediaImage == null) {
-                        imageProxy.close()
-                        isProcessing = false
-                        return
-                    }
-
-                    val inputImage = InputImage.fromMediaImage(
-                        mediaImage,
-                        imageProxy.imageInfo.rotationDegrees
-                    )
-
-                    recognizer
-                        .process(inputImage)
-                        .addOnSuccessListener { result ->
-                            val fullText = result.text ?: ""
-
-                            scope.launch {
-                                try {
-                                    if (config.useRemoteOcr) {
-                                        val remote = callRemoteOcrParse(context, config, fullText)
-                                        if (remote.ok && remote.data != null) {
-                                            val base = remote.data
-                                            val lc = detectLocalCarrierName(fullText)
-                                            val lt = detectLocalTrackingNo(fullText, lc)
-                                            //val tuid = detectTuid(fullText)
-                                            val tuid = lt ?: base.trackingNo
-
-                                            //onResult(
-                                            //    remote.data.copy(
-                                            //        tuid = tuid,
-                                            //        localCarrierName = lc,
-                                            //        localTrackingNo = lt
-                                            //    )
-                                            //)
-                                            onResult(
-                                                base.copy(
-                                                    tuid = tuid,
-                                                    localCarrierName = lc,
-                                                    localTrackingNo = lt
-                                                )
-                                            )
-                                        } else {
-                                            // fallback: локальный парсер
-                                            val basic = parseOcrText(fullText)
-                                            val advanced = buildOcrParcelDataFromText(
-                                                fullText = fullText,
-                                                trackingNo = basic.trackingNo,
-                                                destConfig = destConfig,
-                                                nameDict = nameDict
-                                            )
-                                            val merged = basic.copy(
-                                                receiverCountryCode    = advanced.receiverCountryCode    ?: basic.receiverCountryCode,
-                                                receiverCompany        = advanced.receiverCompany        ?: basic.receiverCompany,
-                                                receiverForwarderCode  = advanced.receiverForwarderCode  ?: basic.receiverForwarderCode,
-                                                receiverCellCode       = advanced.receiverCellCode       ?: basic.receiverCellCode,
-                                                receiverName           = advanced.receiverName           ?: basic.receiverName
-                                            )
-
-                                            val lc = detectLocalCarrierName(fullText)
-                                            val lt = detectLocalTrackingNo(fullText, lc)
-                                            val tuid = detectTuid(fullText)
-
-                                            onResult(
-                                                merged.copy(
-                                                    tuid = tuid,
-                                                    localCarrierName = lc,
-                                                    localTrackingNo = lt
-                                                )
-                                            )
-
-                                            errorText = remote.errorMessage?.let {
-                                                "Удалённый парсер не сработал: $it (использован локальный)"
-                                            }
-                                        }
-
-                                    } else {
-                                        val basic = parseOcrText(fullText)
-                                        val advanced = buildOcrParcelDataFromText(
-                                            fullText = fullText,
-                                            trackingNo = basic.trackingNo,
-                                            destConfig = destConfig,
-                                            nameDict = nameDict
-                                        )
-                                        val merged = basic.copy(
-                                            receiverCountryCode    = advanced.receiverCountryCode    ?: basic.receiverCountryCode,
-                                            receiverCompany        = advanced.receiverCompany        ?: basic.receiverCompany,
-                                            receiverForwarderCode  = advanced.receiverForwarderCode  ?: basic.receiverForwarderCode,
-                                            receiverCellCode       = advanced.receiverCellCode       ?: basic.receiverCellCode,
-                                            receiverName           = advanced.receiverName           ?: basic.receiverName
-                                        )
-                                        val lc = detectLocalCarrierName(fullText)
-                                        val lt = detectLocalTrackingNo(fullText, lc)
-                                        val tuid = detectTuid(fullText)
-
-                                        onResult(
-                                            merged.copy(
-                                                tuid = tuid,
-                                                localCarrierName = lc,
-                                                localTrackingNo = lt
-                                            )
-                                        )
-                                    }
-                                } finally {
-                                    isProcessing = false
-                                }
-                            }
-                        }
-                        .addOnFailureListener { e ->
-                            errorText = "Не удалось распознать: ${e.message}"
-                            isProcessing = false
-                        }
-                        .addOnCompleteListener {
-                            imageProxy.close()
-                        }
-                }
-
-                override fun onError(exception: ImageCaptureException) {
-                    errorText = "Ошибка камеры: ${exception.message}"
-                    isProcessing = false
-                }
-            }
-        )
-    }
-
-
-
-    // ===== Привязка VOL_DOWN к captureAndRecognize =====
-    DisposableEffect(hasCameraPermission) {
-        if (hasCameraPermission) {
-            onBindHardwareTrigger { captureAndRecognize() }
-        } else {
-            onBindHardwareTrigger(null)
-        }
-
-        onDispose {
-            onBindHardwareTrigger(null)
-        }
-    }
-
-    // ===== UI =====
-    Box(
-        modifier = modifier.fillMaxSize()
-    ) {
-        if (!hasCameraPermission) {
-            Column(
-                modifier = Modifier
-                    .align(Alignment.Center)
-                    .padding(16.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text("Нет доступа к камере")
-                Spacer(Modifier.height(16.dp))
-                OutlinedButton(onClick = onCancel) {
-                    Text("Назад")
-                }
-            }
-        } else {
-            // Превью камеры
-            AndroidView(
-                modifier = Modifier.fillMaxSize(),
-                factory = { previewView }
-            )
-            // БАННЕР DEFAULT поверх камеры
-            if (isDefaultMode) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .fillMaxHeight(0.15f)
-                        .align(Alignment.TopCenter),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "DEFAULT",
-                        color = MaterialTheme.colorScheme.error,
-                        style = MaterialTheme.typography.headlineLarge,
-                        fontWeight = androidx.compose.ui.text.font.FontWeight.Black
-                    )
-                }
-            }
-
-            // Нижняя панель с кнопками
-            Column(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .fillMaxWidth()
-                    .padding(16.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                if (errorText != null) {
-                    Text(
-                        text = errorText!!,
-                        color = MaterialTheme.colorScheme.error
-                    )
-                    Spacer(Modifier.height(8.dp))
-                }
-
-                if (isProcessing) {
-                    Text("Обработка снимка…")
-                    Spacer(Modifier.height(8.dp))
-                } else {
-                    Text("Нажми громкость вниз или кнопку ниже для скана")
-                    Spacer(Modifier.height(8.dp))
-                }
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    OutlinedButton(
-                        onClick = onCancel,
-                        enabled = !isProcessing
-                    ) {
-                        Text("Отмена")
-                    }
-
-                    Button(
-                        onClick = { onBarcodeClick?.invoke() },
-                        enabled = !isProcessing
-                    ) {
-                        Text("BarScann")
-                    }
-
-                    Button(
-                        onClick = { captureAndRecognize() },
-                        enabled = !isProcessing
-                    ) {
-                        Text("OcrScann")
-                    }
-
-                    Button(
-                        onClick = { onBpClick?.invoke() },
-                        enabled = !isProcessing
-                    ) {
-                        Text("BP")
-                    }
-
-                    OutlinedButton(
-                        onClick = onCancel,
-                        enabled = !isProcessing
-                    ) {
-                        Text("Отмена")
-                    }
-                }
-            }
-        }
-    }
-}
 
 fun parseDestConfigJson(json: String?): List<DestCountryCfg> {
     val s = json?.trim()
