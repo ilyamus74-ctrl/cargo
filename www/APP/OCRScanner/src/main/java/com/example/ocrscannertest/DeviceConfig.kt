@@ -8,7 +8,6 @@ data class DeviceConfig(
     val serverUrl: String,
     val deviceUid: String,
     val deviceName: String,
-    val standId: String,
     val deviceToken: String?,
     val enrolled: Boolean,
     val allowInsecureSsl: Boolean = false,
@@ -26,7 +25,6 @@ class DeviceConfigRepository(private val context: Context) {
 
         val serverUrl = prefs.getString("server_url", "") ?: ""
         val deviceName = prefs.getString("device_name", "") ?: ""
-        val standId = prefs.getString("stand_id", "") ?: ""
         val deviceToken = prefs.getString("device_token", null)
         val enrolled = prefs.getBoolean("enrolled", false)
         val allowInsecure = prefs.getBoolean("allow_insecure_ssl", false)
@@ -35,7 +33,6 @@ class DeviceConfigRepository(private val context: Context) {
             serverUrl = serverUrl,
             deviceUid = uid,
             deviceName = deviceName,
-            standId = standId,
             deviceToken = deviceToken,
             enrolled = enrolled,
             allowInsecureSsl = allowInsecure
@@ -59,7 +56,6 @@ class DeviceConfigRepository(private val context: Context) {
         prefs.edit()
             .putString("server_url", cfg.serverUrl)
             .putString("device_name", cfg.deviceName)
-            .putString("stand_id", cfg.standId)
             .putString("device_token", cfg.deviceToken)
             .putBoolean("enrolled", cfg.enrolled)
             .putBoolean("allow_insecure_ssl", cfg.allowInsecureSsl)
