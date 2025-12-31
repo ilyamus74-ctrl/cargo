@@ -32,7 +32,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleOwner
-import com.example.testocrrawtext.ui.theme.OcrScannerTestTheme
 import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.barcode.BarcodeScannerOptions
 import kotlinx.coroutines.delay
@@ -70,16 +69,255 @@ import android.graphics.Bitmap
 import android.graphics.Color as AndroidColor
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.qrcode.QRCodeWriter
+import com.google.mlkit.vision.barcode.BarcodeScanning
+import com.google.mlkit.vision.common.InputImage
+import android.app.PendingIntent
+import android.content.BroadcastReceiver
+import android.content.Intent
+import android.content.IntentFilter
+import android.hardware.usb.UsbDevice
+import android.hardware.usb.UsbManager
+import androidx.compose.runtime.*
+import androidx.compose.ui.platform.LocalContext
+import com.hoho.android.usbserial.driver.UsbSerialPort
+import com.hoho.android.usbserial.driver.UsbSerialProber
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.nio.charset.Charset
 
+@Composable
+fun UsbSerialBinder(
+    enabled: Boolean,                 // true когда открыт экран USB
+//    enabled: Boolean,                 // true когда открыт экран USB
+    onRawLine: (String) -> Unit,       // сюда кидаем строки для DEBUG
+    onJson: (JSONObject) -> Unit,      // сюда кидаем распарсенный json
+    onStatus: (String) -> Unit
+) {
+    val context = LocalContext.current
+    val usbManager = remember { context.getSystemService(android.content.Context.USB_SERVICE) as UsbManager }
+    val scope = rememberCoroutineScope()
+
+    var port: UsbSerialPort? by remember { mutableStateOf(null) }
+    var readerJob: Job? by remember { mutableStateOf(null) }
+
+    fun closePort() {
+        readerJob?.cancel()
+        readerJob = null
+        try { port?.close() } catch (_: Exception) {}
+        port = null
+    }
+
+    fun startReader(p: UsbSerialPort) {
+        readerJob?.cancel()
+        readerJob = scope.launch(Dispatchers.IO) {
+            val buf = ByteArray(1024)
+            val sb = StringBuilder()
+
+            while (true) {
+                val n = try {
+                    p.read(buf, 200)
+                } catch (e: Exception) {
+                    withContext(Dispatchers.Main) { onStatus("Чтение упало: ${e.message}") }
+                    break
+                }
+
+                if (n > 0) {
+                    val chunk = String(buf, 0, n, Charset.forName("UTF-8"))
+                    sb.append(chunk)
+
+                    while (true) {
+                        val idx = sb.indexOf("\n")
+                        if (idx < 0) break
+                        val line = sb.substring(0, idx).trim()
+                        sb.delete(0, idx + 1)
+
+                        if (line.isNotEmpty()) {
+                            withContext(Dispatchers.Main) {
+                                onRawLine(line)
+                                try {
+                                    val obj = JSONObject(line)
+                                    onJson(obj)
+                                } catch (_: Exception) {
+                                    // не JSON — игнор
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    delay(10)
+                }
+            }
+        }
+    }
+
+    fun pickFirstSupportedDevice(): UsbDevice? {
+        val drivers = UsbSerialProber.getDefaultProber().findAllDrivers(usbManager)
+        return drivers.firstOrNull()?.device
+    }
+
+    fun requestPermission(dev: UsbDevice) {
+        val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            PendingIntent.FLAG_MUTABLE
+        } else 0
+
+        val pi = PendingIntent.getBroadcast(
+            context,
+            0,
+            Intent(USB_PERMISSION_ACTION),
+            flags
+        )
+        usbManager.requestPermission(dev, pi)
+        onStatus("Запросил доступ к USB…")
+    }
+
+    // Регистрируем ресивер только когда enabled=true
+    DisposableEffect(enabled) {
+        if (!enabled) {
+            closePort()
+            onDispose { }
+        } else {
+            val receiver = object : BroadcastReceiver() {
+                override fun onReceive(ctx: android.content.Context, intent: Intent) {
+                    when (intent.action) {
+                        USB_PERMISSION_ACTION -> {
+                            val dev: UsbDevice? = if (Build.VERSION.SDK_INT >= 33) {
+                                intent.getParcelableExtra(UsbManager.EXTRA_DEVICE, UsbDevice::class.java)
+                            } else {
+                                @Suppress("DEPRECATION")
+                                intent.getParcelableExtra(UsbManager.EXTRA_DEVICE)
+                            }
+
+                            val granted = intent.getBooleanExtra(UsbManager.EXTRA_PERMISSION_GRANTED, false)
+                            if (!granted || dev == null) {
+                                onStatus("Доступ к USB не дали")
+                                return
+                            }
+
+                            val drivers = UsbSerialProber.getDefaultProber().findAllDrivers(usbManager)
+                            val driver = drivers.firstOrNull { it.device.deviceId == dev.deviceId }
+                            if (driver == null) {
+                                onStatus("Драйвер не найден (не CH34x/CP210x?)")
+                                return
+                            }
+
+                            val connection = usbManager.openDevice(driver.device)
+                            if (connection == null) {
+                                onStatus("openDevice=null (нет доступа?)")
+                                return
+                            }
+
+                            val p = driver.ports.firstOrNull()
+                            if (p == null) {
+                                onStatus("Нет serial ports у драйвера")
+                                return
+                            }
+
+                            try {
+                                p.open(connection)
+                                p.setParameters(
+                                    115200,
+                                    8,
+                                    UsbSerialPort.STOPBITS_1,
+                                    UsbSerialPort.PARITY_NONE
+                                )
+                                closePort()
+                                port = p
+                                onStatus("Подключено: vid=${dev.vendorId} pid=${dev.productId} 115200 8N1")
+                                startReader(p)
+                            } catch (e: Exception) {
+                                onStatus("Ошибка открытия порта: ${e.message}")
+                                try { p.close() } catch (_: Exception) {}
+                            }
+                        }
+
+                        UsbManager.ACTION_USB_DEVICE_ATTACHED -> {
+                            onStatus("USB подключен")
+                            pickFirstSupportedDevice()?.let { dev ->
+                                if (usbManager.hasPermission(dev)) {
+                                    // имитируем то же, что делается после permission: открываем порт напрямую
+                                    val drivers = UsbSerialProber.getDefaultProber().findAllDrivers(usbManager)
+                                    val driver = drivers.firstOrNull { it.device.deviceId == dev.deviceId }
+                                    if (driver == null) {
+                                        onStatus("Драйвер не найден (не CH34x/CP210x?)")
+                                    } else {
+                                        val connection = usbManager.openDevice(driver.device)
+                                        if (connection == null) {
+                                            onStatus("openDevice=null (нет доступа?)")
+                                        } else {
+                                            val p = driver.ports.firstOrNull()
+                                            if (p == null) {
+                                                onStatus("Нет serial ports у драйвера")
+                                            } else {
+                                                try {
+                                                    p.open(connection)
+                                                    p.setParameters(115200, 8, UsbSerialPort.STOPBITS_1, UsbSerialPort.PARITY_NONE)
+                                                    closePort()
+                                                    port = p
+                                                    onStatus("Подключено (permission уже был): vid=${dev.vendorId} pid=${dev.productId}")
+                                                    startReader(p)
+                                                } catch (e: Exception) {
+                                                    onStatus("Ошибка открытия порта: ${e.message}")
+                                                    try { p.close() } catch (_: Exception) {}
+                                                }
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    requestPermission(dev)
+                                }
+                            }
+                        }
+
+                        UsbManager.ACTION_USB_DEVICE_DETACHED -> {
+                            onStatus("USB отключен")
+                            closePort()
+                        }
+                    }
+                }
+            }
+
+            val filter = IntentFilter().apply {
+                addAction(USB_PERMISSION_ACTION)
+                addAction(UsbManager.ACTION_USB_DEVICE_ATTACHED)
+                addAction(UsbManager.ACTION_USB_DEVICE_DETACHED)
+            }
+
+            if (Build.VERSION.SDK_INT >= 33) {
+                context.registerReceiver(receiver, filter, android.content.Context.RECEIVER_NOT_EXPORTED)
+            } else {
+                @Suppress("DEPRECATION")
+                context.registerReceiver(receiver, filter)
+            }
+
+            // автозапрос при входе на экран (если USB уже вставлен)
+            pickFirstSupportedDevice()?.let { requestPermission(it) }
+
+            onDispose {
+                try { context.unregisterReceiver(receiver) } catch (_: Exception) {}
+                closePort()
+            }
+        }
+    }
+}
+
+private const val SIZE_TOLERANCE_MM = 0.5
+
+private fun mergeWithTolerance(prev: Double?, next: Double?, tol: Double): Double? {
+    if (next == null) return prev
+    if (prev == null) return next
+    return if (kotlin.math.abs(prev - next) <= tol) prev else next
+}
 
 enum class UsbDisplayMode { DEBUG, PROD }
 
 data class UsbRawMetrics(
     val scannerToWallMm: Int? = null,
     val weightGrams: Int? = null,
-    val widthMm: Int? = null,
-    val depthMm: Int? = null,
-    val heightMm: Int? = null,
+    val widthMm: Double? = null,
+    val depthMm: Double? = null,
+    val heightMm: Double? = null,
     val scaleZeroOffsetG: Int? = null,
     val scaleFactor: Double? = null
 )
@@ -89,12 +327,13 @@ data class ScaleCalibration(
     val factor: Double? = null
 )
 
+
 data class UsbCalibratedMetrics(
     val scannerToWallMm: Int? = null,
     val weightGrams: Int? = null,
-    val widthMm: Int? = null,
-    val depthMm: Int? = null,
-    val heightMm: Int? = null,
+    val widthMm: Double? = null,
+    val depthMm: Double? = null,
+    val heightMm: Double? = null,
     val scaleCalibration: ScaleCalibration = ScaleCalibration()
 )
 
@@ -104,15 +343,56 @@ data class UsbUiState(
     val logText: String? = null,
     val calibrated: UsbCalibratedMetrics = UsbCalibratedMetrics()
 )
-
+private const val USB_PERMISSION_ACTION = "com.example.testocrrawtext.USB_PERMISSION"
 private const val STABLE_CYCLES = 5
 private const val STABLE_WEIGHT_TOLERANCE_G = 30
 private const val STABLE_SIZE_TOLERANCE_MM = 5
 
+fun updateMeasurementState(
+    previous: MeasurementState,
+    calibrated: UsbCalibratedMetrics,
+    cfg: DeviceConfig
+): MeasurementState {
+    val current = buildMeasurementValues(calibrated) ?: return previous.copy(
+        stableCount = 0,
+        isStable = false,
+        qrPayload = null
+    )
+
+    val previousValues = previous.lastValues
+    val stableCount = if (previousValues != null && isWithinTolerance(previousValues, current, cfg)) {
+        previous.stableCount + 1
+    } else {
+        1
+    }
+
+    val isStable = stableCount >= cfg.stableCount
+    val qrPayload = if (isStable) buildMeasurementPayload(current) else null
+
+    return MeasurementState(
+        lastValues = current,
+        stableCount = stableCount,
+        isStable = isStable,
+        qrPayload = qrPayload
+    )
+}
+
+fun isWithinTolerance(previous: MeasurementValues, current: MeasurementValues, cfg: DeviceConfig): Boolean {
+    val weightDelta = kotlin.math.abs(previous.weightGrams - current.weightGrams)
+    val widthDelta  = kotlin.math.abs(previous.widthMm - current.widthMm)
+    val depthDelta  = kotlin.math.abs(previous.depthMm - current.depthMm)
+    val heightDelta = kotlin.math.abs(previous.heightMm - current.heightMm)
+
+    return weightDelta <= cfg.weightTolG &&
+            widthDelta <= cfg.dimTolMm &&
+            depthDelta <= cfg.dimTolMm &&
+            heightDelta <= cfg.dimTolMm
+}
+
 data class MeasurementValues(
-    val widthMm: Int,
-    val depthMm: Int,
-    val heightMm: Int,
+    val widthMm: Double,
+    val depthMm: Double,
+    val heightMm: Double,
     val weightGrams: Int
 )
 
@@ -123,62 +403,39 @@ data class MeasurementState(
     val qrPayload: String? = null
 )
 
-fun updateMeasurementState(
-    previous: MeasurementState,
-    calibrated: UsbCalibratedMetrics
-): MeasurementState {
-    val current = buildMeasurementValues(calibrated) ?: return MeasurementState()
-    val previousValues = previous.lastValues
-    val stableCount = if (previousValues != null && isWithinTolerance(previousValues, current)) {
-        previous.stableCount + 1
-    } else {
-        1
-    }
-    val isStable = stableCount >= STABLE_CYCLES
-    val qrPayload = if (isStable) buildMeasurementPayload(current) else null
-    return MeasurementState(
-        lastValues = current,
-        stableCount = stableCount,
-        isStable = isStable,
-        qrPayload = qrPayload
-    )
-}
 
 fun buildMeasurementValues(calibrated: UsbCalibratedMetrics): MeasurementValues? {
-    val width = calibrated.widthMm
-    val depth = calibrated.depthMm
-    val height = calibrated.heightMm
+    val w = calibrated.widthMm
+    val d = calibrated.depthMm
+    val h = calibrated.heightMm
     val weight = calibrated.weightGrams
-    if (width == null || depth == null || height == null || weight == null) return null
-    if (width <= 0 || depth <= 0 || height <= 0 || weight <= 0) return null
-    return MeasurementValues(
-        widthMm = width,
-        depthMm = depth,
-        heightMm = height,
-        weightGrams = weight
-    )
-}
+    if (w == null || d == null || h == null || weight == null) return null
+    if (w <= 0.0 || d <= 0.0 || h <= 0.0 || weight <= 0) return null
+    return MeasurementValues(w, d, h, weight)
+   }
 
-fun isWithinTolerance(previous: MeasurementValues, current: MeasurementValues): Boolean {
-    val weightDelta = kotlin.math.abs(previous.weightGrams - current.weightGrams)
-    val widthDelta = kotlin.math.abs(previous.widthMm - current.widthMm)
-    val depthDelta = kotlin.math.abs(previous.depthMm - current.depthMm)
-    val heightDelta = kotlin.math.abs(previous.heightMm - current.heightMm)
-    return weightDelta <= STABLE_WEIGHT_TOLERANCE_G &&
-        widthDelta <= STABLE_SIZE_TOLERANCE_MM &&
-        depthDelta <= STABLE_SIZE_TOLERANCE_MM &&
-        heightDelta <= STABLE_SIZE_TOLERANCE_MM
-}
+
+
+
+
+
 
 fun buildMeasurementPayload(values: MeasurementValues): String {
+    fun r(x: Double) = (kotlin.math.round(x * 10.0) / 10.0) // 0.1 мм
+    fun qWeight(g: Int) = ((g + 5) / 10) * 10               // шаг 10 г (можешь 50)
+
     return JSONObject()
-        .put("weight_g", values.weightGrams)
-        .put("width_mm", values.widthMm)
-        .put("depth_mm", values.depthMm)
-        .put("height_mm", values.heightMm)
+        .put("weight_g", qWeight(values.weightGrams))
+        .put("width_mm",  r(values.widthMm))
+        .put("depth_mm",  r(values.depthMm))
+        .put("height_mm", r(values.heightMm))
         .toString()
 }
+fun formatCmFromMm(valueMm: Double?): String =
+    valueMm?.let { "%.1f см".format(it / 10.0) } ?: "—"
 
+fun formatCmFromMm(valueMm: Int?): String =
+    valueMm?.let { "%.1f см".format(it / 10.0) } ?: "—"
 
 data class StandMeasurementPushResult(
     val ok: Boolean,
@@ -328,7 +585,7 @@ class MainActivity : ComponentActivity() {
         )
 
         setContent {
-            TestOCRRawTextTheme {
+            MaterialTheme {
                 AppRoot()
             }
         }
@@ -343,6 +600,8 @@ fun AppRoot() {
     val scope = rememberCoroutineScope()
 
     var config by remember { mutableStateOf(repo.load()) }
+
+
 
     // ===== Авторизация и настройки (без изменений в логике) =====
     var showSettings by remember { mutableStateOf(!config.enrolled || config.serverUrl.isBlank()) }
@@ -372,8 +631,50 @@ fun AppRoot() {
     // трекинг двойного нажатия
     var lastVolumeUpTs by remember { mutableStateOf(0L) }
 
-    LaunchedEffect(usbUiState.calibrated) {
-        measurementState = updateMeasurementState(measurementState, usbUiState.calibrated)
+    UsbSerialBinder(
+       // enabled = showUsbMetrics, // включаем когда открыт USB-оверлей,
+        enabled = true,
+        onRawLine = { line ->
+            usbUiState = usbUiState.copy(
+                rawJson = line,
+                logText = ((usbUiState.logText ?: "") + line + "\n").takeLast(5000)
+            )
+        },
+        onJson = { obj ->
+            val hCm = obj.optDouble("h_cm", Double.NaN)
+            val wCm = obj.optDouble("w_cm", Double.NaN)
+            val dCm = obj.optDouble("d_cm", Double.NaN)
+            val weightKg = obj.optDouble("weight_kg", Double.NaN)
+
+            val sonarArr = obj.optJSONArray("sonar_cur_mm")
+            val s0 = sonarArr?.optInt(0)
+
+            // ВАЖНО: сохраняем дробь -> Double мм
+            val newWidthMm  = if (!wCm.isNaN()) (wCm * 10.0) else null
+            val newDepthMm  = if (!dCm.isNaN()) (dCm * 10.0) else null
+            val newHeightMm = if (!hCm.isNaN()) (hCm * 10.0) else null
+            val newWeightG  = if (!weightKg.isNaN()) (weightKg * 1000.0).toInt() else null
+
+            val prev = usbUiState.calibrated
+
+            val merged = prev.copy(
+                widthMm  = mergeWithTolerance(prev.widthMm,  newWidthMm,  SIZE_TOLERANCE_MM),
+                depthMm  = mergeWithTolerance(prev.depthMm,  newDepthMm,  SIZE_TOLERANCE_MM),
+                heightMm = mergeWithTolerance(prev.heightMm, newHeightMm, SIZE_TOLERANCE_MM),
+                weightGrams = newWeightG ?: prev.weightGrams,
+                scannerToWallMm = s0 ?: prev.scannerToWallMm
+            )
+
+            usbUiState = usbUiState.copy(calibrated = merged)
+        },
+        onStatus = { st ->
+            usbUiState = usbUiState.copy(
+                logText = ((usbUiState.logText ?: "") + "[USB] $st\n").takeLast(5000)
+            )
+        }
+    )
+    LaunchedEffect(usbUiState.calibrated, config.stableCount, config.dimTolMm, config.weightTolG) {
+        measurementState = updateMeasurementState(measurementState, usbUiState.calibrated, config)
     }
 
     LaunchedEffect(measurementState.isStable, measurementState.lastValues, config.deviceToken, config.serverUrl) {
@@ -382,7 +683,7 @@ fun AppRoot() {
         if (config.deviceToken.isNullOrBlank()) return@LaunchedEffect
         if (config.serverUrl.isBlank()) return@LaunchedEffect
 
-        val key = "${values.weightGrams}:${values.widthMm}:${values.depthMm}:${values.heightMm}"
+        val key = measurementKey(values)
         if (key == lastSentMeasurementKey) return@LaunchedEffect
 
         val result = pushStandMeasurement(context, config, values)
@@ -406,13 +707,7 @@ fun AppRoot() {
                 return isDouble
         }
 
-            // Если открыт экран OCR и есть триггер — VOL_DOWN стреляет OCR
-            showOcr && ocrHardwareTrigger != null -> {
-                MainActivity.onVolumeDown = {
-                    ocrHardwareTrigger?.invoke()
-                }
-                MainActivity.onVolumeUp = null
-            }
+
 
             MainActivity.onVolumeDown = {
                 webViewRef?.let { web -> clearTrackingAndTuidInWebView(web) }
@@ -546,6 +841,7 @@ fun AppRoot() {
                             showQrScan = false
                             showWebView = false
                         },
+
                         onClose = {
                             showSettings = false
                         }
@@ -641,6 +937,7 @@ fun AppRoot() {
                         displayMode = usbDisplayMode,
                         uiState = usbUiState,
                         measurementState = measurementState,
+                        stableCycles = config.stableCount,
                         onClose = {
                             showUsbMetrics = false
                         }
@@ -733,7 +1030,54 @@ fun SettingsScreen(
 
 
         Spacer(Modifier.height(16.dp))
+// --- Measurement settings ---
+        var stableCountText by remember { mutableStateOf(config.stableCount.toString()) }
+        var dimTolText by remember { mutableStateOf(config.dimTolMm.toString()) }
+        var weightTolText by remember { mutableStateOf(config.weightTolG.toString()) }
 
+        Divider()
+        Spacer(Modifier.height(8.dp))
+        Text("Настройки измерения", style = MaterialTheme.typography.titleSmall)
+
+        OutlinedTextField(
+            value = stableCountText,
+            onValueChange = { stableCountText = it.filter(Char::isDigit).take(2) },
+            label = { Text("N стабильных пакетов") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedTextField(
+                value = dimTolText,
+                onValueChange = { dimTolText = it.filter(Char::isDigit).take(3) },
+                label = { Text("Допуск мм") },
+                singleLine = true,
+                modifier = Modifier.weight(1f)
+            )
+            OutlinedTextField(
+                value = weightTolText,
+                onValueChange = { weightTolText = it.filter(Char::isDigit).take(3) },
+                label = { Text("Допуск г") },
+                singleLine = true,
+                modifier = Modifier.weight(1f)
+            )
+        }
+
+        Button(
+            onClick = {
+                val n = stableCountText.toIntOrNull() ?: 5
+                val mm = dimTolText.toIntOrNull() ?: 5
+                val g = weightTolText.toIntOrNull() ?: 30
+
+                val updated = config.copy(stableCount = n, dimTolMm = mm, weightTolG = g)
+                onConfigChanged(updated)
+                statusText = "Сохранено: N=$n, tol=${mm}мм/${g}г"
+            },
+            modifier = Modifier.fillMaxWidth()
+        ) { Text("Сохранить настройки измерения") }
+
+        Spacer(Modifier.height(12.dp))
         Text(text = statusText)
 
         Spacer(Modifier.height(16.dp))
@@ -887,8 +1231,13 @@ fun LoginReadyScreen(
 
 data class UsbDeviation(
     val weightDeltaG: Int? = null,
-    val sizeDeltaMm: Int? = null
+    val sizeDeltaMm: Double? = null
 )
+
+fun formatMm(value: Double?): String =
+    value?.let { "%.1f мм".format(it) } ?: "—"
+
+fun formatMm(value: Int?): String = value?.let { "$it мм" } ?: "—"
 
 fun computeUsbDeviation(
     raw: UsbRawMetrics,
@@ -928,7 +1277,21 @@ fun resolveDeviationColor(
     return if (weightDelta <= 30 && sizeDelta <= 5) ok else error
 }
 
-fun formatMm(value: Int?): String = value?.let { "$it мм" } ?: "—"
+private fun quantize(value: Double, step: Double): Long {
+    return kotlin.math.round(value / step).toLong()
+}
+
+private fun quantize(value: Int, step: Int): Int {
+    return ((value + step / 2) / step) * step
+}
+
+private fun measurementKey(values: MeasurementValues): String {
+    val wQ = quantize(values.widthMm, 0.5)     // 0.5 мм
+    val dQ = quantize(values.depthMm, 0.5)
+    val hQ = quantize(values.heightMm, 0.5)
+    val weightQ = quantize(values.weightGrams, 10) // 10 г
+    return "$weightQ:$wQ:$dQ:$hQ"
+}
 fun formatGrams(value: Int?): String = value?.let { "$it г" } ?: "—"
 fun formatKgFromGrams(value: Int?): String = value?.let { "%.3f кг".format(it / 1000.0) } ?: "—"
 fun formatFactor(value: Double?): String = value?.let { "%.4f".format(it) } ?: "—"
@@ -939,6 +1302,7 @@ fun UsbMetricsScreen(
     displayMode: UsbDisplayMode,
     uiState: UsbUiState,
     measurementState: MeasurementState,
+    stableCycles: Int,
     onClose: () -> Unit
 ) {
     val scrollState = rememberScrollState()
@@ -991,11 +1355,11 @@ fun UsbMetricsScreen(
             Text("Сырые метрики", style = MaterialTheme.typography.titleMedium)
             Spacer(Modifier.height(8.dp))
 
-            DebugMetricRow(label = "Сканер→стенка", value = formatMm(uiState.rawMetrics.scannerToWallMm))
+            DebugMetricRow(label = "Сканер→стенка", value = formatCmFromMm(uiState.rawMetrics.scannerToWallMm))
             DebugMetricRow(label = "Вес (raw)", value = formatGrams(uiState.rawMetrics.weightGrams))
-            DebugMetricRow(label = "Ширина (raw)", value = formatMm(uiState.rawMetrics.widthMm))
-            DebugMetricRow(label = "Глубина (raw)", value = formatMm(uiState.rawMetrics.depthMm))
-            DebugMetricRow(label = "Высота (raw)", value = formatMm(uiState.rawMetrics.heightMm))
+            DebugMetricRow(label = "Ширина (raw)", value = formatCmFromMm(uiState.rawMetrics.widthMm))
+            DebugMetricRow(label = "Глубина (raw)", value = formatCmFromMm(uiState.rawMetrics.depthMm))
+            DebugMetricRow(label = "Высота (raw)", value = formatCmFromMm(uiState.rawMetrics.heightMm))
             DebugMetricRow(label = "Калибровка весов: offset", value = formatGrams(uiState.rawMetrics.scaleZeroOffsetG))
             DebugMetricRow(label = "Калибровка весов: factor", value = formatFactor(uiState.rawMetrics.scaleFactor))
 
@@ -1037,7 +1401,7 @@ fun UsbMetricsScreen(
                 MetricCell(
                     modifier = Modifier.weight(1f),
                     label = "Ширина",
-                    value = formatMm(uiState.calibrated.widthMm),
+                    value = formatCmFromMm(uiState.calibrated.widthMm),
                     highlightColor = highlightColor
                 )
             }
@@ -1051,13 +1415,13 @@ fun UsbMetricsScreen(
                 MetricCell(
                     modifier = Modifier.weight(1f),
                     label = "Глубина",
-                    value = formatMm(uiState.calibrated.depthMm),
+                    value = formatCmFromMm(uiState.calibrated.depthMm),
                     highlightColor = highlightColor
                 )
                 MetricCell(
                     modifier = Modifier.weight(1f),
                     label = "Высота",
-                    value = formatMm(uiState.calibrated.heightMm),
+                    value = formatCmFromMm(uiState.calibrated.heightMm),
                     highlightColor = highlightColor
                 )
             }
@@ -1077,7 +1441,7 @@ fun UsbMetricsScreen(
 
         Spacer(Modifier.height(20.dp))
         Text(
-            text = "Стабильность: ${measurementState.stableCount}/$STABLE_CYCLES",
+            text = "Стабильность: ${measurementState.stableCount}/$stableCycles",
             style = MaterialTheme.typography.bodyMedium
         )
         if (measurementState.isStable && measurementState.qrPayload != null) {

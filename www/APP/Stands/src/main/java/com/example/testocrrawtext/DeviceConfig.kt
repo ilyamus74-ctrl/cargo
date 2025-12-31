@@ -10,7 +10,10 @@ data class DeviceConfig(
     val deviceName: String,
     val deviceToken: String?,
     val enrolled: Boolean,
-    val allowInsecureSsl: Boolean = false
+    val allowInsecureSsl: Boolean = false,
+    val stableCount: Int = 5,          // NEW
+    val dimTolMm: Int = 5,             // NEW (опц.)
+    val weightTolG: Int = 30           // NEW (опц.)
 )
 
 class DeviceConfigRepository(private val context: Context) {
@@ -27,13 +30,22 @@ class DeviceConfigRepository(private val context: Context) {
         val enrolled = prefs.getBoolean("enrolled", false)
         val allowInsecure = prefs.getBoolean("allow_insecure_ssl", false)
 
+
+        val stableCount = (prefs.getInt("stable_count", 5)).coerceIn(1, 20)     // NEW
+        val dimTolMm = (prefs.getInt("dim_tol_mm", 5)).coerceIn(0, 50)          // NEW
+        val weightTolG = (prefs.getInt("weight_tol_g", 30)).coerceIn(0, 500)    // NEW
+
         return DeviceConfig(
             serverUrl = serverUrl,
             deviceUid = uid,
             deviceName = deviceName,
             deviceToken = deviceToken,
             enrolled = enrolled,
-            allowInsecureSsl = allowInsecure
+            allowInsecureSsl = allowInsecure,
+
+            stableCount = stableCount,     // NEW
+            dimTolMm = dimTolMm,           // NEW
+            weightTolG = weightTolG        // NEW
 
         )
     }
@@ -57,6 +69,9 @@ class DeviceConfigRepository(private val context: Context) {
             .putString("device_token", cfg.deviceToken)
             .putBoolean("enrolled", cfg.enrolled)
             .putBoolean("allow_insecure_ssl", cfg.allowInsecureSsl)
+            .putInt("stable_count", cfg.stableCount.coerceIn(1, 20))     // NEW
+            .putInt("dim_tol_mm", cfg.dimTolMm.coerceIn(0, 50))          // NEW
+            .putInt("weight_tol_g", cfg.weightTolG.coerceIn(0, 500))     // NEW
             .apply()
     }
 

@@ -723,6 +723,7 @@ document.addEventListener('click', function (e) {
         const modalBody = document.querySelector('#fullscreenModal .modal-body');
         if (modalBody && data.html) {
             modalBody.innerHTML = data.html;
+            initStandDevicePersistence();
         }
         const modalEl = document.getElementById('fullscreenModal');
         if (modalEl && window.bootstrap && bootstrap.Modal) {
@@ -759,6 +760,7 @@ document.addEventListener('click', function (e) {
                     const modalBody = document.querySelector('#fullscreenModal .modal-body');
                     if (modalBody && d2.html) {
                         modalBody.innerHTML = d2.html;
+                        initStandDevicePersistence();
                     }
                 })
                 .catch(err => {

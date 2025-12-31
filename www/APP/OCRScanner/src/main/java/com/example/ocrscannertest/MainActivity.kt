@@ -107,7 +107,7 @@ if (root) new MutationObserver(schedule).observe(root, {childList:true, subtree:
 })();
 """.trimIndent()
 
-enum class WarehouseScanStep { BARCODE, OCR, SUBMIT }
+enum class WarehouseScanStep { BARCODE, OCR, MEASURE, SUBMIT }
 class MainActivity : ComponentActivity() {
     companion object {
         var onVolumeDown: (() -> Unit)? = null
@@ -245,6 +245,19 @@ fun AppRoot() {
                                 ocrIsDefault = taskConfig == null
                                 showOcr = true
                             }
+                            WarehouseScanStep.MEASURE -> {
+                                webViewRef?.let { web ->
+                                    withStandDeviceSelected(web) { selected ->
+                                        if (selected) {
+                                            requestStandMeasurementInWebView(web)
+                                            warehouseScanStep = WarehouseScanStep.SUBMIT
+                                        } else {
+                                            prepareFormForNextScanInWebView(web)
+                                            warehouseScanStep = WarehouseScanStep.BARCODE
+                                        }
+                                    }
+                                }
+                            }
                             WarehouseScanStep.SUBMIT -> {
                                 webViewRef?.let { web -> prepareFormForNextScanInWebView(web) }
                                 warehouseScanStep = WarehouseScanStep.BARCODE
@@ -274,9 +287,34 @@ fun AppRoot() {
                             WarehouseScanStep.BARCODE -> {
                                 webViewRef?.let { web -> clearTrackingAndTuidInWebView(web) }
                             }
-                            WarehouseScanStep.OCR, WarehouseScanStep.SUBMIT -> {
+                            WarehouseScanStep.OCR -> {
                                 webViewRef?.let { web -> clearParcelFormExceptTrack(web) }
                                 warehouseScanStep = WarehouseScanStep.OCR
+                            }
+                            WarehouseScanStep.MEASURE -> {
+                                webViewRef?.let { web ->
+                                    withStandDeviceSelected(web) { selected ->
+                                        if (selected) {
+                                            clearMeasurementsInWebView(web)
+                                        } else {
+                                            clearParcelFormExceptTrack(web)
+                                            warehouseScanStep = WarehouseScanStep.OCR
+                                        }
+                                    }
+                                }
+                            }
+                            WarehouseScanStep.SUBMIT -> {
+                                webViewRef?.let { web ->
+                                    withStandDeviceSelected(web) { selected ->
+                                        if (selected) {
+                                            clearMeasurementsInWebView(web)
+                                            warehouseScanStep = WarehouseScanStep.MEASURE
+                                        } else {
+                                            clearParcelFormExceptTrack(web)
+                                            warehouseScanStep = WarehouseScanStep.OCR
+                                        }
+                                    }
+                                }
                             }
                         }
                     } else {
@@ -534,7 +572,7 @@ fun AppRoot() {
                                 fillParcelFormInWebView(web, ocrData)
                             }
                             if (isWarehouseIn) {
-                                warehouseScanStep = WarehouseScanStep.SUBMIT
+                                warehouseScanStep = WarehouseScanStep.MEASURE
                             }
                         },
                         onCancel = {
@@ -549,8 +587,7 @@ fun AppRoot() {
                         },
                         onBpClick = {
                             webViewRef?.let { web ->
-                                val js = "if (window.requestStandMeasurement) { window.requestStandMeasurement(); }"
-                                web.post { web.evaluateJavascript(js, null) }
+                                requestStandMeasurementInWebView(web)
                             }
                         }
                     )
@@ -1759,6 +1796,26 @@ fun fillBarcodeUsingTemplate(webView: WebView, barcodeValue: String, action: Sca
     webView.post { webView.evaluateJavascript(js, null) }
 }
 
+fun requestStandMeasurementInWebView(webView: WebView) {
+    val js = "if (window.requestStandMeasurement) { window.requestStandMeasurement(); }"
+    webView.post { webView.evaluateJavascript(js, null) }
+}
+
+fun withStandDeviceSelected(webView: WebView, onResult: (Boolean) -> Unit) {
+    val js = """
+        (function(){
+          var el = document.getElementById('standDevice');
+          return !!(el && el.value);
+        })();
+    """.trimIndent()
+    webView.post {
+        webView.evaluateJavascript(js) { raw ->
+            val normalized = raw?.trim()?.trim('"')?.lowercase()
+            onResult(normalized == "true")
+        }
+    }
+}
+
 fun fillParcelFormInWebView(webView: WebView, data: OcrParcelData) {
     println("### fillParcelFormInWebView() data = $data")
 
@@ -2145,6 +2202,29 @@ fun clearTrackingAndTuidInWebView(webView: WebView) {
 
     webView.post { webView.evaluateJavascript(js, null) }
 }
+
+fun clearMeasurementsInWebView(webView: WebView) {
+    val js = """
+        (function(){
+          function setValById(id,v){
+            var e=document.getElementById(id);
+            if(e){
+              e.value=v;
+              e.dispatchEvent(new Event('input',{bubbles:true}));
+              e.dispatchEvent(new Event('change',{bubbles:true}));
+            }
+          }
+
+          setValById('weightKg','');
+          setValById('sizeL','');
+          setValById('sizeW','');
+          setValById('sizeH','');
+        })();
+    """.trimIndent()
+
+    webView.post { webView.evaluateJavascript(js, null) }
+}
+
 
 fun clearParcelFormExceptTrack(webView: WebView) {
     val js = """
