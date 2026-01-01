@@ -6,6 +6,10 @@ require_once __DIR__ . '/api/core_helpers.php';
 require_once __DIR__ . '/api/user_actions.php';
 require_once __DIR__ . '/api/device_actions.php';
 
+// Пытаемся гарантировать рабочее подключение к БД для складских операций.
+if (!isset($dbcnx) || !($dbcnx instanceof mysqli)) {
+    require_once __DIR__ . '/../configs/connectDB.php';
+}
 
 /**
  * Ленивый загрузчик зависимостей для OCR.
