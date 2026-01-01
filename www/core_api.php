@@ -120,7 +120,7 @@ switch ($action) {
         $tools = fetch_tools_list($dbcnx);
 
         $smarty->assign('tools', $tools);
-        $smarty->assign('current_tool', $tool);
+        $smarty->assign('current_tool', null);
 
         ob_start();
         $smarty->display('cells_NA_API_tools_stock.html');
@@ -294,20 +294,22 @@ case 'save_tool':
         $registeredAt = (new DateTime($registeredAt))->format('Y-m-d');
     } catch (Exception $e) {
         $registeredAt = date('Y-m-d');
-        }
+   }
+
    $priceBuy = ($priceBuyRaw === '' ? null : (float)$priceBuyRaw);
 
-   $resourceEnd = null;
- 
-   if ($resourceDays > 0) {
-    $resourceDays = max(0, (int)($_POST['ResourceDays'] ?? 0));
+    $resourceEnd = null;
 
-    $resourceEndObj = clone $purchaseDateObj;
+    if ($resourceDays > 0) {
+        $resourceDays   = max(0, (int)($_POST['ResourceDays'] ?? 0));
+        $resourceEndObj = clone $purchaseDateObj;
+
         if ($resourceDays > 0) {
-          $resourceEndObj->modify('+' . $resourceDays . ' days');
+            $resourceEndObj->modify('+' . $resourceDays . ' days');
         }
+        $resourceEnd = $resourceEndObj->format('Y-m-d');
     }
-   $resourceEnd = $resourceEndObj->format('Y-m-d');
+
 //print_r($resourceEnd);
     if ($toolId > 0) {
             $oldTool = null;
