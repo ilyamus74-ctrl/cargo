@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/bootstrap.php';
 require_once __DIR__ . '/api/core_helpers.php';
+require_once __DIR__ . '/api/user_actions.php';
 
 // все эти операции только для залогиненных
 auth_require_login();
@@ -24,442 +25,33 @@ try {
 switch ($action) {
 
     case 'get_user_info':
-        // простой пример — отдать краткую инфу по пользователю
-        $response = [
-            'status' => 'ok',
-            'data'   => [
-                'id'        => $user['id'],
-                'username'  => $user['username'],
-                'full_name' => $user['full_name'],
-                'ui_lang'   => $user['ui_lang'] ?? null,
-            ],
-        ];
-        break;
+        $response = handle_get_user_info($user);
+           break;
 
     case 'set_lang':
-        // смена языка интерфейса пользователем
-        $newLang = $_POST['lang'] ?? '';
-        $allowed = ['uk','ru','en','de'];
-
-        if (!in_array($newLang, $allowed, true)) {
-            $response = [
-                'status'  => 'error',
-                'message' => 'Недопустимый язык',
-            ];
-            break;
-        }
-
-        // обновляем в сессии
-        $_SESSION['lang']            = $newLang;
-        $_SESSION['user']['ui_lang'] = $newLang;
-
-        // обновляем в БД
-        global $dbcnx;
-        $stmt = $dbcnx->prepare("UPDATE users SET ui_lang = ? WHERE id = ?");
-        $stmt->bind_param("si", $newLang, $user['id']);
-        $stmt->execute();
-        $stmt->close();
-
-        // можно пересчитать локаль в текущем запросе, если нужно
-        $response = [
-            'status'  => 'ok',
-            'message' => 'Язык обновлён',
-        ];
-        break;
+        $response = handle_set_lang($user);
+           break;
 
     case 'get_user_panel_html':
-        // пример, когда ты хочешь вернуть целый кусок HTML (div)
-        // подгружаем Smarty-шаблон и возвращаем как строку
-        ob_start();
-        $smarty->assign('current_user', $user);
-        $smarty->display('cells_NA_API_users_panel.html');
-        $html = ob_get_clean();
-
-        $response = [
-            'status' => 'ok',
-            'html'   => $html,
-        ];
-        break;
+        $response = handle_get_user_panel_html($user);
+           break;
 
     // === 1) Показать список пользователей (центральный main) ===
     case 'view_users':
-/*        $users = [];
-
-        // тянем пользователей из БД
-        $sql = "SELECT id,
-                       username,
-                       full_name,
-                       email,
-                       is_active,
-                       created_at,
-                       last_login_at,
-                       login_count
-                  FROM users
-              ORDER BY id";
-        if ($res = $dbcnx->query($sql)) {
-            while ($row = $res->fetch_assoc()) {
-                $users[] = $row;
-            }
-            $res->free();
-        }
-*/
-        $users = fetch_users_list($dbcnx);
-        // отдаём в шаблон
-        $smarty->assign('users', $users);
-//        $smarty->assign('current_user', $currentUser);
-        $smarty->assign('current_user', $user);
-
-        // рендерим ТОЛЬКО внутренность main в отдельный шаблон
-        ob_start();
-        $smarty->display('cells_NA_API_users.html'); // этот шаблон сделаешь сам
-        $html = ob_get_clean();
-
-        $response = [
-            'status' => 'ok',
-            'html'   => $html,
-        ];
+        $response = handle_view_users($user);
         break;
 
     // === 1) Показать список пользователей (центральный main) ===
-case 'form_new_user':
-    $currentUser = $user;
-
-    $roles = [];
-    $sql = "SELECT code, name FROM roles WHERE is_active = 1 ORDER BY id";
-    if ($res = $dbcnx->query($sql)) {
-        while ($row = $res->fetch_assoc()) {
-            $roles[] = $row;
-        }
-        $res->free();
-    }
-
-    // Пустой пользователь для шаблона
-    $editUser = [
-        'id'        => '',
-        'full_name' => '',
-        'email'     => '',
-        'role'      => '',   // нет роли пока
-        'settings'  => [],
-    ];
-
-    $smarty->assign('roles', $roles);
-    $smarty->assign('edit_user', $editUser);
-    $smarty->assign('current_user', $currentUser);
-
-    ob_start();
-    $smarty->display('cells_NA_API_profile.html');
-    $html = ob_get_clean();
-
-    $response = [
-        'status' => 'ok',
-        'html'   => $html,
-    ];
-    break;
-
-case 'save_user':
-    $current = $user; // кто сохраняет
-
-    $userId = (int)($_POST['user_id'] ?? 0);
-
-    // Флаг удаления
-    $deleteFlag = !empty($_POST['delete']);
-
-    // Если пришёл delete для существующего пользователя — обрабатываем сразу
-    if ($userId > 0 && $deleteFlag) {
-
-        // Не даём удалить самого себя
-        if (($current['id'] ?? null) === $userId) {
-            $response = [
-                'status'  => 'error',
-                'message' => 'Нельзя удалить самого себя',
-            ];
-            break;
-        }
-
-        // Удаляем пользователя
-        $stmt = $dbcnx->prepare("DELETE FROM users WHERE id = ?");
-        if ($stmt) {
-            $stmt->bind_param("i", $userId);
-            $stmt->execute();
-            $stmt->close();
-        }
-
-        // (Если оставишь user_roles, можно также подчистить:
-        // $stmt = $dbcnx->prepare("DELETE FROM user_roles WHERE user_id = ?");
-        // ... )
-
-        audit_log(
-            $current['id'] ?? null,
-            'USER_DELETE',
-            'USER',
-            $userId,
-            'Пользователь удалён из профиля',
-            []
-        );
-
-        $response = [
-            'status'  => 'ok',
-            'message' => 'Пользователь удалён',
-            'deleted' => true,
-        ];
+    case 'form_new_user':
+        $response = handle_form_new_user($user);
         break;
-    }
 
-    // Основные поля
-    $fullName = trim($_POST['fullName'] ?? '');
-    $email    = trim($_POST['email'] ?? '');
-    $company  = trim($_POST['company'] ?? '');
-    $job      = trim($_POST['job'] ?? '');
-    $country  = trim($_POST['country'] ?? '');
-    $address  = trim($_POST['address'] ?? '');
-    $phone    = trim($_POST['phone'] ?? '');
-    $about    = trim($_POST['about'] ?? '');
-
-    // Роль: теперь строка (код роли)
-    $roleCode = trim($_POST['role'] ?? '');
-
-    // Новый пароль
-    $newPasswordPlain = trim($_POST['newpassword'] ?? '');
-
-    // Уведомления / галочки
-    $notifyChanges  = !empty($_POST['changesMade']);
-    $notifyProducts = !empty($_POST['newProducts']);
-    $notifyOffers   = !empty($_POST['proOffers']);
-    $notifySecurity = !empty($_POST['securityNotify']);
-
-    $extra = [
-        'about'    => $about,
-        'company'  => $company,
-        'job'      => $job,
-        'country'  => $country,
-        'address'  => $address,
-        'phone'    => $phone,
-        'notifications' => [
-            'changes_made'   => $notifyChanges,
-            'new_products'   => $notifyProducts,
-            'promo_offers'   => $notifyOffers,
-            'security_alert' => $notifySecurity,
-        ],
-    ];
-    $uiSettingsJson = json_encode($extra, JSON_UNESCAPED_UNICODE);
-
-    if ($fullName === '' || $email === '') {
-        $response = [
-            'status'  => 'error',
-            'message' => 'Имя и Email обязательны',
-        ];
+    case 'save_user':
+        $response = handle_save_user($user);
         break;
-    }
-
-    $generatedPassword = null;
-
-    if ($userId > 0) {
-        // --- UPDATE ---
-        $sql = "UPDATE users
-                   SET full_name   = ?,
-                       email       = ?,
-                       ui_settings = ?,
-                       role        = ?
-                 WHERE id = ?";
-        $stmt = $dbcnx->prepare($sql);
-        if (!$stmt) {
-            throw new RuntimeException('DB prepare error (users update)');
-        }
-        $stmt->bind_param("ssssi", $fullName, $email, $uiSettingsJson, $roleCode, $userId);
-        $stmt->execute();
-        $stmt->close();
-
-        if ($newPasswordPlain !== '') {
-            $newHash = password_hash($newPasswordPlain, PASSWORD_BCRYPT);
-            $sqlP = "UPDATE users SET password_hash = ? WHERE id = ?";
-            $stmtP = $dbcnx->prepare($sqlP);
-            if (!$stmtP) {
-                throw new RuntimeException('DB prepare error (users pwd update)');
-            }
-            $stmtP->bind_param("si", $newHash, $userId);
-            $stmtP->execute();
-            $stmtP->close();
-        }
-
-        audit_log(
-            $current['id'] ?? null,
-            'USER_UPDATE',
-            'USER',
-            $userId,
-            'Обновление данных пользователя из профиля',
-            [
-                'full_name'   => $fullName,
-                'email'       => $email,
-                'extra'       => $extra,
-                'pwd_changed' => ($newPasswordPlain !== ''),
-                'role'        => $roleCode,
-            ]
-        );
-
-        $response = [
-            'status'  => 'ok',
-            'message' => 'Пользователь обновлён',
-            'user_id' => $userId,
-        ];
-
-    } else {
-        // --- INSERT нового пользователя ---
-        $username = $email;        // логин = email, при желании потом изменишь
-
-        // Пароль
-        if ($newPasswordPlain === '') {
-            $generatedPassword = bin2hex(random_bytes(4)); // 8 символов hex
-            $newPasswordPlain  = $generatedPassword;
-        }
-        $passHash = password_hash($newPasswordPlain, PASSWORD_BCRYPT);
-
-        // QR-токен для логина
-        $qrLoginToken = bin2hex(random_bytes(16)); // 32 символа hex
-
-        $uid = (int)(microtime(true) * 1000000);
-
-        $sql = "INSERT INTO users (
-                    uid_created,
-                    username,
-                    password_hash,
-                    full_name,
-                    email,
-                    ui_settings,
-                    is_active,
-                    created_at,
-                    login_count,
-                    qr_login_token,
-                    qr_login_enabled
-                ) VALUES (
-                    ?, ?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP(6), 0, ?, 1
-                )";
-        $stmt = $dbcnx->prepare($sql);
-        if (!$stmt) {
-            throw new RuntimeException('DB prepare error (users insert)');
-        }
-        $stmt->bind_param(
-            "issssss",
-            $uid,
-            $username,
-            $passHash,
-            $fullName,
-            $email,
-            $uiSettingsJson,
-            $qrLoginToken
-        );
-        $stmt->execute();
-        $newUserId = $stmt->insert_id;
-        $stmt->close();
-
-        audit_log(
-            $current['id'] ?? null,
-            'USER_CREATE',
-            'USER',
-            $newUserId,
-            'Создан новый пользователь из профиля',
-            [
-                'full_name'      => $fullName,
-                'email'          => $email,
-                'extra'          => $extra,
-                'pwd_generated'  => ($generatedPassword !== null),
-                'role'           => $roleCode,
-            ]
-        );
-
-        $resp = [
-            'status'  => 'ok',
-            'message' => 'Пользователь создан',
-            'user_id' => $newUserId,
-        ];
-        if ($generatedPassword !== null) {
-            $resp['temp_password'] = $generatedPassword;
-        }
-
-        $response = $resp;
-    }
-
-    break;
-
-case 'form_edit_user':
-    $editId = (int)($_POST['user_id'] ?? 0);
-    if ($editId <= 0) {
-        $response = [
-            'status'  => 'error',
-            'message' => 'Не передан user_id',
-        ];
+    case 'form_edit_user':
+        $response = handle_form_edit_user($user);
         break;
-    }
-
-    $sql = "SELECT id,
-                   username,
-                   full_name,
-                   email,
-                   ui_settings,
-                   role,
-                   qr_login_token,
-                   qr_login_enabled
-              FROM users
-             WHERE id = ?
-             LIMIT 1";
-    $stmt = $dbcnx->prepare($sql);
-    $stmt->bind_param("i", $editId);
-    $stmt->execute();
-    $resU = $stmt->get_result();
-    $editUser = $resU->fetch_assoc();
-    $stmt->close();
-
-    if (!$editUser) {
-        $response = [
-            'status'  => 'error',
-            'message' => 'Пользователь не найден',
-        ];
-        break;
-    }
-
-    $settingsArr = [];
-    if (!empty($editUser['ui_settings'])) {
-        $tmp = json_decode($editUser['ui_settings'], true);
-        if (is_array($tmp)) {
-            $settingsArr = $tmp;
-        }
-    }
-    $qrImageUrl = null;
-    if (!empty($editUser['qr_login_token'])) {
-        $qrImageUrl = sprintf(
-            '/img/users/qr/%d_qr%s.png',
-            $editUser['id'],
-            $editUser['qr_login_token']
-        );
-    }
-    $editUser['qr_image_url'] = $qrImageUrl;
-    $editUser['settings'] = $settingsArr;
-
-    // справочник ролей
-    $roles = [];
-    $sqlR = "SELECT code, name
-             FROM roles
-             WHERE is_active = 1
-             ORDER BY id";
-    if ($resR = $dbcnx->query($sqlR)) {
-        while ($row = $resR->fetch_assoc()) {
-            $roles[] = $row;
-        }
-        $resR->free();
-    }
-
-    $smarty->assign('edit_user',    $editUser);
-    $smarty->assign('roles',        $roles);
-    $smarty->assign('current_user', $user);
-
-    ob_start();
-    $smarty->display('cells_NA_API_profile.html');
-    $html = ob_get_clean();
-
-    $response = [
-        'status' => 'ok',
-        'html'   => $html,
-    ];
-    break;
 
     // === Ресурсы -> Инструменты ===
     case 'view_tools_stock':
@@ -1538,29 +1130,7 @@ case 'add_new_cells':
         break;
 
     case 'users_regen_qr':
-        // Только админам позволяем массовую регенерацию
-        auth_require_role('ADMIN');
-
-        $ok  = 0;
-        $err = 0;
-
-        $sql = "SELECT id, qr_login_token FROM users ORDER BY id";
-        if ($res = $dbcnx->query($sql)) {
-            while ($row = $res->fetch_assoc()) {
-                $fn = ensure_user_qr_image($row);
-                if ($fn !== null) {
-                    $ok++;
-                } else {
-                    $err++;
-                }
-            }
-            $res->free();
-        }
-
-        $response = [
-            'status'  => 'ok',
-            'message' => "QR-коды обновлены. Успешно: {$ok}, ошибок: {$err}",
-        ];
+        $response = handle_users_regen_qr();
         break;
 
 case 'warehouse_item_in':
