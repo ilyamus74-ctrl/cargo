@@ -189,7 +189,14 @@
   "default_mode": "ocr",
   "modes": ["ocr"],
   "barcode": { "action": "fill_field", "field_id": "trackingNo" },
-  "qr":      { "action": "api_check",  "endpoint": "/api/qr_check.php" }
+  "qr":      { "action": "api_check",  "endpoint": "/api/qr_check.php" },
+  "cell_null_default_forwrad": {
+    "CAMEX_AZB": "A99",
+    "CAMEX_TBS": "C99",
+    "CAMEX_KG":  "K99",
+    "COLIBRI_AZB": "C0",
+    "ASER": "AS0"
+  }
 }
 </script>
 <div id="ocr-templates" style="display:none">

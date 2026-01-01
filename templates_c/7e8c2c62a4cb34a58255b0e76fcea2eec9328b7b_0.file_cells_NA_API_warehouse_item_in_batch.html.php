@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2025-12-23 18:46:38
+/* Smarty version 5.3.1, created on 2025-12-31 19:13:08
   from 'file:cells_NA_API_warehouse_item_in_batch.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_694ae38e4f1305_66807948',
+  'unifunc' => 'content_695575c4021442_44918130',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '7e8c2c62a4cb34a58255b0e76fcea2eec9328b7b' => 
     array (
       0 => 'cells_NA_API_warehouse_item_in_batch.html',
-      1 => 1766515108,
+      1 => 1767207854,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_694ae38e4f1305_66807948 (\Smarty\Template $_smarty_tpl) {
+function content_695575c4021442_44918130 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>
 
@@ -253,7 +253,14 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
   "default_mode": "ocr",
   "modes": ["ocr"],
   "barcode": { "action": "fill_field", "field_id": "trackingNo" },
-  "qr":      { "action": "api_check",  "endpoint": "/api/qr_check.php" }
+  "qr":      { "action": "api_check",  "endpoint": "/api/qr_check.php" },
+  "cell_null_default_forwrad": {
+    "CAMEX_AZB": "A99",
+    "CAMEX_TBS": "C99",
+    "CAMEX_KG":  "K99",
+    "COLIBRI_AZB": "C0",
+    "ASER": "AS0"
+  }
 }
 <?php echo '</script'; ?>
 >
