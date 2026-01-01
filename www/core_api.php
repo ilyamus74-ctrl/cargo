@@ -6,12 +6,65 @@ require_once __DIR__ . '/api/core_helpers.php';
 require_once __DIR__ . '/api/user_actions.php';
 require_once __DIR__ . '/api/device_actions.php';
 
+
+/**
+ * Ленивый загрузчик зависимостей для OCR.
+ */
+function load_ocr_dependencies(): void
+{
+    static $loaded = false;
+
+    if ($loaded) {
+        return;
+    }
+
+    require_once __DIR__ . '/ocr_templates.php';
+    require_once __DIR__ . '/ocr_dicts.php';
+
+    $loaded = true;
+}
+
+/**
+ * Делегирует действие в модульный роутер по домену.
+ */
+function route_domain_action(string $domain, string $action, array $user): ?array
+{
+    $routers = [
+        'device'  => 'route_device_domain',
+        'devices' => 'route_device_domain',
+    ];
+
+    if (!isset($routers[$domain])) {
+        return null;
+    }
+
+    $router = $routers[$domain];
+
+    return $router($action, $user);
+}
+
+/**
+ * Роутер действий для домена устройств.
+ */
+function route_device_domain(string $action, array $user): array
+{
+    if (!device_actions_can_handle($action)) {
+        return [
+            'status'  => 'error',
+            'message' => 'Unknown action for device domain',
+        ];
+    }
+
+    return handle_device_action($action, $user);
+}
+
 // все эти операции только для залогиненных
 auth_require_login();
 
 header('Content-Type: application/json; charset=utf-8');
 
 $action = $_POST['action'] ?? $_GET['action'] ?? '';
+$domain = $_POST['domain'] ?? $_GET['domain'] ?? '';
 
 $response = [
     'status'  => 'error',
@@ -21,6 +74,13 @@ $response = [
 
 // текущий пользователь
 $user = auth_current_user();
+
+$domainResponse = route_domain_action($domain, $action, $user);
+if ($domainResponse !== null) {
+    echo json_encode($domainResponse, JSON_UNESCAPED_UNICODE);
+
+    return;
+}
 
 try {
 switch ($action) {
@@ -1103,9 +1163,9 @@ case 'open_item_in_batch':
     }
     $smarty->assign('stand_devices', $stand_devices);
 
-    require_once __DIR__ . '/ocr_templates.php';
-    require_once __DIR__ . '/ocr_dicts.php';
-
+    //require_once __DIR__ . '/ocr_templates.php';
+    //require_once __DIR__ . '/ocr_dicts.php';
+    load_ocr_dependencies();
 
     ob_start();
     $smarty->display('cells_NA_API_warehouse_item_in_batch.html');
@@ -1437,9 +1497,9 @@ case 'delete_item_in':
 
     $smarty->assign('dest_country', $dest_country);
 
-    require_once __DIR__ . '/ocr_templates.php';
-    require_once __DIR__ . '/ocr_dicts.php';
-
+    //require_once __DIR__ . '/ocr_templates.php';
+    //require_once __DIR__ . '/ocr_dicts.php';
+    load_ocr_dependencies();
 
     ob_start();
     $smarty->display('cells_NA_API_warehouse_item_in_batch.html');
