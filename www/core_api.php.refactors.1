@@ -2,6 +2,65 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/bootstrap.php';
+require_once __DIR__ . '/api/core_helpers.php';
+require_once __DIR__ . '/api/user_actions.php';
+require_once __DIR__ . '/api/device_actions.php';
+
+// Пытаемся гарантировать рабочее подключение к БД для складских операций.
+if (!isset($dbcnx) || !($dbcnx instanceof mysqli)) {
+    require_once __DIR__ . '/../configs/connectDB.php';
+}
+
+/**
+ * Ленивый загрузчик зависимостей для OCR.
+ */
+function load_ocr_dependencies(): void
+{
+    static $loaded = false;
+
+    if ($loaded) {
+        return;
+    }
+
+    require_once __DIR__ . '/ocr_templates.php';
+    require_once __DIR__ . '/ocr_dicts.php';
+
+    $loaded = true;
+}
+
+/**
+ * Делегирует действие в модульный роутер по домену.
+ */
+function route_domain_action(string $domain, string $action, array $user): ?array
+{
+    $routers = [
+        'device'  => 'route_device_domain',
+        'devices' => 'route_device_domain',
+    ];
+
+    if (!isset($routers[$domain])) {
+        return null;
+    }
+
+    $router = $routers[$domain];
+
+    return $router($action, $user);
+}
+
+/**
+ * Роутер действий для домена устройств.
+ */
+function route_device_domain(string $action, array $user): array
+{
+    if (!device_actions_can_handle($action)) {
+        return [
+            'status'  => 'error',
+            'message' => 'Unknown action for device domain',
+        ];
+    }
+
+    return handle_device_action($action, $user);
+}
 
 // все эти операции только для залогиненных
 auth_require_login();
@@ -9,781 +68,55 @@ auth_require_login();
 header('Content-Type: application/json; charset=utf-8');
 
 $action = $_POST['action'] ?? $_GET['action'] ?? '';
+$domain = $_POST['domain'] ?? $_GET['domain'] ?? '';
 
 $response = [
     'status'  => 'error',
     'message' => 'Unknown action',
 ];
 
-/**
- * Получить список пользователей для таблиц (используется в нескольких разделах).
- */
-function fetch_users_list(mysqli $dbcnx): array
-{
-    $users = [];
-
-    $sql = "SELECT id,
-                   username,
-                   full_name,
-                   email,
-                   is_active,
-                   created_at,
-                   last_login_at,
-                   login_count
-              FROM users
-          ORDER BY id";
-    if ($res = $dbcnx->query($sql)) {
-        while ($row = $res->fetch_assoc()) {
-            $users[] = $row;
-        }
-        $res->free();
-    }
-
-    return $users;
-}
-
-function build_tool_qr_path_json(string $uid): string
-{
-    $dir = __DIR__ . '/img/tools_stock/' . $uid;
-
-    // сначала пробуем собрать то, что уже лежит
-    $qr = collect_tool_qr_images($uid, $dir);
-
-    // если пусто — генерим и собираем заново (чтобы попал и qr_raw.png)
-    if (!$qr) {
-        generate_tool_qr_images($uid, get_subdomain_label());
-        $qr = collect_tool_qr_images($uid, $dir);
-    }
-
-    if (!$qr) {
-        return '{}';
-    }
-
-    return json_encode($qr, JSON_UNESCAPED_SLASHES) ?: '{}';
-}
-
-/**
- * @param mixed $raw
- */
-function parse_tool_photos($raw): array
-{
-    if (is_array($raw)) {
-        return array_values(array_filter(array_map('strval', $raw)));
-    }
-
-    if (!is_string($raw) || trim($raw) === '') {
-        return [];
-    }
-
-    $decoded = json_decode($raw, true);
-    if (is_array($decoded)) {
-        return array_values(array_filter(array_map('strval', $decoded)));
-    }
-
-    return [trim($raw)];
-}
-
-
-function fetch_tools_list(mysqli $dbcnx): array
-{
-    $tools = [];
-
-    $sql = "SELECT id,
-                   name,
-                   serial_number,
-                   registered_at,
-                   status
-              FROM tool_resources
-          ORDER BY id";
-    if ($res = $dbcnx->query($sql)) {
-        while ($row = $res->fetch_assoc()) {
-            $tools[] = $row;
-        }
-        $res->free();
-    }
-
-    return $tools;
-}
-
-function generate_uuid(): string
-{
-    $data = random_bytes(16);
-    $data[6] = chr(ord($data[6]) & 0x0f | 0x40);
-    $data[8] = chr(ord($data[8]) & 0x3f | 0x80);
-
-    return vsprintf('%s%s-%s-%s-%s-%s%s%s', str_split(bin2hex($data), 4));
-}
-
-function cm_to_px(float $cm, int $dpi = 300): int
-{
-    return (int)round($cm * $dpi / 2.54);
-}
-
-function get_subdomain_label(): string
-{
-    $host = preg_replace('/:\\d+$/', '', $_SERVER['HTTP_HOST'] ?? '');
-    $parts = array_filter(explode('.', $host));
-
-    return strtoupper($parts[0] ?? '');
-}
-
-function remove_directory_recursive(string $dir): void
-{
-    if (!is_dir($dir)) {
-        return;
-    }
-
-    $items = scandir($dir);
-    if ($items === false) {
-        return;
-    }
-
-    foreach ($items as $item) {
-        if ($item === '.' || $item === '..') {
-            continue;
-        }
-
-        $path = $dir . DIRECTORY_SEPARATOR . $item;
-        if (is_dir($path)) {
-            remove_directory_recursive($path);
-        } else {
-            @unlink($path);
-        }
-    }
-
-    @rmdir($dir);
-}
-
-function collect_tool_qr_images(string $uid, string $baseDir): array
-{
-    $result = [];
-
-    foreach (glob($baseDir . '/qr_*.png') as $filePath) {
-        $fileName = basename($filePath);
-
-        if (preg_match('/^qr_([^\\.]+)\\.png$/', $fileName, $m)) {
-            $suffix = $m[1];
-            $result[$suffix] = sprintf('/img/tools_stock/%s/%s', $uid, $fileName);
-        }
-    }
-
-    ksort($result);
-
-    return $result;
-}
-
-
-function generate_tool_qr_images(string $uid, string $labelText): array
-{
-    $baseDir = __DIR__ . '/img/tools_stock/' . $uid;
-    if (!is_dir($baseDir) && !mkdir($baseDir, 0775, true) && !is_dir($baseDir)) {
-        error_log("QR: cannot create dir {$baseDir}");
-        return [];
-    }
-
-    $qrPayload = $uid;
-    $rawPath   = $baseDir . '/qr_raw.png';
-
-    $cmd = sprintf(
-        'qrencode -o %s -s 8 -l M %s 2>/dev/null',
-        escapeshellarg($rawPath),
-        escapeshellarg($qrPayload)
-    );
-    exec($cmd, $out, $ret);
-    if ($ret !== 0 || !is_file($rawPath)) {
-        error_log("QR: qrencode failed for tool {$uid}, rc={$ret}");
-        return [];
-    }
-
-    $rawImage = imagecreatefrompng($rawPath);
-    if (!$rawImage) {
-        error_log("QR: cannot open raw QR for tool {$uid}");
-        return [];
-    }
-
-    $qrWidth     = imagesx($rawImage);
-    $qrHeight    = imagesy($rawImage);
-    $labelHeight = 36;
-    $canvas      = imagecreatetruecolor($qrWidth, $qrHeight + $labelHeight);
-
-    $white = imagecolorallocate($canvas, 255, 255, 255);
-    $black = imagecolorallocate($canvas, 0, 0, 0);
-
-    imagefill($canvas, 0, 0, $white);
-    imagecopy($canvas, $rawImage, 0, 0, 0, 0, $qrWidth, $qrHeight);
-
-    $font      = 5;
-    $text      = $labelText ?: 'QR';
-    $textWidth = imagefontwidth($font) * strlen($text);
-    $textX     = max(0, (int)(($qrWidth - $textWidth) / 2));
-    $textY     = $qrHeight + (int)(($labelHeight - imagefontheight($font)) / 2);
-    imagestring($canvas, $font, $textX, $textY, $text, $black);
-
-    $sizesCm = [
-        '5x5' => 5.0,
-        '3x3' => 3.0,
-        '2x2' => 2.0,
-    ];
-
-    $result = [];
-
-    foreach ($sizesCm as $suffix => $cm) {
-        $targetSize = cm_to_px($cm);
-        $resized    = imagecreatetruecolor($targetSize, $targetSize);
-
-        imagefill($resized, 0, 0, $white);
-        imagecopyresampled(
-            $resized,
-            $canvas,
-            0,
-            0,
-            0,
-            0,
-            $targetSize,
-            $targetSize,
-            imagesx($canvas),
-            imagesy($canvas)
-        );
-
-        $fileName = sprintf('qr_%s.png', $suffix);
-        $filePath = $baseDir . '/' . $fileName;
-
-        imagepng($resized, $filePath);
-        imagedestroy($resized);
-
-        $result[$suffix] = sprintf('/img/tools_stock/%s/%s', $uid, $fileName);
-    }
-
-    imagedestroy($canvas);
-    imagedestroy($rawImage);
-
-    if (!$result) {
-        $result = collect_tool_qr_images($uid, $baseDir);
-    }
-
-    return $result;
-}
-function map_tool_to_template(array $tool): array
-{
-//    $qrPathsRaw = $tool['qr_path'] ?? '';
-    $qrPathsRaw = $tool['qr_path'] ?? $tool['qr_patch'] ?? '';
-    $qrCodes    = [];
-    $toolUid    = $tool['uid'] ?? '';
-
-    if ($qrPathsRaw !== '') {
-        $decoded = json_decode((string)$qrPathsRaw, true);
-
-        if (is_array($decoded)) {
-            foreach ($decoded as $size => $path) {
-                if (is_string($path)) {
-                    $qrCodes[] = [
-                        'size' => (string)$size,
-                        'path' => $path,
-                    ];
-                }
-            }
-        } elseif (is_string($qrPathsRaw)) {
-            $qrCodes[] = [
-                'size' => 'default',
-                'path' => (string)$qrPathsRaw,
-            ];
-        }
-    }
-
-
-    if (!$qrCodes && $toolUid !== '') {
-        $qrCodes = collect_tool_qr_images($toolUid, __DIR__ . '/img/tools_stock/' . $toolUid);
-
-        $qrCodes = array_map(
-            static function ($path, $size): array {
-                return [
-                    'size' => (string)$size,
-                    'path' => $path,
-                ];
-            },
-            $qrCodes,
-            array_keys($qrCodes)
-        );
-    }
-
-    $formatDate = static function ($value): string {
-        if (!$value) {
-            return '';
-        }
-
-        try {
-            $dt = new DateTime($value);
-            return $dt->format('Y-m-d');
-        } catch (Exception $e) {
-            return '';
-        }
-    };
-
-
-    $photos = parse_tool_photos($tool['img_path'] ?? $tool['img_patch'] ?? null);
-    return [
-        'id'              => $tool['id'] ?? '',
-        'NameTool'        => $tool['name'] ?? '',
-        'SerialNumber'    => $tool['serial_number'] ?? '',
-        'WarantyDays'     => $tool['warranty_days'] ?? 0,
-        'PriceBuy'        => $tool['price_buy'] ?? '',
-        'DateBuy'         => $formatDate($tool['purchase_date'] ?? ''),
-        'AddInSystem'     => $formatDate($tool['registered_at'] ?? ''),
-        'ResourceDays'    => $tool['resource_days'] ?? 0,
-        'ResourceEndDate' => $formatDate($tool['operational_until'] ?? ''),
-        'status'          => $tool['status'] ?? 'active',
-        'notes'           => $tool['notes'] ?? '',
-        'qr_codes'        => $qrCodes,
-        'img_path'        => $photos,
-    ];
-}
-
-
-
 
 // текущий пользователь
 $user = auth_current_user();
+
+$domainResponse = route_domain_action($domain, $action, $user);
+if ($domainResponse !== null) {
+    echo json_encode($domainResponse, JSON_UNESCAPED_UNICODE);
+
+    return;
+}
 
 try {
 switch ($action) {
 
     case 'get_user_info':
-        // простой пример — отдать краткую инфу по пользователю
-        $response = [
-            'status' => 'ok',
-            'data'   => [
-                'id'        => $user['id'],
-                'username'  => $user['username'],
-                'full_name' => $user['full_name'],
-                'ui_lang'   => $user['ui_lang'] ?? null,
-            ],
-        ];
-        break;
+        $response = handle_get_user_info($user);
+           break;
 
     case 'set_lang':
-        // смена языка интерфейса пользователем
-        $newLang = $_POST['lang'] ?? '';
-        $allowed = ['uk','ru','en','de'];
-
-        if (!in_array($newLang, $allowed, true)) {
-            $response = [
-                'status'  => 'error',
-                'message' => 'Недопустимый язык',
-            ];
-            break;
-        }
-
-        // обновляем в сессии
-        $_SESSION['lang']            = $newLang;
-        $_SESSION['user']['ui_lang'] = $newLang;
-
-        // обновляем в БД
-        global $dbcnx;
-        $stmt = $dbcnx->prepare("UPDATE users SET ui_lang = ? WHERE id = ?");
-        $stmt->bind_param("si", $newLang, $user['id']);
-        $stmt->execute();
-        $stmt->close();
-
-        // можно пересчитать локаль в текущем запросе, если нужно
-        $response = [
-            'status'  => 'ok',
-            'message' => 'Язык обновлён',
-        ];
-        break;
+        $response = handle_set_lang($user);
+           break;
 
     case 'get_user_panel_html':
-        // пример, когда ты хочешь вернуть целый кусок HTML (div)
-        // подгружаем Smarty-шаблон и возвращаем как строку
-        ob_start();
-        $smarty->assign('current_user', $user);
-        $smarty->display('cells_NA_API_users_panel.html');
-        $html = ob_get_clean();
-
-        $response = [
-            'status' => 'ok',
-            'html'   => $html,
-        ];
-        break;
+        $response = handle_get_user_panel_html($user);
+           break;
 
     // === 1) Показать список пользователей (центральный main) ===
     case 'view_users':
-/*        $users = [];
-
-        // тянем пользователей из БД
-        $sql = "SELECT id,
-                       username,
-                       full_name,
-                       email,
-                       is_active,
-                       created_at,
-                       last_login_at,
-                       login_count
-                  FROM users
-              ORDER BY id";
-        if ($res = $dbcnx->query($sql)) {
-            while ($row = $res->fetch_assoc()) {
-                $users[] = $row;
-            }
-            $res->free();
-        }
-*/
-        $users = fetch_users_list($dbcnx);
-        // отдаём в шаблон
-        $smarty->assign('users', $users);
-//        $smarty->assign('current_user', $currentUser);
-        $smarty->assign('current_user', $user);
-
-        // рендерим ТОЛЬКО внутренность main в отдельный шаблон
-        ob_start();
-        $smarty->display('cells_NA_API_users.html'); // этот шаблон сделаешь сам
-        $html = ob_get_clean();
-
-        $response = [
-            'status' => 'ok',
-            'html'   => $html,
-        ];
+        $response = handle_view_users($user);
         break;
 
     // === 1) Показать список пользователей (центральный main) ===
-case 'form_new_user':
-    $currentUser = $user;
-
-    $roles = [];
-    $sql = "SELECT code, name FROM roles WHERE is_active = 1 ORDER BY id";
-    if ($res = $dbcnx->query($sql)) {
-        while ($row = $res->fetch_assoc()) {
-            $roles[] = $row;
-        }
-        $res->free();
-    }
-
-    // Пустой пользователь для шаблона
-    $editUser = [
-        'id'        => '',
-        'full_name' => '',
-        'email'     => '',
-        'role'      => '',   // нет роли пока
-        'settings'  => [],
-    ];
-
-    $smarty->assign('roles', $roles);
-    $smarty->assign('edit_user', $editUser);
-    $smarty->assign('current_user', $currentUser);
-
-    ob_start();
-    $smarty->display('cells_NA_API_profile.html');
-    $html = ob_get_clean();
-
-    $response = [
-        'status' => 'ok',
-        'html'   => $html,
-    ];
-    break;
-
-case 'save_user':
-    $current = $user; // кто сохраняет
-
-    $userId = (int)($_POST['user_id'] ?? 0);
-
-    // Флаг удаления
-    $deleteFlag = !empty($_POST['delete']);
-
-    // Если пришёл delete для существующего пользователя — обрабатываем сразу
-    if ($userId > 0 && $deleteFlag) {
-
-        // Не даём удалить самого себя
-        if (($current['id'] ?? null) === $userId) {
-            $response = [
-                'status'  => 'error',
-                'message' => 'Нельзя удалить самого себя',
-            ];
-            break;
-        }
-
-        // Удаляем пользователя
-        $stmt = $dbcnx->prepare("DELETE FROM users WHERE id = ?");
-        if ($stmt) {
-            $stmt->bind_param("i", $userId);
-            $stmt->execute();
-            $stmt->close();
-        }
-
-        // (Если оставишь user_roles, можно также подчистить:
-        // $stmt = $dbcnx->prepare("DELETE FROM user_roles WHERE user_id = ?");
-        // ... )
-
-        audit_log(
-            $current['id'] ?? null,
-            'USER_DELETE',
-            'USER',
-            $userId,
-            'Пользователь удалён из профиля',
-            []
-        );
-
-        $response = [
-            'status'  => 'ok',
-            'message' => 'Пользователь удалён',
-            'deleted' => true,
-        ];
+    case 'form_new_user':
+        $response = handle_form_new_user($user);
         break;
-    }
 
-    // Основные поля
-    $fullName = trim($_POST['fullName'] ?? '');
-    $email    = trim($_POST['email'] ?? '');
-    $company  = trim($_POST['company'] ?? '');
-    $job      = trim($_POST['job'] ?? '');
-    $country  = trim($_POST['country'] ?? '');
-    $address  = trim($_POST['address'] ?? '');
-    $phone    = trim($_POST['phone'] ?? '');
-    $about    = trim($_POST['about'] ?? '');
-
-    // Роль: теперь строка (код роли)
-    $roleCode = trim($_POST['role'] ?? '');
-
-    // Новый пароль
-    $newPasswordPlain = trim($_POST['newpassword'] ?? '');
-
-    // Уведомления / галочки
-    $notifyChanges  = !empty($_POST['changesMade']);
-    $notifyProducts = !empty($_POST['newProducts']);
-    $notifyOffers   = !empty($_POST['proOffers']);
-    $notifySecurity = !empty($_POST['securityNotify']);
-
-    $extra = [
-        'about'    => $about,
-        'company'  => $company,
-        'job'      => $job,
-        'country'  => $country,
-        'address'  => $address,
-        'phone'    => $phone,
-        'notifications' => [
-            'changes_made'   => $notifyChanges,
-            'new_products'   => $notifyProducts,
-            'promo_offers'   => $notifyOffers,
-            'security_alert' => $notifySecurity,
-        ],
-    ];
-    $uiSettingsJson = json_encode($extra, JSON_UNESCAPED_UNICODE);
-
-    if ($fullName === '' || $email === '') {
-        $response = [
-            'status'  => 'error',
-            'message' => 'Имя и Email обязательны',
-        ];
+    case 'save_user':
+        $response = handle_save_user($user);
         break;
-    }
-
-    $generatedPassword = null;
-
-    if ($userId > 0) {
-        // --- UPDATE ---
-        $sql = "UPDATE users
-                   SET full_name   = ?,
-                       email       = ?,
-                       ui_settings = ?,
-                       role        = ?
-                 WHERE id = ?";
-        $stmt = $dbcnx->prepare($sql);
-        if (!$stmt) {
-            throw new RuntimeException('DB prepare error (users update)');
-        }
-        $stmt->bind_param("ssssi", $fullName, $email, $uiSettingsJson, $roleCode, $userId);
-        $stmt->execute();
-        $stmt->close();
-
-        if ($newPasswordPlain !== '') {
-            $newHash = password_hash($newPasswordPlain, PASSWORD_BCRYPT);
-            $sqlP = "UPDATE users SET password_hash = ? WHERE id = ?";
-            $stmtP = $dbcnx->prepare($sqlP);
-            if (!$stmtP) {
-                throw new RuntimeException('DB prepare error (users pwd update)');
-            }
-            $stmtP->bind_param("si", $newHash, $userId);
-            $stmtP->execute();
-            $stmtP->close();
-        }
-
-        audit_log(
-            $current['id'] ?? null,
-            'USER_UPDATE',
-            'USER',
-            $userId,
-            'Обновление данных пользователя из профиля',
-            [
-                'full_name'   => $fullName,
-                'email'       => $email,
-                'extra'       => $extra,
-                'pwd_changed' => ($newPasswordPlain !== ''),
-                'role'        => $roleCode,
-            ]
-        );
-
-        $response = [
-            'status'  => 'ok',
-            'message' => 'Пользователь обновлён',
-            'user_id' => $userId,
-        ];
-
-    } else {
-        // --- INSERT нового пользователя ---
-        $username = $email;        // логин = email, при желании потом изменишь
-
-        // Пароль
-        if ($newPasswordPlain === '') {
-            $generatedPassword = bin2hex(random_bytes(4)); // 8 символов hex
-            $newPasswordPlain  = $generatedPassword;
-        }
-        $passHash = password_hash($newPasswordPlain, PASSWORD_BCRYPT);
-
-        // QR-токен для логина
-        $qrLoginToken = bin2hex(random_bytes(16)); // 32 символа hex
-
-        $uid = (int)(microtime(true) * 1000000);
-
-        $sql = "INSERT INTO users (
-                    uid_created,
-                    username,
-                    password_hash,
-                    full_name,
-                    email,
-                    ui_settings,
-                    is_active,
-                    created_at,
-                    login_count,
-                    qr_login_token,
-                    qr_login_enabled
-                ) VALUES (
-                    ?, ?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP(6), 0, ?, 1
-                )";
-        $stmt = $dbcnx->prepare($sql);
-        if (!$stmt) {
-            throw new RuntimeException('DB prepare error (users insert)');
-        }
-        $stmt->bind_param(
-            "issssss",
-            $uid,
-            $username,
-            $passHash,
-            $fullName,
-            $email,
-            $uiSettingsJson,
-            $qrLoginToken
-        );
-        $stmt->execute();
-        $newUserId = $stmt->insert_id;
-        $stmt->close();
-
-        audit_log(
-            $current['id'] ?? null,
-            'USER_CREATE',
-            'USER',
-            $newUserId,
-            'Создан новый пользователь из профиля',
-            [
-                'full_name'      => $fullName,
-                'email'          => $email,
-                'extra'          => $extra,
-                'pwd_generated'  => ($generatedPassword !== null),
-                'role'           => $roleCode,
-            ]
-        );
-
-        $resp = [
-            'status'  => 'ok',
-            'message' => 'Пользователь создан',
-            'user_id' => $newUserId,
-        ];
-        if ($generatedPassword !== null) {
-            $resp['temp_password'] = $generatedPassword;
-        }
-
-        $response = $resp;
-    }
-
-    break;
-
-case 'form_edit_user':
-    $editId = (int)($_POST['user_id'] ?? 0);
-    if ($editId <= 0) {
-        $response = [
-            'status'  => 'error',
-            'message' => 'Не передан user_id',
-        ];
+    case 'form_edit_user':
+        $response = handle_form_edit_user($user);
         break;
-    }
-
-    $sql = "SELECT id,
-                   username,
-                   full_name,
-                   email,
-                   ui_settings,
-                   role,
-                   qr_login_token,
-                   qr_login_enabled
-              FROM users
-             WHERE id = ?
-             LIMIT 1";
-    $stmt = $dbcnx->prepare($sql);
-    $stmt->bind_param("i", $editId);
-    $stmt->execute();
-    $resU = $stmt->get_result();
-    $editUser = $resU->fetch_assoc();
-    $stmt->close();
-
-    if (!$editUser) {
-        $response = [
-            'status'  => 'error',
-            'message' => 'Пользователь не найден',
-        ];
-        break;
-    }
-
-    $settingsArr = [];
-    if (!empty($editUser['ui_settings'])) {
-        $tmp = json_decode($editUser['ui_settings'], true);
-        if (is_array($tmp)) {
-            $settingsArr = $tmp;
-        }
-    }
-    $qrImageUrl = null;
-    if (!empty($editUser['qr_login_token'])) {
-        $qrImageUrl = sprintf(
-            '/img/users/qr/%d_qr%s.png',
-            $editUser['id'],
-            $editUser['qr_login_token']
-        );
-    }
-    $editUser['qr_image_url'] = $qrImageUrl;
-    $editUser['settings'] = $settingsArr;
-
-    // справочник ролей
-    $roles = [];
-    $sqlR = "SELECT code, name
-             FROM roles
-             WHERE is_active = 1
-             ORDER BY id";
-    if ($resR = $dbcnx->query($sqlR)) {
-        while ($row = $resR->fetch_assoc()) {
-            $roles[] = $row;
-        }
-        $resR->free();
-    }
-
-    $smarty->assign('edit_user',    $editUser);
-    $smarty->assign('roles',        $roles);
-    $smarty->assign('current_user', $user);
-
-    ob_start();
-    $smarty->display('cells_NA_API_profile.html');
-    $html = ob_get_clean();
-
-    $response = [
-        'status' => 'ok',
-        'html'   => $html,
-    ];
-    break;
 
     // === Ресурсы -> Инструменты ===
     case 'view_tools_stock':
@@ -791,7 +124,7 @@ case 'form_edit_user':
         $tools = fetch_tools_list($dbcnx);
 
         $smarty->assign('tools', $tools);
-        $smarty->assign('current_tool', $tool);
+        $smarty->assign('current_tool', null);
 
         ob_start();
         $smarty->display('cells_NA_API_tools_stock.html');
@@ -965,20 +298,22 @@ case 'save_tool':
         $registeredAt = (new DateTime($registeredAt))->format('Y-m-d');
     } catch (Exception $e) {
         $registeredAt = date('Y-m-d');
-        }
+   }
+
    $priceBuy = ($priceBuyRaw === '' ? null : (float)$priceBuyRaw);
 
-   $resourceEnd = null;
- 
-   if ($resourceDays > 0) {
-    $resourceDays = max(0, (int)($_POST['ResourceDays'] ?? 0));
+    $resourceEnd = null;
 
-    $resourceEndObj = clone $purchaseDateObj;
+    if ($resourceDays > 0) {
+        $resourceDays   = max(0, (int)($_POST['ResourceDays'] ?? 0));
+        $resourceEndObj = clone $purchaseDateObj;
+
         if ($resourceDays > 0) {
-          $resourceEndObj->modify('+' . $resourceDays . ' days');
+            $resourceEndObj->modify('+' . $resourceDays . ' days');
         }
+        $resourceEnd = $resourceEndObj->format('Y-m-d');
     }
-   $resourceEnd = $resourceEndObj->format('Y-m-d');
+
 //print_r($resourceEnd);
     if ($toolId > 0) {
             $oldTool = null;
@@ -1328,270 +663,10 @@ if ($toolUid !== '') {
 
         break;
     case 'view_devices':
-        $devices = [];
-
-        $sql = "SELECT id, device_uid, name, serial, model, app_version,
-                       is_active, last_seen_at, last_ip,
-                       created_at, activated_at
-                  FROM devices
-              ORDER BY created_at DESC";
-        if ($res = $dbcnx->query($sql)) {
-            while ($row = $res->fetch_assoc()) {
-                $devices[] = $row;
-            }
-            $res->free();
-        }
-
-        $smarty->assign('devices', $devices);
-        $smarty->assign('current_user', $user);
-
-        ob_start();
-        $smarty->display('cells_NA_API_devices.html'); // сделаешь по аналогии с users
-        $html = ob_get_clean();
-
-        $response = [
-            'status' => 'ok',
-            'html'   => $html,
-        ];
-        break;
-
     case 'activate_device':
-        // только админ, например
-        auth_require_role('ADMIN');
-
-        $deviceId  = (int)($_POST['device_id'] ?? 0);
-        $isActive  = (int)($_POST['is_active'] ?? 0) ? 1 : 0;
-
-        if ($deviceId <= 0) {
-            $response = [
-                'status'  => 'error',
-                'message' => 'device_id required',
-            ];
-            break;
-        }
-
-        $sql = "UPDATE devices
-                   SET is_active = ?,
-                       activated_at = CASE
-                           WHEN ? = 1 AND activated_at IS NULL
-                           THEN CURRENT_TIMESTAMP(6)
-                           ELSE activated_at
-                       END
-                 WHERE id = ?";
-        $stmt = $dbcnx->prepare($sql);
-        $stmt->bind_param("iii", $isActive, $isActive, $deviceId);
-        $stmt->execute();
-        $stmt->close();
-
-        audit_log(
-            $user['id'] ?? null,
-            $isActive ? 'DEVICE_ACTIVATE' : 'DEVICE_DEACTIVATE',
-            'DEVICE',
-            $deviceId,
-            $isActive ? 'Активация устройства' : 'Деактивация устройства'
-        );
-
-        $response = [
-            'status'  => 'ok',
-            'message' => 'Статус устройства обновлён',
-        ];
-        break;
-
-
     case 'form_edit_device':
-        // Можно ограничить ролью, если нужно
-        // auth_require_role('ADMIN');
-
-        $deviceId = (int)($_POST['device_id'] ?? 0);
-        if ($deviceId <= 0) {
-            $response = [
-                'status'  => 'error',
-                'message' => 'device_id required',
-            ];
-            break;
-        }
-
-        $sql = "SELECT
-                    id,
-                    device_uid,
-                    name,
-                    serial,
-                    model,
-                    app_version,
-                    device_token,
-                    is_active,
-                    last_seen_at,
-                    last_ip,
-                    created_at,
-                    updated_at,
-                    activated_at,
-                    notes
-                FROM devices
-               WHERE id = ?
-               LIMIT 1";
-        $stmt = $dbcnx->prepare($sql);
-        if (!$stmt) {
-            $response = [
-                'status'  => 'error',
-                'message' => 'DB error (prepare form_edit_device)',
-            ];
-            break;
-        }
-        $stmt->bind_param("i", $deviceId);
-        $stmt->execute();
-        $resD   = $stmt->get_result();
-        $device = $resD->fetch_assoc();
-        $stmt->close();
-
-        if (!$device) {
-            $response = [
-                'status'  => 'error',
-                'message' => 'Устройство не найдено',
-            ];
-            break;
-        }
-
-        // --- ДОБАВЛЯЕМ: последние 20 записей из audit_logs по этому устройству ---
-        $logs = [];
-
-        $sqlL = "SELECT
-                    event_time,
-                    user_id,
-                    event_type,
-                    entity_id,
-                    ip_address,
-                    user_agent,
-                    description
-                 FROM audit_logs
-                 WHERE entity_type = 'DEVICE'
-                   AND entity_id   = ?
-                 ORDER BY event_time DESC
-                 LIMIT 20";
-
-        if ($stmtL = $dbcnx->prepare($sqlL)) {
-            $stmtL->bind_param("i", $deviceId);
-            $stmtL->execute();
-            $resL = $stmtL->get_result();
-            while ($row = $resL->fetch_assoc()) {
-                $logs[] = $row;
-            }
-            $stmtL->close();
-        }
-
-        // кладём как подмассив
-        $device['logs'] = $logs;
-
-        $smarty->assign('device',       $device);
-        $smarty->assign('current_user', $user);
-
-        ob_start();
-        $smarty->display('cells_NA_API_devices_profile.html');
-        $html = ob_get_clean();
-
-        $response = [
-            'status' => 'ok',
-            'html'   => $html,
-        ];
-        break;
-
- case 'save_device':
-        auth_require_role('ADMIN');
-
-        $deviceId = (int)($_POST['device_id'] ?? 0);
-        if ($deviceId <= 0) {
-            $response = [
-                'status'  => 'error',
-                'message' => 'device_id required',
-            ];
-            break;
-        }
-
-
-        $deleteFlag = !empty($_POST['delete']);
-
-        // Удаление устройства
-        if ($deviceId > 0 && $deleteFlag) {
-
-            $oldDevice = null;
-            if ($stmtOld = $dbcnx->prepare('SELECT * FROM devices WHERE id = ? LIMIT 1')) {
-                $stmtOld->bind_param('i', $deviceId);
-                $stmtOld->execute();
-                $resOld   = $stmtOld->get_result();
-                $oldDevice = $resOld ? $resOld->fetch_assoc() : null;
-                $stmtOld->close();
-            }
-
-            $stmtDel = $dbcnx->prepare('DELETE FROM devices WHERE id = ?');
-            if ($stmtDel) {
-                $stmtDel->bind_param('i', $deviceId);
-                $stmtDel->execute();
-                $stmtDel->close();
-            }
-
-            audit_log(
-                $user['id'] ?? null,
-                'DEVICE_DELETE',
-                'DEVICE',
-                $deviceId,
-                'Устройство удалено из профиля',
-                $oldDevice ?: []
-            );
-
-            $response = [
-                'status'  => 'ok',
-                'message' => 'Устройство удалено',
-                'deleted' => true,
-            ];
-            break;
-        }
-
-
-        // Если не нужны редактируемые name/notes — можно вообще не трогать их.
-        // Я оставляю поддержку, раз они уже были.
-        $name  = trim($_POST['name']  ?? '');
-        $notes = trim($_POST['notes'] ?? '');
-
-        // Чекбокс статуса: если есть и не пустой — считаем активным
-        $isActive = !empty($_POST['is_active']) ? 1 : 0;
-
-        $sql = "UPDATE devices
-                   SET notes      = ?,
-                       is_active  = ?,
-                       activated_at = CASE
-                           WHEN ? = 1 AND activated_at IS NULL
-                           THEN CURRENT_TIMESTAMP(6)
-                           ELSE activated_at
-                       END
-                 WHERE id = ?";
-        $stmt = $dbcnx->prepare($sql);
-        if (!$stmt) {
-            $response = [
-                'status'  => 'error',
-                'message' => 'DB error (prepare save_device)',
-            ];
-            break;
-        }
-
-        $stmt->bind_param("siii", $notes, $isActive, $isActive, $deviceId);
-        $stmt->execute();
-        $stmt->close();
-
-        audit_log(
-            $user['id'] ?? null,
-            'DEVICE_UPDATE',
-            'DEVICE',
-            $deviceId,
-            'Изменение данных устройства',
-            [
-                'notes'     => $notes,
-                'is_active' => $isActive,
-            ]
-        );
-
-        $response = [
-            'status'  => 'ok',
-            'message' => 'Устройство обновлено',
-        ];
+    case 'save_device':
+        $response = handle_device_action($action, $user);
         break;
 
     // === Настройки ячеек склада ===
@@ -1862,29 +937,7 @@ case 'add_new_cells':
         break;
 
     case 'users_regen_qr':
-        // Только админам позволяем массовую регенерацию
-        auth_require_role('ADMIN');
-
-        $ok  = 0;
-        $err = 0;
-
-        $sql = "SELECT id, qr_login_token FROM users ORDER BY id";
-        if ($res = $dbcnx->query($sql)) {
-            while ($row = $res->fetch_assoc()) {
-                $fn = ensure_user_qr_image($row);
-                if ($fn !== null) {
-                    $ok++;
-                } else {
-                    $err++;
-                }
-            }
-            $res->free();
-        }
-
-        $response = [
-            'status'  => 'ok',
-            'message' => "QR-коды обновлены. Успешно: {$ok}, ошибок: {$err}",
-        ];
+        $response = handle_users_regen_qr();
         break;
 
 case 'warehouse_item_in':
@@ -2116,9 +1169,9 @@ case 'open_item_in_batch':
     }
     $smarty->assign('stand_devices', $stand_devices);
 
-    require_once __DIR__ . '/ocr_templates.php';
-    require_once __DIR__ . '/ocr_dicts.php';
-
+    //require_once __DIR__ . '/ocr_templates.php';
+    //require_once __DIR__ . '/ocr_dicts.php';
+    load_ocr_dependencies();
 
     ob_start();
     $smarty->display('cells_NA_API_warehouse_item_in_batch.html');
@@ -2450,9 +1503,9 @@ case 'delete_item_in':
 
     $smarty->assign('dest_country', $dest_country);
 
-    require_once __DIR__ . '/ocr_templates.php';
-    require_once __DIR__ . '/ocr_dicts.php';
-
+    //require_once __DIR__ . '/ocr_templates.php';
+    //require_once __DIR__ . '/ocr_dicts.php';
+    load_ocr_dependencies();
 
     ob_start();
     $smarty->display('cells_NA_API_warehouse_item_in_batch.html');
@@ -2624,68 +1677,3 @@ case 'commit_item_in_batch':
 }
 echo json_encode($response, JSON_UNESCAPED_UNICODE);
 
-
-/**
- * Генерирует/пересоздаёт QR-картинку для одного пользователя.
- *
- * - Удаляет все старые файлы вида {id}_qr*.png
- * - Если нет токена в базе — генерирует новый, сохраняет в users.qr_login_token
- * - Создаёт PNG через qrencode
- *
- * Возвращает имя файла (без пути) или null при ошибке.
- */
-function ensure_user_qr_image(array $userRow): ?string {
-    global $dbcnx;
-
-    $userId = (int)$userRow['id'];
-    $token  = trim((string)($userRow['qr_login_token'] ?? ''));
-
-    // Каталог с картинками
-    $qrDir = __DIR__ . '/img/users/qr';
-    if (!is_dir($qrDir)) {
-        if (!mkdir($qrDir, 0775, true) && !is_dir($qrDir)) {
-            error_log("QR: cannot create dir $qrDir");
-            return null;
-        }
-    }
-
-    // Чистим старые файлы для этого пользователя
-    foreach (glob($qrDir . '/' . $userId . '_qr*.png') as $old) {
-        @unlink($old);
-    }
-
-    // Если в БД нет токена — генерим
-    if ($token === '') {
-        $token = bin2hex(random_bytes(16)); // 32 hex-символа
-
-        $stmt = $dbcnx->prepare("UPDATE users SET qr_login_token = ? WHERE id = ?");
-        if ($stmt) {
-            $stmt->bind_param("si", $token, $userId);
-            $stmt->execute();
-            $stmt->close();
-        }
-    }
-
-    // Имя файла строго по твоей схеме: {id}_qr{token}.png
-    $fileName = $userId . '_qr' . $token . '.png';
-    $filePath = $qrDir . '/' . $fileName;
-
-    // Что кодируем в QR — тут можно хоть чистый токен.
-    // Потом твой APP по скану отправит этот токен на сервер.
-    $payload = $token;
-
-    // qrencode должен быть в PATH. Можно проверить: `which qrencode`
-    $cmd = sprintf(
-        'qrencode -o %s -s 6 -l M %s 2>/dev/null',
-        escapeshellarg($filePath),
-        escapeshellarg($payload)
-    );
-    exec($cmd, $out, $ret);
-
-    if ($ret !== 0 || !is_file($filePath)) {
-        error_log("QR: qrencode failed for user $userId, rc=$ret");
-        return null;
-    }
-
-    return $fileName;
-}

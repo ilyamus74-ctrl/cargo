@@ -158,16 +158,17 @@ fun UsbSerialBinder(
     }
 
     fun requestPermission(dev: UsbDevice) {
-        val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            PendingIntent.FLAG_MUTABLE
-        } else 0
+        val intent = Intent(USB_PERMISSION_ACTION).apply {
+            setPackage(context.packageName)
+        }
 
-        val pi = PendingIntent.getBroadcast(
-            context,
-            0,
-            Intent(USB_PERMISSION_ACTION),
-            flags
-        )
+        val flags = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
+        } else {
+            PendingIntent.FLAG_UPDATE_CURRENT
+        }
+
+        val pi = PendingIntent.getBroadcast(context, 0, intent, flags)
         usbManager.requestPermission(dev, pi)
         onStatus("Запросил доступ к USB…")
     }
@@ -310,6 +311,11 @@ private fun mergeWithTolerance(prev: Double?, next: Double?, tol: Double): Doubl
     return if (kotlin.math.abs(prev - next) <= tol) prev else next
 }
 
+private fun mergeIntWithTolerance(prev: Int?, next: Int?, tol: Int): Int? {
+    if (next == null) return prev
+    if (prev == null) return next
+    return if (kotlin.math.abs(prev - next) <= tol) prev else next
+}
 enum class UsbDisplayMode { DEBUG, PROD }
 
 data class UsbRawMetrics(
@@ -661,7 +667,8 @@ fun AppRoot() {
                 widthMm  = mergeWithTolerance(prev.widthMm,  newWidthMm,  SIZE_TOLERANCE_MM),
                 depthMm  = mergeWithTolerance(prev.depthMm,  newDepthMm,  SIZE_TOLERANCE_MM),
                 heightMm = mergeWithTolerance(prev.heightMm, newHeightMm, SIZE_TOLERANCE_MM),
-                weightGrams = newWeightG ?: prev.weightGrams,
+                weightGrams = mergeIntWithTolerance(prev.weightGrams, newWeightG, 30), // <-- вот так
+                //weightGrams = newWeightG ?: prev.weightGrams,
                 scannerToWallMm = s0 ?: prev.scannerToWallMm
             )
 
