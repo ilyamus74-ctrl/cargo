@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2025-12-04 16:20:20
+/* Smarty version 5.3.1, created on 2026-01-04 16:05:16
   from 'file:cells_login.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_6931b4c480a7a2_76554521',
+  'unifunc' => 'content_695a8fbc0d9853_60407411',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '4df2b0503bc65258d3004c1923434b292489523b' => 
     array (
       0 => 'cells_login.html',
-      1 => 1764775007,
+      1 => 1767542714,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_6931b4c480a7a2_76554521 (\Smarty\Template $_smarty_tpl) {
+function content_695a8fbc0d9853_60407411 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>
   <main>
@@ -33,8 +33,9 @@ $_smarty_current_dir = '/home/cells/web/templates';
 
               <div class="d-flex justify-content-center py-4">
                 <a href="index.html" class="logo d-flex align-items-center w-auto">
-                  <img src="assets/img/logo.png" alt="">
-                  <span class="d-none d-lg-block">Cargo Cells</span>
+                 <!-- <span class="d-none d-lg-block">Cargo Cells</span>
+-->
+                 			 <img src="img/CC_transparent_andorid.png" alt=""  height="60%">
                 </a>
               </div><!-- End Logo -->
 
@@ -43,6 +44,8 @@ $_smarty_current_dir = '/home/cells/web/templates';
                 <div class="card-body">
 
                   <div class="pt-4 pb-2">
+
+
                     <h5 class="card-title text-center pb-0 fs-4">Login to Cargo Cells</h5>
                     <p class="text-center small">Enter your username & password to login</p>
                   </div>

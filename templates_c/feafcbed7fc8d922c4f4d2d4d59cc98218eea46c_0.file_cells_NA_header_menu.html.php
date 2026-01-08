@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2025-12-04 16:18:36
+/* Smarty version 5.3.1, created on 2026-01-04 15:29:57
   from 'file:cells_NA_header_menu.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_6931b45c985c50_32996973',
+  'unifunc' => 'content_695a87750446d4_36568319',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     'feafcbed7fc8d922c4f4d2d4d59cc98218eea46c' => 
     array (
       0 => 'cells_NA_header_menu.html',
-      1 => 1764836349,
+      1 => 1767540590,
       2 => 'file',
     ),
   ),
@@ -20,14 +20,15 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_6931b45c985c50_32996973 (\Smarty\Template $_smarty_tpl) {
+function content_695a87750446d4_36568319 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>  <!-- ======= Header ======= -->
   <header id="header" class="header fixed-top d-flex align-items-center">
 
     <div class="d-flex align-items-center justify-content-between">
       <a href="/" class="logo d-flex align-items-center">
-        <img src="assets/img/logo.png" alt="">
+<!--        <img src="assets/img/logo.png" alt="">-->
+        <img src="img/CC_transparen_logo.png" alt="">
         <span class="d-none d-lg-block">Cargo Cells</span>
       </a>
       <i class="bi bi-list toggle-sidebar-btn"></i>
