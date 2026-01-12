@@ -2,6 +2,30 @@
 // Хелперы
 // =========================
 
+const TOOL_STANDARD_ACTIONS = new Set([
+    'view_tools_stock',
+    'tools_stock',
+    'form_new_tool_stock',
+    'form_edit_tool_stock',
+    'save_tool',
+]);
+
+const TOOL_PHOTO_ACTIONS = new Set([
+    'upload_tool_photo',
+]);
+
+function getApiEndpoint(action) {
+    if (TOOL_PHOTO_ACTIONS.has(action)) {
+        return '/api/tools/tool_photo_actions.php';
+    }
+
+    if (TOOL_STANDARD_ACTIONS.has(action)) {
+        return '/api/tools/tool_standard_actions.php';
+    }
+
+    return '/core_api.php';
+}
+
 // Перерисовать список пользователей
 function reloadUserList() {
     const main = document.getElementById('main');
@@ -37,7 +61,7 @@ function reloadToolsStock() {
     const fd = new FormData();
     fd.append('action', 'view_tools_stock');
 
-    fetch('/core_api.php', {
+    fetch(getApiEndpoint('view_tools_stock'), {
         method: 'POST',
         body: fd
     })
@@ -64,7 +88,7 @@ function reloadDevices() {
     const fd = new FormData();
     fd.append('action', 'view_devices');
 
-    fetch('/core_api.php', {
+    fetch(getApiEndpoint('view_devices'), {
         method: 'POST',
         body: fd
     })
@@ -508,7 +532,7 @@ document.addEventListener('click', function (e) {
     // Запрос к core_api.php
     // -------------------------
 
-    fetch('/core_api.php', {
+    fetch(getApiEndpoint(action), {
         method: 'POST',
         body: formData
     })
@@ -548,7 +572,7 @@ document.addEventListener('click', function (e) {
                 const fd = new FormData();
                 fd.append('action', 'view_devices');
 
-                fetch('/core_api.php', { method: 'POST', body: fd })
+                fetch(getApiEndpoint('view_devices'), { method: 'POST', body: fd })
                     .then(r => r.json())
                     .then(d2 => {
                         if (d2 && d2.status === 'ok') {
@@ -630,7 +654,7 @@ document.addEventListener('click', function (e) {
                     fd.append('action', 'form_edit_user');
                     fd.append('user_id', newUserId);
 
-                    fetch('/core_api.php', {
+                    fetch(getApiEndpoint('form_edit_tool_stock'), {
                         method: 'POST',
                         body: fd
                     })
@@ -680,10 +704,10 @@ document.addEventListener('click', function (e) {
                     fd.append('action', 'form_edit_tool_stock');
                     fd.append('tool_id', newToolId);
 
-                    fetch('/core_api.php', {
-                        method: 'POST',
-                        body: fd
-                    })
+            fetch('/core_api.php', {
+                method: 'POST',
+                body: fd
+            })
                         .then(r => r.json())
                         .then(d2 => {
                             if (!d2 || d2.status !== 'ok') {
@@ -861,7 +885,7 @@ document.addEventListener('change', function (e) {
     fd.append('tool_id', toolId);
     fd.append('photo', file);
 
-    fetch('/core_api.php', {
+    fetch(getApiEndpoint('upload_tool_photo'), {
         method: 'POST',
         body: fd,
     })
@@ -879,4 +903,3 @@ document.addEventListener('change', function (e) {
             alert('Ошибка связи с сервером');
         });
 });
-
