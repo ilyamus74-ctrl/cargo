@@ -358,6 +358,12 @@ try {
         'form_edit_device'    => __DIR__ . '/api/devices/device_standard_actions.php',
         'save_device'         => __DIR__ . '/api/devices/device_standard_actions.php',
         'activate_device'     => __DIR__ . '/api/devices/device_activation_actions.php',
+        'view_tools_stock'    => __DIR__ . '/api/tools/tool_standard_actions.php',
+        'tools_stock'         => __DIR__ . '/api/tools/tool_standard_actions.php',
+        'form_new_tool_stock' => __DIR__ . '/api/tools/tool_standard_actions.php',
+        'form_edit_tool_stock' => __DIR__ . '/api/tools/tool_standard_actions.php',
+        'save_tool'           => __DIR__ . '/api/tools/tool_standard_actions.php',
+        'upload_tool_photo'   => __DIR__ . '/api/tools/tool_photo_actions.php',
     ];
 
     if ($action === '') {
@@ -448,4 +454,5 @@ function ensure_user_qr_image(array $userRow): ?string {
     }
 
     return $fileName;
+
 }
