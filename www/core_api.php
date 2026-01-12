@@ -354,6 +354,10 @@ try {
         'form_edit_user'      => __DIR__ . '/api/users/user_standard_actions.php',
         'save_user'           => __DIR__ . '/api/users/user_standard_actions.php',
         'users_regen_qr'      => __DIR__ . '/api/users/user_qr_actions.php',
+        'view_devices'        => __DIR__ . '/api/devices/device_standard_actions.php',
+        'form_edit_device'    => __DIR__ . '/api/devices/device_standard_actions.php',
+        'save_device'         => __DIR__ . '/api/devices/device_standard_actions.php',
+        'activate_device'     => __DIR__ . '/api/devices/device_activation_actions.php',
     ];
 
     if ($action === '') {
