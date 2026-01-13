@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 
+$response = ['status' => 'error', 'message' => 'Unknown settings action'];
+
 switch ($action) {
     case 'get_user_info':
         $response = [
