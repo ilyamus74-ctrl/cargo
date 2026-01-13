@@ -14,7 +14,7 @@ switch ($action) {
         $tools = fetch_tools_list($dbcnx);
 
         $smarty->assign('tools', $tools);
-        $smarty->assign('current_tool', $null);
+        $smarty->assign('current_tool', null);
 
         ob_start();
         $smarty->display('cells_NA_API_tools_stock.html');
@@ -192,7 +192,7 @@ case 'save_tool':
    $priceBuy = ($priceBuyRaw === '' ? null : (float)$priceBuyRaw);
 
    $resourceEnd = null;
-
+/*
    if ($resourceDays > 0) {
     $resourceDays = max(0, (int)($_POST['ResourceDays'] ?? 0));
 
@@ -202,6 +202,12 @@ case 'save_tool':
         }
     }
    $resourceEnd = $resourceEndObj->format('Y-m-d');
+*/
+if ($resourceDays > 0) {
+    $resourceEndObj = clone $purchaseDateObj;
+    $resourceEndObj->modify('+' . $resourceDays . ' days');
+    $resourceEnd = $resourceEndObj->format('Y-m-d');  // ✅ Внутри блока if
+}
 //print_r($resourceEnd);
     if ($toolId > 0) {
             $oldTool = null;
