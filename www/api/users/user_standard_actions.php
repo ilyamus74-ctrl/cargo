@@ -1,6 +1,10 @@
 <?php
 declare(strict_types=1);
 
+// Доступны: $action, $user, $dbcnx, $smarty
+
+$response = ['status' => 'error', 'message' => 'Unknown user action'];
+
 switch ($action) {
     case 'view_users':
         $users = fetch_users_list($dbcnx);
