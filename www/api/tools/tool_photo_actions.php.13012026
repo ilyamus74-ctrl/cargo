@@ -1,15 +1,6 @@
 <?php
 declare(strict_types=1);
 
-
-/**
- * Обработчик действий с фотографиями инструментов
- * Actions: upload_tool_photo
- */
-// Доступны: $action, $user, $dbcnx, $smarty
-$response = ['status' => 'error', 'message' => 'Unknown tool photo action'];
-
-
 switch ($action) {
     case 'upload_tool_photo':
         $toolId = (int)($_POST['tool_id'] ?? 0);

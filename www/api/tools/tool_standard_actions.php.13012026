@@ -1,20 +1,13 @@
 <?php
 declare(strict_types=1);
 
-/**
- * Обработчик стандартных действий с инструментами
- * Actions: view_tools_stock, tools_stock, form_new_tool_stock, form_edit_tool_stock, save_tool
- */
-// Доступны: $action, $user, $dbcnx, $smarty
-$response = ['status' => 'error', 'message' => 'Unknown tool action'];
-
 switch ($action) {
     case 'view_tools_stock':
     case 'tools_stock':
         $tools = fetch_tools_list($dbcnx);
 
         $smarty->assign('tools', $tools);
-        $smarty->assign('current_tool', $null);
+        $smarty->assign('current_tool', $tool);
 
         ob_start();
         $smarty->display('cells_NA_API_tools_stock.html');

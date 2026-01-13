@@ -23,6 +23,14 @@ $routes = [
     'get_user_info'       => 'api/users/user_settings_actions.php',
     'set_lang'            => 'api/users/user_settings_actions.php',
     'get_user_panel_html' => 'api/users/user_settings_actions.php',
+
+    // ========== TOOLS ==========
+    'view_tools_stock'     => 'api/tools/tool_standard_actions.php',
+    'tools_stock'          => 'api/tools/tool_standard_actions.php',
+    'form_new_tool_stock'  => 'api/tools/tool_standard_actions.php',
+    'form_edit_tool_stock' => 'api/tools/tool_standard_actions.php',
+    'save_tool'            => 'api/tools/tool_standard_actions.php',
+    'upload_tool_photo'    => 'api/tools/tool_photo_actions.php',
 ];
 
 if (!isset($routes[$action])) {
