@@ -31,16 +31,33 @@ $routes = [
     'form_edit_tool_stock' => 'api/tools/tool_standard_actions.php',
     'save_tool'            => 'api/tools/tool_standard_actions.php',
     'upload_tool_photo'    => 'api/tools/tool_photo_actions.php',
+
+    // ========== WAREHOUSE - Cells ==========
+    'setting_cells'        => 'api/warehouse/warehouse_cells_actions.php',
+    'add_new_cells'        => 'api/warehouse/warehouse_cells_actions.php',
+    'delete_cell'          => 'api/warehouse/warehouse_cells_actions.php',
+    // ========== WAREHOUSE - Item In ==========
+    'warehouse_item_in'       => 'api/warehouse/warehouse_item_in_actions.php',
+    'item_in'                 => 'api/warehouse/warehouse_item_in_actions.php',
+    'open_item_in_batch'      => 'api/warehouse/warehouse_item_in_actions.php',
+    'add_new_item_in'         => 'api/warehouse/warehouse_item_in_actions.php',
+    'delete_item_in'          => 'api/warehouse/warehouse_item_in_actions.php',
+    'commit_item_in_batch'    => 'api/warehouse/warehouse_item_in_actions.php',
+    // ========== WAREHOUSE - Stock ==========
+    'item_stock'              => 'api/warehouse/warehouse_item_stock_actions.php',
 ];
 
 if (!isset($routes[$action])) {
     // ВРЕМЕННО: fallback на старую логику для не-users действий
     // После рефакторинга tools/warehouse этот блок будет удален
-    require_once __DIR__ . '/core_api.php.backup.20260113';
+////    require_once __DIR__ . '/core_api.php.backup.20260113';
+    http_response_code(400);
+    echo json_encode([
+        'status' => 'error',
+        'message' => 'Unknown action: ' . $action
+    ], JSON_UNESCAPED_UNICODE);
     exit;
 }
-
-
 
 try {
     $handler = __DIR__ . '/' . $routes[$action];
