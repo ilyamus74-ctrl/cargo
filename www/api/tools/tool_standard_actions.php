@@ -7,7 +7,7 @@ switch ($action) {
         $tools = fetch_tools_list($dbcnx);
 
         $smarty->assign('tools', $tools);
-        $smarty->assign('current_tool', $tool);
+        $smarty->assign('current_tool', null);
 
         ob_start();
         $smarty->display('cells_NA_API_tools_stock.html');
