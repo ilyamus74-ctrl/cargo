@@ -2,6 +2,10 @@
 
 declare(strict_types=1);
 
+// Доступны: $action, $user, $dbcnx, $smarty
+
+$response = ['status' => 'error', 'message' => 'Unknown device action'];
+
 switch ($action) {
     case 'view_devices':
         $devices = [];

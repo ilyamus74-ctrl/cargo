@@ -32,6 +32,12 @@ $routes = [
     'save_tool'            => 'api/tools/tool_standard_actions.php',
     'upload_tool_photo'    => 'api/tools/tool_photo_actions.php',
 
+    // ========== DEVICES ==========
+    'view_devices'         => 'api/devices/device_standard_actions.php',
+    'form_edit_device'     => 'api/devices/device_standard_actions.php',
+    'save_device'          => 'api/devices/device_standard_actions.php',
+    'activate_device'      => 'api/devices/device_activation_actions.php',
+
     // ========== WAREHOUSE - Cells ==========
     'setting_cells'        => 'api/warehouse/warehouse_cells_actions.php',
     'add_new_cells'        => 'api/warehouse/warehouse_cells_actions.php',
