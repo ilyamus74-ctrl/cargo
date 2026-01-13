@@ -49,9 +49,16 @@ try {
 } catch (Throwable $e) {
     error_log('core_api exception: ' . $e->getMessage());
     http_response_code(500);
-    echo json_encode([
+    
+    $errorResponse = [
         'status' => 'error',
-        'message' => 'Internal server error',
-        'debug' => $e->getMessage()
-    ], JSON_UNESCAPED_UNICODE);
+        'message' => 'Internal server error'
+    ];
+    
+    // Only include debug info if in development mode
+    if (defined('APP_DEBUG') && APP_DEBUG) {
+        $errorResponse['debug'] = $e->getMessage();
+    }
+    
+    echo json_encode($errorResponse, JSON_UNESCAPED_UNICODE);
 }
