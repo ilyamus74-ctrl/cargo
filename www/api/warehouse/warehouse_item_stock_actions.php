@@ -83,7 +83,7 @@ if ($action === 'item_stock_without_cells') {
     $search = trim((string)($_POST['search'] ?? ''));
 
     $conditions = [
-        "(wi.receiver_cell_code IS NULL OR wi.receiver_cell_code = '')",
+       "wi.cell_id IS NULL",
     ];
     $params = [];
     $types = '';
