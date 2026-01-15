@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-01-15 12:49:59
+/* Smarty version 5.3.1, created on 2026-01-15 13:09:56
   from 'file:cells_NA_API_warehouse_item_stock.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_6968e277e91333_12804946',
+  'unifunc' => 'content_6968e724b69c83_83224067',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '78897f2abfb53919d027b02d7f6e77f4dd3c7bcd' => 
     array (
       0 => 'cells_NA_API_warehouse_item_stock.html',
-      1 => 1768481393,
+      1 => 1768482407,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_6968e277e91333_12804946 (\Smarty\Template $_smarty_tpl) {
+function content_6968e724b69c83_83224067 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>
     <div class="pagetitle">
@@ -63,12 +63,33 @@ $_smarty_current_dir = '/home/cells/web/templates';
               <div class="tab-content pt-3" id="warehouseTabsContent">
                 <div class="tab-pane fade show active" id="warehouse-without-cells" role="tabpanel" aria-labelledby="warehouse-without-cells-tab">
                   <p class="small text-muted mb-2">
-                    Всего посылок: <?php if ($_smarty_tpl->getValue('parcels_without_cells')) {
-echo $_smarty_tpl->getSmarty()->getModifierCallback('count')($_smarty_tpl->getValue('parcels_without_cells'));
-} else { ?>0<?php }?>
+                    Всего посылок: <span id="warehouse-without-cells-total">0</span>
                   </p>
-                  <input type="hidden" id="userListDirty" value="0">
-                  <table class="table table-sm align-middle users-table">
+
+                  <div class="row g-2 align-items-end mb-3">
+                    <div class="col-12 col-md-5">
+                      <label class="form-label small mb-1" for="warehouse-without-cells-search">Быстрый поиск</label>
+                      <input type="text" id="warehouse-without-cells-search" class="form-control form-control-sm" placeholder="ФИО или трекномер">
+                    </div>
+                    <div class="col-6 col-md-3">
+                      <label class="form-label small mb-1" for="warehouse-without-cells-limit">Вывод строк</label>
+                      <select id="warehouse-without-cells-limit" class="form-select form-select-sm">
+                        <option value="20" selected>20</option>
+                        <option value="50">50</option>
+                        <option value="100">100</option>
+                        <option value="all">Все</option>
+                      </select>
+                    </div>
+                    <div class="col-6 col-md-3">
+                      <label class="form-label small mb-1" for="warehouse-without-cells-sort">Сортировка</label>
+                      <select id="warehouse-without-cells-sort" class="form-select form-select-sm">
+                        <option value="DESC" selected>DESC</option>
+                        <option value="ASC">ASC</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div class="table-responsive">
+                    <table class="table table-sm align-middle users-table">
                     <thead>
                       <tr>
                         <th scope="col">Посылка</th>
@@ -78,36 +99,17 @@ echo $_smarty_tpl->getSmarty()->getModifierCallback('count')($_smarty_tpl->getVa
                         <th scope="col">Создана</th>
                       </tr>
                     </thead>
-                    <tbody>
-                      <?php
-$_from = $_smarty_tpl->getSmarty()->getRuntime('Foreach')->init($_smarty_tpl, $_smarty_tpl->getValue('parcels_without_cells'), 'parcel');
-$foreach0DoElse = true;
-foreach ($_from ?? [] as $_smarty_tpl->getVariable('parcel')->value) {
-$foreach0DoElse = false;
-?>
-                        <tr>
-                          <td><?php echo $_smarty_tpl->getValue('parcel')['parcel_uid'];?>
-</td>
-                          <?php if ($_smarty_tpl->getValue('current_user')['role'] == 'ADMIN') {?>
-                            <td><?php echo (($tmp = $_smarty_tpl->getValue('parcel')['user_name'] ?? null)===null||$tmp==='' ? '—' ?? null : $tmp);?>
-</td>
-                          <?php }?>
-                          <td><?php echo (($tmp = $_smarty_tpl->getValue('parcel')['created_at'] ?? null)===null||$tmp==='' ? '—' ?? null : $tmp);?>
-</td>
-                        </tr>
-                      <?php
-}
-$_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
-                      <?php if (!$_smarty_tpl->getValue('parcels_without_cells')) {?>
-                        <tr>
-                          <td colspan="<?php if ($_smarty_tpl->getValue('current_user')['role'] == 'ADMIN') {?>3<?php } else { ?>2<?php }?>" class="text-center text-muted">
-                            Нет посылок без ячеек
-                          </td>
-                        </tr>
-                      <?php }?>
 
+                    <tbody id="warehouse-without-cells-tbody">
+                      <tr>
+                        <td colspan="<?php if ($_smarty_tpl->getValue('current_user')['role'] == 'ADMIN') {?>3<?php } else { ?>2<?php }?>" class="text-center text-muted">
+                          Загрузка...
+                        </td>
+                      </tr>
                     </tbody>
-                  </table>
+                    </table>
+                  </div>
+                  <div id="warehouse-without-cells-sentinel" class="py-2"></div>
                 </div>
                 <div class="tab-pane fade" id="warehouse-for-shipment" role="tabpanel" aria-labelledby="warehouse-for-shipment-tab">
                   <p class="small text-muted mb-2">
@@ -128,9 +130,9 @@ echo $_smarty_tpl->getSmarty()->getModifierCallback('count')($_smarty_tpl->getVa
                     <tbody>
                       <?php
 $_from = $_smarty_tpl->getSmarty()->getRuntime('Foreach')->init($_smarty_tpl, $_smarty_tpl->getValue('parcels_for_shipment'), 'parcel');
-$foreach1DoElse = true;
+$foreach0DoElse = true;
 foreach ($_from ?? [] as $_smarty_tpl->getVariable('parcel')->value) {
-$foreach1DoElse = false;
+$foreach0DoElse = false;
 ?>
                         <tr>
                           <td><?php echo $_smarty_tpl->getValue('parcel')['parcel_uid'];?>
@@ -175,9 +177,9 @@ echo $_smarty_tpl->getSmarty()->getModifierCallback('count')($_smarty_tpl->getVa
                     <tbody>
                       <?php
 $_from = $_smarty_tpl->getSmarty()->getRuntime('Foreach')->init($_smarty_tpl, $_smarty_tpl->getValue('parcels_in_storage'), 'parcel');
-$foreach2DoElse = true;
+$foreach1DoElse = true;
 foreach ($_from ?? [] as $_smarty_tpl->getVariable('parcel')->value) {
-$foreach2DoElse = false;
+$foreach1DoElse = false;
 ?>
                         <tr>
                           <td><?php echo $_smarty_tpl->getValue('parcel')['parcel_uid'];?>

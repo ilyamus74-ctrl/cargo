@@ -1,0 +1,16 @@
+{foreach $parcels_without_cells as $parcel}
+  <tr>
+    <td>{$parcel.parcel_uid|default:'—'}</td>
+    {if $current_user.role == 'ADMIN'}
+      <td>{$parcel.user_name|default:'—'}</td>
+    {/if}
+    <td>{$parcel.created_at|default:'—'}</td>
+  </tr>
+{/foreach}
+{if !$parcels_without_cells && $show_empty}
+  <tr>
+    <td colspan="{if $current_user.role == 'ADMIN'}3{else}2{/if}" class="text-center text-muted">
+      Нет посылок без ячеек
+    </td>
+  </tr>
+{/if}

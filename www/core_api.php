@@ -53,6 +53,7 @@ $routes = [
     'commit_item_in_batch'    => 'api/warehouse/warehouse_item_in_actions.php',
     // ========== WAREHOUSE - Stock ==========
     'item_stock'              => 'api/warehouse/warehouse_item_stock_actions.php',
+    'item_stock_without_cells' => 'api/warehouse/warehouse_item_stock_actions.php',
 ];
 
 if (!isset($routes[$action])) {
