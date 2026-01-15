@@ -143,6 +143,9 @@ const CoreAPI = {
                 if (typeof emitDeviceContext === 'function') {
                     emitDeviceContext();
                 }
+                if (CoreAPI.warehouseWithoutCells?.init) {
+                    CoreAPI.warehouseWithoutCells.init();
+                }
             }
         },
         /**
