@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2025-12-17 15:30:43
+/* Smarty version 5.3.1, created on 2026-01-15 09:49:14
   from 'file:cells_NA_footer.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_6942cca3ef26d0_12003730',
+  'unifunc' => 'content_6968b81a2eca50_95994129',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     'b37ac842122f0dc38dc516cd64e3813a1a743d43' => 
     array (
       0 => 'cells_NA_footer.html',
-      1 => 1765985428,
+      1 => 1768470545,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_6942cca3ef26d0_12003730 (\Smarty\Template $_smarty_tpl) {
+function content_6968b81a2eca50_95994129 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>
   <!-- ======= Footer ======= -->
@@ -74,10 +74,16 @@ $_smarty_current_dir = '/home/cells/web/templates';
 >
 <?php echo '<script'; ?>
 >
-$(document).ready(function () {
-  // Используем делегирование событий
-  $(document).on('click', '.btn-outline-primary', function() {
-    printUserQr();  // Вызов функции при клике на кнопку
+document.addEventListener('DOMContentLoaded', () => {
+  document.addEventListener('click', (event) => {
+    const trigger = event.target.closest('.js-print-qr');
+    if (!trigger) {
+      return;
+    }
+    event.preventDefault();
+    const src = trigger.getAttribute('data-qr-src');
+    const title = trigger.getAttribute('data-qr-title') || 'QR';
+    printQrFromSrc(src, title);
   });
 });
 
@@ -87,13 +93,23 @@ function printUserQr() {
     return;
   }
 
+  printQrFromSrc(qrImage.src, 'QR');
+}
+
+function printQrFromSrc(src, title) {
+  if (!src) {
+    return;
+  }
+
   const printWindow = window.open('', 'print-qr');
   if (!printWindow) {
     return;
   }
 
-  printWindow.document.write('<html><head><title>QR</title></head><body style="margin:0; display:flex; justify-content:center; align-items:center; padding:20px;">');
-  printWindow.document.write('<img src="' + qrImage.src + '" style="max-width:100%; height:auto;">');
+//  printWindow.document.write('<html><head><title>QR</title></head><body style="margin:0; display:flex; justify-content:center; align-items:center; padding:20px;">');
+//  printWindow.document.write('<img src="' + qrImage.src + '" style="max-width:100%; height:auto;">');
+  printWindow.document.write('<html><head><title>' + title + '</title></head><body style="margin:0; display:flex; justify-content:center; align-items:center; padding:20px;">');
+  printWindow.document.write('<img src="' + src + '" style="max-width:100%; height:auto;">');
   printWindow.document.write('</body></html>');
   printWindow.document.close();
   printWindow.focus();

@@ -29,15 +29,14 @@
   <script src="assets/js/main.js"></script>
   <script src="js/core_api.js"></script>
 <script>
-document.addEventListener('DOMContentLoaded', () => {
-  document.addEventListener('click', (event) => {
-    const trigger = event.target.closest('.js-print-qr');
-    if (!trigger) {
-      return;
-    }
+$(document).ready(function () {
+  // Используем делегирование событий
+  //$(document).on('click', '.btn-outline-primary', function() {
+    //printUserQr();  // Вызов функции при клике на кнопку
+  $(document).on('click', '.js-print-qr', function(event) {
     event.preventDefault();
-    const src = trigger.getAttribute('data-qr-src');
-    const title = trigger.getAttribute('data-qr-title') || 'QR';
+    const src = this.getAttribute('data-qr-src');
+    const title = this.getAttribute('data-qr-title') || 'QR';
     printQrFromSrc(src, title);
   });
 });
