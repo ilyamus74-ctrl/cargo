@@ -31,8 +31,13 @@
 <script>
 $(document).ready(function () {
   // Используем делегирование событий
-  $(document).on('click', '.btn-outline-primary', function() {
-    printUserQr();  // Вызов функции при клике на кнопку
+  //$(document).on('click', '.btn-outline-primary', function() {
+    //printUserQr();  // Вызов функции при клике на кнопку
+  $(document).on('click', '.js-print-qr', function(event) {
+    event.preventDefault();
+    const src = this.getAttribute('data-qr-src');
+    const title = this.getAttribute('data-qr-title') || 'QR';
+    printQrFromSrc(src, title);
   });
 });
 
@@ -42,13 +47,23 @@ function printUserQr() {
     return;
   }
 
+  printQrFromSrc(qrImage.src, 'QR');
+}
+
+function printQrFromSrc(src, title) {
+  if (!src) {
+    return;
+  }
+
   const printWindow = window.open('', 'print-qr');
   if (!printWindow) {
     return;
   }
 
-  printWindow.document.write('<html><head><title>QR</title></head><body style="margin:0; display:flex; justify-content:center; align-items:center; padding:20px;">');
-  printWindow.document.write('<img src="' + qrImage.src + '" style="max-width:100%; height:auto;">');
+//  printWindow.document.write('<html><head><title>QR</title></head><body style="margin:0; display:flex; justify-content:center; align-items:center; padding:20px;">');
+//  printWindow.document.write('<img src="' + qrImage.src + '" style="max-width:100%; height:auto;">');
+  printWindow.document.write('<html><head><title>' + title + '</title></head><body style="margin:0; display:flex; justify-content:center; align-items:center; padding:20px;">');
+  printWindow.document.write('<img src="' + src + '" style="max-width:100%; height:auto;">');
   printWindow.document.write('</body></html>');
   printWindow.document.close();
   printWindow.focus();

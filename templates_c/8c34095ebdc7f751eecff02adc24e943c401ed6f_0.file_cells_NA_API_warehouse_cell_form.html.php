@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-01-15 09:19:57
+/* Smarty version 5.3.1, created on 2026-01-15 09:32:46
   from 'file:cells_NA_API_warehouse_cell_form.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_6968b13d611570_56460817',
+  'unifunc' => 'content_6968b43eaae803_82493800',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '8c34095ebdc7f751eecff02adc24e943c401ed6f' => 
     array (
       0 => 'cells_NA_API_warehouse_cell_form.html',
-      1 => 1768468452,
+      1 => 1768469359,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_6968b13d611570_56460817 (\Smarty\Template $_smarty_tpl) {
+function content_6968b43eaae803_82493800 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?><section class="section">
   <div class="row">
@@ -39,10 +39,33 @@ $_smarty_current_dir = '/home/cells/web/templates';
 </textarea>
         </div>
         <div class="col-12">
+          <label class="form-label">QR Code</label>
+          <?php if ($_smarty_tpl->getValue('edit_cell')['qr_file']) {?>
+            <div class="d-flex align-items-center gap-3 flex-wrap">
+              <img src="img/cells/<?php echo $_smarty_tpl->getValue('edit_cell')['qr_file'];?>
+"
+                   alt="QR <?php echo htmlspecialchars((string)$_smarty_tpl->getValue('edit_cell')['code'], ENT_QUOTES, 'UTF-8', true);?>
+"
+                   style="width:140px; height:140px; object-fit:contain;">
+              <button type="button"
+                      class="btn btn-outline-primary js-print-qr"
+                      data-qr-src="img/cells/<?php echo $_smarty_tpl->getValue('edit_cell')['qr_file'];?>
+"
+                      data-qr-title="QR <?php echo htmlspecialchars((string)$_smarty_tpl->getValue('edit_cell')['code'], ENT_QUOTES, 'UTF-8', true);?>
+">
+                Распечатать QR
+              </button>
+            </div>
+          <?php } else { ?>
+            <span class="text-muted">QR код будет доступен после сохранения.</span>
+          <?php }?>
+        </div>
+        <div class="col-12">
           <button type="button" class="btn btn-primary js-core-link" data-core-action="save_cell">Save Changes</button>
         </div>
       </form>
     </div>
   </div>
+
 </section><?php }
 }

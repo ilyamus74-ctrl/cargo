@@ -87,7 +87,18 @@
                      </td>
                     <td>{$value.qr_payload}</td>
                     <td>{$value.description}</td>
-                    <td> {if $value.qr_file} <img src="img/cells/{$value.qr_file}" alt="QR {$value.code}" style="height:40px;">{/if}</td>
+                    <td>
+                      {if $value.qr_file}
+                        <button type="button"
+                                class="btn btn-link p-0 js-print-qr"
+                                data-qr-src="img/cells/{$value.qr_file}"
+                                data-qr-title="QR {$value.code|escape}">
+                          <img src="img/cells/{$value.qr_file}"
+                               alt="QR {$value.code|escape}"
+                               style="height:40px;">
+                        </button>
+                      {/if}
+                    </td>
                   </tr>
                   {/foreach}
                 </tbody>

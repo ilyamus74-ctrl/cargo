@@ -23,7 +23,7 @@ switch ($action) {
         // если нужно что-то подтянуть из БД — потом сюда добавим SELECT
         // пример заготовки:
          $cells = [];
-         if ($res = $dbcnx->query("SELECT id, code, qr_payload, description FROM cells ORDER BY code")) {
+         if ($res = $dbcnx->query("SELECT id, code, qr_payload, qr_file, description FROM cells ORDER BY code")) {
              while ($row = $res->fetch_assoc()) {
                  $cells[] = $row;
              }
@@ -51,7 +51,7 @@ switch ($action) {
             break;
         }
         $stmt = $dbcnx->prepare(
-            "SELECT id, code, qr_payload, description
+            "SELECT id, code, qr_payload, qr_file, description
                FROM cells
               WHERE id = ?
               LIMIT 1"

@@ -12,9 +12,28 @@
           <textarea class="form-control" id="cellDescription" name="description" rows="3">{$edit_cell.description|escape}</textarea>
         </div>
         <div class="col-12">
+          <label class="form-label">QR Code</label>
+          {if $edit_cell.qr_file}
+            <div class="d-flex align-items-center gap-3 flex-wrap">
+              <img src="img/cells/{$edit_cell.qr_file}"
+                   alt="QR {$edit_cell.code|escape}"
+                   style="width:140px; height:140px; object-fit:contain;">
+              <button type="button"
+                      class="btn btn-outline-primary js-print-qr"
+                      data-qr-src="img/cells/{$edit_cell.qr_file}"
+                      data-qr-title="QR {$edit_cell.code|escape}">
+                Распечатать QR
+              </button>
+            </div>
+          {else}
+            <span class="text-muted">QR код будет доступен после сохранения.</span>
+          {/if}
+        </div>
+        <div class="col-12">
           <button type="button" class="btn btn-primary js-core-link" data-core-action="save_cell">Save Changes</button>
         </div>
       </form>
     </div>
   </div>
+
 </section>

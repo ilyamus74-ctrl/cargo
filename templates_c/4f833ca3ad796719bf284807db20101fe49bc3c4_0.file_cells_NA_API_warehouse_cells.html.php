@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-01-15 09:19:40
+/* Smarty version 5.3.1, created on 2026-01-15 09:32:43
   from 'file:cells_NA_API_warehouse_cells.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_6968b12c36aff5_29326343',
+  'unifunc' => 'content_6968b43baa7401_21636775',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '4f833ca3ad796719bf284807db20101fe49bc3c4' => 
     array (
       0 => 'cells_NA_API_warehouse_cells.html',
-      1 => 1768468516,
+      1 => 1768469393,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_6968b12c36aff5_29326343 (\Smarty\Template $_smarty_tpl) {
+function content_6968b43baa7401_21636775 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>    <div class="pagetitle">
       <h1>Warehouse Cells</h1>
@@ -122,9 +122,22 @@ $foreach0DoElse = false;
 </td>
                     <td><?php echo $_smarty_tpl->getValue('value')['description'];?>
 </td>
-                    <td> <?php if ($_smarty_tpl->getValue('value')['qr_file']) {?> <img src="img/cells/<?php echo $_smarty_tpl->getValue('value')['qr_file'];?>
-" alt="QR <?php echo $_smarty_tpl->getValue('value')['code'];?>
-" style="height:40px;"><?php }?></td>
+                    <td>
+                      <?php if ($_smarty_tpl->getValue('value')['qr_file']) {?>
+                        <button type="button"
+                                class="btn btn-link p-0 js-print-qr"
+                                data-qr-src="img/cells/<?php echo $_smarty_tpl->getValue('value')['qr_file'];?>
+"
+                                data-qr-title="QR <?php echo htmlspecialchars((string)$_smarty_tpl->getValue('value')['code'], ENT_QUOTES, 'UTF-8', true);?>
+">
+                          <img src="img/cells/<?php echo $_smarty_tpl->getValue('value')['qr_file'];?>
+"
+                               alt="QR <?php echo htmlspecialchars((string)$_smarty_tpl->getValue('value')['code'], ENT_QUOTES, 'UTF-8', true);?>
+"
+                               style="height:40px;">
+                        </button>
+                      <?php }?>
+                    </td>
                   </tr>
                   <?php
 }
