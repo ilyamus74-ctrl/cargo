@@ -17,40 +17,133 @@
           <div class="card table-responsive warehouse-item-stock-table-wrapper">
             <div class="card-body">
               <h5 class="card-title">Склад</h5>
-              <!-- Default Table -->
-              <input type="hidden" id="userListDirty" value="0">
-              <table class="table table-sm align-middle users-table">
-                <thead>
-                  <tr>
-                    <th scope="col">Партия</th>
-                    <th scope="col">Посылок</th>
-                    {if $current_user.role == 'ADMIN'}
-                      <th scope="col">Пользователь</th>
-                    {/if}
-                    <th scope="col">Принята</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {foreach $batches as $b}
-                    <tr>
-                      <td>{$b.batch_uid}</td>
-                      <td>{$b.parcel_count}</td>
-                      {if $current_user.role == 'ADMIN'}
-                        <td>{$b.user_name|default:'—'}</td>
+
+
+              <ul class="nav nav-tabs d-flex" id="warehouseTabs" role="tablist">
+                <li class="nav-item flex-fill" role="presentation">
+                  <button class="nav-link w-100 active" id="warehouse-without-cells-tab" data-bs-toggle="tab" data-bs-target="#warehouse-without-cells" type="button" role="tab" aria-controls="warehouse-without-cells" aria-selected="true">
+                    Посылки без ячеек
+                  </button>
+                </li>
+                <li class="nav-item flex-fill" role="presentation">
+                  <button class="nav-link w-100" id="warehouse-for-shipment-tab" data-bs-toggle="tab" data-bs-target="#warehouse-for-shipment" type="button" role="tab" aria-controls="warehouse-for-shipment" aria-selected="false" tabindex="-1">
+                    Посылки на отгрузку
+                  </button>
+                </li>
+                <li class="nav-item flex-fill" role="presentation">
+                  <button class="nav-link w-100" id="warehouse-in-storage-tab" data-bs-toggle="tab" data-bs-target="#warehouse-in-storage" type="button" role="tab" aria-controls="warehouse-in-storage" aria-selected="false" tabindex="-1">
+                    Посылки на складе
+                  </button>
+                </li>
+              </ul>
+              <div class="tab-content pt-3" id="warehouseTabsContent">
+                <div class="tab-pane fade show active" id="warehouse-without-cells" role="tabpanel" aria-labelledby="warehouse-without-cells-tab">
+                  <p class="small text-muted mb-2">
+                    Всего посылок: {if $parcels_without_cells}{count($parcels_without_cells)}{else}0{/if}
+                  </p>
+                  <input type="hidden" id="userListDirty" value="0">
+                  <table class="table table-sm align-middle users-table">
+                    <thead>
+                      <tr>
+                        <th scope="col">Посылка</th>
+                        {if $current_user.role == 'ADMIN'}
+                          <th scope="col">Пользователь</th>
+                        {/if}
+                        <th scope="col">Создана</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {foreach $parcels_without_cells as $parcel}
+                        <tr>
+                          <td>{$parcel.parcel_uid}</td>
+                          {if $current_user.role == 'ADMIN'}
+                            <td>{$parcel.user_name|default:'—'}</td>
+                          {/if}
+                          <td>{$parcel.created_at|default:'—'}</td>
+                        </tr>
+                      {/foreach}
+                      {if !$parcels_without_cells}
+                        <tr>
+                          <td colspan="{if $current_user.role == 'ADMIN'}3{else}2{/if}" class="text-center text-muted">
+                            Нет посылок без ячеек
+                          </td>
+                        </tr>
                       {/if}
-                      <td>{$b.started_at}</td>
-                    </tr>
-                  {/foreach}
-                  {if !$batches}
-                    <tr>
-                      <td colspan="{if $current_user.role == 'ADMIN'}4{else}3{/if}" class="text-center text-muted">
-                        Нет товаров на складе
-                      </td>
-                    </tr>
-                  {/if}
-                </tbody>
-              </table>
-              <!-- End Default Table Example -->
+
+                    </tbody>
+                  </table>
+                </div>
+                <div class="tab-pane fade" id="warehouse-for-shipment" role="tabpanel" aria-labelledby="warehouse-for-shipment-tab">
+                  <p class="small text-muted mb-2">
+                    Всего посылок: {if $parcels_for_shipment}{count($parcels_for_shipment)}{else}0{/if}
+                  </p>
+                  <table class="table table-sm align-middle users-table">
+                    <thead>
+                      <tr>
+                        <th scope="col">Посылка</th>
+                        {if $current_user.role == 'ADMIN'}
+                          <th scope="col">Пользователь</th>
+                        {/if}
+                        <th scope="col">Статус</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {foreach $parcels_for_shipment as $parcel}
+                        <tr>
+                          <td>{$parcel.parcel_uid}</td>
+                          {if $current_user.role == 'ADMIN'}
+                            <td>{$parcel.user_name|default:'—'}</td>
+                          {/if}
+                          <td>{$parcel.status|default:'—'}</td>
+                        </tr>
+                      {/foreach}
+                      {if !$parcels_for_shipment}
+                        <tr>
+                          <td colspan="{if $current_user.role == 'ADMIN'}3{else}2{/if}" class="text-center text-muted">
+                            Нет посылок на отгрузку
+                          </td>
+                        </tr>
+                      {/if}
+                    </tbody>
+                  </table>
+                </div>
+                <div class="tab-pane fade" id="warehouse-in-storage" role="tabpanel" aria-labelledby="warehouse-in-storage-tab">
+                  <p class="small text-muted mb-2">
+                    Всего посылок: {if $parcels_in_storage}{count($parcels_in_storage)}{else}0{/if}
+                  </p>
+                  <table class="table table-sm align-middle users-table">
+                    <thead>
+                      <tr>
+                        <th scope="col">Посылка</th>
+                        <th scope="col">Ячейка</th>
+                        {if $current_user.role == 'ADMIN'}
+                          <th scope="col">Пользователь</th>
+                        {/if}
+                        <th scope="col">Размещена</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {foreach $parcels_in_storage as $parcel}
+                        <tr>
+                          <td>{$parcel.parcel_uid}</td>
+                          <td>{$parcel.cell_address|default:'—'}</td>
+                          {if $current_user.role == 'ADMIN'}
+                            <td>{$parcel.user_name|default:'—'}</td>
+                          {/if}
+                          <td>{$parcel.stored_at|default:'—'}</td>
+                        </tr>
+                      {/foreach}
+                      {if !$parcels_in_storage}
+                        <tr>
+                          <td colspan="{if $current_user.role == 'ADMIN'}4{else}3{/if}" class="text-center text-muted">
+                            Нет посылок на складе
+                          </td>
+                        </tr>
+                      {/if}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
             </div>
           </div>
 
