@@ -42,6 +42,8 @@ $routes = [
     'setting_cells'        => 'api/warehouse/warehouse_cells_actions.php',
     'add_new_cells'        => 'api/warehouse/warehouse_cells_actions.php',
     'delete_cell'          => 'api/warehouse/warehouse_cells_actions.php',
+    'form_edit_cell'       => 'api/warehouse/warehouse_cells_actions.php',
+    'save_cell'            => 'api/warehouse/warehouse_cells_actions.php',
     // ========== WAREHOUSE - Item In ==========
     'warehouse_item_in'       => 'api/warehouse/warehouse_item_in_actions.php',
     'item_in'                 => 'api/warehouse/warehouse_item_in_actions.php',
@@ -94,4 +96,5 @@ try {
     }
 
     echo json_encode($errorResponse, JSON_UNESCAPED_UNICODE);
+
 }

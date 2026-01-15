@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 /**
  * Обработчик действий с ячейками склада
- * Actions: setting_cells, add_new_cells, delete_cell
+ * Actions: setting_cells, add_new_cells, delete_cell, form_edit_cell, save_cell
  */
 
 // Доступны: $action, $user, $dbcnx, $smarty
@@ -40,6 +40,44 @@ switch ($action) {
             'html'   => $html,
         ];
         break;
+
+    case 'form_edit_cell':
+        $cellId = (int)($_POST['cell_id'] ?? 0);
+        if ($cellId <= 0) {
+            $response = [
+                'status'  => 'error',
+                'message' => 'Некорректный ID ячейки',
+            ];
+            break;
+        }
+        $stmt = $dbcnx->prepare(
+            "SELECT id, code, qr_payload, description
+               FROM cells
+              WHERE id = ?
+              LIMIT 1"
+        );
+        $stmt->bind_param("i", $cellId);
+        $stmt->execute();
+        $res = $stmt->get_result();
+        $cell = $res->fetch_assoc();
+        $stmt->close();
+        if (!$cell) {
+            $response = [
+                'status'  => 'error',
+                'message' => 'Ячейка не найдена',
+            ];
+            break;
+        }
+        $smarty->assign('edit_cell', $cell);
+        ob_start();
+        $smarty->display('cells_NA_API_warehouse_cell_form.html');
+        $html = ob_get_clean();
+        $response = [
+            'status' => 'ok',
+            'html'   => $html,
+        ];
+        break;
+
 case 'add_new_cells':
         // auth_require_role('ADMIN'); // при желании
         $first = trim($_POST['first_code'] ?? '');
@@ -156,6 +194,60 @@ case 'add_new_cells':
             'html'    => $html,
         ];
         break;
+    case 'save_cell':
+        $cellId = (int)($_POST['cell_id'] ?? 0);
+        $description = trim($_POST['description'] ?? '');
+        if ($cellId <= 0) {
+            $response = [
+                'status'  => 'error',
+                'message' => 'Некорректный ID ячейки',
+            ];
+            break;
+        }
+        $stmt = $dbcnx->prepare(
+            "SELECT id, code, qr_payload, description
+               FROM cells
+              WHERE id = ?
+              LIMIT 1"
+        );
+        $stmt->bind_param("i", $cellId);
+        $stmt->execute();
+        $res = $stmt->get_result();
+        $cell = $res->fetch_assoc();
+        $stmt->close();
+        if (!$cell) {
+            $response = [
+                'status'  => 'error',
+                'message' => 'Ячейка не найдена',
+            ];
+            break;
+        }
+        $stmt = $dbcnx->prepare(
+            "UPDATE cells
+                SET description = ?
+              WHERE id = ?"
+        );
+        $stmt->bind_param("si", $description, $cellId);
+        $stmt->execute();
+        $stmt->close();
+        audit_log(
+            $user['id'] ?? null,
+            'CELL_UPDATE',
+            'CELL',
+            $cellId,
+            'Обновление описания ячейки',
+            [
+                'code'               => $cell['code'],
+                'description_before' => $cell['description'],
+                'description_after'  => $description,
+            ]
+        );
+        $response = [
+            'status'  => 'ok',
+            'message' => 'Описание ячейки обновлено',
+        ];
+        break;
+
     case 'delete_cell':
         $cellId = (int)($_POST['cell_id'] ?? 0);
         if ($cellId <= 0) {
@@ -237,4 +329,5 @@ case 'add_new_cells':
             'html'    => $html,
         ];
         break;
+
 }

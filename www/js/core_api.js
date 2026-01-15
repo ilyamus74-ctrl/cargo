@@ -49,13 +49,15 @@ const CoreAPI = {
                 'save_user': () => this.getFormById('user-profile-form'),
                 'save_tool': () => this.getFormById('tool-profile-form'),
                 'save_device': () => this.getFormById('device-profile-form'),
+                'save_cell': () => this.getFormById('cell-profile-form'),
                 'add_new_cells': () => this.getFormById('cells-form'),
                 'add_new_item_in': () => this.getFormById('item-in-modal-form'),
-                
+
                 'form_edit_user': () => this.withAttribute('user_id', link),
                 'form_edit_device': () => this.withAttribute('device_id', link),
                 'form_edit_tool_stock': () => this.withAttribute('tool_id', link),
-                
+                'form_edit_cell': () => this.withAttribute('cell_id', link),
+
                 'delete_cell': () => this.withAttribute('cell_id', link),
                 'delete_item_in': () => {
                     const fd = this.withAttribute('item_id', link);
@@ -258,6 +260,9 @@ const CoreAPI = {
             CoreAPI.ui.reloadList('view_devices');
         },
         // === WAREHOUSE - Cells ===
+        'form_edit_cell': (data) => {
+            CoreAPI.ui.showModal(data.html);
+        },
         'add_new_cells': (data) => {
             alert(data.message || 'Ячейки добавлены');
             if (data.html) {
@@ -270,6 +275,11 @@ const CoreAPI = {
             if (data.html) {
                 CoreAPI.ui.loadMain(data.html);
             }
+        },
+        'save_cell': (data) => {
+            alert(data.message || 'Сохранено');
+            CoreAPI.ui.onModalCloseOnce(() => CoreAPI.ui.reloadList('setting_cells'));
+            CoreAPI.ui.closeModal();
         },
         // === WAREHOUSE - Item In ===
         'open_item_in_batch': (data) => {
@@ -623,4 +633,3 @@ window.reloadUserList = () => CoreAPI.ui.reloadList('view_users');
 window.reloadToolsStock = () => CoreAPI.ui.reloadList('view_tools_stock');
 window.reloadDevices = () => CoreAPI.ui.reloadList('view_devices');
 window.reloadWarehouseItemIn = () => CoreAPI.ui.reloadList('warehouse_item_in');
-

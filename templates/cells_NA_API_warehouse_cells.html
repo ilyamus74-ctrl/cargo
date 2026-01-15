@@ -79,7 +79,7 @@
                   {foreach $cells as $value}
                   <tr>
                     <th scope="row">{$value.id}</th>
-                    <td> <a href="#" class="js-core-link" data-core-action="form_edit_device" data-device-id="{$value.id}">{$value.code|escape}</a></td>
+                    <td> <a href="#" class="js-core-link" data-core-action="form_edit_cell" data-cell-id="{$value.id}">{$value.code|escape}</a></td>
                     <td class="text-end">
                         <button type="button" class="btn btn-sm btn-danger js-core-link" data-core-action="delete_cell" data-cell-id="{$value.id}">
                         <i class="bi bi-exclamation-octagon"></i>
@@ -102,7 +102,7 @@
                   <div class="modal-content">
                  
                     <div class="modal-header">
-                      <h5 class="modal-title">Просмотр устройства</h5>
+                      <h5 class="modal-title">Редактирование ячейки</h5>
                       <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                     </div>
                     <div class="modal-body">

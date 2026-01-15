@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2025-12-07 11:27:01
+/* Smarty version 5.3.1, created on 2026-01-15 09:19:40
   from 'file:cells_NA_API_warehouse_cells.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_69356485ec1909_51489901',
+  'unifunc' => 'content_6968b12c36aff5_29326343',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '4f833ca3ad796719bf284807db20101fe49bc3c4' => 
     array (
       0 => 'cells_NA_API_warehouse_cells.html',
-      1 => 1765106817,
+      1 => 1768468516,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_69356485ec1909_51489901 (\Smarty\Template $_smarty_tpl) {
+function content_6968b12c36aff5_29326343 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>    <div class="pagetitle">
       <h1>Warehouse Cells</h1>
@@ -109,7 +109,7 @@ $foreach0DoElse = false;
                   <tr>
                     <th scope="row"><?php echo $_smarty_tpl->getValue('value')['id'];?>
 </th>
-                    <td> <a href="#" class="js-core-link" data-core-action="form_edit_device" data-device-id="<?php echo $_smarty_tpl->getValue('value')['id'];?>
+                    <td> <a href="#" class="js-core-link" data-core-action="form_edit_cell" data-cell-id="<?php echo $_smarty_tpl->getValue('value')['id'];?>
 "><?php echo htmlspecialchars((string)$_smarty_tpl->getValue('value')['code'], ENT_QUOTES, 'UTF-8', true);?>
 </a></td>
                     <td class="text-end">
@@ -141,7 +141,7 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
                   <div class="modal-content">
                  
                     <div class="modal-header">
-                      <h5 class="modal-title">Просмотр устройства</h5>
+                      <h5 class="modal-title">Редактирование ячейки</h5>
                       <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                     </div>
                     <div class="modal-body">
