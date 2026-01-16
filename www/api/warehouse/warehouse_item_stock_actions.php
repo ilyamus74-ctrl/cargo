@@ -457,6 +457,81 @@ if ($action === 'save_item_stock') {
         ];
         return;
     }
+
+    if (auth_has_role('ADMIN')) {
+        $sql = "
+            SELECT
+                id,
+                batch_uid,
+                tuid,
+                tracking_no,
+                carrier_code,
+                carrier_name,
+                receiver_country_code,
+                receiver_country_name,
+                receiver_name,
+                receiver_company,
+                receiver_address,
+                cell_id,
+                sender_name,
+                weight_kg,
+                size_l_cm,
+                size_w_cm,
+                size_h_cm
+            FROM warehouse_item_stock
+            WHERE id = ?
+            LIMIT 1
+        ";
+        $stmt = $dbcnx->prepare($sql);
+        $stmt->bind_param("i", $itemId);
+    } else {
+        $sql = "
+            SELECT
+                id,
+                batch_uid,
+                tuid,
+                tracking_no,
+                carrier_code,
+                carrier_name,
+                receiver_country_code,
+                receiver_country_name,
+                receiver_name,
+                receiver_company,
+                receiver_address,
+                cell_id,
+                sender_name,
+                weight_kg,
+                size_l_cm,
+                size_w_cm,
+                size_h_cm
+            FROM warehouse_item_stock
+            WHERE id = ?
+              AND user_id = ?
+            LIMIT 1
+        ";
+        $stmt = $dbcnx->prepare($sql);
+        $stmt->bind_param("ii", $itemId, $userId);
+    }
+    if (!$stmt) {
+        $response = [
+            'status'  => 'error',
+            'message' => 'DB error: ' . $dbcnx->error,
+        ];
+        return;
+    }
+    $stmt->execute();
+    $existingItem = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    if (!$existingItem) {
+        $response = [
+            'status'  => 'error',
+            'message' => 'Посылка не найдена',
+        ];
+        return;
+    }
+
+    $originalCellId = $existingItem['cell_id'] !== null ? (int)$existingItem['cell_id'] : null;
+    $newCellId = $cellId !== null ? (int)$cellId : null;
     if (auth_has_role('ADMIN')) {
         $sql = "
             UPDATE warehouse_item_stock
@@ -549,6 +624,97 @@ if ($action === 'save_item_stock') {
     }
     $stmt->execute();
     $stmt->close();
+
+
+    $changes = [];
+    $fieldMap = [
+        'tuid' => $tuid,
+        'tracking_no' => $tracking,
+        'carrier_code' => $carrierCode,
+        'carrier_name' => $carrierName,
+        'receiver_country_code' => $rcCountryCode,
+        'receiver_country_name' => $receiverCountryName,
+        'receiver_name' => $rcName,
+        'receiver_company' => $rcCompany,
+        'receiver_address' => $rcAddress,
+        'cell_id' => $newCellId,
+        'sender_name' => $senderCode,
+        'weight_kg' => $weightKg,
+        'size_l_cm' => $sizeL,
+        'size_w_cm' => $sizeW,
+        'size_h_cm' => $sizeH,
+    ];
+    foreach ($fieldMap as $field => $newValue) {
+        $oldValue = $existingItem[$field] ?? null;
+        if ($field === 'cell_id') {
+            $oldValue = $originalCellId;
+        }
+        if ($oldValue != $newValue) {
+            $changes[$field] = [
+                'old' => $oldValue,
+                'new' => $newValue,
+            ];
+        }
+    }
+
+    if (!empty($changes)) {
+        audit_log(
+            $userId,
+            'WAREHOUSE_STOCK_UPDATE_PARCEL',
+            'WAREHOUSE_STOCK',
+            $itemId,
+            'Отредактированы данные посылки на складе',
+            [
+                'item_id'   => $itemId,
+                'batch_uid' => (int)$existingItem['batch_uid'],
+                'changes'   => $changes,
+            ]
+        );
+    }
+
+    if ($originalCellId !== $newCellId) {
+        $cellCodeLookup = function (?int $cellId) use ($dbcnx): ?string {
+            if ($cellId === null) {
+                return null;
+            }
+            $stmt = $dbcnx->prepare("SELECT code FROM cells WHERE id = ? LIMIT 1");
+            if (!$stmt) {
+                return null;
+            }
+            $stmt->bind_param("i", $cellId);
+            $stmt->execute();
+            $row = $stmt->get_result()->fetch_assoc();
+            $stmt->close();
+            return $row ? (string)$row['code'] : null;
+        };
+        $oldCellCode = $cellCodeLookup($originalCellId);
+        $newCellCode = $cellCodeLookup($newCellId);
+        $eventType = 'WAREHOUSE_STOCK_CELL_UPDATE';
+        $description = 'Изменена адресация посылки';
+        if ($originalCellId === null && $newCellId !== null) {
+            $eventType = 'WAREHOUSE_STOCK_CELL_ASSIGN';
+            $description = 'Назначена адресация посылки';
+        } elseif ($originalCellId !== null && $newCellId === null) {
+            $eventType = 'WAREHOUSE_STOCK_CELL_REMOVE';
+            $description = 'Удалена адресация посылки';
+        }
+        audit_log(
+            $userId,
+            $eventType,
+            'WAREHOUSE_STOCK',
+            $itemId,
+            $description,
+            [
+                'item_id' => $itemId,
+                'batch_uid' => (int)$existingItem['batch_uid'],
+                'cell_id_old' => $originalCellId,
+                'cell_id_new' => $newCellId,
+                'cell_code_old' => $oldCellCode,
+                'cell_code_new' => $newCellCode,
+            ]
+        );
+    }
+
     $response = [
         'status'  => 'ok',
         'message' => 'Данные посылки сохранены',
