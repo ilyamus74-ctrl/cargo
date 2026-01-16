@@ -288,6 +288,7 @@ if ($action === 'open_item_stock_modal') {
     auth_require_login();
     $current = $user;
     $userId = (int)$current['id'];
+    $canManageStock = auth_has_role('ADMIN') || auth_has_role('WORKER');
     $itemId = isset($_POST['item_id']) ? (int)$_POST['item_id'] : 0;
     if ($itemId <= 0) {
         $response = [
@@ -297,7 +298,7 @@ if ($action === 'open_item_stock_modal') {
         return;
     }
     $item = null;
-    if (auth_has_role('ADMIN')) {
+    if ($canManageStock) {
         $sql = "
             SELECT
                 id,
@@ -410,6 +411,7 @@ if ($action === 'save_item_stock') {
     auth_require_login();
     $current = $user;
     $userId = (int)$current['id'];
+    $canManageStock = auth_has_role('ADMIN') || auth_has_role('WORKER');
     $itemId = isset($_POST['item_id']) ? (int)$_POST['item_id'] : 0;
     if ($itemId <= 0) {
         $response = [
@@ -458,7 +460,7 @@ if ($action === 'save_item_stock') {
         return;
     }
 
-    if (auth_has_role('ADMIN')) {
+    if ($canManageStock) {
         $sql = "
             SELECT
                 id,
@@ -532,7 +534,8 @@ if ($action === 'save_item_stock') {
 
     $originalCellId = $existingItem['cell_id'] !== null ? (int)$existingItem['cell_id'] : null;
     $newCellId = $cellId !== null ? (int)$cellId : null;
-    if (auth_has_role('ADMIN')) {
+
+    if ($canManageStock) {
         $sql = "
             UPDATE warehouse_item_stock
                SET tuid = ?,
