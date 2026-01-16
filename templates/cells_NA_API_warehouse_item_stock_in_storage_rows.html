@@ -1,6 +1,13 @@
 {foreach $parcels_in_storage as $parcel}
   <tr>
-    <td>{$parcel.parcel_uid|default:'—'}</td>
+    <td>
+      <button type="button"
+              class="btn btn-link p-0 js-core-link"
+              data-core-action="open_item_stock_modal"
+              data-item-id="{$parcel.id}">
+        {$parcel.parcel_uid|default:'—'}
+      </button>
+    </td>
     <td>{$parcel.cell_address|default:'—'}</td>
     {if $current_user.role == 'ADMIN'}
       <td>{$parcel.user_name|default:'—'}</td>

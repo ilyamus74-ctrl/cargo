@@ -113,6 +113,7 @@ if ($action === 'item_stock_without_cells') {
 
     $sql = "
         SELECT
+            wi.id,
             COALESCE(NULLIF(wi.tuid, ''), NULLIF(wi.tracking_no, ''), wi.uid_created) AS parcel_uid,
             wi.receiver_name,
             wi.tracking_no,
@@ -224,6 +225,7 @@ if ($action === 'item_stock_in_storage') {
 
     $sql = "
         SELECT
+            wi.id,
             COALESCE(NULLIF(wi.tuid, ''), NULLIF(wi.tracking_no, ''), wi.uid_created) AS parcel_uid,
             wi.receiver_name,
             wi.tracking_no,
@@ -278,5 +280,260 @@ if ($action === 'item_stock_in_storage') {
         'total'       => $total,
         'items_count' => count($parcels),
         'has_more'    => $limit !== null ? ($offset + count($parcels) < $total) : false,
+    ];
+}
+
+
+if ($action === 'open_item_stock_modal') {
+    auth_require_login();
+    $current = $user;
+    $userId = (int)$current['id'];
+    $itemId = isset($_POST['item_id']) ? (int)$_POST['item_id'] : 0;
+    if ($itemId <= 0) {
+        $response = [
+            'status'  => 'error',
+            'message' => 'Некорректный идентификатор посылки',
+        ];
+        return;
+    }
+    $item = null;
+    if (auth_has_role('ADMIN')) {
+        $sql = "
+            SELECT
+                id,
+                batch_uid,
+                tuid,
+                tracking_no,
+                carrier_code,
+                carrier_name,
+                receiver_country_code,
+                receiver_country_name,
+                receiver_name,
+                receiver_company,
+                receiver_address,
+                sender_name,
+                sender_company,
+                weight_kg,
+                size_l_cm,
+                size_w_cm,
+                size_h_cm
+            FROM warehouse_item_stock
+            WHERE id = ?
+            LIMIT 1
+        ";
+        $stmt = $dbcnx->prepare($sql);
+        $stmt->bind_param("i", $itemId);
+    } else {
+        $sql = "
+            SELECT
+                id,
+                batch_uid,
+                tuid,
+                tracking_no,
+                carrier_code,
+                carrier_name,
+                receiver_country_code,
+                receiver_country_name,
+                receiver_name,
+                receiver_company,
+                receiver_address,
+                sender_name,
+                sender_company,
+                weight_kg,
+                size_l_cm,
+                size_w_cm,
+                size_h_cm
+            FROM warehouse_item_stock
+            WHERE id = ?
+              AND user_id = ?
+            LIMIT 1
+        ";
+        $stmt = $dbcnx->prepare($sql);
+        $stmt->bind_param("ii", $itemId, $userId);
+    }
+    $stmt->execute();
+    $res = $stmt->get_result();
+    if ($row = $res->fetch_assoc()) {
+        $item = $row;
+    }
+    $stmt->close();
+    if (!$item) {
+        $response = [
+            'status'  => 'error',
+            'message' => 'Посылка не найдена',
+        ];
+        return;
+    }
+    $dest_country = [];
+    $sql = "SELECT `id`,`code_iso2`,`code_iso3`,`name_en`,`name_local` FROM `dest_countries` WHERE `is_active` = '1' ORDER BY `id`";
+    if ($res3 = $dbcnx->query($sql)) {
+        while ($row = $res3->fetch_assoc()) {
+            $dest_country[] = $row;
+        }
+        $res3->free();
+    }
+    $stand_devices = [];
+    $sql = "SELECT device_uid, name, device_token
+              FROM devices
+             WHERE name LIKE 'stand\\_%'
+             ORDER BY name ASC, device_uid ASC";
+    if ($resStand = $dbcnx->query($sql)) {
+        while ($row = $resStand->fetch_assoc()) {
+            $stand_devices[] = $row;
+        }
+        $resStand->free();
+    }
+    $smarty->assign('item', $item);
+    $smarty->assign('dest_country', $dest_country);
+    $smarty->assign('stand_devices', $stand_devices);
+    ob_start();
+    $smarty->display('cells_NA_API_warehouse_item_stock_modal.html');
+    $html = ob_get_clean();
+    $response = [
+        'status' => 'ok',
+        'html'   => $html,
+    ];
+}
+
+if ($action === 'save_item_stock') {
+    auth_require_login();
+    $current = $user;
+    $userId = (int)$current['id'];
+    $itemId = isset($_POST['item_id']) ? (int)$_POST['item_id'] : 0;
+    if ($itemId <= 0) {
+        $response = [
+            'status'  => 'error',
+            'message' => 'Некорректный идентификатор посылки',
+        ];
+        return;
+    }
+    $tuid = trim($_POST['tuid'] ?? '');
+    $tracking = trim($_POST['tracking_no'] ?? '');
+    $carrierCode = trim($_POST['carrier_code'] ?? '');
+    $carrierName = trim($_POST['carrier_name'] ?? '');
+    $rcCountryCode = trim($_POST['receiver_country_code'] ?? '');
+    $rcName = trim($_POST['receiver_name'] ?? '');
+    $rcCompany = trim($_POST['receiver_company'] ?? '');
+    $rcAddress = trim($_POST['receiver_address'] ?? '');
+    $senderCode = trim($_POST['sender_code'] ?? '');
+    $weightKg = $_POST['weight_kg'] ?? '';
+    $sizeL = $_POST['size_l_cm'] ?? '';
+    $sizeW = $_POST['size_w_cm'] ?? '';
+    $sizeH = $_POST['size_h_cm'] ?? '';
+    $weightKg = ($weightKg === '' || $weightKg === null) ? 0.0 : (float)$weightKg;
+    $sizeL = ($sizeL === '' || $sizeL === null) ? 0.0 : (float)$sizeL;
+    $sizeW = ($sizeW === '' || $sizeW === null) ? 0.0 : (float)$sizeW;
+    $sizeH = ($sizeH === '' || $sizeH === null) ? 0.0 : (float)$sizeH;
+    $receiverCountryName = '';
+    if ($rcCountryCode !== '') {
+        $stmt = $dbcnx->prepare("SELECT name_en FROM dest_countries WHERE code_iso2 = ? LIMIT 1");
+        if ($stmt) {
+            $stmt->bind_param("s", $rcCountryCode);
+            $stmt->execute();
+            $row = $stmt->get_result()->fetch_assoc();
+            if ($row) {
+                $receiverCountryName = (string)($row['name_en'] ?? '');
+            }
+            $stmt->close();
+        }
+    }
+    if ($tuid === '' || $tracking === '') {
+        $response = [
+            'status'  => 'error',
+            'message' => 'Нужны хотя бы TUID и трек-номер',
+        ];
+        return;
+    }
+    if (auth_has_role('ADMIN')) {
+        $sql = "
+            UPDATE warehouse_item_stock
+               SET tuid = ?,
+                   tracking_no = ?,
+                   carrier_code = ?,
+                   carrier_name = ?,
+                   receiver_country_code = ?,
+                   receiver_country_name = ?,
+                   receiver_name = ?,
+                   receiver_company = ?,
+                   receiver_address = ?,
+                   sender_name = ?,
+                   weight_kg = ?,
+                   size_l_cm = ?,
+                   size_w_cm = ?,
+                   size_h_cm = ?
+             WHERE id = ?
+        ";
+        $stmt = $dbcnx->prepare($sql);
+        $stmt->bind_param(
+            "ssssssssssddddi",
+            $tuid,
+            $tracking,
+            $carrierCode,
+            $carrierName,
+            $rcCountryCode,
+            $receiverCountryName,
+            $rcName,
+            $rcCompany,
+            $rcAddress,
+            $senderCode,
+            $weightKg,
+            $sizeL,
+            $sizeW,
+            $sizeH,
+            $itemId
+        );
+    } else {
+        $sql = "
+            UPDATE warehouse_item_stock
+               SET tuid = ?,
+                   tracking_no = ?,
+                   carrier_code = ?,
+                   carrier_name = ?,
+                   receiver_country_code = ?,
+                   receiver_country_name = ?,
+                   receiver_name = ?,
+                   receiver_company = ?,
+                   receiver_address = ?,
+                   sender_name = ?,
+                   weight_kg = ?,
+                   size_l_cm = ?,
+                   size_w_cm = ?,
+                   size_h_cm = ?
+             WHERE id = ?
+               AND user_id = ?
+        ";
+        $stmt = $dbcnx->prepare($sql);
+        $stmt->bind_param(
+            "ssssssssssddddii",
+            $tuid,
+            $tracking,
+            $carrierCode,
+            $carrierName,
+            $rcCountryCode,
+            $receiverCountryName,
+            $rcName,
+            $rcCompany,
+            $rcAddress,
+            $senderCode,
+            $weightKg,
+            $sizeL,
+            $sizeW,
+            $sizeH,
+            $itemId,
+            $userId
+        );
+    }
+    if (!$stmt) {
+        $response = [
+            'status'  => 'error',
+            'message' => 'DB error: ' . $dbcnx->error,
+        ];
+        return;
+    }
+    $stmt->execute();
+    $stmt->close();
+    $response = [
+        'status'  => 'ok',
+        'message' => 'Данные посылки сохранены',
     ];
 }

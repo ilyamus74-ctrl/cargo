@@ -52,6 +52,7 @@ const CoreAPI = {
                 'save_cell': () => this.getFormById('cell-profile-form'),
                 'add_new_cells': () => this.getFormById('cells-form'),
                 'add_new_item_in': () => this.getFormById('item-in-modal-form'),
+                'save_item_stock': () => this.getFormById('item-stock-modal-form'),
 
                 'form_edit_user': () => this.withAttribute('user_id', link),
                 'form_edit_device': () => this.withAttribute('device_id', link),
@@ -74,7 +75,8 @@ const CoreAPI = {
                 },
                 
                 'commit_item_in_batch': () => this.withAttribute('batch_uid', link),
-                'open_item_in_batch': () => this.withAttribute('batch_uid', link)
+                'open_item_in_batch': () => this.withAttribute('batch_uid', link),
+                'open_item_stock_modal': () => this.withAttribute('item_id', link)
             };
             const fd = builders[action] ? builders[action]() : new FormData();
             fd.append('action', action);
@@ -327,6 +329,18 @@ const CoreAPI = {
             alert(data.message || 'Партия завершена');
             CoreAPI.ui.closeModal();
             CoreAPI.ui.reloadList('warehouse_item_in');
+        },
+        // === WAREHOUSE - Stock ===
+        'open_item_stock_modal': (data) => {
+            CoreAPI.ui.showModal(data.html);
+            if (typeof initStandDevicePersistence === 'function') {
+                initStandDevicePersistence();
+            }
+        },
+        'save_item_stock': (data) => {
+            alert(data.message || 'Сохранено');
+            CoreAPI.ui.onModalCloseOnce(() => CoreAPI.ui.reloadList('item_stock'));
+            CoreAPI.ui.closeModal();
         },
         // === DEFAULT - все остальные ===
         'default': (data) => {
