@@ -275,6 +275,26 @@ case 'add_new_cells':
             ];
             break;
         }
+
+
+        $stmt = $dbcnx->prepare(
+            "SELECT COUNT(*) AS total
+               FROM warehouse_item_stock
+              WHERE cell_id = ?"
+        );
+        $stmt->bind_param("i", $cellId);
+        $stmt->execute();
+        $res = $stmt->get_result();
+        $usage = $res->fetch_assoc();
+        $stmt->close();
+        $totalUsage = (int)($usage['total'] ?? 0);
+        if ($totalUsage > 0) {
+            $response = [
+                'status'  => 'error',
+                'message' => 'Нельзя удалить ячейку: есть посылки, привязанные к этой ячейке.',
+            ];
+            break;
+        }
         // Удаляем файл, если есть
         $dir = __DIR__ . '/../../img/cells';
         if (!empty($cell['qr_file'])) {
