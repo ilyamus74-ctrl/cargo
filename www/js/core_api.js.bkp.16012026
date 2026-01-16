@@ -574,7 +574,6 @@ const CoreAPI = {
         sentinel: null,
         observer: null,
         searchTimer: null,
-        initialized: false,
         state: {
             limit: '20',
             offset: 0,
@@ -584,10 +583,6 @@ const CoreAPI = {
             done: false
         },
         init() {
-            if (this.initialized) {
-                this.resetAndLoad();
-                return;
-            }
             const root = document.getElementById('warehouse-in-storage');
             if (!root) return;
             this.root = root;
@@ -611,7 +606,6 @@ const CoreAPI = {
             this.bindEvents();
             this.setupObserver();
             this.resetAndLoad();
-            this.initialized = true;
         },
         bindEvents() {
             this.limitSelect.addEventListener('change', () => {
@@ -713,12 +707,6 @@ const CoreAPI = {
         document.addEventListener('change', this.events.handlePhotoUpload.bind(this));
         this.warehouseWithoutCells.init();
         this.warehouseInStorage.init();
-        const inStorageTab = document.getElementById('warehouse-in-storage-tab');
-        if (inStorageTab) {
-            inStorageTab.addEventListener('shown.bs.tab', () => {
-                this.warehouseInStorage.init();
-            });
-        }
         console.log('CoreAPI initialized');
     }
 };
