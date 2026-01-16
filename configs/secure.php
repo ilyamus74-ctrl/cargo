@@ -209,11 +209,13 @@ function auth_load_permissions_for_roles(array $roleCodes): array {
 
     $stmt = $dbcnx->prepare($sql);
     if (!$stmt) {
+        error_log('auth_load_permissions_for_roles prepare error: ' . $dbcnx->error);
         return [];
     }
 
     $stmt->bind_param($types, ...$roleCodes);
     if (!$stmt->execute()) {
+        error_log('auth_load_permissions_for_roles execute error: ' . $stmt->error);
         $stmt->close();
         return [];
     }
@@ -358,9 +360,13 @@ function auth_login(string $username, string $password): bool {
                    last_user_agent = ?
                WHERE id = ?";
     $stmtU = $dbcnx->prepare($sqlUpd);
-    $stmtU->bind_param("ssi", $ip, $ua, $userId);
-    $stmtU->execute();
-    $stmtU->close();
+    if ($stmtU) {
+        $stmtU->bind_param("ssi", $ip, $ua, $userId);
+        $stmtU->execute();
+        $stmtU->close();
+    } else {
+        error_log('auth_login update prepare error: ' . $dbcnx->error);
+    }
 
     // === Тянем меню и права для роли из БД ===
     $menuTree       = [];
@@ -565,10 +571,13 @@ function auth_login_by_qr_token(string $qrToken): ?array {
                       last_login_ip   = ?,
                       last_user_agent = ?
                 WHERE id = ?";
-    if ($stmtU = $dbcnx->prepare($sqlUpd)) {
+    $stmtU = $dbcnx->prepare($sqlUpd);
+    if ($stmtU) {
         $stmtU->bind_param("ssi", $ip, $ua, $userId);
         $stmtU->execute();
         $stmtU->close();
+    } else {
+        error_log('auth_login_by_qr_token update prepare error: ' . $dbcnx->error);
     }
 
     $permissions = auth_load_permissions_for_roles([$roleCode]);
