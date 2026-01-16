@@ -146,6 +146,9 @@ const CoreAPI = {
                 if (CoreAPI.warehouseWithoutCells?.init) {
                     CoreAPI.warehouseWithoutCells.init();
                 }
+                if (CoreAPI.warehouseInStorage?.init) {
+                    CoreAPI.warehouseInStorage.init();
+                }
             }
         },
         /**
@@ -711,14 +714,13 @@ const CoreAPI = {
     init() {
         document.addEventListener('click', this.events.handleClick.bind(this));
         document.addEventListener('change', this.events.handlePhotoUpload.bind(this));
+        document.addEventListener('shown.bs.tab', (event) => {
+            if (event?.target?.id === 'warehouse-in-storage-tab') {
+                this.warehouseInStorage.init();
+            }
+        });
         this.warehouseWithoutCells.init();
         this.warehouseInStorage.init();
-        const inStorageTab = document.getElementById('warehouse-in-storage-tab');
-        if (inStorageTab) {
-            inStorageTab.addEventListener('shown.bs.tab', () => {
-                this.warehouseInStorage.init();
-            });
-        }
         console.log('CoreAPI initialized');
     }
 };
