@@ -191,10 +191,9 @@ if ($action === 'item_stock_in_storage') {
     $types = '';
 
     if ($search !== '') {
-        $conditions[] = "(wi.receiver_name LIKE ? OR wi.tracking_no LIKE ? OR c.code LIKE ?)";
+        $conditions[] = "(wi.receiver_name LIKE ? OR wi.tracking_no LIKE ?)";
         $like = '%' . $search . '%';
-        $types .= 'sss';
-        $params[] = $like;
+        $types .= 'ss';
         $params[] = $like;
         $params[] = $like;
     }
