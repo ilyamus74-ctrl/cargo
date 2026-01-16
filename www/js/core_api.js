@@ -339,7 +339,14 @@ const CoreAPI = {
         },
         'save_item_stock': (data) => {
             alert(data.message || 'Сохранено');
-            CoreAPI.ui.onModalCloseOnce(() => CoreAPI.ui.reloadList('item_stock'));
+            CoreAPI.ui.onModalCloseOnce(() => {
+                if (CoreAPI.warehouseWithoutCells?.resetAndLoad) {
+                    CoreAPI.warehouseWithoutCells.resetAndLoad();
+                }
+                if (CoreAPI.warehouseInStorage?.resetAndLoad) {
+                    CoreAPI.warehouseInStorage.resetAndLoad();
+                }
+            });
             CoreAPI.ui.closeModal();
         },
         // === DEFAULT - все остальные ===
