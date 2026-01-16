@@ -42,6 +42,17 @@
   </div>
 
   <div class="col-md-6">
+    <label for="cellId" class="form-label">Ячейки (адрес хранения)</label>
+    <select class="form-select" id="cellId" name="cell_id">
+      <option value="">— не назначать —</option>
+      {foreach $cells as $cell}
+        <option value="{$cell.id|escape}" {if $cell.id == $item.cell_id}selected{/if}>{$cell.code|escape}</option>
+      {/foreach}
+    </select>
+  </div>
+
+
+  <div class="col-md-6">
     <label class="form-label" for="receiverCompany">Компания форвард</label>
     <select class="form-select"
             id="receiverCompany"

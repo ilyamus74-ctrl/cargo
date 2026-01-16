@@ -311,6 +311,7 @@ if ($action === 'open_item_stock_modal') {
                 receiver_name,
                 receiver_company,
                 receiver_address,
+                cell_id,
                 sender_name,
                 sender_company,
                 weight_kg,
@@ -337,6 +338,7 @@ if ($action === 'open_item_stock_modal') {
                 receiver_name,
                 receiver_company,
                 receiver_address,
+                cell_id,
                 sender_name,
                 sender_company,
                 weight_kg,
@@ -383,9 +385,18 @@ if ($action === 'open_item_stock_modal') {
         }
         $resStand->free();
     }
+    $cells = [];
+    $sql = "SELECT id, code FROM cells ORDER BY code ASC";
+    if ($resCells = $dbcnx->query($sql)) {
+        while ($row = $resCells->fetch_assoc()) {
+            $cells[] = $row;
+        }
+        $resCells->free();
+    }
     $smarty->assign('item', $item);
     $smarty->assign('dest_country', $dest_country);
     $smarty->assign('stand_devices', $stand_devices);
+    $smarty->assign('cells', $cells);
     ob_start();
     $smarty->display('cells_NA_API_warehouse_item_stock_modal.html');
     $html = ob_get_clean();
@@ -415,6 +426,8 @@ if ($action === 'save_item_stock') {
     $rcName = trim($_POST['receiver_name'] ?? '');
     $rcCompany = trim($_POST['receiver_company'] ?? '');
     $rcAddress = trim($_POST['receiver_address'] ?? '');
+    $cellId = isset($_POST['cell_id']) ? (int)$_POST['cell_id'] : 0;
+    $cellId = $cellId > 0 ? $cellId : null;
     $senderCode = trim($_POST['sender_code'] ?? '');
     $weightKg = $_POST['weight_kg'] ?? '';
     $sizeL = $_POST['size_l_cm'] ?? '';
@@ -456,6 +469,7 @@ if ($action === 'save_item_stock') {
                    receiver_name = ?,
                    receiver_company = ?,
                    receiver_address = ?,
+                   cell_id = ?,
                    sender_name = ?,
                    weight_kg = ?,
                    size_l_cm = ?,
@@ -465,7 +479,7 @@ if ($action === 'save_item_stock') {
         ";
         $stmt = $dbcnx->prepare($sql);
         $stmt->bind_param(
-            "ssssssssssddddi",
+            "sssssssssisddddi",
             $tuid,
             $tracking,
             $carrierCode,
@@ -475,6 +489,7 @@ if ($action === 'save_item_stock') {
             $rcName,
             $rcCompany,
             $rcAddress,
+            $cellId,
             $senderCode,
             $weightKg,
             $sizeL,
@@ -494,6 +509,7 @@ if ($action === 'save_item_stock') {
                    receiver_name = ?,
                    receiver_company = ?,
                    receiver_address = ?,
+                   cell_id = ?,
                    sender_name = ?,
                    weight_kg = ?,
                    size_l_cm = ?,
@@ -504,7 +520,7 @@ if ($action === 'save_item_stock') {
         ";
         $stmt = $dbcnx->prepare($sql);
         $stmt->bind_param(
-            "ssssssssssddddii",
+            "sssssssssisddddii",
             $tuid,
             $tracking,
             $carrierCode,
@@ -514,6 +530,7 @@ if ($action === 'save_item_stock') {
             $rcName,
             $rcCompany,
             $rcAddress,
+            $cellId,
             $senderCode,
             $weightKg,
             $sizeL,
