@@ -608,12 +608,15 @@ const CoreAPI = {
             done: false
         },
         init() {
-            if (this.initialized) {
+            const root = document.getElementById('warehouse-in-storage');
+            if (!root) return;
+            if (this.initialized && this.root === root) {
                 this.resetAndLoad();
                 return;
             }
-            const root = document.getElementById('warehouse-in-storage');
-            if (!root) return;
+            if (this.observer) {
+                this.observer.disconnect();
+            }
             this.root = root;
             this.tbody = root.querySelector('#warehouse-in-storage-tbody');
             this.total = root.querySelector('#warehouse-in-storage-total');
