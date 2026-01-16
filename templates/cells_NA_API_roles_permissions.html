@@ -1,0 +1,173 @@
+    <div class="pagetitle">
+      <h1>Settings roles & permissions</h1>
+      <nav>
+        <ol class="breadcrumb">
+          <li class="breadcrumb-item"><a href="index.html">Main</a></li>
+          <li class="breadcrumb-item">Settings</li>
+          <li class="breadcrumb-item active">Roles & permissions</li>
+        </ol>
+      </nav>
+    </div><!-- End Page Title -->
+
+    <section class="section">
+      <div class="row">
+        <div class="col-xl-4">
+          <div class="card">
+            <div class="card-body">
+              <h5 class="card-title">Роли</h5>
+              <div class="table-responsive">
+                <table class="table table-sm align-middle">
+                  <thead>
+                    <tr>
+                      <th scope="col">Code</th>
+                      <th scope="col">Name</th>
+                      <th scope="col">Description</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {if $roles|@count > 0}
+                      {foreach $roles as $role}
+                        <tr>
+                          <td><span class="badge bg-secondary">{$role.code}</span></td>
+                          <td>{$role.name|escape}</td>
+                          <td>{$role.description|escape}</td>
+                        </tr>
+                      {/foreach}
+                    {else}
+                      <tr>
+                        <td colspan="3" class="text-muted">Роли не найдены</td>
+                      </tr>
+                    {/if}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-body">
+              <h5 class="card-title">Добавить / обновить право</h5>
+              <form id="permission-form" autocomplete="off">
+                <input type="hidden" name="permission_id" id="permission_id" value="">
+                <div class="mb-3">
+                  <label for="permission_code" class="form-label">Code</label>
+                  <input type="text" class="form-control" name="code" id="permission_code" placeholder="warehouse.in.view_all">
+                </div>
+                <div class="mb-3">
+                  <label for="permission_name" class="form-label">Название</label>
+                  <input type="text" class="form-control" name="name" id="permission_name" placeholder="Просмотр всех приходов">
+                </div>
+                <div class="mb-3">
+                  <label for="permission_description" class="form-label">Описание</label>
+                  <textarea class="form-control" name="description" id="permission_description" rows="3"></textarea>
+                </div>
+                <div class="d-flex gap-2">
+                  <button type="button" class="btn btn-primary js-core-link" data-core-action="save_permission">Сохранить</button>
+                  <button type="button" class="btn btn-outline-secondary js-permission-reset">Очистить</button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+
+        <div class="col-xl-8">
+          <div class="card">
+            <div class="card-body">
+              <div class="d-flex flex-wrap align-items-center justify-content-between">
+                <h5 class="card-title mb-0">Права</h5>
+                <span class="text-muted small">Изменения применятся при следующем входе</span>
+              </div>
+              <div class="table-responsive">
+                <table class="table table-sm align-middle">
+                  <thead>
+                    <tr>
+                      <th scope="col">Code</th>
+                      <th scope="col">Название</th>
+                      <th scope="col">Описание</th>
+                      <th scope="col" class="text-end">Действия</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {if $permissions|@count > 0}
+                      {foreach $permissions as $permission}
+                        <tr>
+                          <td><code>{$permission.code}</code></td>
+                          <td>{$permission.name|escape}</td>
+                          <td>{$permission.description|escape}</td>
+                          <td class="text-end">
+                            <button type="button"
+                                    class="btn btn-sm btn-outline-primary js-permission-edit"
+                                    data-permission-id="{$permission.id}"
+                                    data-permission-code="{$permission.code|escape}"
+                                    data-permission-name="{$permission.name|escape}"
+                                    data-permission-description="{$permission.description|escape}">
+                              Изменить
+                            </button>
+                            <button type="button"
+                                    class="btn btn-sm btn-outline-danger js-core-link"
+                                    data-core-action="delete_permission"
+                                    data-permission-code="{$permission.code|escape}">
+                              Удалить
+                            </button>
+                          </td>
+                        </tr>
+                      {/foreach}
+                    {else}
+                      <tr>
+                        <td colspan="4" class="text-muted">Права не найдены</td>
+                      </tr>
+                    {/if}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-body">
+              <h5 class="card-title">Матрица роль ↔ право</h5>
+              <div class="table-responsive">
+                <table class="table table-bordered table-sm align-middle text-center">
+                  <thead>
+                    <tr>
+                      <th scope="col" class="text-start">Право</th>
+                      {foreach $roles as $role}
+                        <th scope="col">{$role.code}</th>
+                      {/foreach}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {if $permissions|@count > 0}
+                      {foreach $permissions as $permission}
+                        <tr>
+                          <td class="text-start">{$permission.code}</td>
+                          {foreach $roles as $role}
+                            {assign var=roleCode value=$role.code}
+                            {assign var=permCode value=$permission.code}
+                            {assign var=isChecked value=false}
+                            {if isset($role_permissions[$roleCode]) && isset($role_permissions[$roleCode][$permCode])}
+                              {assign var=isChecked value=true}
+                            {/if}
+                            <td>
+                              <input type="checkbox"
+                                     class="form-check-input js-role-permission-toggle"
+                                     data-role-code="{$role.code}"
+                                     data-permission-code="{$permission.code}"
+                                     {if $isChecked}checked{/if}>
+                            </td>
+                          {/foreach}
+                        </tr>
+                      {/foreach}
+                    {else}
+                      <tr>
+                        <td colspan="{math equation="x+1" x=$roles|@count}" class="text-muted">Нет прав для отображения</td>
+                      </tr>
+                    {/if}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>

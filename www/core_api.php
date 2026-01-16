@@ -24,6 +24,13 @@ $routes = [
     'set_lang'            => 'api/users/user_settings_actions.php',
     'get_user_panel_html' => 'api/users/user_settings_actions.php',
 
+    // ========== ROLES & PERMISSIONS ==========
+    'view_role_permissions' => 'api/users/roles_permissions_actions.php',
+    'save_permission'       => 'api/users/roles_permissions_actions.php',
+    'delete_permission'     => 'api/users/roles_permissions_actions.php',
+    'toggle_role_permission'=> 'api/users/roles_permissions_actions.php',
+
+
     // ========== TOOLS ==========
     'view_tools_stock'     => 'api/tools/tool_standard_actions.php',
     'tools_stock'          => 'api/tools/tool_standard_actions.php',

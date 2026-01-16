@@ -53,6 +53,7 @@ const CoreAPI = {
                 'add_new_cells': () => this.getFormById('cells-form'),
                 'add_new_item_in': () => this.getFormById('item-in-modal-form'),
                 'save_item_stock': () => this.getFormById('item-stock-modal-form'),
+                'save_permission': () => this.getFormById('permission-form'),
 
                 'form_edit_user': () => this.withAttribute('user_id', link),
                 'form_edit_device': () => this.withAttribute('device_id', link),
@@ -60,6 +61,7 @@ const CoreAPI = {
                 'form_edit_cell': () => this.withAttribute('cell_id', link),
 
                 'delete_cell': () => this.withAttribute('cell_id', link),
+                'delete_permission': () => this.withAttribute('permission_code', link),
                 'delete_item_in': () => {
                     const fd = this.withAttribute('item_id', link);
                     const batchUid = document.querySelector('#item-in-modal-form [name="batch_uid"]')?.value;
@@ -178,6 +180,36 @@ const CoreAPI = {
             };
 
             modalEl.addEventListener('hidden.bs.modal', handler);
+        }
+    },
+    // ====================================
+
+    // PERMISSIONS - вспомогательные методы
+    // ====================================
+    permissions: {
+        fillForm(button) {
+            const id = button.getAttribute('data-permission-id') || '';
+            const code = button.getAttribute('data-permission-code') || '';
+            const name = button.getAttribute('data-permission-name') || '';
+            const description = button.getAttribute('data-permission-description') || '';
+            const idInput = document.getElementById('permission_id');
+            const codeInput = document.getElementById('permission_code');
+            const nameInput = document.getElementById('permission_name');
+            const descriptionInput = document.getElementById('permission_description');
+            if (idInput) idInput.value = id;
+            if (codeInput) codeInput.value = code;
+            if (nameInput) nameInput.value = name;
+            if (descriptionInput) descriptionInput.value = description;
+        },
+        resetForm() {
+            const idInput = document.getElementById('permission_id');
+            const codeInput = document.getElementById('permission_code');
+            const nameInput = document.getElementById('permission_name');
+            const descriptionInput = document.getElementById('permission_description');
+            if (idInput) idInput.value = '';
+            if (codeInput) codeInput.value = '';
+            if (nameInput) nameInput.value = '';
+            if (descriptionInput) descriptionInput.value = '';
         }
     },
     // ====================================
@@ -349,6 +381,15 @@ const CoreAPI = {
             });
             CoreAPI.ui.closeModal();
         },
+
+        'save_permission': async (data) => {
+            alert(data.message || 'Сохранено');
+            await CoreAPI.ui.reloadList('view_role_permissions');
+        },
+        'delete_permission': async (data) => {
+            alert(data.message || 'Удалено');
+            await CoreAPI.ui.reloadList('view_role_permissions');
+        },
         // === DEFAULT - все остальные ===
         'default': (data) => {
             if (data.html) {
@@ -364,11 +405,30 @@ const CoreAPI = {
          * Обработчик кликов по .js-core-link
          */
         async handleClick(e) {
+
+            const editPermission = e.target.closest('.js-permission-edit');
+            if (editPermission) {
+                e.preventDefault();
+                CoreAPI.permissions.fillForm(editPermission);
+                return;
+            }
+            const resetPermission = e.target.closest('.js-permission-reset');
+            if (resetPermission) {
+                e.preventDefault();
+                CoreAPI.permissions.resetForm();
+                return;
+            }
             const link = e.target.closest('.js-core-link[data-core-action]');
             if (!link) return;
             e.preventDefault();
             const action = link.getAttribute('data-core-action');
             if (!action) return;
+            if (action === 'delete_permission') {
+                const code = link.getAttribute('data-permission-code') || '';
+                if (!confirm(`Удалить право ${code}?`)) {
+                    return;
+                }
+            }
             // Специальная обработка для upload_tool_photo
             if (action === 'upload_tool_photo') {
                 const fileInput = document.getElementById('tool-photo-input');
@@ -433,7 +493,7 @@ const CoreAPI = {
             fd.append('photo', file);
             try {
                 const data = await CoreAPI.client.call(fd);
-                
+
                 if (!data || data.status !== 'ok') {
                     alert(data?.message || 'Ошибка загрузки фото');
                     return;
@@ -443,6 +503,31 @@ const CoreAPI = {
                 }
             } catch (err) {
                 console.error('core_api upload_tool_photo error:', err);
+                alert('Ошибка связи с сервером');
+            }
+
+        },
+        async handleRolePermissionToggle(e) {
+            const checkbox = e.target.closest('.js-role-permission-toggle');
+            if (!checkbox || !(checkbox instanceof HTMLInputElement)) return;
+            const roleCode = checkbox.getAttribute('data-role-code') || '';
+            const permissionCode = checkbox.getAttribute('data-permission-code') || '';
+            if (!roleCode || !permissionCode) return;
+            const original = !checkbox.checked;
+            const fd = new FormData();
+            fd.append('action', 'toggle_role_permission');
+            fd.append('role_code', roleCode);
+            fd.append('permission_code', permissionCode);
+            fd.append('is_allowed', checkbox.checked ? '1' : '0');
+            try {
+                const data = await CoreAPI.client.call(fd);
+                if (!data || data.status !== 'ok') {
+                    checkbox.checked = original;
+                    alert(data?.message || 'Ошибка обновления прав');
+                }
+            } catch (err) {
+                console.error('core_api toggle_role_permission error:', err);
+                checkbox.checked = original;
                 alert('Ошибка связи с сервером');
             }
         }
@@ -738,6 +823,7 @@ const CoreAPI = {
     init() {
         document.addEventListener('click', this.events.handleClick.bind(this));
         document.addEventListener('change', this.events.handlePhotoUpload.bind(this));
+        document.addEventListener('change', this.events.handleRolePermissionToggle.bind(this));
         document.addEventListener('shown.bs.tab', (event) => {
             if (event?.target?.id === 'warehouse-in-storage-tab') {
                 this.warehouseInStorage.init();
