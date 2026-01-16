@@ -54,6 +54,7 @@ const CoreAPI = {
                 'add_new_item_in': () => this.getFormById('item-in-modal-form'),
                 'save_item_stock': () => this.getFormById('item-stock-modal-form'),
                 'save_permission': () => this.getFormById('permission-form'),
+                'save_menu_item': () => this.getFormById('menu-item-form'),
 
                 'form_edit_user': () => this.withAttribute('user_id', link),
                 'form_edit_device': () => this.withAttribute('device_id', link),
@@ -62,6 +63,7 @@ const CoreAPI = {
 
                 'delete_cell': () => this.withAttribute('cell_id', link),
                 'delete_permission': () => this.withAttribute('permission_code', link),
+                'delete_menu_item': () => this.withAttribute('menu_item_id', link),
                 'delete_item_in': () => {
                     const fd = this.withAttribute('item_id', link);
                     const batchUid = document.querySelector('#item-in-modal-form [name="batch_uid"]')?.value;
@@ -212,6 +214,57 @@ const CoreAPI = {
             if (descriptionInput) descriptionInput.value = '';
         }
     },
+    // ====================================
+
+    // MENU ITEMS - вспомогательные методы
+    // ====================================
+    menuItems: {
+        fillForm(button) {
+            const id = button.getAttribute('data-menu-item-id') || '';
+            const key = button.getAttribute('data-menu-item-key') || '';
+            const group = button.getAttribute('data-menu-item-group') || '';
+            const title = button.getAttribute('data-menu-item-title') || '';
+            const icon = button.getAttribute('data-menu-item-icon') || '';
+            const action = button.getAttribute('data-menu-item-action') || '';
+            const sortOrder = button.getAttribute('data-menu-item-sort') || '0';
+            const isActive = button.getAttribute('data-menu-item-active') || '0';
+            const idInput = document.getElementById('menu_item_id');
+            const keyInput = document.getElementById('menu_item_key');
+            const groupInput = document.getElementById('menu_item_group');
+            const titleInput = document.getElementById('menu_item_title');
+            const iconInput = document.getElementById('menu_item_icon');
+            const actionInput = document.getElementById('menu_item_action');
+            const sortInput = document.getElementById('menu_item_sort');
+            const activeInput = document.getElementById('menu_item_active');
+            if (idInput) idInput.value = id;
+            if (keyInput) keyInput.value = key;
+            if (groupInput) groupInput.value = group;
+            if (titleInput) titleInput.value = title;
+            if (iconInput) iconInput.value = icon;
+            if (actionInput) actionInput.value = action;
+            if (sortInput) sortInput.value = sortOrder;
+            if (activeInput) activeInput.checked = isActive === '1';
+        },
+        resetForm() {
+            const idInput = document.getElementById('menu_item_id');
+            const keyInput = document.getElementById('menu_item_key');
+            const groupInput = document.getElementById('menu_item_group');
+            const titleInput = document.getElementById('menu_item_title');
+            const iconInput = document.getElementById('menu_item_icon');
+            const actionInput = document.getElementById('menu_item_action');
+            const sortInput = document.getElementById('menu_item_sort');
+            const activeInput = document.getElementById('menu_item_active');
+            if (idInput) idInput.value = '';
+            if (keyInput) keyInput.value = '';
+            if (groupInput) groupInput.value = '';
+            if (titleInput) titleInput.value = '';
+            if (iconInput) iconInput.value = '';
+            if (actionInput) actionInput.value = '';
+            if (sortInput) sortInput.value = '0';
+            if (activeInput) activeInput.checked = true;
+        }
+    },
+
     // ====================================
     // HANDLERS - обработчики ответов по action
     // ====================================
@@ -390,6 +443,15 @@ const CoreAPI = {
             alert(data.message || 'Удалено');
             await CoreAPI.ui.reloadList('view_role_permissions');
         },
+
+        'save_menu_item': async (data) => {
+            alert(data.message || 'Сохранено');
+            await CoreAPI.ui.reloadList('view_role_permissions');
+        },
+        'delete_menu_item': async (data) => {
+            alert(data.message || 'Удалено');
+            await CoreAPI.ui.reloadList('view_role_permissions');
+        },
         // === DEFAULT - все остальные ===
         'default': (data) => {
             if (data.html) {
@@ -418,6 +480,19 @@ const CoreAPI = {
                 CoreAPI.permissions.resetForm();
                 return;
             }
+
+            const editMenuItem = e.target.closest('.js-menu-item-edit');
+            if (editMenuItem) {
+                e.preventDefault();
+                CoreAPI.menuItems.fillForm(editMenuItem);
+                return;
+            }
+            const resetMenuItem = e.target.closest('.js-menu-item-reset');
+            if (resetMenuItem) {
+                e.preventDefault();
+                CoreAPI.menuItems.resetForm();
+                return;
+            }
             const link = e.target.closest('.js-core-link[data-core-action]');
             if (!link) return;
             e.preventDefault();
@@ -426,6 +501,12 @@ const CoreAPI = {
             if (action === 'delete_permission') {
                 const code = link.getAttribute('data-permission-code') || '';
                 if (!confirm(`Удалить право ${code}?`)) {
+                    return;
+                }
+            }
+            if (action === 'delete_menu_item') {
+                const menuKey = link.getAttribute('data-menu-item-key') || '';
+                if (!confirm(`Удалить пункт меню ${menuKey || 'выбранный'}?`)) {
                     return;
                 }
             }

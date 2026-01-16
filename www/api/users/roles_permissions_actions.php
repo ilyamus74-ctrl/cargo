@@ -46,6 +46,29 @@ switch ($action) {
         $smarty->assign('role_permissions', $rolePermissions);
         $smarty->assign('current_user', $user);
 
+        $menuGroups = [];
+        $sqlMenuGroups = "SELECT code, title, icon, sort_order, is_active FROM menu_groups ORDER BY sort_order, code";
+        if ($res = $dbcnx->query($sqlMenuGroups)) {
+            while ($row = $res->fetch_assoc()) {
+                $menuGroups[] = $row;
+            }
+            $res->free();
+        }
+
+        $menuItems = [];
+        $sqlMenuItems = "SELECT id, menu_key, group_code, title, icon, action, sort_order, is_active
+                           FROM menu_items
+                       ORDER BY group_code, sort_order, id";
+        if ($res = $dbcnx->query($sqlMenuItems)) {
+            while ($row = $res->fetch_assoc()) {
+                $menuItems[] = $row;
+            }
+            $res->free();
+        }
+
+        $smarty->assign('menu_groups', $menuGroups);
+        $smarty->assign('menu_items', $menuItems);
+
         ob_start();
         $smarty->display('cells_NA_API_roles_permissions.html');
         $html = ob_get_clean();
@@ -239,6 +262,161 @@ switch ($action) {
         $response = [
             'status'  => 'ok',
             'message' => 'Права обновлены',
+        ];
+        break;
+
+
+    case 'save_menu_item':
+        $menuItemId = (int)($_POST['menu_item_id'] ?? 0);
+        $menuKey = trim($_POST['menu_key'] ?? '');
+        $groupCode = trim($_POST['group_code'] ?? '');
+        $title = trim($_POST['title'] ?? '');
+        $icon = trim($_POST['icon'] ?? '');
+        $actionCode = trim($_POST['action_code'] ?? '');
+        $sortOrder = (int)($_POST['sort_order'] ?? 0);
+        $isActive = isset($_POST['is_active']) ? 1 : 0;
+
+        if ($menuKey === '' || $groupCode === '' || $title === '' || $actionCode === '') {
+            $response = [
+                'status'  => 'error',
+                'message' => 'Ключ, группа, название и action обязательны',
+            ];
+            break;
+        }
+
+        $stmt = $dbcnx->prepare("SELECT code FROM menu_groups WHERE code = ?");
+        if (!$stmt) {
+            throw new RuntimeException('DB prepare error (menu_groups select)');
+        }
+        $stmt->bind_param('s', $groupCode);
+        $stmt->execute();
+        $res = $stmt->get_result();
+        $group = $res->fetch_assoc();
+        $stmt->close();
+
+        if (!$group) {
+            $response = [
+                'status'  => 'error',
+                'message' => 'Группа меню не найдена',
+            ];
+            break;
+        }
+
+        if ($menuItemId > 0) {
+            $stmt = $dbcnx->prepare("SELECT menu_key FROM menu_items WHERE id = ?");
+            if (!$stmt) {
+                throw new RuntimeException('DB prepare error (menu_items select)');
+            }
+            $stmt->bind_param('i', $menuItemId);
+            $stmt->execute();
+            $res = $stmt->get_result();
+            $existing = $res->fetch_assoc();
+            $stmt->close();
+
+            if (!$existing) {
+                $response = [
+                    'status'  => 'error',
+                    'message' => 'Пункт меню не найден',
+                ];
+                break;
+            }
+
+            $stmt = $dbcnx->prepare("SELECT id FROM menu_items WHERE menu_key = ? AND id != ?");
+            if (!$stmt) {
+                throw new RuntimeException('DB prepare error (menu_items duplicate)');
+            }
+            $stmt->bind_param('si', $menuKey, $menuItemId);
+            $stmt->execute();
+            $res = $stmt->get_result();
+            $duplicate = $res->fetch_assoc();
+            $stmt->close();
+
+            if ($duplicate) {
+                $response = [
+                    'status'  => 'error',
+                    'message' => 'Пункт меню с таким ключом уже существует',
+                ];
+                break;
+            }
+
+            $stmt = $dbcnx->prepare("UPDATE menu_items
+                                        SET menu_key = ?, group_code = ?, title = ?, icon = ?, action = ?, sort_order = ?, is_active = ?
+                                      WHERE id = ?");
+            if (!$stmt) {
+                throw new RuntimeException('DB prepare error (menu_items update)');
+            }
+            $stmt->bind_param('sssssiii', $menuKey, $groupCode, $title, $icon, $actionCode, $sortOrder, $isActive, $menuItemId);
+            $stmt->execute();
+            $stmt->close();
+
+            $response = [
+                'status'  => 'ok',
+                'message' => 'Пункт меню обновлён',
+            ];
+            break;
+        }
+
+        $stmt = $dbcnx->prepare("SELECT id FROM menu_items WHERE menu_key = ?");
+        if (!$stmt) {
+            throw new RuntimeException('DB prepare error (menu_items insert check)');
+        }
+        $stmt->bind_param('s', $menuKey);
+        $stmt->execute();
+        $res = $stmt->get_result();
+        $duplicate = $res->fetch_assoc();
+        $stmt->close();
+
+        if ($duplicate) {
+            $response = [
+                'status'  => 'error',
+                'message' => 'Пункт меню с таким ключом уже существует',
+            ];
+            break;
+        }
+
+        $stmt = $dbcnx->prepare("INSERT INTO menu_items (menu_key, group_code, title, icon, action, sort_order, is_active)
+                                 VALUES (?, ?, ?, ?, ?, ?, ?)");
+        if (!$stmt) {
+            throw new RuntimeException('DB prepare error (menu_items insert)');
+        }
+        $stmt->bind_param('sssssii', $menuKey, $groupCode, $title, $icon, $actionCode, $sortOrder, $isActive);
+        if (!$stmt->execute()) {
+            $stmt->close();
+            $response = [
+                'status'  => 'error',
+                'message' => 'Не удалось сохранить пункт меню',
+            ];
+            break;
+        }
+        $stmt->close();
+
+        $response = [
+            'status'  => 'ok',
+            'message' => 'Пункт меню добавлен',
+        ];
+        break;
+
+    case 'delete_menu_item':
+        $menuItemId = (int)($_POST['menu_item_id'] ?? 0);
+        if ($menuItemId <= 0) {
+            $response = [
+                'status'  => 'error',
+                'message' => 'Не указан пункт меню',
+            ];
+            break;
+        }
+
+        $stmt = $dbcnx->prepare("DELETE FROM menu_items WHERE id = ?");
+        if (!$stmt) {
+            throw new RuntimeException('DB prepare error (menu_items delete)');
+        }
+        $stmt->bind_param('i', $menuItemId);
+        $stmt->execute();
+        $stmt->close();
+
+        $response = [
+            'status'  => 'ok',
+            'message' => 'Пункт меню удалён',
         ];
         break;
 }

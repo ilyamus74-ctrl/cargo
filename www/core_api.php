@@ -29,7 +29,8 @@ $routes = [
     'save_permission'       => 'api/users/roles_permissions_actions.php',
     'delete_permission'     => 'api/users/roles_permissions_actions.php',
     'toggle_role_permission'=> 'api/users/roles_permissions_actions.php',
-
+    'save_menu_item'        => 'api/users/roles_permissions_actions.php',
+    'delete_menu_item'      => 'api/users/roles_permissions_actions.php',
 
     // ========== TOOLS ==========
     'view_tools_stock'     => 'api/tools/tool_standard_actions.php',
