@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-01-16 18:36:02
+/* Smarty version 5.3.1, created on 2026-01-16 21:07:45
   from 'file:cells_NA_API_roles_permissions.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_696a8512a4e4f1_58183214',
+  'unifunc' => 'content_696aa8a1cb0630_57058006',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     'f38262d4d20d5acaef283fdacab34758a9cb2c24' => 
     array (
       0 => 'cells_NA_API_roles_permissions.html',
-      1 => 1768588330,
+      1 => 1768597565,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_696a8512a4e4f1_58183214 (\Smarty\Template $_smarty_tpl) {
+function content_696aa8a1cb0630_57058006 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>    <div class="pagetitle">
       <h1>Settings roles & permissions</h1>
@@ -299,6 +299,7 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
               </div>
             </div>
           </div>
+
 
           <div class="card">
             <div class="card-body">
