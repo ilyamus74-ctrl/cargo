@@ -9,7 +9,6 @@ $response = ['status' => 'error', 'message' => 'Unknown warehouse stock action']
 if ($action === 'item_stock') {
     auth_require_login();
     $current = $user;
-    $userId  = (int)$current['id'];
     $batches = [];
     if (auth_has_role('ADMIN')) {
         $sql = "
@@ -67,9 +66,6 @@ if ($action === 'item_stock') {
 if ($action === 'item_stock_without_cells') {
     auth_require_login();
     $current = $user;
-    $userId  = (int)$current['id'];
-    $isAdmin = auth_has_role('ADMIN');
-
     $limitRaw = $_POST['limit'] ?? '20';
     $limit = null;
     if ($limitRaw !== 'all') {
@@ -87,12 +83,6 @@ if ($action === 'item_stock_without_cells') {
     ];
     $params = [];
     $types = '';
-
-    if (!$isAdmin) {
-        $conditions[] = "wi.user_id = ?";
-        $types .= 'i';
-        $params[] = $userId;
-    }
 
     if ($search !== '') {
         $conditions[] = "(wi.receiver_name LIKE ? OR wi.tracking_no LIKE ?)";
@@ -182,9 +172,6 @@ if ($action === 'item_stock_without_cells') {
 if ($action === 'item_stock_in_storage') {
     auth_require_login();
     $current = $user;
-    $userId  = (int)$current['id'];
-    $isAdmin = auth_has_role('ADMIN');
-
     $limitRaw = $_POST['limit'] ?? '20';
     $limit = null;
     if ($limitRaw !== 'all') {
@@ -202,12 +189,6 @@ if ($action === 'item_stock_in_storage') {
     ];
     $params = [];
     $types = '';
-
-    if (!$isAdmin) {
-        $conditions[] = "wi.user_id = ?";
-        $types .= 'i';
-        $params[] = $userId;
-    }
 
     if ($search !== '') {
         $conditions[] = "(wi.receiver_name LIKE ? OR wi.tracking_no LIKE ? OR c.code LIKE ?)";
