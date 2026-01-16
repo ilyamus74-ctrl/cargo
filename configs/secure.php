@@ -383,7 +383,7 @@ function auth_login(string $username, string $password): bool {
             mi.action
         FROM role_menu rm
         JOIN menu_items mi
-          ON mi.menu_key = rm.menu_key
+          ON (mi.menu_key = rm.menu_key OR mi.action = rm.menu_key)
          AND mi.is_active = 1
         JOIN menu_groups mg
           ON mg.code = mi.group_code
@@ -597,7 +597,7 @@ function auth_login_by_qr_token(string $qrToken): ?array {
             mi.action
         FROM role_menu rm
         JOIN menu_items mi
-          ON mi.menu_key = rm.menu_key
+          ON (mi.menu_key = rm.menu_key OR mi.action = rm.menu_key)
          AND mi.is_active = 1
         JOIN menu_groups mg
           ON mg.code = mi.group_code
