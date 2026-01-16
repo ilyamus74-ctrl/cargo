@@ -150,6 +150,14 @@ switch ($action) {
                     $stmt->bind_param('ss', $code, $oldCode);
                     $stmt->execute();
                     $stmt->close();
+
+                    $stmt = $dbcnx->prepare("UPDATE role_menu SET menu_key = ? WHERE menu_key = ?");
+                    if (!$stmt) {
+                        throw new RuntimeException('DB prepare error (role_menu update)');
+                    }
+                    $stmt->bind_param('ss', $code, $oldCode);
+                    $stmt->execute();
+                    $stmt->close();
                 }
 
                 $dbcnx->commit();
@@ -208,6 +216,16 @@ switch ($action) {
             $stmt->execute();
             $stmt->close();
 
+
+            $stmt = $dbcnx->prepare("DELETE FROM role_menu WHERE menu_key = ?");
+            if (!$stmt) {
+                throw new RuntimeException('DB prepare error (role_menu delete)');
+            }
+            $stmt->bind_param('s', $permissionCode);
+            $stmt->execute();
+            $stmt->close();
+
+
             $stmt = $dbcnx->prepare("DELETE FROM permissions WHERE code = ?");
             if (!$stmt) {
                 throw new RuntimeException('DB prepare error (permissions delete)');
@@ -240,23 +258,47 @@ switch ($action) {
             ];
             break;
         }
+        $dbcnx->begin_transaction();
+        try {
+            if ($isAllowed) {
+                $stmt = $dbcnx->prepare("INSERT IGNORE INTO role_permissions (role_code, permission_code) VALUES (?, ?)");
+                if (!$stmt) {
+                    throw new RuntimeException('DB prepare error (role_permissions insert)');
+                }
+                $stmt->bind_param('ss', $roleCode, $permissionCode);
+                $stmt->execute();
+                $stmt->close();
 
-        if ($isAllowed) {
-            $stmt = $dbcnx->prepare("INSERT IGNORE INTO role_permissions (role_code, permission_code) VALUES (?, ?)");
-            if (!$stmt) {
-                throw new RuntimeException('DB prepare error (role_permissions insert)');
+                $stmt = $dbcnx->prepare("INSERT INTO role_menu (role_code, menu_key, is_allowed)
+                                         VALUES (?, ?, 1)
+                                         ON DUPLICATE KEY UPDATE is_allowed = VALUES(is_allowed)");
+                if (!$stmt) {
+                    throw new RuntimeException('DB prepare error (role_menu insert)');
+                }
+                $stmt->bind_param('ss', $roleCode, $permissionCode);
+                $stmt->execute();
+                $stmt->close();
+            } else {
+                $stmt = $dbcnx->prepare("DELETE FROM role_permissions WHERE role_code = ? AND permission_code = ?");
+                if (!$stmt) {
+                    throw new RuntimeException('DB prepare error (role_permissions delete)');
+                }
+                $stmt->bind_param('ss', $roleCode, $permissionCode);
+                $stmt->execute();
+                $stmt->close();
+
+                $stmt = $dbcnx->prepare("DELETE FROM role_menu WHERE role_code = ? AND menu_key = ?");
+                if (!$stmt) {
+                    throw new RuntimeException('DB prepare error (role_menu delete)');
+                }
+                $stmt->bind_param('ss', $roleCode, $permissionCode);
+                $stmt->execute();
+                $stmt->close();
             }
-            $stmt->bind_param('ss', $roleCode, $permissionCode);
-            $stmt->execute();
-            $stmt->close();
-        } else {
-            $stmt = $dbcnx->prepare("DELETE FROM role_permissions WHERE role_code = ? AND permission_code = ?");
-            if (!$stmt) {
-                throw new RuntimeException('DB prepare error (role_permissions delete)');
-            }
-            $stmt->bind_param('ss', $roleCode, $permissionCode);
-            $stmt->execute();
-            $stmt->close();
+            $dbcnx->commit();
+        } catch (Throwable $e) {
+            $dbcnx->rollback();
+            throw $e;
         }
 
         $response = [
