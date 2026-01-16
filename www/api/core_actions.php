@@ -296,7 +296,7 @@ case 'item_in':
 
     $batches = [];
 
-    if (auth_has_role('ADMIN')) {
+    if (auth_has_permission('warehouse.in.view_all')) {
         // Админ видит ВСЕ незавершённые партии + можем сразу знать, чей это приход
         $sql = "
             SELECT
@@ -360,7 +360,7 @@ case 'item_stock':
 
     $batches = [];
 
-    if (auth_has_role('ADMIN')) {
+    if (auth_has_permission('warehouse.stock.view_all')) {
         $sql = "
             SELECT
                 wi.batch_uid,
@@ -430,7 +430,8 @@ case 'open_item_in_batch':
 
     $items = [];
 
-    if (auth_has_role('ADMIN')) {
+
+    if (auth_has_permission('warehouse.in.view_all')) {
         // Админ видит ВСЕ посылки в партии, кто бы их ни создавал
         $sql = "
             SELECT
@@ -694,7 +695,7 @@ case 'delete_item_in':
 
     $current = $user;
     $userId  = (int)$current['id'];
-    $isAdmin = auth_has_role('ADMIN');
+    $isAdmin = auth_has_permission('warehouse.in.manage_all');
 
     $itemId = (int)($_POST['item_id'] ?? 0);
     if ($itemId <= 0) {
@@ -882,7 +883,7 @@ case 'commit_item_in_batch':
         break;
     }
 
-    $isAdmin = auth_has_role('ADMIN');
+    $isAdmin = auth_has_permission('warehouse.in.manage_all');
 
     // 1) сколько незакоммиченных
     $stmt = $dbcnx->prepare(

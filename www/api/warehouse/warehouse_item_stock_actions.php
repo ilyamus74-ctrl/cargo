@@ -10,7 +10,7 @@ if ($action === 'item_stock') {
     auth_require_login();
     $current = $user;
     $batches = [];
-    if (auth_has_role('ADMIN')) {
+    if (auth_has_permission('warehouse.stock.view_all')) {
         $sql = "
             SELECT
                 wi.batch_uid,
@@ -288,7 +288,7 @@ if ($action === 'open_item_stock_modal') {
     auth_require_login();
     $current = $user;
     $userId = (int)$current['id'];
-    $canManageStock = auth_has_role('ADMIN') || auth_has_role('WORKER');
+    $canManageStock = auth_has_permission('warehouse.stock.manage');
     $itemId = isset($_POST['item_id']) ? (int)$_POST['item_id'] : 0;
     if ($itemId <= 0) {
         $response = [
@@ -411,7 +411,7 @@ if ($action === 'save_item_stock') {
     auth_require_login();
     $current = $user;
     $userId = (int)$current['id'];
-    $canManageStock = auth_has_role('ADMIN') || auth_has_role('WORKER');
+    $canManageStock = auth_has_permission('warehouse.stock.manage');
     $itemId = isset($_POST['item_id']) ? (int)$_POST['item_id'] : 0;
     if ($itemId <= 0) {
         $response = [
