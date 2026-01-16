@@ -177,3 +177,126 @@ if ($action === 'item_stock_without_cells') {
         'has_more'    => $limit !== null ? ($offset + count($parcels) < $total) : false,
     ];
 }
+
+
+if ($action === 'item_stock_in_storage') {
+    auth_require_login();
+    $current = $user;
+    $userId  = (int)$current['id'];
+    $isAdmin = auth_has_role('ADMIN');
+
+    $limitRaw = $_POST['limit'] ?? '20';
+    $limit = null;
+    if ($limitRaw !== 'all') {
+        $limit = max(20, (int)$limitRaw);
+    }
+    $offset = max(0, (int)($_POST['offset'] ?? 0));
+
+    $sortRaw = strtoupper(trim((string)($_POST['sort'] ?? 'DESC')));
+    $sort = $sortRaw === 'ASC' ? 'ASC' : 'DESC';
+
+    $search = trim((string)($_POST['search'] ?? ''));
+
+    $conditions = [
+        "wi.cell_id IS NOT NULL",
+    ];
+    $params = [];
+    $types = '';
+
+    if (!$isAdmin) {
+        $conditions[] = "wi.user_id = ?";
+        $types .= 'i';
+        $params[] = $userId;
+    }
+
+    if ($search !== '') {
+        $conditions[] = "(wi.receiver_name LIKE ? OR wi.tracking_no LIKE ? OR c.code LIKE ?)";
+        $like = '%' . $search . '%';
+        $types .= 'sss';
+        $params[] = $like;
+        $params[] = $like;
+        $params[] = $like;
+    }
+
+    $whereSql = 'WHERE ' . implode(' AND ', $conditions);
+
+    $countSql = "
+        SELECT COUNT(*) AS total
+        FROM warehouse_item_stock wi
+        LEFT JOIN cells c ON c.id = wi.cell_id
+        {$whereSql}
+    ";
+    $total = 0;
+    if ($types === '') {
+        if ($res = $dbcnx->query($countSql)) {
+            $row = $res->fetch_assoc();
+            $total = (int)($row['total'] ?? 0);
+            $res->free();
+        }
+    } else {
+        $stmt = $dbcnx->prepare($countSql);
+        $stmt->bind_param($types, ...$params);
+        $stmt->execute();
+        $row = $stmt->get_result()->fetch_assoc();
+        $total = (int)($row['total'] ?? 0);
+        $stmt->close();
+    }
+
+    $sql = "
+        SELECT
+            COALESCE(NULLIF(wi.tuid, ''), NULLIF(wi.tracking_no, ''), wi.uid_created) AS parcel_uid,
+            wi.receiver_name,
+            wi.tracking_no,
+            wi.created_at AS stored_at,
+            wi.user_id,
+            u.full_name AS user_name,
+            c.code AS cell_address
+        FROM warehouse_item_stock wi
+        LEFT JOIN users u ON u.id = wi.user_id
+        LEFT JOIN cells c ON c.id = wi.cell_id
+        {$whereSql}
+        ORDER BY wi.created_at {$sort}
+    ";
+
+    if ($limit !== null) {
+        $sql .= " LIMIT ? OFFSET ?";
+        $types .= 'ii';
+        $params[] = $limit;
+        $params[] = $offset;
+    }
+
+    $parcels = [];
+    if ($types === '') {
+        if ($res = $dbcnx->query($sql)) {
+            while ($row = $res->fetch_assoc()) {
+                $parcels[] = $row;
+            }
+            $res->free();
+        }
+    } else {
+        $stmt = $dbcnx->prepare($sql);
+        $stmt->bind_param($types, ...$params);
+        $stmt->execute();
+        $res = $stmt->get_result();
+        while ($row = $res->fetch_assoc()) {
+            $parcels[] = $row;
+        }
+        $stmt->close();
+    }
+
+    $smarty->assign('parcels_in_storage', $parcels);
+    $smarty->assign('current_user', $current);
+    $smarty->assign('show_empty', $offset === 0);
+
+    ob_start();
+    $smarty->display('cells_NA_API_warehouse_item_stock_in_storage_rows.html');
+    $html = ob_get_clean();
+
+    $response = [
+        'status'      => 'ok',
+        'html'        => $html,
+        'total'       => $total,
+        'items_count' => count($parcels),
+        'has_more'    => $limit !== null ? ($offset + count($parcels) < $total) : false,
+    ];
+}

@@ -123,8 +123,31 @@
                 </div>
                 <div class="tab-pane fade" id="warehouse-in-storage" role="tabpanel" aria-labelledby="warehouse-in-storage-tab">
                   <p class="small text-muted mb-2">
-                    Всего посылок: {if $parcels_in_storage}{count($parcels_in_storage)}{else}0{/if}
-                  </p>
+                    Всего посылок: <span id="warehouse-in-storage-total">0</span>
+                    </p>
+
+                  <div class="row g-2 align-items-end mb-3">
+                    <div class="col-12 col-md-5">
+                      <label class="form-label small mb-1" for="warehouse-in-storage-search">Быстрый поиск</label>
+                      <input type="text" id="warehouse-in-storage-search" class="form-control form-control-sm" placeholder="ФИО, трекномер или ячейка">
+                    </div>
+                    <div class="col-6 col-md-3">
+                      <label class="form-label small mb-1" for="warehouse-in-storage-limit">Вывод строк</label>
+                      <select id="warehouse-in-storage-limit" class="form-select form-select-sm">
+                        <option value="20" selected>20</option>
+                        <option value="50">50</option>
+                        <option value="100">100</option>
+                        <option value="all">Все</option>
+                      </select>
+                    </div>
+                    <div class="col-6 col-md-3">
+                      <label class="form-label small mb-1" for="warehouse-in-storage-sort">Сортировка</label>
+                      <select id="warehouse-in-storage-sort" class="form-select form-select-sm">
+                        <option value="DESC" selected>DESC</option>
+                        <option value="ASC">ASC</option>
+                      </select>
+                    </div>
+                  </div>
                   <table class="table table-sm align-middle users-table">
                     <thead>
                       <tr>
@@ -136,26 +159,17 @@
                         <th scope="col">Размещена</th>
                       </tr>
                     </thead>
-                    <tbody>
-                      {foreach $parcels_in_storage as $parcel}
-                        <tr>
-                          <td>{$parcel.parcel_uid}</td>
-                          <td>{$parcel.cell_address|default:'—'}</td>
-                          {if $current_user.role == 'ADMIN'}
-                            <td>{$parcel.user_name|default:'—'}</td>
-                          {/if}
-                          <td>{$parcel.stored_at|default:'—'}</td>
-                        </tr>
-                      {/foreach}
-                      {if !$parcels_in_storage}
-                        <tr>
-                          <td colspan="{if $current_user.role == 'ADMIN'}4{else}3{/if}" class="text-center text-muted">
-                            Нет посылок на складе
-                          </td>
-                        </tr>
-                      {/if}
+
+
+                    <tbody id="warehouse-in-storage-tbody">
+                      <tr>
+                        <td colspan="{if $current_user.role == 'ADMIN'}4{else}3{/if}" class="text-center text-muted">
+                          Загрузка...
+                        </td>
+                      </tr>
                     </tbody>
                   </table>
+                  <div id="warehouse-in-storage-sentinel" class="py-2"></div>
                 </div>
               </div>
             </div>

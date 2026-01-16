@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-01-15 13:09:56
+/* Smarty version 5.3.1, created on 2026-01-16 07:42:51
   from 'file:cells_NA_API_warehouse_item_stock.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_6968e724b69c83_83224067',
+  'unifunc' => 'content_6969ebfb50e272_16492247',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '78897f2abfb53919d027b02d7f6e77f4dd3c7bcd' => 
     array (
       0 => 'cells_NA_API_warehouse_item_stock.html',
-      1 => 1768482407,
+      1 => 1768549208,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_6968e724b69c83_83224067 (\Smarty\Template $_smarty_tpl) {
+function content_6969ebfb50e272_16492247 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>
     <div class="pagetitle">
@@ -159,10 +159,31 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
                 </div>
                 <div class="tab-pane fade" id="warehouse-in-storage" role="tabpanel" aria-labelledby="warehouse-in-storage-tab">
                   <p class="small text-muted mb-2">
-                    Всего посылок: <?php if ($_smarty_tpl->getValue('parcels_in_storage')) {
-echo $_smarty_tpl->getSmarty()->getModifierCallback('count')($_smarty_tpl->getValue('parcels_in_storage'));
-} else { ?>0<?php }?>
-                  </p>
+                    Всего посылок: <span id="warehouse-in-storage-total">0</span>
+                    </p>
+
+                  <div class="row g-2 align-items-end mb-3">
+                    <div class="col-12 col-md-5">
+                      <label class="form-label small mb-1" for="warehouse-in-storage-search">Быстрый поиск</label>
+                      <input type="text" id="warehouse-in-storage-search" class="form-control form-control-sm" placeholder="ФИО, трекномер или ячейка">
+                    </div>
+                    <div class="col-6 col-md-3">
+                      <label class="form-label small mb-1" for="warehouse-in-storage-limit">Вывод строк</label>
+                      <select id="warehouse-in-storage-limit" class="form-select form-select-sm">
+                        <option value="20" selected>20</option>
+                        <option value="50">50</option>
+                        <option value="100">100</option>
+                        <option value="all">Все</option>
+                      </select>
+                    </div>
+                    <div class="col-6 col-md-3">
+                      <label class="form-label small mb-1" for="warehouse-in-storage-sort">Сортировка</label>
+                      <select id="warehouse-in-storage-sort" class="form-select form-select-sm">
+                        <option value="DESC" selected>DESC</option>
+                        <option value="ASC">ASC</option>
+                      </select>
+                    </div>
+                  </div>
                   <table class="table table-sm align-middle users-table">
                     <thead>
                       <tr>
@@ -174,37 +195,17 @@ echo $_smarty_tpl->getSmarty()->getModifierCallback('count')($_smarty_tpl->getVa
                         <th scope="col">Размещена</th>
                       </tr>
                     </thead>
-                    <tbody>
-                      <?php
-$_from = $_smarty_tpl->getSmarty()->getRuntime('Foreach')->init($_smarty_tpl, $_smarty_tpl->getValue('parcels_in_storage'), 'parcel');
-$foreach1DoElse = true;
-foreach ($_from ?? [] as $_smarty_tpl->getVariable('parcel')->value) {
-$foreach1DoElse = false;
-?>
-                        <tr>
-                          <td><?php echo $_smarty_tpl->getValue('parcel')['parcel_uid'];?>
-</td>
-                          <td><?php echo (($tmp = $_smarty_tpl->getValue('parcel')['cell_address'] ?? null)===null||$tmp==='' ? '—' ?? null : $tmp);?>
-</td>
-                          <?php if ($_smarty_tpl->getValue('current_user')['role'] == 'ADMIN') {?>
-                            <td><?php echo (($tmp = $_smarty_tpl->getValue('parcel')['user_name'] ?? null)===null||$tmp==='' ? '—' ?? null : $tmp);?>
-</td>
-                          <?php }?>
-                          <td><?php echo (($tmp = $_smarty_tpl->getValue('parcel')['stored_at'] ?? null)===null||$tmp==='' ? '—' ?? null : $tmp);?>
-</td>
-                        </tr>
-                      <?php
-}
-$_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
-                      <?php if (!$_smarty_tpl->getValue('parcels_in_storage')) {?>
-                        <tr>
-                          <td colspan="<?php if ($_smarty_tpl->getValue('current_user')['role'] == 'ADMIN') {?>4<?php } else { ?>3<?php }?>" class="text-center text-muted">
-                            Нет посылок на складе
-                          </td>
-                        </tr>
-                      <?php }?>
+
+
+                    <tbody id="warehouse-in-storage-tbody">
+                      <tr>
+                        <td colspan="<?php if ($_smarty_tpl->getValue('current_user')['role'] == 'ADMIN') {?>4<?php } else { ?>3<?php }?>" class="text-center text-muted">
+                          Загрузка...
+                        </td>
+                      </tr>
                     </tbody>
                   </table>
+                  <div id="warehouse-in-storage-sentinel" class="py-2"></div>
                 </div>
               </div>
             </div>

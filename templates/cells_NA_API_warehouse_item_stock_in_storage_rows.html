@@ -1,0 +1,17 @@
+{foreach $parcels_in_storage as $parcel}
+  <tr>
+    <td>{$parcel.parcel_uid|default:'—'}</td>
+    <td>{$parcel.cell_address|default:'—'}</td>
+    {if $current_user.role == 'ADMIN'}
+      <td>{$parcel.user_name|default:'—'}</td>
+    {/if}
+    <td>{$parcel.stored_at|default:'—'}</td>
+  </tr>
+{/foreach}
+{if !$parcels_in_storage && $show_empty}
+  <tr>
+    <td colspan="{if $current_user.role == 'ADMIN'}4{else}3{/if}" class="text-center text-muted">
+      Нет посылок на складе
+    </td>
+  </tr>
+{/if}
