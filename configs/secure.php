@@ -189,11 +189,77 @@ function auth_has_role(string $roleCode): bool {
 }
 
 /**
+ * Загружает разрешения по ролям из БД.
+ */
+function auth_load_permissions_for_roles(array $roleCodes): array {
+    global $dbcnx;
+
+    $roleCodes = array_values(array_filter($roleCodes, 'strlen'));
+    if (!$roleCodes) {
+        return [];
+    }
+
+    $placeholders = implode(',', array_fill(0, count($roleCodes), '?'));
+    $types = str_repeat('s', count($roleCodes));
+    $sql = "
+        SELECT DISTINCT rp.permission_code
+        FROM role_permissions rp
+        WHERE rp.role_code IN ({$placeholders})
+    ";
+
+    $stmt = $dbcnx->prepare($sql);
+    if (!$stmt) {
+        return [];
+    }
+
+    $stmt->bind_param($types, ...$roleCodes);
+    if (!$stmt->execute()) {
+        $stmt->close();
+        return [];
+    }
+
+    $res = $stmt->get_result();
+    $permissions = [];
+    while ($row = $res->fetch_assoc()) {
+        if (!empty($row['permission_code'])) {
+            $permissions[] = $row['permission_code'];
+        }
+    }
+    $stmt->close();
+
+    return $permissions;
+}
+
+/**
+ * Проверка права по коду (например, warehouse.stock.manage).
+ */
+function auth_has_permission(string $permission): bool {
+    $permissions = $_SESSION['permissions'] ?? [];
+    if (isset($permissions['*'])) {
+        return true;
+    }
+    return isset($permissions[$permission]);
+}
+
+/**
  * Обязателен логин, иначе редирект на страницу логина.
  */
 function auth_require_login(): void {
     if (!auth_is_logged_in()) {
         header("Location: /login.html");
+        exit;
+    }
+}
+
+
+/**
+ * Обязательное право (например, warehouse.stock.manage).
+ */
+function auth_require_permission(string $permission): void {
+    auth_require_login();
+    if (!auth_has_permission($permission)) {
+        http_response_code(403);
+        echo 'Forbidden';
         exit;
     }
 }
@@ -352,6 +418,8 @@ function auth_login(string $username, string $password): bool {
         $stmtM->close();
     }
 
+    $permissions = auth_load_permissions_for_roles([$roleCode]);
+
     // Пишем всё в сессию
     $_SESSION['user'] = [
         'id'        => $userId,
@@ -366,6 +434,7 @@ function auth_login(string $username, string $password): bool {
 
     $_SESSION['menu']            = $menuTree;       // дерево меню для сайдбара
     $_SESSION['allowed_actions'] = $allowedActions; // разрешённые экшены
+    $_SESSION['permissions']     = array_fill_keys($permissions, true);
 
     audit_log($userId, 'LOGIN', null, null, 'Пользователь вошёл в систему');
 
@@ -502,6 +571,8 @@ function auth_login_by_qr_token(string $qrToken): ?array {
         $stmtU->close();
     }
 
+    $permissions = auth_load_permissions_for_roles([$roleCode]);
+
     // === СТРОИМ МЕНЮ И ПРАВА ТОЧНО ТАК ЖЕ, КАК В auth_login ===
     $menuTree       = [];
     $allowedActions = [];
@@ -573,6 +644,7 @@ function auth_login_by_qr_token(string $qrToken): ?array {
 
     $_SESSION['menu']            = $menuTree;
     $_SESSION['allowed_actions'] = $allowedActions;
+    $_SESSION['permissions']     = array_fill_keys($permissions, true);
 
     audit_log(
         $userId,
