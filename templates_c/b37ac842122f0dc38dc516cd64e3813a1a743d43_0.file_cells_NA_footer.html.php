@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-01-15 09:49:14
+/* Smarty version 5.3.1, created on 2026-01-17 20:40:32
   from 'file:cells_NA_footer.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_6968b81a2eca50_95994129',
+  'unifunc' => 'content_696bf3c07ea478_21848294',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     'b37ac842122f0dc38dc516cd64e3813a1a743d43' => 
     array (
       0 => 'cells_NA_footer.html',
-      1 => 1768470545,
+      1 => 1768682425,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_6968b81a2eca50_95994129 (\Smarty\Template $_smarty_tpl) {
+function content_696bf3c07ea478_21848294 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>
   <!-- ======= Footer ======= -->
@@ -81,9 +81,16 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
     event.preventDefault();
-    const src = trigger.getAttribute('data-qr-src');
-    const title = trigger.getAttribute('data-qr-title') || 'QR';
-    printQrFromSrc(src, title);
+    const payload = {
+      src: trigger.getAttribute('data-qr-src'),
+      title: trigger.getAttribute('data-qr-title') || 'QR',
+      name: trigger.getAttribute('data-qr-name'),
+      serial: trigger.getAttribute('data-qr-serial'),
+      domain: trigger.getAttribute('data-qr-domain'),
+      code: trigger.getAttribute('data-qr-code'),
+    };
+
+    openQrPrintDesigner(payload);
   });
 });
 
@@ -93,28 +100,38 @@ function printUserQr() {
     return;
   }
 
-  printQrFromSrc(qrImage.src, 'QR');
+  openQrPrintDesigner({
+    src: qrImage.src,
+    title: 'QR',
+  });
 }
 
-function printQrFromSrc(src, title) {
-  if (!src) {
+function openQrPrintDesigner(payload) {
+  if (!payload || !payload.src) {
     return;
   }
 
-  const printWindow = window.open('', 'print-qr');
+  const params = new URLSearchParams();
+  params.set('src', payload.src);
+  params.set('title', payload.title || 'QR');
+
+  if (payload.name) {
+    params.set('name', payload.name);
+  }
+  if (payload.serial) {
+    params.set('serial', payload.serial);
+  }
+  if (payload.code) {
+    params.set('code', payload.code);
+  }
+  params.set('domain', payload.domain || window.location.hostname);
+
+  const url = '/prepare_print?' + params.toString();
+  const printWindow = window.open(url, 'print-qr');
   if (!printWindow) {
     return;
   }
-
-//  printWindow.document.write('<html><head><title>QR</title></head><body style="margin:0; display:flex; justify-content:center; align-items:center; padding:20px;">');
-//  printWindow.document.write('<img src="' + qrImage.src + '" style="max-width:100%; height:auto;">');
-  printWindow.document.write('<html><head><title>' + title + '</title></head><body style="margin:0; display:flex; justify-content:center; align-items:center; padding:20px;">');
-  printWindow.document.write('<img src="' + src + '" style="max-width:100%; height:auto;">');
-  printWindow.document.write('</body></html>');
-  printWindow.document.close();
   printWindow.focus();
-  printWindow.print();
-  printWindow.close();
 }
 <?php echo '</script'; ?>
 >

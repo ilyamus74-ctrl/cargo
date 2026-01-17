@@ -117,8 +117,15 @@
                         <div class="d-flex flex-column align-items-center">
                           <img src="{$qr.path}" id="user-qr-image" alt="QR {$qr.size}" class="" style="width:90px; height:90px; object-fit:cover;">
                           <small class="text-muted">{$qr.size}</small>
-                          <button type="button" class="btn btn-outline-primary mt-2" onclick="printUserQr()">Распечатать</button>
-
+                          <button
+                            type="button"
+                            class="btn btn-outline-primary mt-2 js-print-qr"
+                            data-qr-src="{$qr.path}"
+                            data-qr-title="Инструмент: {$edit_tool.NameTool|escape}"
+                            data-qr-name="{$edit_tool.NameTool|escape}"
+                            data-qr-serial="{$edit_tool.SerialNumber|escape}">
+                            Распечатать
+                          </button>
                         </div>
                       {/foreach}
                     {else}
@@ -333,5 +340,4 @@
     </div>
   </div>
 </section>
-
 

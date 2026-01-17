@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2025-12-17 15:36:15
+/* Smarty version 5.3.1, created on 2026-01-17 20:27:19
   from 'file:cells_NA_API_tools_stock_form.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_6942cdef3cead7_41647646',
+  'unifunc' => 'content_696bf0a701e947_09534075',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '6d55e47b00793e3a8ae1867fa293107185d64564' => 
     array (
       0 => 'cells_NA_API_tools_stock_form.html',
-      1 => 1765985771,
+      1 => 1768680905,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_6942cdef3cead7_41647646 (\Smarty\Template $_smarty_tpl) {
+function content_696bf0a701e947_09534075 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>
 <section class="section profile">
@@ -175,8 +175,19 @@ $foreach1DoElse = false;
 " class="" style="width:90px; height:90px; object-fit:cover;">
                           <small class="text-muted"><?php echo $_smarty_tpl->getValue('qr')['size'];?>
 </small>
-                          <button type="button" class="btn btn-outline-primary mt-2" onclick="printUserQr()">Распечатать</button>
-
+                          <button
+                            type="button"
+                            class="btn btn-outline-primary mt-2 js-print-qr"
+                            data-qr-src="<?php echo $_smarty_tpl->getValue('qr')['path'];?>
+"
+                            data-qr-title="Инструмент: <?php echo htmlspecialchars((string)$_smarty_tpl->getValue('edit_tool')['NameTool'], ENT_QUOTES, 'UTF-8', true);?>
+"
+                            data-qr-name="<?php echo htmlspecialchars((string)$_smarty_tpl->getValue('edit_tool')['NameTool'], ENT_QUOTES, 'UTF-8', true);?>
+"
+                            data-qr-serial="<?php echo htmlspecialchars((string)$_smarty_tpl->getValue('edit_tool')['SerialNumber'], ENT_QUOTES, 'UTF-8', true);?>
+">
+                            Распечатать
+                          </button>
                         </div>
                       <?php
 }
@@ -412,7 +423,6 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
     </div>
   </div>
 </section>
-
 
 <?php }
 }

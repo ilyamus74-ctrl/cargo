@@ -92,7 +92,8 @@
                         <button type="button"
                                 class="btn btn-link p-0 js-print-qr"
                                 data-qr-src="img/cells/{$value.qr_file}"
-                                data-qr-title="QR {$value.code|escape}">
+                                data-qr-title="Ячейка {$value.code|escape}"
+                                data-qr-code="{$value.code|escape}">
                           <img src="img/cells/{$value.qr_file}"
                                alt="QR {$value.code|escape}"
                                style="height:40px;">
@@ -111,7 +112,7 @@
               <div class="modal fade" id="fullscreenModal" tabindex="-1">
                 <div class="modal-dialog modal-fullscreen">
                   <div class="modal-content">
-                 
+
                     <div class="modal-header">
                       <h5 class="modal-title">Редактирование ячейки</h5>
                       <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>

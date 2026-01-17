@@ -21,8 +21,9 @@
               <button type="button"
                       class="btn btn-outline-primary js-print-qr"
                       data-qr-src="img/cells/{$edit_cell.qr_file}"
-                      data-qr-title="QR {$edit_cell.code|escape}">
-                Распечатать QR
+                      data-qr-title="Ячейка {$edit_cell.code|escape}"
+                      data-qr-code="{$edit_cell.code|escape}">
+               Распечатать QR
               </button>
             </div>
           {else}
