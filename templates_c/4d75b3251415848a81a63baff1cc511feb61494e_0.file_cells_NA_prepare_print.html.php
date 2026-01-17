@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-01-17 21:04:13
+/* Smarty version 5.3.1, created on 2026-01-17 21:11:03
   from 'file:cells_NA_prepare_print.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_696bf94d97e3f7_22821583',
+  'unifunc' => 'content_696bfae7361757_79207416',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '4d75b3251415848a81a63baff1cc511feb61494e' => 
     array (
       0 => 'cells_NA_prepare_print.html',
-      1 => 1768683850,
+      1 => 1768684261,
       2 => 'file',
     ),
   ),
@@ -20,10 +20,10 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_696bf94d97e3f7_22821583 (\Smarty\Template $_smarty_tpl) {
+function content_696bfae7361757_79207416 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>
-<!DOCTYPE html>
+<! DOCTYPE html>
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
@@ -61,7 +61,7 @@ $_smarty_current_dir = '/home/cells/web/templates';
     }
 
     . controls h1 {
-      margin:  0;
+      margin: 0;
       font-size: 20px;
     }
 
@@ -201,6 +201,11 @@ $_smarty_current_dir = '/home/cells/web/templates';
           <option value="30" selected>30</option>
           <option value="40">40</option>
           <option value="50">50</option>
+          <option value="75">75</option>
+          <option value="100">100</option>
+          <option value="150">150</option>
+          <option value="200">200</option>
+
         </select>
       </div>
 
@@ -217,11 +222,18 @@ $_smarty_current_dir = '/home/cells/web/templates';
       <div class="field">
         <label for="font-size">Размер текста (мм)</label>
         <select id="font-size">
-          <option value="2. 5">2.5</option>
+          <option value="2.5">2.5</option>
           <option value="3" selected>3</option>
           <option value="3.5">3.5</option>
           <option value="4">4</option>
           <option value="5">5</option>
+          <option value="6">6</option>
+          <option value="7">7</option>
+          <option value="8">8</option>
+          <option value="12">12</option>
+          <option value="14">14</option>
+          <option value="16">16</option>
+          <option value="18">18</option>
         </select>
       </div>
 
@@ -334,7 +346,7 @@ $_smarty_current_dir = '/home/cells/web/templates';
       const qrX = Math.max(padding, (labelWidth - qrSize) / 2);
       const qrY = padding;
 
-      qrImage.setAttribute('href', payload.src);
+      qrImage.setAttribute('href', payload. src);
       qrImage.setAttribute('x', qrX);
       qrImage.setAttribute('y', qrY);
       qrImage.setAttribute('width', qrSize);
@@ -345,7 +357,7 @@ $_smarty_current_dir = '/home/cells/web/templates';
       }
 
       const selectedLabels = getSelectedLabels();
-      let textY = qrY + qrSize + fontSize + 1. 5;
+      let textY = qrY + qrSize + fontSize + 1.5;
 
       selectedLabels. forEach((item) => {
         const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
@@ -368,9 +380,9 @@ $_smarty_current_dir = '/home/cells/web/templates';
         labelWidthInput.value = 210;
         labelHeightInput.value = 297;
       } else if (value. includes('x')) {
-        const [width, height] = value.split('x').map(Number);
+        const [width, height] = value. split('x').map(Number);
         labelWidthInput.value = width;
-        labelHeightInput. value = height;
+        labelHeightInput.value = height;
       }
       renderPreview();
     }
