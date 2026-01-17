@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Подготовка печати QR</title>
   <style>
-    : root {
+    :root {
       color-scheme: light;
     }
 
@@ -16,7 +16,7 @@
     body {
       margin: 0;
       font-family: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
-      background:  #f6f7fb;
+      background: #f6f7fb;
       color: #101828;
     }
 
@@ -35,7 +35,7 @@
       gap: 20px;
     }
 
-    . controls h1 {
+    .controls h1 {
       margin: 0;
       font-size: 20px;
     }
@@ -55,11 +55,11 @@
     .field select {
       padding: 8px 10px;
       border: 1px solid #d0d5dd;
-      border-radius:  8px;
-      font-size:  14px;
+      border-radius: 8px;
+      font-size: 14px;
     }
 
-    .field . inline {
+    .field .inline {
       display: flex;
       align-items: center;
       gap: 8px;
@@ -71,7 +71,7 @@
       gap: 6px;
     }
 
-    . checkbox-list label {
+    .checkbox-list label {
       font-weight: 500;
     }
 
@@ -81,7 +81,7 @@
       margin-top: 12px;
     }
 
-    . btn {
+    .btn {
       border: none;
       border-radius: 8px;
       padding: 10px 16px;
@@ -94,12 +94,12 @@
       color: #fff;
     }
 
-    . btn-secondary {
+    .btn-secondary {
       background: #f3f4f6;
       color: #111827;
     }
 
-    . preview {
+    .preview {
       padding: 24px;
       display: flex;
       align-items: center;
@@ -108,14 +108,14 @@
 
     .preview-sheet {
       background: #fff;
-      border:  1px solid #e5e7eb;
+      border: 1px solid #e5e7eb;
       box-shadow: 0 12px 30px rgba(15, 23, 42, 0.12);
       padding: 16px;
       max-width: 100%;
-      overflow:  auto;
+      overflow: auto;
     }
 
-    . preview-sheet svg {
+    .preview-sheet svg {
       display: block;
       max-width: 100%;
       height: auto;
@@ -192,7 +192,7 @@
       <div class="field">
         <label for="font-size">Размер текста (мм)</label>
         <select id="font-size">
-          <option value="2. 5">2.5</option>
+          <option value="2.5">2.5</option>
           <option value="3" selected>3</option>
           <option value="3.5">3.5</option>
           <option value="4">4</option>
@@ -224,9 +224,8 @@
 
   <style id="print-page-style"></style>
 
-  {literal}
   <script>
-    const params = new URLSearchParams(window. location.search);
+    const params = new URLSearchParams(window.location.search);
     const payload = {
       src: params.get('src') || '',
       title: params.get('title') || 'QR',
@@ -239,7 +238,7 @@
     const labelOptionsEl = document.getElementById('label-options');
     const qrSvg = document.getElementById('qr-svg');
     const qrImage = document.getElementById('qr-image');
-    const qrLabels = document. getElementById('qr-labels');
+    const qrLabels = document.getElementById('qr-labels');
     const labelWidthInput = document.getElementById('label-width');
     const labelHeightInput = document.getElementById('label-height');
     const qrSizeSelect = document.getElementById('qr-size');
@@ -266,7 +265,7 @@
       checkbox.dataset.key = item.key;
 
       const text = document.createElement('span');
-      text.textContent = `${item.label}:  ${item.value}`;
+      text.textContent = `${item.label}: ${item.value}`;
 
       wrapper.appendChild(checkbox);
       wrapper.appendChild(text);
@@ -275,7 +274,7 @@
       checkbox.addEventListener('change', renderPreview);
     }
 
-    if (! availableLabels.length) {
+    if (!availableLabels.length) {
       labelOptionsEl.innerHTML = '<span class="text-muted">Нет доступных подписей</span>';
     } else {
       availableLabels.forEach(createLabelOption);
@@ -284,7 +283,7 @@
     function getSelectedLabels() {
       const selectedKeys = Array.from(labelOptionsEl.querySelectorAll('input[type="checkbox"]'))
         .filter(input => input.checked)
-        .map(input => input.dataset. key);
+        .map(input => input.dataset.key);
 
       return availableLabels.filter(item => selectedKeys.includes(item.key));
     }
@@ -294,9 +293,9 @@
     }
 
     function renderPreview() {
-      const labelWidth = Number(labelWidthInput. value) || 50;
+      const labelWidth = Number(labelWidthInput.value) || 50;
       const labelHeight = Number(labelHeightInput.value) || 30;
-      const qrSize = Number(qrSizeSelect. value) || 30;
+      const qrSize = Number(qrSizeSelect.value) || 30;
       const fontSize = Number(fontSizeSelect.value) || 3;
       const fontFamily = fontFamilySelect.value;
       const padding = 2;
@@ -323,7 +322,7 @@
 
       selectedLabels.forEach((item) => {
         const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-        text.textContent = item. value;
+        text.textContent = item.value;
         text.setAttribute('x', labelWidth / 2);
         text.setAttribute('y', textY);
         text.setAttribute('text-anchor', 'middle');
@@ -357,7 +356,7 @@
       window.close();
     });
 
-    [labelWidthInput, labelHeightInput, qrSizeSelect, fontFamilySelect, fontSizeSelect]. forEach((el) => {
+    [labelWidthInput, labelHeightInput, qrSizeSelect, fontFamilySelect, fontSizeSelect].forEach((el) => {
       el.addEventListener('input', renderPreview);
     });
 
@@ -367,6 +366,5 @@
 
     renderPreview();
   </script>
-  {/literal}
 </body>
 </html>

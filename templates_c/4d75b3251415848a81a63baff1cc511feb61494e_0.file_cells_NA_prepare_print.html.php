@@ -1,4 +1,28 @@
-<!DOCTYPE html>
+<?php
+/* Smarty version 5.3.1, created on 2026-01-17 20:57:48
+  from 'file:cells_NA_prepare_print.html' */
+
+/* @var \Smarty\Template $_smarty_tpl */
+if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
+  'version' => '5.3.1',
+  'unifunc' => 'content_696bf7cc5a3ac5_53894457',
+  'has_nocache_code' => false,
+  'file_dependency' => 
+  array (
+    '4d75b3251415848a81a63baff1cc511feb61494e' => 
+    array (
+      0 => 'cells_NA_prepare_print.html',
+      1 => 1768683466,
+      2 => 'file',
+    ),
+  ),
+  'includes' => 
+  array (
+  ),
+))) {
+function content_696bf7cc5a3ac5_53894457 (\Smarty\Template $_smarty_tpl) {
+$_smarty_current_dir = '/home/cells/web/templates';
+?><!DOCTYPE html>
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
@@ -224,8 +248,9 @@
 
   <style id="print-page-style"></style>
 
-  {literal}
-  <script>
+  
+  <?php echo '<script'; ?>
+>
     const params = new URLSearchParams(window. location.search);
     const payload = {
       src: params.get('src') || '',
@@ -366,7 +391,10 @@
     });
 
     renderPreview();
-  </script>
-  {/literal}
+  <?php echo '</script'; ?>
+>
+  
 </body>
 </html>
+<?php }
+}
