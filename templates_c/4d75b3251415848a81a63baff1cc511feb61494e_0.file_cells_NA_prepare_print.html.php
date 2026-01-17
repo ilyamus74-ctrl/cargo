@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-01-17 20:57:48
+/* Smarty version 5.3.1, created on 2026-01-17 21:04:13
   from 'file:cells_NA_prepare_print.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_696bf7cc5a3ac5_53894457',
+  'unifunc' => 'content_696bf94d97e3f7_22821583',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '4d75b3251415848a81a63baff1cc511feb61494e' => 
     array (
       0 => 'cells_NA_prepare_print.html',
-      1 => 1768683466,
+      1 => 1768683850,
       2 => 'file',
     ),
   ),
@@ -20,9 +20,10 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_696bf7cc5a3ac5_53894457 (\Smarty\Template $_smarty_tpl) {
+function content_696bf94d97e3f7_22821583 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
-?><!DOCTYPE html>
+?>
+<!DOCTYPE html>
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
@@ -60,14 +61,14 @@ $_smarty_current_dir = '/home/cells/web/templates';
     }
 
     . controls h1 {
-      margin: 0;
+      margin:  0;
       font-size: 20px;
     }
 
     .field {
       display: flex;
       flex-direction: column;
-      gap: 8px;
+      gap:  8px;
     }
 
     .field label {
@@ -102,7 +103,7 @@ $_smarty_current_dir = '/home/cells/web/templates';
     .actions {
       display: flex;
       gap: 12px;
-      margin-top: 12px;
+      margin-top:  12px;
     }
 
     . btn {
@@ -139,7 +140,7 @@ $_smarty_current_dir = '/home/cells/web/templates';
       overflow:  auto;
     }
 
-    . preview-sheet svg {
+    .preview-sheet svg {
       display: block;
       max-width: 100%;
       height: auto;
@@ -264,7 +265,7 @@ $_smarty_current_dir = '/home/cells/web/templates';
     const labelOptionsEl = document.getElementById('label-options');
     const qrSvg = document.getElementById('qr-svg');
     const qrImage = document.getElementById('qr-image');
-    const qrLabels = document. getElementById('qr-labels');
+    const qrLabels = document.getElementById('qr-labels');
     const labelWidthInput = document.getElementById('label-width');
     const labelHeightInput = document.getElementById('label-height');
     const qrSizeSelect = document.getElementById('qr-size');
@@ -319,10 +320,10 @@ $_smarty_current_dir = '/home/cells/web/templates';
     }
 
     function renderPreview() {
-      const labelWidth = Number(labelWidthInput. value) || 50;
+      const labelWidth = Number(labelWidthInput.value) || 50;
       const labelHeight = Number(labelHeightInput.value) || 30;
-      const qrSize = Number(qrSizeSelect. value) || 30;
-      const fontSize = Number(fontSizeSelect.value) || 3;
+      const qrSize = Number(qrSizeSelect.value) || 30;
+      const fontSize = Number(fontSizeSelect. value) || 3;
       const fontFamily = fontFamilySelect.value;
       const padding = 2;
 
@@ -344,9 +345,9 @@ $_smarty_current_dir = '/home/cells/web/templates';
       }
 
       const selectedLabels = getSelectedLabels();
-      let textY = qrY + qrSize + fontSize + 1.5;
+      let textY = qrY + qrSize + fontSize + 1. 5;
 
-      selectedLabels.forEach((item) => {
+      selectedLabels. forEach((item) => {
         const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
         text.textContent = item. value;
         text.setAttribute('x', labelWidth / 2);
@@ -366,10 +367,10 @@ $_smarty_current_dir = '/home/cells/web/templates';
       if (value === 'a4') {
         labelWidthInput.value = 210;
         labelHeightInput.value = 297;
-      } else if (value.includes('x')) {
+      } else if (value. includes('x')) {
         const [width, height] = value.split('x').map(Number);
         labelWidthInput.value = width;
-        labelHeightInput.value = height;
+        labelHeightInput. value = height;
       }
       renderPreview();
     }

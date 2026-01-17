@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="ru">
 <head>
@@ -36,14 +37,14 @@
     }
 
     . controls h1 {
-      margin: 0;
+      margin:  0;
       font-size: 20px;
     }
 
     .field {
       display: flex;
       flex-direction: column;
-      gap: 8px;
+      gap:  8px;
     }
 
     .field label {
@@ -78,7 +79,7 @@
     .actions {
       display: flex;
       gap: 12px;
-      margin-top: 12px;
+      margin-top:  12px;
     }
 
     . btn {
@@ -115,7 +116,7 @@
       overflow:  auto;
     }
 
-    . preview-sheet svg {
+    .preview-sheet svg {
       display: block;
       max-width: 100%;
       height: auto;
@@ -239,7 +240,7 @@
     const labelOptionsEl = document.getElementById('label-options');
     const qrSvg = document.getElementById('qr-svg');
     const qrImage = document.getElementById('qr-image');
-    const qrLabels = document. getElementById('qr-labels');
+    const qrLabels = document.getElementById('qr-labels');
     const labelWidthInput = document.getElementById('label-width');
     const labelHeightInput = document.getElementById('label-height');
     const qrSizeSelect = document.getElementById('qr-size');
@@ -294,10 +295,10 @@
     }
 
     function renderPreview() {
-      const labelWidth = Number(labelWidthInput. value) || 50;
+      const labelWidth = Number(labelWidthInput.value) || 50;
       const labelHeight = Number(labelHeightInput.value) || 30;
-      const qrSize = Number(qrSizeSelect. value) || 30;
-      const fontSize = Number(fontSizeSelect.value) || 3;
+      const qrSize = Number(qrSizeSelect.value) || 30;
+      const fontSize = Number(fontSizeSelect. value) || 3;
       const fontFamily = fontFamilySelect.value;
       const padding = 2;
 
@@ -319,9 +320,9 @@
       }
 
       const selectedLabels = getSelectedLabels();
-      let textY = qrY + qrSize + fontSize + 1.5;
+      let textY = qrY + qrSize + fontSize + 1. 5;
 
-      selectedLabels.forEach((item) => {
+      selectedLabels. forEach((item) => {
         const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
         text.textContent = item. value;
         text.setAttribute('x', labelWidth / 2);
@@ -341,10 +342,10 @@
       if (value === 'a4') {
         labelWidthInput.value = 210;
         labelHeightInput.value = 297;
-      } else if (value.includes('x')) {
+      } else if (value. includes('x')) {
         const [width, height] = value.split('x').map(Number);
         labelWidthInput.value = width;
-        labelHeightInput.value = height;
+        labelHeightInput. value = height;
       }
       renderPreview();
     }
