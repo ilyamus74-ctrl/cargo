@@ -10,10 +10,8 @@ if ($action === 'item_stock') {
     auth_require_login();
     $current = $user;
     $userId = (int)$current['id'];
-    $isWorker = auth_has_role('WORKER');
-    $canViewAll = auth_has_permission('warehouse.stock.view_all') || auth_has_role('ADMIN') || $isWorker;
     $batches = [];
-    if ($canViewAll) {
+    if (auth_has_permission('warehouse.stock.view_all')) {
         $sql = "
             SELECT
                 wi.batch_uid,
@@ -70,9 +68,8 @@ if ($action === 'item_stock_without_cells') {
     auth_require_login();
     $current = $user;
     $userId = (int)$current['id'];
-    $isWorker = auth_has_role('WORKER');
-    $canViewAll = auth_has_permission('warehouse.stock.view_all') || auth_has_role('ADMIN') || $isWorker;
-
+    $isAdmin = auth_has_role('ADMIN');
+    
     $limitRaw = $_POST['limit'] ?? '20';
     $limit = null;
     if ($limitRaw !== 'all') {
@@ -91,8 +88,8 @@ if ($action === 'item_stock_without_cells') {
     $params = [];
     $types = '';
 
-    // Если нет доступа к просмотру всех - показываем только свои посылки
-    if (!$canViewAll) {
+    // Если НЕ админ - показываем только свои посылки
+    if (!$isAdmin) {
         $conditions[] = "wi.user_id = ?";
         $types .= 'i';
         $params[] = $userId;
@@ -187,9 +184,9 @@ if ($action === 'item_stock_in_storage') {
     auth_require_login();
     $current = $user;
     $userId = (int)$current['id'];
-    $isWorker = auth_has_role('WORKER');
-    $canViewAll = auth_has_permission('warehouse.stock.view_all') || auth_has_role('ADMIN') || $isWorker;
-
+    $isAdmin = auth_has_role('ADMIN');
+    $canViewAll = auth_has_permission('warehouse.stock.view_all');
+    
     $limitRaw = $_POST['limit'] ?? '20';
     $limit = null;
     if ($limitRaw !== 'all') {
@@ -208,9 +205,9 @@ if ($action === 'item_stock_in_storage') {
     $params = [];
     $types = '';
 
-    // Если нет доступа к просмотру всех - показываем согласно правам (пока что свои)
+    // Если НЕ админ И НЕ view_all - показываем согласно правам (пока что свои)
     // TODO: добавить проверку прав из таблицы разрешений
-    if (!$canViewAll) {
+    if (!$isAdmin && !$canViewAll) {
         $conditions[] = "wi.user_id = ?";
         $types .= 'i';
         $params[] = $userId;
@@ -313,10 +310,9 @@ if ($action === 'open_item_stock_modal') {
     $current = $user;
     $userId = (int)$current['id'];
     $isAdmin = auth_has_role('ADMIN');
-    $isWorker = auth_has_role('WORKER');
-    $canManageStock = auth_has_permission('warehouse.stock.manage') || $isWorker;
-    $canViewAllStock = auth_has_permission('warehouse.stock.view_all') || $isWorker;
-
+    $canManageStock = auth_has_permission('warehouse.stock.manage');
+    $canViewAllStock = auth_has_permission('warehouse.stock.view_all');
+    
     $itemId = isset($_POST['item_id']) ? (int)$_POST['item_id'] : 0;
     if ($itemId <= 0) {
         $response = [
@@ -377,15 +373,15 @@ if ($action === 'open_item_stock_modal') {
     if ($isAdmin) {
         $canAccess = true;
     }
-    // WORKER может просматривать все посылки
-    elseif ($isWorker) {
-        $canAccess = true;
-    }
     // Создатель всегда может (для "Посылки без ячеек")
     elseif ($itemUserId === $userId) {
         $canAccess = true;
     }
-    // Посылка (с ячейкой или без) - проверяем права warehouse.stock
+    // Посылка БЕЗ ячейки - только создатель
+    elseif ($itemCellId === null) {
+        $canAccess = false;
+    }
+    // Посылка СО ячейкой - проверяем права warehouse.stock
     elseif ($canManageStock || $canViewAllStock) {
         $canAccess = true;
     }
@@ -448,8 +444,8 @@ if ($action === 'open_item_stock_modal') {
     $smarty->assign('dest_country', $dest_country);
     $smarty->assign('stand_devices', $stand_devices);
     $smarty->assign('cells', $cells);
-    $smarty->assign('can_edit', $isAdmin || $isWorker || $itemUserId === $userId || $canManageStock);
-
+    $smarty->assign('can_edit', $isAdmin || $itemUserId === $userId || $canManageStock);
+    
     ob_start();
     $smarty->display('cells_NA_API_warehouse_item_stock_modal.html');
     $html = ob_get_clean();
@@ -479,9 +475,8 @@ if ($action === 'save_item_stock') {
     $current = $user;
     $userId = (int)$current['id'];
     $isAdmin = auth_has_role('ADMIN');
-    $isWorker = auth_has_role('WORKER');
-    $canManageStock = auth_has_permission('warehouse.stock.manage') || $isWorker;
-
+    $canManageStock = auth_has_permission('warehouse.stock.manage');
+    
     $itemId = isset($_POST['item_id']) ? (int)$_POST['item_id'] : 0;
     if ($itemId <= 0) {
         $response = [
@@ -540,15 +535,15 @@ if ($action === 'save_item_stock') {
     if ($isAdmin) {
         $canEdit = true;
     }
-    // WORKER может редактировать все посылки
-    elseif ($isWorker) {
-        $canEdit = true;
-    }
     // Создатель всегда может редактировать свою посылку
     elseif ($itemUserId === $userId) {
         $canEdit = true;
     }
-    // Посылка (с ячейкой или без) - нужно право warehouse.stock.manage
+    // Посылка БЕЗ ячейки - только создатель (уже проверено выше)
+    elseif ($itemCellId === null) {
+        $canEdit = false;
+    }
+    // Посылка СО ячейкой - нужно право warehouse.stock. manage
     elseif ($canManageStock) {
         $canEdit = true;
     }
