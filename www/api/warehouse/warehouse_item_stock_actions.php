@@ -66,6 +66,9 @@ if ($action === 'item_stock') {
 if ($action === 'item_stock_without_cells') {
     auth_require_login();
     $current = $user;
+    $userId = (int)$current['id'];
+    $isAdmin = auth_has_role('ADMIN');
+    
     $limitRaw = $_POST['limit'] ?? '20';
     $limit = null;
     if ($limitRaw !== 'all') {
@@ -76,7 +79,7 @@ if ($action === 'item_stock_without_cells') {
     $sortRaw = strtoupper(trim((string)($_POST['sort'] ?? 'DESC')));
     $sort = $sortRaw === 'ASC' ? 'ASC' : 'DESC';
 
-    $search = trim((string)($_POST['search'] ?? ''));
+    $search = trim((string)($_POST['search'] ??  ''));
 
     $conditions = [
        "wi.cell_id IS NULL",
@@ -84,8 +87,15 @@ if ($action === 'item_stock_without_cells') {
     $params = [];
     $types = '';
 
+    // Если НЕ админ - показываем только свои посылки
+    if (!$isAdmin) {
+        $conditions[] = "wi.user_id = ? ";
+        $types . = 'i';
+        $params[] = $userId;
+    }
+
     if ($search !== '') {
-        $conditions[] = "(wi.receiver_name LIKE ? OR wi.tracking_no LIKE ?)";
+        $conditions[] = "(wi.receiver_name LIKE ?  OR wi.tracking_no LIKE ?)";
         $like = '%' . $search . '%';
         $types .= 'ss';
         $params[] = $like;
@@ -127,8 +137,8 @@ if ($action === 'item_stock_without_cells') {
     ";
 
     if ($limit !== null) {
-        $sql .= " LIMIT ? OFFSET ?";
-        $types .= 'ii';
+        $sql .= " LIMIT ?  OFFSET ?";
+        $types . = 'ii';
         $params[] = $limit;
         $params[] = $offset;
     }
@@ -157,7 +167,7 @@ if ($action === 'item_stock_without_cells') {
     $smarty->assign('show_empty', $offset === 0);
 
     ob_start();
-    $smarty->display('cells_NA_API_warehouse_item_stock_without_cells_rows.html');
+    $smarty->display('cells_NA_API_warehouse_item_stock_without_cells_rows. html');
     $html = ob_get_clean();
 
     $response = [
@@ -165,15 +175,18 @@ if ($action === 'item_stock_without_cells') {
         'html'        => $html,
         'total'       => $total,
         'items_count' => count($parcels),
-        'has_more'    => $limit !== null ? ($offset + count($parcels) < $total) : false,
+        'has_more'    => $limit !== null ?  ($offset + count($parcels) < $total) : false,
     ];
 }
-
 
 if ($action === 'item_stock_in_storage') {
     auth_require_login();
     $current = $user;
-    $limitRaw = $_POST['limit'] ?? '20';
+    $userId = (int)$current['id'];
+    $isAdmin = auth_has_role('ADMIN');
+    $canViewAll = auth_has_permission('warehouse.stock.view_all');
+    
+    $limitRaw = $_POST['limit'] ??  '20';
     $limit = null;
     if ($limitRaw !== 'all') {
         $limit = max(20, (int)$limitRaw);
@@ -191,8 +204,16 @@ if ($action === 'item_stock_in_storage') {
     $params = [];
     $types = '';
 
+    // Если НЕ админ И НЕ view_all - показываем согласно правам (пока что свои)
+    // TODO: добавить проверку прав из таблицы разрешений
+    if (!$isAdmin && !$canViewAll) {
+        $conditions[] = "wi.user_id = ? ";
+        $types .= 'i';
+        $params[] = $userId;
+    }
+
     if ($search !== '') {
-        $conditions[] = "(wi.receiver_name LIKE ? OR wi.tracking_no LIKE ?)";
+        $conditions[] = "(wi. receiver_name LIKE ? OR wi.tracking_no LIKE ?)";
         $like = '%' . $search . '%';
         $types .= 'ss';
         $params[] = $like;
@@ -204,7 +225,7 @@ if ($action === 'item_stock_in_storage') {
     $countSql = "
         SELECT COUNT(*) AS total
         FROM warehouse_item_stock wi
-        LEFT JOIN cells c ON c.id = wi.cell_id
+        LEFT JOIN cells c ON c.id = wi. cell_id
         {$whereSql}
     ";
     $total = 0;
@@ -226,7 +247,7 @@ if ($action === 'item_stock_in_storage') {
     $sql = "
         SELECT
             wi.id,
-            COALESCE(NULLIF(wi.tuid, ''), NULLIF(wi.tracking_no, ''), wi.uid_created) AS parcel_uid,
+            COALESCE(NULLIF(wi. tuid, ''), NULLIF(wi.tracking_no, ''), wi.uid_created) AS parcel_uid,
             wi.receiver_name,
             wi.tracking_no,
             wi.created_at AS stored_at,
@@ -256,7 +277,7 @@ if ($action === 'item_stock_in_storage') {
             $res->free();
         }
     } else {
-        $stmt = $dbcnx->prepare($sql);
+        $stmt = $dbcnx->prepare($types, .. .$params);
         $stmt->bind_param($types, ...$params);
         $stmt->execute();
         $res = $stmt->get_result();
@@ -283,14 +304,14 @@ if ($action === 'item_stock_in_storage') {
     ];
 }
 
-
 if ($action === 'open_item_stock_modal') {
     auth_require_login();
     $current = $user;
     $userId = (int)$current['id'];
+    $isAdmin = auth_has_role('ADMIN');
     $canManageStock = auth_has_permission('warehouse.stock.manage');
     $canViewAllStock = auth_has_permission('warehouse.stock.view_all');
-    $canEditAnyStock = $canManageStock || $canViewAllStock;
+    
     $itemId = isset($_POST['item_id']) ? (int)$_POST['item_id'] : 0;
     if ($itemId <= 0) {
         $response = [
@@ -299,69 +320,40 @@ if ($action === 'open_item_stock_modal') {
         ];
         return;
     }
-    $item = null;
-    if ($canEditAnyStock) {
-        $sql = "
-            SELECT
-                id,
-                batch_uid,
-                tuid,
-                tracking_no,
-                carrier_code,
-                carrier_name,
-                receiver_country_code,
-                receiver_country_name,
-                receiver_name,
-                receiver_company,
-                receiver_address,
-                cell_id,
-                sender_name,
-                sender_company,
-                weight_kg,
-                size_l_cm,
-                size_w_cm,
-                size_h_cm
-            FROM warehouse_item_stock
-            WHERE id = ?
-            LIMIT 1
-        ";
-        $stmt = $dbcnx->prepare($sql);
-        $stmt->bind_param("i", $itemId);
-    } else {
-        $sql = "
-            SELECT
-                id,
-                batch_uid,
-                tuid,
-                tracking_no,
-                carrier_code,
-                carrier_name,
-                receiver_country_code,
-                receiver_country_name,
-                receiver_name,
-                receiver_company,
-                receiver_address,
-                cell_id,
-                sender_name,
-                sender_company,
-                weight_kg,
-                size_l_cm,
-                size_w_cm,
-                size_h_cm
-            FROM warehouse_item_stock
-            WHERE id = ?
-              AND user_id = ?
-            LIMIT 1
-        ";
-        $stmt = $dbcnx->prepare($sql);
-        $stmt->bind_param("ii", $itemId, $userId);
-    }
+    
+    // Сначала проверим существование посылки и права доступа
+    $checkSql = "
+        SELECT
+            id,
+            user_id,
+            cell_id,
+            batch_uid,
+            tuid,
+            tracking_no,
+            carrier_code,
+            carrier_name,
+            receiver_country_code,
+            receiver_country_name,
+            receiver_name,
+            receiver_company,
+            receiver_address,
+            sender_name,
+            sender_company,
+            weight_kg,
+            size_l_cm,
+            size_w_cm,
+            size_h_cm
+        FROM warehouse_item_stock
+        WHERE id = ?
+        LIMIT 1
+    ";
+    $stmt = $dbcnx->prepare($checkSql);
+    $stmt->bind_param("i", $itemId);
     $stmt->execute();
     $res = $stmt->get_result();
-    if ($row = $res->fetch_assoc()) {
-        $item = $row;
-    }
+    $item = $res->fetch_assoc();
     $stmt->close();
+    
     if (!$item) {
         $response = [
             'status'  => 'error',
@@ -369,6 +361,54 @@ if ($action === 'open_item_stock_modal') {
         ];
         return;
     }
+    
+    $itemUserId = (int)$item['user_id'];
+    $itemCellId = $item['cell_id'];
+    
+    // Проверка прав доступа
+    $canAccess = false;
+    
+    // ADMIN всегда может
+    if ($isAdmin) {
+        $canAccess = true;
+    }
+    // Создатель всегда может (для "Посылки без ячеек")
+    elseif ($itemUserId === $userId) {
+        $canAccess = true;
+    }
+    // Посылка БЕЗ ячейки - только создатель
+    elseif ($itemCellId === null) {
+        $canAccess = false;
+    }
+    // Посылка СО ячейкой - проверяем права warehouse.stock
+    elseif ($canManageStock || $canViewAllStock) {
+        $canAccess = true;
+    }
+    
+    if (!$canAccess) {
+        $response = [
+            'status'  => 'error',
+            'message' => 'Недостаточно прав для просмотра этой посылки',
+        ];
+        
+        // Аудит попытки доступа
+        audit_log(
+            $userId,
+            'WAREHOUSE_STOCK_ACCESS_DENIED',
+            'WAREHOUSE_STOCK',
+            $itemId,
+            'Попытка доступа к посылке без прав',
+            [
+                'item_id' => $itemId,
+                'item_user_id' => $itemUserId,
+                'has_cell' => ($itemCellId !== null),
+            ]
+        );
+        
+        return;
+    }
+    
+    // Загружаем справочники
     $dest_country = [];
     $sql = "SELECT `id`,`code_iso2`,`code_iso3`,`name_en`,`name_local` FROM `dest_countries` WHERE `is_active` = '1' ORDER BY `id`";
     if ($res3 = $dbcnx->query($sql)) {
@@ -377,6 +417,7 @@ if ($action === 'open_item_stock_modal') {
         }
         $res3->free();
     }
+    
     $stand_devices = [];
     $sql = "SELECT device_uid, name, device_token
               FROM devices
@@ -388,6 +429,7 @@ if ($action === 'open_item_stock_modal') {
         }
         $resStand->free();
     }
+    
     $cells = [];
     $sql = "SELECT id, code FROM cells ORDER BY code ASC";
     if ($resCells = $dbcnx->query($sql)) {
@@ -396,26 +438,44 @@ if ($action === 'open_item_stock_modal') {
         }
         $resCells->free();
     }
+    
     $smarty->assign('item', $item);
     $smarty->assign('dest_country', $dest_country);
     $smarty->assign('stand_devices', $stand_devices);
     $smarty->assign('cells', $cells);
+    $smarty->assign('can_edit', $isAdmin || $itemUserId === $userId || $canManageStock);
+    
     ob_start();
-    $smarty->display('cells_NA_API_warehouse_item_stock_modal.html');
+    $smarty->display('cells_NA_API_warehouse_item_stock_modal. html');
     $html = ob_get_clean();
+    
+    // Аудит просмотра
+    audit_log(
+        $userId,
+        'WAREHOUSE_STOCK_VIEW_PARCEL',
+        'WAREHOUSE_STOCK',
+        $itemId,
+        'Просмотр данных посылки',
+        [
+            'item_id' => $itemId,
+            'batch_uid' => $item['batch_uid'],
+        ]
+    );
+    
     $response = [
         'status' => 'ok',
         'html'   => $html,
     ];
 }
 
+
 if ($action === 'save_item_stock') {
     auth_require_login();
     $current = $user;
     $userId = (int)$current['id'];
+    $isAdmin = auth_has_role('ADMIN');
     $canManageStock = auth_has_permission('warehouse.stock.manage');
-    $canViewAllStock = auth_has_permission('warehouse.stock.view_all');
-    $canEditAnyStock = $canManageStock || $canViewAllStock;
+    
     $itemId = isset($_POST['item_id']) ? (int)$_POST['item_id'] : 0;
     if ($itemId <= 0) {
         $response = [
@@ -424,6 +484,93 @@ if ($action === 'save_item_stock') {
         ];
         return;
     }
+    
+    // Сначала загружаем существующую посылку для проверки прав
+    $checkSql = "
+        SELECT
+            id,
+            user_id,
+            cell_id,
+            batch_uid,
+            tuid,
+            tracking_no,
+            carrier_code,
+            carrier_name,
+            receiver_country_code,
+            receiver_country_name,
+            receiver_name,
+            receiver_company,
+            receiver_address,
+            sender_name,
+            weight_kg,
+            size_l_cm,
+            size_w_cm,
+            size_h_cm
+        FROM warehouse_item_stock
+        WHERE id = ? 
+        LIMIT 1
+    ";
+    $stmt = $dbcnx->prepare($checkSql);
+    $stmt->bind_param("i", $itemId);
+    $stmt->execute();
+    $existingItem = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    
+    if (!$existingItem) {
+        $response = [
+            'status'  => 'error',
+            'message' => 'Посылка не найдена',
+        ];
+        return;
+    }
+    
+    $itemUserId = (int)$existingItem['user_id'];
+    $itemCellId = $existingItem['cell_id'];
+    
+    // Проверка прав на редактирование
+    $canEdit = false;
+    
+    // ADMIN всегда может
+    if ($isAdmin) {
+        $canEdit = true;
+    }
+    // Создатель всегда может редактировать свою посылку
+    elseif ($itemUserId === $userId) {
+        $canEdit = true;
+    }
+    // Посылка БЕЗ ячейки - только создатель (уже проверено выше)
+    elseif ($itemCellId === null) {
+        $canEdit = false;
+    }
+    // Посылка СО ячейкой - нужно право warehouse.stock. manage
+    elseif ($canManageStock) {
+        $canEdit = true;
+    }
+    
+    if (!$canEdit) {
+        $response = [
+            'status'  => 'error',
+            'message' => 'Недостаточно прав для редактирования этой посылки',
+        ];
+        
+        // Аудит попытки редактирования
+        audit_log(
+            $userId,
+            'WAREHOUSE_STOCK_EDIT_DENIED',
+            'WAREHOUSE_STOCK',
+            $itemId,
+            'Попытка редактирования посылки без прав',
+            [
+                'item_id' => $itemId,
+                'item_user_id' => $itemUserId,
+                'has_cell' => ($itemCellId !== null),
+            ]
+        );
+        
+        return;
+    }
+    
+    // Получаем данные из формы
     $tuid = trim($_POST['tuid'] ?? '');
     $tracking = trim($_POST['tracking_no'] ?? '');
     $carrierCode = trim($_POST['carrier_code'] ?? '');
@@ -434,18 +581,20 @@ if ($action === 'save_item_stock') {
     $rcAddress = trim($_POST['receiver_address'] ?? '');
     $cellId = isset($_POST['cell_id']) ? (int)$_POST['cell_id'] : 0;
     $cellId = $cellId > 0 ? $cellId : null;
-    $senderCode = trim($_POST['sender_code'] ?? '');
+    $senderCode = trim($_POST['sender_name'] ?? '');
     $weightKg = $_POST['weight_kg'] ?? '';
     $sizeL = $_POST['size_l_cm'] ?? '';
     $sizeW = $_POST['size_w_cm'] ?? '';
     $sizeH = $_POST['size_h_cm'] ?? '';
+    
     $weightKg = ($weightKg === '' || $weightKg === null) ? 0.0 : (float)$weightKg;
     $sizeL = ($sizeL === '' || $sizeL === null) ? 0.0 : (float)$sizeL;
-    $sizeW = ($sizeW === '' || $sizeW === null) ? 0.0 : (float)$sizeW;
+    $sizeW = ($sizeW === '' || $sizeW === null) ?  0.0 : (float)$sizeW;
     $sizeH = ($sizeH === '' || $sizeH === null) ? 0.0 : (float)$sizeH;
+    
     $receiverCountryName = '';
     if ($rcCountryCode !== '') {
-        $stmt = $dbcnx->prepare("SELECT name_en FROM dest_countries WHERE code_iso2 = ? LIMIT 1");
+        $stmt = $dbcnx->prepare("SELECT name_en FROM dest_countries WHERE code_iso2 = ?  LIMIT 1");
         if ($stmt) {
             $stmt->bind_param("s", $rcCountryCode);
             $stmt->execute();
@@ -456,6 +605,7 @@ if ($action === 'save_item_stock') {
             $stmt->close();
         }
     }
+    
     if ($tuid === '' || $tracking === '') {
         $response = [
             'status'  => 'error',
@@ -464,165 +614,51 @@ if ($action === 'save_item_stock') {
         return;
     }
 
-    if ($canEditAnyStock) {
-        $sql = "
-            SELECT
-                id,
-                batch_uid,
-                tuid,
-                tracking_no,
-                carrier_code,
-                carrier_name,
-                receiver_country_code,
-                receiver_country_name,
-                receiver_name,
-                receiver_company,
-                receiver_address,
-                cell_id,
-                sender_name,
-                weight_kg,
-                size_l_cm,
-                size_w_cm,
-                size_h_cm
-            FROM warehouse_item_stock
-            WHERE id = ?
-            LIMIT 1
-        ";
-        $stmt = $dbcnx->prepare($sql);
-        $stmt->bind_param("i", $itemId);
-    } else {
-        $sql = "
-            SELECT
-                id,
-                batch_uid,
-                tuid,
-                tracking_no,
-                carrier_code,
-                carrier_name,
-                receiver_country_code,
-                receiver_country_name,
-                receiver_name,
-                receiver_company,
-                receiver_address,
-                cell_id,
-                sender_name,
-                weight_kg,
-                size_l_cm,
-                size_w_cm,
-                size_h_cm
-            FROM warehouse_item_stock
-            WHERE id = ?
-              AND user_id = ?
-            LIMIT 1
-        ";
-        $stmt = $dbcnx->prepare($sql);
-        $stmt->bind_param("ii", $itemId, $userId);
-    }
-    if (!$stmt) {
-        $response = [
-            'status'  => 'error',
-            'message' => 'DB error: ' . $dbcnx->error,
-        ];
-        return;
-    }
-    $stmt->execute();
-    $existingItem = $stmt->get_result()->fetch_assoc();
-    $stmt->close();
-    if (!$existingItem) {
-        $response = [
-            'status'  => 'error',
-            'message' => 'Посылка не найдена',
-        ];
-        return;
-    }
-
     $originalCellId = $existingItem['cell_id'] !== null ? (int)$existingItem['cell_id'] : null;
     $newCellId = $cellId !== null ? (int)$cellId : null;
 
-    if ($canEditAnyStock) {
-        $sql = "
-            UPDATE warehouse_item_stock
-               SET tuid = ?,
-                   tracking_no = ?,
-                   carrier_code = ?,
-                   carrier_name = ?,
-                   receiver_country_code = ?,
-                   receiver_country_name = ?,
-                   receiver_name = ?,
-                   receiver_company = ?,
-                   receiver_address = ?,
-                   cell_id = ?,
-                   sender_name = ?,
-                   weight_kg = ?,
-                   size_l_cm = ?,
-                   size_w_cm = ?,
-                   size_h_cm = ?
-             WHERE id = ?
-        ";
-        $stmt = $dbcnx->prepare($sql);
-        $stmt->bind_param(
-            "sssssssssisddddi",
-            $tuid,
-            $tracking,
-            $carrierCode,
-            $carrierName,
-            $rcCountryCode,
-            $receiverCountryName,
-            $rcName,
-            $rcCompany,
-            $rcAddress,
-            $cellId,
-            $senderCode,
-            $weightKg,
-            $sizeL,
-            $sizeW,
-            $sizeH,
-            $itemId
-        );
-    } else {
-        $sql = "
-            UPDATE warehouse_item_stock
-               SET tuid = ?,
-                   tracking_no = ?,
-                   carrier_code = ?,
-                   carrier_name = ?,
-                   receiver_country_code = ?,
-                   receiver_country_name = ?,
-                   receiver_name = ?,
-                   receiver_company = ?,
-                   receiver_address = ?,
-                   cell_id = ?,
-                   sender_name = ?,
-                   weight_kg = ?,
-                   size_l_cm = ?,
-                   size_w_cm = ?,
-                   size_h_cm = ?
-             WHERE id = ?
-               AND user_id = ?
-        ";
-        $stmt = $dbcnx->prepare($sql);
-        $stmt->bind_param(
-            "sssssssssisddddii",
-            $tuid,
-            $tracking,
-            $carrierCode,
-            $carrierName,
-            $rcCountryCode,
-            $receiverCountryName,
-            $rcName,
-            $rcCompany,
-            $rcAddress,
-            $cellId,
-            $senderCode,
-            $weightKg,
-            $sizeL,
-            $sizeW,
-            $sizeH,
-            $itemId,
-            $userId
-        );
-    }
-    if (!$stmt) {
+    // Обновляем запись
+    $sql = "
+        UPDATE warehouse_item_stock
+           SET tuid = ?,
+               tracking_no = ?,
+               carrier_code = ?,
+               carrier_name = ?,
+               receiver_country_code = ?,
+               receiver_country_name = ?,
+               receiver_name = ?,
+               receiver_company = ?,
+               receiver_address = ?,
+               cell_id = ?,
+               sender_name = ?,
+               weight_kg = ?,
+               size_l_cm = ?,
+               size_w_cm = ?,
+               size_h_cm = ? 
+         WHERE id = ?
+    ";
+    $stmt = $dbcnx->prepare($sql);
+    $stmt->bind_param(
+        "sssssssssisddddi",
+        $tuid,
+        $tracking,
+        $carrierCode,
+        $carrierName,
+        $rcCountryCode,
+        $receiverCountryName,
+        $rcName,
+        $rcCompany,
+        $rcAddress,
+        $cellId,
+        $senderCode,
+        $weightKg,
+        $sizeL,
+        $sizeW,
+        $sizeH,
+        $itemId
+    );
+    
+    if (! $stmt) {
         $response = [
             'status'  => 'error',
             'message' => 'DB error: ' . $dbcnx->error,
@@ -632,7 +668,7 @@ if ($action === 'save_item_stock') {
     $stmt->execute();
     $stmt->close();
 
-
+    // Формируем изменения для аудита
     $changes = [];
     $fieldMap = [
         'tuid' => $tuid,
@@ -651,6 +687,7 @@ if ($action === 'save_item_stock') {
         'size_w_cm' => $sizeW,
         'size_h_cm' => $sizeH,
     ];
+    
     foreach ($fieldMap as $field => $newValue) {
         $oldValue = $existingItem[$field] ?? null;
         if ($field === 'cell_id') {
@@ -664,7 +701,7 @@ if ($action === 'save_item_stock') {
         }
     }
 
-    if (!empty($changes)) {
+    if (! empty($changes)) {
         audit_log(
             $userId,
             'WAREHOUSE_STOCK_UPDATE_PARCEL',
@@ -673,29 +710,33 @@ if ($action === 'save_item_stock') {
             'Отредактированы данные посылки на складе',
             [
                 'item_id'   => $itemId,
-                'batch_uid' => (int)$existingItem['batch_uid'],
+                'batch_uid' => $existingItem['batch_uid'],
                 'changes'   => $changes,
+                'edited_by_admin' => $isAdmin && ($itemUserId !== $userId),
             ]
         );
     }
 
+    // Аудит изменения ячейки
     if ($originalCellId !== $newCellId) {
-        $cellCodeLookup = function (?int $cellId) use ($dbcnx): ?string {
+        $cellCodeLookup = function (? int $cellId) use ($dbcnx): ?string {
             if ($cellId === null) {
                 return null;
             }
-            $stmt = $dbcnx->prepare("SELECT code FROM cells WHERE id = ? LIMIT 1");
-            if (!$stmt) {
+            $stmt = $dbcnx->prepare("SELECT code FROM cells WHERE id = ?  LIMIT 1");
+            if (! $stmt) {
                 return null;
             }
             $stmt->bind_param("i", $cellId);
             $stmt->execute();
             $row = $stmt->get_result()->fetch_assoc();
             $stmt->close();
-            return $row ? (string)$row['code'] : null;
+            return $row ?  (string)$row['code'] : null;
         };
+        
         $oldCellCode = $cellCodeLookup($originalCellId);
         $newCellCode = $cellCodeLookup($newCellId);
+        
         $eventType = 'WAREHOUSE_STOCK_CELL_UPDATE';
         $description = 'Изменена адресация посылки';
         if ($originalCellId === null && $newCellId !== null) {
@@ -705,6 +746,7 @@ if ($action === 'save_item_stock') {
             $eventType = 'WAREHOUSE_STOCK_CELL_REMOVE';
             $description = 'Удалена адресация посылки';
         }
+        
         audit_log(
             $userId,
             $eventType,
@@ -713,11 +755,12 @@ if ($action === 'save_item_stock') {
             $description,
             [
                 'item_id' => $itemId,
-                'batch_uid' => (int)$existingItem['batch_uid'],
+                'batch_uid' => $existingItem['batch_uid'],
                 'cell_id_old' => $originalCellId,
                 'cell_id_new' => $newCellId,
                 'cell_code_old' => $oldCellCode,
                 'cell_code_new' => $newCellCode,
+                'changed_by_admin' => $isAdmin && ($itemUserId !== $userId),
             ]
         );
     }
