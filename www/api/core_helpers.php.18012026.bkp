@@ -141,17 +141,16 @@ function collect_tool_qr_images(string $uid, string $baseDir): array
 {
     $result = [];
 
-    // Собираем основной PNG файл
-    $pngPath = $baseDir . '/qr.png';
-    if (is_file($pngPath)) {
-        $result['png'] = sprintf('/img/tools_stock/%s/qr.png', $uid);
+    foreach (glob($baseDir . '/qr_*.png') as $filePath) {
+        $fileName = basename($filePath);
+
+        if (preg_match('/^qr_([^\\.]+)\\.png$/', $fileName, $m)) {
+            $suffix        = $m[1];
+            $result[$suffix] = sprintf('/img/tools_stock/%s/%s', $uid, $fileName);
+        }
     }
 
-    // Добавляем SVG если существует
-    $svgPath = $baseDir . '/qr.svg';
-    if (is_file($svgPath)) {
-        $result['svg'] = sprintf('/img/tools_stock/%s/qr.svg', $uid);
-    }
+    ksort($result);
 
     return $result;
 }
@@ -165,46 +164,87 @@ function generate_tool_qr_images(string $uid, string $labelText): array
     }
 
     $qrPayload = $uid;
-    $svgPath   = $baseDir . '/qr. svg';
-    $pngPath   = $baseDir .  '/qr.png';
+    $rawPath   = $baseDir . '/qr_raw.png';
+
+    $cmd = sprintf(
+        'qrencode -o %s -s 8 -l M %s 2>/dev/null',
+        escapeshellarg($rawPath),
+        escapeshellarg($qrPayload)
+    );
+    exec($cmd, $out, $ret);
+    if ($ret !== 0 || !is_file($rawPath)) {
+        error_log("QR: qrencode failed for tool {$uid}, rc={$ret}");
+        return [];
+    }
+
+    $rawImage = imagecreatefrompng($rawPath);
+    if (!$rawImage) {
+        error_log("QR: cannot open raw QR for tool {$uid}");
+        return [];
+    }
+
+    $qrWidth     = imagesx($rawImage);
+    $qrHeight    = imagesy($rawImage);
+    $labelHeight = 36;
+    $canvas      = imagecreatetruecolor($qrWidth, $qrHeight + $labelHeight);
+
+    $white = imagecolorallocate($canvas, 255, 255, 255);
+    $black = imagecolorallocate($canvas, 0, 0, 0);
+
+    imagefill($canvas, 0, 0, $white);
+    imagecopy($canvas, $rawImage, 0, 0, 0, 0, $qrWidth, $qrHeight);
+
+    $font      = 5;
+    $text      = $labelText ?: 'QR';
+    $textWidth = imagefontwidth($font) * strlen($text);
+    $textX     = max(0, (int)(($qrWidth - $textWidth) / 2));
+    $textY     = $qrHeight + (int)(($labelHeight - imagefontheight($font)) / 2);
+    imagestring($canvas, $font, $textX, $textY, $text, $black);
+
+    $sizesCm = [
+        '5x5' => 5.0,
+        '3x3' => 3.0,
+        '2x2' => 2.0,
+    ];
 
     $result = [];
 
-    // ==========================================
-    // 1. Генерируем SVG (без подписи)
-    // ==========================================
-    $cmdSvg = sprintf(
-        'qrencode -o %s -t SVG -s 8 -l M %s 2>/dev/null',
-        escapeshellarg($svgPath),
-        escapeshellarg($qrPayload)
-    );
-    exec($cmdSvg, $outSvg, $retSvg);
+    foreach ($sizesCm as $suffix => $cm) {
+        $targetSize = cm_to_px($cm);
+        $resized    = imagecreatetruecolor($targetSize, $targetSize);
 
-    if ($retSvg === 0 && is_file($svgPath)) {
-        $result['svg'] = sprintf('/img/tools_stock/%s/qr.svg', $uid);
-    } else {
-        error_log("QR: SVG generation failed for tool {$uid}, rc={$retSvg}");
+        imagefill($resized, 0, 0, $white);
+        imagecopyresampled(
+            $resized,
+            $canvas,
+            0,
+            0,
+            0,
+            0,
+            $targetSize,
+            $targetSize,
+            imagesx($canvas),
+            imagesy($canvas)
+        );
+
+        $fileName = sprintf('qr_%s.png', $suffix);
+        $filePath = $baseDir . '/' . $fileName;
+
+        imagepng($resized, $filePath);
+        imagedestroy($resized);
+
+        $result[$suffix] = sprintf('/img/tools_stock/%s/%s', $uid, $fileName);
     }
 
-    // ==========================================
-    // 2. Генерируем один PNG в высоком качестве (без подписи)
-    // ==========================================
-    $cmdPng = sprintf(
-        'qrencode -o %s -t PNG -s 10 -l H %s 2>/dev/null',
-        escapeshellarg($pngPath),
-        escapeshellarg($qrPayload)
-    );
-    exec($cmdPng, $outPng, $retPng);
+    imagedestroy($canvas);
+    imagedestroy($rawImage);
 
-    if ($retPng === 0 && is_file($pngPath)) {
-        $result['png'] = sprintf('/img/tools_stock/%s/qr.png', $uid);
-    } else {
-        error_log("QR: PNG generation failed for tool {$uid}, rc={$retPng}");
+    if (!$result) {
+        $result = collect_tool_qr_images($uid, $baseDir);
     }
 
     return $result;
 }
-
 
 function map_tool_to_template(array $tool): array
 {

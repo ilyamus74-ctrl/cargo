@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-01-15 09:32:46
+/* Smarty version 5.3.1, created on 2026-01-18 08:45:59
   from 'file:cells_NA_API_warehouse_cell_form.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_6968b43eaae803_82493800',
+  'unifunc' => 'content_696c9dc7d610a0_14450670',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '8c34095ebdc7f751eecff02adc24e943c401ed6f' => 
     array (
       0 => 'cells_NA_API_warehouse_cell_form.html',
-      1 => 1768469359,
+      1 => 1768680957,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_6968b43eaae803_82493800 (\Smarty\Template $_smarty_tpl) {
+function content_696c9dc7d610a0_14450670 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?><section class="section">
   <div class="row">
@@ -51,9 +51,11 @@ $_smarty_current_dir = '/home/cells/web/templates';
                       class="btn btn-outline-primary js-print-qr"
                       data-qr-src="img/cells/<?php echo $_smarty_tpl->getValue('edit_cell')['qr_file'];?>
 "
-                      data-qr-title="QR <?php echo htmlspecialchars((string)$_smarty_tpl->getValue('edit_cell')['code'], ENT_QUOTES, 'UTF-8', true);?>
+                      data-qr-title="Ячейка <?php echo htmlspecialchars((string)$_smarty_tpl->getValue('edit_cell')['code'], ENT_QUOTES, 'UTF-8', true);?>
+"
+                      data-qr-code="<?php echo htmlspecialchars((string)$_smarty_tpl->getValue('edit_cell')['code'], ENT_QUOTES, 'UTF-8', true);?>
 ">
-                Распечатать QR
+               Распечатать QR
               </button>
             </div>
           <?php } else { ?>
@@ -67,5 +69,6 @@ $_smarty_current_dir = '/home/cells/web/templates';
     </div>
   </div>
 
-</section><?php }
+</section>
+<?php }
 }

@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-01-15 09:32:43
+/* Smarty version 5.3.1, created on 2026-01-18 08:45:58
   from 'file:cells_NA_API_warehouse_cells.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_6968b43baa7401_21636775',
+  'unifunc' => 'content_696c9dc6227975_48553669',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '4f833ca3ad796719bf284807db20101fe49bc3c4' => 
     array (
       0 => 'cells_NA_API_warehouse_cells.html',
-      1 => 1768469393,
+      1 => 1768680989,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_6968b43baa7401_21636775 (\Smarty\Template $_smarty_tpl) {
+function content_696c9dc6227975_48553669 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>    <div class="pagetitle">
       <h1>Warehouse Cells</h1>
@@ -128,7 +128,9 @@ $foreach0DoElse = false;
                                 class="btn btn-link p-0 js-print-qr"
                                 data-qr-src="img/cells/<?php echo $_smarty_tpl->getValue('value')['qr_file'];?>
 "
-                                data-qr-title="QR <?php echo htmlspecialchars((string)$_smarty_tpl->getValue('value')['code'], ENT_QUOTES, 'UTF-8', true);?>
+                                data-qr-title="Ячейка <?php echo htmlspecialchars((string)$_smarty_tpl->getValue('value')['code'], ENT_QUOTES, 'UTF-8', true);?>
+"
+                                data-qr-code="<?php echo htmlspecialchars((string)$_smarty_tpl->getValue('value')['code'], ENT_QUOTES, 'UTF-8', true);?>
 ">
                           <img src="img/cells/<?php echo $_smarty_tpl->getValue('value')['qr_file'];?>
 "
@@ -152,7 +154,7 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
               <div class="modal fade" id="fullscreenModal" tabindex="-1">
                 <div class="modal-dialog modal-fullscreen">
                   <div class="modal-content">
-                 
+
                     <div class="modal-header">
                       <h5 class="modal-title">Редактирование ячейки</h5>
                       <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
