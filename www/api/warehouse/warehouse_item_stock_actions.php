@@ -2,15 +2,15 @@
 declare(strict_types=1);
 /**
  * Обработчик действий с остатками на складе
- * Actions: item_stock
+ * Actions:  item_stock
  */
-// Доступны: $action, $user, $dbcnx, $smarty
+// Доступны:  $action, $user, $dbcnx, $smarty
 $response = ['status' => 'error', 'message' => 'Unknown warehouse stock action'];
 if ($action === 'item_stock') {
     auth_require_login();
     $current = $user;
     $batches = [];
-    if (auth_has_permission('warehouse.stock.view_all')) {
+    if (auth_has_permission('warehouse. stock.view_all')) {
         $sql = "
             SELECT
                 wi.batch_uid,
@@ -37,7 +37,7 @@ if ($action === 'item_stock') {
                 MIN(wi.created_at) AS started_at,
                 COUNT(*)           AS parcel_count
             FROM warehouse_item_stock wi
-            WHERE wi.user_id = ?
+            WHERE wi.user_id = ? 
             GROUP BY wi.batch_uid
             ORDER BY started_at DESC
         ";
@@ -54,7 +54,7 @@ if ($action === 'item_stock') {
     $smarty->assign('batches',      $batches);
     $smarty->assign('current_user', $current);
     ob_start();
-    $smarty->display('cells_NA_API_warehouse_item_stock.html');
+    $smarty->display('cells_NA_API_warehouse_item_stock. html');
     $html = ob_get_clean();
     $response = [
         'status' => 'ok',
@@ -89,13 +89,13 @@ if ($action === 'item_stock_without_cells') {
 
     // Если НЕ админ - показываем только свои посылки
     if (!$isAdmin) {
-        $conditions[] = "wi.user_id = ? ";
-        $types . = 'i';
+        $conditions[] = "wi.user_id = ?";
+        $types .= 'i';
         $params[] = $userId;
     }
 
     if ($search !== '') {
-        $conditions[] = "(wi.receiver_name LIKE ?  OR wi.tracking_no LIKE ?)";
+        $conditions[] = "(wi.receiver_name LIKE ? OR wi. tracking_no LIKE ?)";
         $like = '%' . $search . '%';
         $types .= 'ss';
         $params[] = $like;
@@ -138,7 +138,7 @@ if ($action === 'item_stock_without_cells') {
 
     if ($limit !== null) {
         $sql .= " LIMIT ?  OFFSET ?";
-        $types . = 'ii';
+        $types .= 'ii';
         $params[] = $limit;
         $params[] = $offset;
     }
@@ -167,7 +167,7 @@ if ($action === 'item_stock_without_cells') {
     $smarty->assign('show_empty', $offset === 0);
 
     ob_start();
-    $smarty->display('cells_NA_API_warehouse_item_stock_without_cells_rows. html');
+    $smarty->display('cells_NA_API_warehouse_item_stock_without_cells_rows.html');
     $html = ob_get_clean();
 
     $response = [
@@ -186,7 +186,7 @@ if ($action === 'item_stock_in_storage') {
     $isAdmin = auth_has_role('ADMIN');
     $canViewAll = auth_has_permission('warehouse.stock.view_all');
     
-    $limitRaw = $_POST['limit'] ??  '20';
+    $limitRaw = $_POST['limit'] ?? '20';
     $limit = null;
     if ($limitRaw !== 'all') {
         $limit = max(20, (int)$limitRaw);
@@ -207,20 +207,20 @@ if ($action === 'item_stock_in_storage') {
     // Если НЕ админ И НЕ view_all - показываем согласно правам (пока что свои)
     // TODO: добавить проверку прав из таблицы разрешений
     if (!$isAdmin && !$canViewAll) {
-        $conditions[] = "wi.user_id = ? ";
+        $conditions[] = "wi.user_id = ?";
         $types .= 'i';
         $params[] = $userId;
     }
 
     if ($search !== '') {
-        $conditions[] = "(wi. receiver_name LIKE ? OR wi.tracking_no LIKE ?)";
-        $like = '%' . $search . '%';
+        $conditions[] = "(wi.receiver_name LIKE ? OR wi. tracking_no LIKE ?)";
+        $like = '%' .  $search . '%';
         $types .= 'ss';
         $params[] = $like;
         $params[] = $like;
     }
 
-    $whereSql = 'WHERE ' . implode(' AND ', $conditions);
+    $whereSql = 'WHERE ' .  implode(' AND ', $conditions);
 
     $countSql = "
         SELECT COUNT(*) AS total
@@ -247,7 +247,7 @@ if ($action === 'item_stock_in_storage') {
     $sql = "
         SELECT
             wi.id,
-            COALESCE(NULLIF(wi. tuid, ''), NULLIF(wi.tracking_no, ''), wi.uid_created) AS parcel_uid,
+            COALESCE(NULLIF(wi.tuid, ''), NULLIF(wi.tracking_no, ''), wi.uid_created) AS parcel_uid,
             wi.receiver_name,
             wi.tracking_no,
             wi.created_at AS stored_at,
@@ -277,7 +277,7 @@ if ($action === 'item_stock_in_storage') {
             $res->free();
         }
     } else {
-        $stmt = $dbcnx->prepare($types, .. .$params);
+        $stmt = $dbcnx->prepare($sql);
         $stmt->bind_param($types, ...$params);
         $stmt->execute();
         $res = $stmt->get_result();
@@ -589,7 +589,7 @@ if ($action === 'save_item_stock') {
     
     $weightKg = ($weightKg === '' || $weightKg === null) ? 0.0 : (float)$weightKg;
     $sizeL = ($sizeL === '' || $sizeL === null) ? 0.0 : (float)$sizeL;
-    $sizeW = ($sizeW === '' || $sizeW === null) ?  0.0 : (float)$sizeW;
+    $sizeW = ($sizeW === '' || $sizeW === null) ? 0.0 : (float)$sizeW;
     $sizeH = ($sizeH === '' || $sizeH === null) ? 0.0 : (float)$sizeH;
     
     $receiverCountryName = '';
@@ -661,7 +661,7 @@ if ($action === 'save_item_stock') {
     if (! $stmt) {
         $response = [
             'status'  => 'error',
-            'message' => 'DB error: ' . $dbcnx->error,
+            'message' => 'DB error:  ' . $dbcnx->error,
         ];
         return;
     }
