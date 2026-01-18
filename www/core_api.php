@@ -65,6 +65,8 @@ $routes = [
     'item_stock_in_storage'    => 'api/warehouse/warehouse_item_stock_actions.php',
     'open_item_stock_modal'    => 'api/warehouse/warehouse_item_stock_actions.php',
     'save_item_stock'          => 'api/warehouse/warehouse_item_stock_actions.php',
+    // ========== WAREHOUSE - Move ==========
+    'warehouse_move'           => 'api/warehouse/warehouse_move.php',
 ];
 
 if (!isset($routes[$action])) {
