@@ -780,6 +780,22 @@ case 'delete_item_in':
 
     $items = [];
 
+    audit_log(
+        $userId,
+        'WAREHOUSE_IN_DELETE_PARCEL',
+        'WAREHOUSE_IN',
+        $itemId,
+        'Удалена посылка из партии прихода',
+        [
+            'batch_uid'    => $batchUid,
+            'item_id'      => $itemId,
+            'item_user_id' => $itemUserId,
+            'deleted_by'   => $userId,
+            'is_admin'     => $isAdmin,
+        ]
+    );
+
+
     if ($isAdmin) {
         $sql = "
             SELECT
