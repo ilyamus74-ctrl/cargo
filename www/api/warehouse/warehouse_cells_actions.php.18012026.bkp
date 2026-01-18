@@ -135,61 +135,41 @@ case 'add_new_cells':
             $existing[$row['code']] = true;
         }
         $stmt->close();
-
         // Папка для файлов
-        $dir = __DIR__ .  '/../../img/cells';
+        $dir = __DIR__ . '/../../img/cells';
         if (!is_dir($dir)) {
             @mkdir($dir, 0775, true);
         }
         $created = 0;
         for ($i = $n1; $i <= $n2; $i++) {
-            $code = $prefix . $i;        // A10, A11, ... 
+            $code = $prefix . $i;        // A10, A11, ...
             if (isset($existing[$code])) {
                 // Уже есть такая ячейка — пропускаем
                 continue;
             }
-            $qrPayload  = 'CELL: ' . $code;
-            
-            // ==========================================
-            // Генерируем SVG
-            // ==========================================
-            $svgFileName = $code . '.svg';
-            $svgPath     = $dir . '/' . $svgFileName;
-            $cmdSvg = sprintf(
-                'qrencode -o %s -t SVG -s 8 -l H %s 2>&1',
-                escapeshellarg($svgPath),
-                escapeshellarg($qrPayload)
-            );
-            exec($cmdSvg, $outSvg, $rcSvg);
-            if ($rcSvg !== 0) {
-                error_log('qrencode SVG error for cell ' . $code .  ': ' . implode("\n", $outSvg));
-            }
-            
-            // ==========================================
-            // Генерируем PNG в хорошем качестве
-            // ==========================================
-            $pngFileName = $code . '.png';
-            $pngPath     = $dir . '/' . $pngFileName;
-            $cmdPng = sprintf(
-                'qrencode -o %s -t PNG -s 10 -l H %s 2>&1',
-                escapeshellarg($pngPath),
-                escapeshellarg($qrPayload)
-            );
-            exec($cmdPng, $outPng, $rcPng);
-            if ($rcPng !== 0) {
-                error_log('qrencode PNG error for cell ' . $code . ': ' . implode("\n", $outPng));
-            }
-            
-            // Вставляем в БД:  code, qr_payload, qr_file (PNG), description
-            // qr_file оставляем PNG для обратной совместимости
+            $qrPayload  = 'CELL:' . $code;
+            $qrFileName = $code . '.png';                 // ИМЯ ФАЙЛА = КОД ЯЧЕЙКИ
+            $fullPath   = $dir . '/' . $qrFileName;
+            // Вставляем в БД: code, qr_payload, qr_file, description
             $stmtIns = $dbcnx->prepare(
                 "INSERT INTO cells (code, qr_payload, qr_file, description)
-                 VALUES (?, ?, ?, ? )"
+                 VALUES (?, ?, ?, ?)"
             );
-            $stmtIns->bind_param("ssss", $code, $qrPayload, $pngFileName, $desc);
+            $stmtIns->bind_param("ssss", $code, $qrPayload, $qrFileName, $desc);
             $stmtIns->execute();
             $stmtIns->close();
-            
+            // Генерируем PNG через qrencode
+            $cmd = sprintf(
+                'qrencode -o %s -s 4 %s 2>&1',
+                escapeshellarg($fullPath),
+                escapeshellarg($qrPayload)
+            );
+            $out = [];
+            $rc  = 0;
+            exec($cmd, $out, $rc);
+            if ($rc !== 0) {
+                error_log('qrencode error for cell ' . $code . ': ' . implode("\n", $out));
+            }
             $created++;
         }
         // Перечитываем список ячеек
@@ -315,28 +295,19 @@ case 'add_new_cells':
             ];
             break;
         }
-        // Удаляем файлы (PNG и SVG), если есть
+        // Удаляем файл, если есть
         $dir = __DIR__ . '/../../img/cells';
-        $code = $cell['code'];
-        
-        // Удаляем PNG
-        if (! empty($cell['qr_file'])) {
-            $pngPath = $dir . '/' . $cell['qr_file'];
-            if (is_file($pngPath)) {
-                @unlink($pngPath);
+        if (!empty($cell['qr_file'])) {
+            $path = $dir . '/' . $cell['qr_file'];
+            if (is_file($path)) {
+                @unlink($path);
             }
         } else {
             // запасной вариант по коду
-            $fallbackPng = $dir . '/' .  $code . '.png';
-            if (is_file($fallbackPng)) {
-                @unlink($fallbackPng);
+            $fallback = $dir . '/' . $cell['code'] . '.png';
+            if (is_file($fallback)) {
+                @unlink($fallback);
             }
-        }
-        
-        // Удаляем SVG
-        $svgPath = $dir . '/' . $code . '. svg';
-        if (is_file($svgPath)) {
-            @unlink($svgPath);
         }
         // Удаляем из БД
         $stmt = $dbcnx->prepare("DELETE FROM cells WHERE id = ?");

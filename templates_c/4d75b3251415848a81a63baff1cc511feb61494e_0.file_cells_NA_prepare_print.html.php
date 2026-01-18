@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-01-17 21:11:03
+/* Smarty version 5.3.1, created on 2026-01-18 08:56:06
   from 'file:cells_NA_prepare_print.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_696bfae7361757_79207416',
+  'unifunc' => 'content_696ca026639590_47147382',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '4d75b3251415848a81a63baff1cc511feb61494e' => 
     array (
       0 => 'cells_NA_prepare_print.html',
-      1 => 1768684261,
+      1 => 1768726559,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_696bfae7361757_79207416 (\Smarty\Template $_smarty_tpl) {
+function content_696ca026639590_47147382 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>
 <! DOCTYPE html>
@@ -234,6 +234,12 @@ $_smarty_current_dir = '/home/cells/web/templates';
           <option value="14">14</option>
           <option value="16">16</option>
           <option value="18">18</option>
+          <option value="20">20</option>
+          <option value="22">22</option>
+          <option value="26">26</option>
+          <option value="30">30</option>
+          <option value="36">36</option>
+          <option value="42">42</option>
         </select>
       </div>
 
