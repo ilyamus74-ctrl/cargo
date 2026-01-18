@@ -46,7 +46,11 @@
       select('body').classList.toggle('toggle-sidebar')
     })
   }
-
+  on('click', '.sidebar-nav .nav-content a', function(e) {
+    if (window.innerWidth < 1200) {
+      select('body').classList.remove('toggle-sidebar')
+    }
+  }, true)
   /**
    * Search bar toggle
    */
