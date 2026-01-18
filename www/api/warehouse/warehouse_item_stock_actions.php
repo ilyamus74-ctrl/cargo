@@ -9,8 +9,9 @@ $response = ['status' => 'error', 'message' => 'Unknown warehouse stock action']
 if ($action === 'item_stock') {
     auth_require_login();
     $current = $user;
+    $userId = (int)$current['id'];
     $batches = [];
-    if (auth_has_permission('warehouse. stock.view_all')) {
+    if (auth_has_permission('warehouse.stock.view_all')) {
         $sql = "
             SELECT
                 wi.batch_uid,
@@ -54,7 +55,7 @@ if ($action === 'item_stock') {
     $smarty->assign('batches',      $batches);
     $smarty->assign('current_user', $current);
     ob_start();
-    $smarty->display('cells_NA_API_warehouse_item_stock. html');
+    $smarty->display('cells_NA_API_warehouse_item_stock.html');
     $html = ob_get_clean();
     $response = [
         'status' => 'ok',
@@ -95,7 +96,7 @@ if ($action === 'item_stock_without_cells') {
     }
 
     if ($search !== '') {
-        $conditions[] = "(wi.receiver_name LIKE ? OR wi. tracking_no LIKE ?)";
+        $conditions[] = "(wi.receiver_name LIKE ? OR wi.tracking_no LIKE ?)";
         $like = '%' . $search . '%';
         $types .= 'ss';
         $params[] = $like;
@@ -213,7 +214,7 @@ if ($action === 'item_stock_in_storage') {
     }
 
     if ($search !== '') {
-        $conditions[] = "(wi.receiver_name LIKE ? OR wi. tracking_no LIKE ?)";
+        $conditions[] = "(wi.receiver_name LIKE ? OR wi.tracking_no LIKE ?)";
         $like = '%' .  $search . '%';
         $types .= 'ss';
         $params[] = $like;
@@ -225,7 +226,7 @@ if ($action === 'item_stock_in_storage') {
     $countSql = "
         SELECT COUNT(*) AS total
         FROM warehouse_item_stock wi
-        LEFT JOIN cells c ON c.id = wi. cell_id
+        LEFT JOIN cells c ON c.id = wi.cell_id
         {$whereSql}
     ";
     $total = 0;
@@ -446,7 +447,7 @@ if ($action === 'open_item_stock_modal') {
     $smarty->assign('can_edit', $isAdmin || $itemUserId === $userId || $canManageStock);
     
     ob_start();
-    $smarty->display('cells_NA_API_warehouse_item_stock_modal. html');
+    $smarty->display('cells_NA_API_warehouse_item_stock_modal.html');
     $html = ob_get_clean();
     
     // Аудит просмотра
