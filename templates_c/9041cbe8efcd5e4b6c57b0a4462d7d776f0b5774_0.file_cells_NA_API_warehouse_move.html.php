@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-01-18 16:57:37
+/* Smarty version 5.3.1, created on 2026-01-20 10:42:45
   from 'file:cells_NA_API_warehouse_move.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_696d1101d84908_32757412',
+  'unifunc' => 'content_696f5c25dd6144_75101702',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '9041cbe8efcd5e4b6c57b0a4462d7d776f0b5774' => 
     array (
       0 => 'cells_NA_API_warehouse_move.html',
-      1 => 1768754786,
+      1 => 1768905550,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_696d1101d84908_32757412 (\Smarty\Template $_smarty_tpl) {
+function content_696f5c25dd6144_75101702 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>    <div class="pagetitle">
       <h1>Warehouse Move</h1>
@@ -55,9 +55,37 @@ $_smarty_current_dir = '/home/cells/web/templates';
 
               <div class="tab-content pt-3" id="warehouseMoveTabsContent">
                 <div class="tab-pane fade show active" id="warehouse-move-scanner" role="tabpanel" aria-labelledby="warehouse-move-scanner-tab">
-                  <p class="text-muted mb-1">Содержимое вкладки будет добавлено позже.</p>
+                  <p class="text-muted mb-1">Введите или отсканируйте TUID/трек-номер для поиска.</p>
                   <small class="text-muted">Цель: присвоение новых значений <code>warehouse_item_stock.cell_id</code> для товаров на складе.</small>
-                  <input type="hidden" id="warehouseMoveTracking" value="">
+
+
+                  <div class="row g-2 align-items-end mt-3">
+                    <div class="col-12 col-md-8">
+                      <label class="form-label small mb-1" for="warehouse-move-search">Поиск</label>
+                      <input type="text" id="warehouse-move-search" class="form-control form-control-sm" placeholder="TUID или трек-номер">
+                    </div>
+                  </div>
+
+                  <p class="small text-muted mb-2 mt-3">
+                    Найдено: <span id="warehouse-move-total">0</span>
+                  </p>
+
+                  <div class="table-responsive">
+                    <table class="table table-sm align-middle users-table">
+                      <thead>
+                        <tr>
+                          <th scope="col">Посылка</th>
+                          <th scope="col">Источник</th>
+                          <th scope="col">Ячейка</th>
+                          <?php if ($_smarty_tpl->getValue('current_user')['role'] == 'ADMIN') {?>
+                            <th scope="col">Пользователь</th>
+                          <?php }?>
+                          <th scope="col">Дата</th>
+                        </tr>
+                      </thead>
+                      <tbody id="warehouse-move-results-tbody"></tbody>
+                    </table>
+                  </div>
                 </div>
                 <div class="tab-pane fade" id="warehouse-move-batch" role="tabpanel" aria-labelledby="warehouse-move-batch-tab">
                   <p class="text-muted mb-1">Содержимое вкладки будет добавлено позже.</p>
@@ -77,7 +105,7 @@ $_smarty_current_dir = '/home/cells/web/templates';
   "task_id": "warehouse_move",
   "default_mode": "ocr",
   "modes": ["ocr"],
-  "barcode": { "action": "fill_field", "field_id": "warehouseMoveTracking" },
+  "barcode": { "action": "fill_field", "field_id": "warehouse-move-search" },
   "qr":      { "action": "api_check",  "endpoint": "/api/qr_check.php" }
 }
 <?php echo '</script'; ?>
@@ -95,5 +123,25 @@ $_smarty_current_dir = '/home/cells/web/templates';
     <?php echo $_smarty_tpl->getValue('jsonOcrDicts');?>
 
 </div>
+
+    <!-- Full Screen Modal -->
+    <div class="modal fade" id="fullscreenModal" tabindex="-1">
+      <div class="modal-dialog modal-fullscreen">
+        <div class="modal-content">
+
+          <div class="modal-header">
+            <h5 class="modal-title">Просмотр посылки</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            Загрузка...
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+          </div>
+        </div>
+      </div>
+    </div><!-- End Full Screen Modal-->
+
 <?php }
 }

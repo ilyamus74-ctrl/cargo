@@ -899,6 +899,80 @@ const CoreAPI = {
         }
     },
     // ====================================
+
+    // WAREHOUSE - Move (scanner search)
+    // ====================================
+    warehouseMove: {
+        root: null,
+        tbody: null,
+        total: null,
+        searchInput: null,
+        searchTimer: null,
+        initialized: false,
+        init() {
+            const root = document.getElementById('warehouse-move-scanner');
+            if (!root) return;
+            if (this.initialized && this.root === root) {
+                return;
+            }
+            this.root = root;
+            this.tbody = root.querySelector('#warehouse-move-results-tbody');
+            this.total = root.querySelector('#warehouse-move-total');
+            this.searchInput = root.querySelector('#warehouse-move-search');
+
+            if (!this.tbody || !this.total || !this.searchInput) {
+                return;
+            }
+
+            this.bindEvents();
+            this.clearResults();
+            this.initialized = true;
+        },
+        bindEvents() {
+            this.searchInput.addEventListener('input', () => {
+                if (this.searchTimer) {
+                    clearTimeout(this.searchTimer);
+                }
+                this.searchTimer = setTimeout(() => {
+                    const value = this.searchInput.value.trim();
+                    if (!value) {
+                        this.clearResults();
+                        return;
+                    }
+                    this.fetchResults(value);
+                }, 300);
+            });
+        },
+        clearResults() {
+            if (this.tbody) {
+                this.tbody.innerHTML = '';
+            }
+            if (this.total) {
+                this.total.textContent = '0';
+            }
+        },
+        async fetchResults(search) {
+            const fd = new FormData();
+            fd.append('action', 'warehouse_move_search');
+            fd.append('search', search);
+            try {
+                const data = await CoreAPI.client.call(fd);
+                if (!data || data.status !== 'ok') {
+                    console.error('core_api error (warehouse_move_search):', data);
+                    return;
+                }
+                if (this.tbody) {
+                    this.tbody.innerHTML = data.html || '';
+                }
+                if (this.total) {
+                    this.total.textContent = String(data.total ?? 0);
+                }
+            } catch (err) {
+                console.error('core_api fetch error (warehouse_move_search):', err);
+            }
+        }
+    },
+    // ====================================
     // INIT - инициализация
     // ====================================
     init() {
@@ -912,6 +986,7 @@ const CoreAPI = {
         });
         this.warehouseWithoutCells.init();
         this.warehouseInStorage.init();
+        this.warehouseMove.init();
         console.log('CoreAPI initialized');
     }
 };

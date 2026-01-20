@@ -1,0 +1,35 @@
+{foreach $move_items as $item}
+  <tr>
+    <td>
+      {if $item.source == 'stock'}
+        <button type="button"
+                class="btn btn-link p-0 js-core-link"
+                data-core-action="open_item_stock_modal"
+                data-item-id="{$item.id}">
+          {$item.parcel_uid|default:'—'}
+        </button>
+      {else}
+        {$item.parcel_uid|default:'—'}
+      {/if}
+    </td>
+    <td>
+      {if $item.source == 'stock'}
+        <span class="badge bg-success">Склад</span>
+      {else}
+        <span class="badge bg-warning text-dark">Приемка</span>
+      {/if}
+    </td>
+    <td>{$item.cell_address|default:'—'}</td>
+    {if $current_user.role == 'ADMIN'}
+      <td>{$item.user_name|default:'—'}</td>
+    {/if}
+    <td>{$item.created_at|default:'—'}</td>
+  </tr>
+{/foreach}
+{if !$move_items && $show_empty}
+  <tr>
+    <td colspan="{if $current_user.role == 'ADMIN'}5{else}4{/if}" class="text-center text-muted">
+      Совпадений не найдено
+    </td>
+  </tr>
+{/if}
