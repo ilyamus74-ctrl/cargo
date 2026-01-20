@@ -168,6 +168,9 @@ const CoreAPI = {
                 if (CoreAPI.warehouseMove?.init) {
                     CoreAPI.warehouseMove.init();
                 }
+                if (CoreAPI.warehouseMoveBatch?.init) {
+                    CoreAPI.warehouseMoveBatch.init();
+                }
             }
         },
         /**
