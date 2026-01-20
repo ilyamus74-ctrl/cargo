@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-01-20 10:49:20
+/* Smarty version 5.3.1, created on 2026-01-20 11:38:51
   from 'file:cells_NA_API_warehouse_move_rows.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_696f5db0d7a102_49271223',
+  'unifunc' => 'content_696f694b399a73_70326477',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '89edcd1f56375dc5667cd431a44095c5cf9fbc58' => 
     array (
       0 => 'cells_NA_API_warehouse_move_rows.html',
-      1 => 1768905579,
+      1 => 1768908973,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_696f5db0d7a102_49271223 (\Smarty\Template $_smarty_tpl) {
+function content_696f694b399a73_70326477 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 $_from = $_smarty_tpl->getSmarty()->getRuntime('Foreach')->init($_smarty_tpl, $_smarty_tpl->getValue('move_items'), 'item');
 $foreach0DoElse = true;
@@ -32,7 +32,7 @@ $foreach0DoElse = false;
       <?php if ($_smarty_tpl->getValue('item')['source'] == 'stock') {?>
         <button type="button"
                 class="btn btn-link p-0 js-core-link"
-                data-core-action="open_item_stock_modal"
+                data-core-action="warehouse_move_open_modal"
                 data-item-id="<?php echo $_smarty_tpl->getValue('item')['id'];?>
 ">
           <?php echo (($tmp = $_smarty_tpl->getValue('item')['parcel_uid'] ?? null)===null||$tmp==='' ? '—' ?? null : $tmp);?>

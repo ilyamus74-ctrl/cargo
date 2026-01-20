@@ -80,7 +80,9 @@ const CoreAPI = {
                 
                 'commit_item_in_batch': () => this.withAttribute('batch_uid', link),
                 'open_item_in_batch': () => this.withAttribute('batch_uid', link),
-                'open_item_stock_modal': () => this.withAttribute('item_id', link)
+                'open_item_stock_modal': () => this.withAttribute('item_id', link),
+                'warehouse_move_open_modal': () => this.withAttribute('item_id', link),
+                'warehouse_move_save_cell': () => this.getFormById('item-stock-modal-form')
             };
             const fd = builders[action] ? builders[action]() : new FormData();
             fd.append('action', action);
@@ -425,6 +427,12 @@ const CoreAPI = {
                 initStandDevicePersistence();
             }
         },
+        'warehouse_move_open_modal': (data) => {
+            CoreAPI.ui.showModal(data.html);
+            if (typeof initStandDevicePersistence === 'function') {
+                initStandDevicePersistence();
+            }
+        },
         'save_item_stock': (data) => {
             alert(data.message || 'Сохранено');
             CoreAPI.ui.onModalCloseOnce(() => {
@@ -433,6 +441,19 @@ const CoreAPI = {
                 }
                 if (CoreAPI.warehouseInStorage?.resetAndLoad) {
                     CoreAPI.warehouseInStorage.resetAndLoad();
+                }
+            });
+            CoreAPI.ui.closeModal();
+        },
+
+        'warehouse_move_save_cell': (data) => {
+            alert(data.message || 'Сохранено');
+            CoreAPI.ui.onModalCloseOnce(() => {
+                const searchValue = CoreAPI.warehouseMove?.searchInput?.value?.trim() || '';
+                if (searchValue && CoreAPI.warehouseMove?.fetchResults) {
+                    CoreAPI.warehouseMove.fetchResults(searchValue);
+                } else if (CoreAPI.warehouseMove?.clearResults) {
+                    CoreAPI.warehouseMove.clearResults();
                 }
             });
             CoreAPI.ui.closeModal();
