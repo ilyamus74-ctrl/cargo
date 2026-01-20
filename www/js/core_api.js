@@ -155,6 +155,9 @@ const CoreAPI = {
                 if (CoreAPI.warehouseInStorage?.init) {
                     CoreAPI.warehouseInStorage.init();
                 }
+                if (CoreAPI.warehouseMove?.init) {
+                    CoreAPI.warehouseMove.init();
+                }
             }
         },
         /**
