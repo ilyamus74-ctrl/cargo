@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-01-20 10:42:45
+/* Smarty version 5.3.1, created on 2026-01-20 12:18:58
   from 'file:cells_NA_API_warehouse_move.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_696f5c25dd6144_75101702',
+  'unifunc' => 'content_696f72b2104382_83053679',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '9041cbe8efcd5e4b6c57b0a4462d7d776f0b5774' => 
     array (
       0 => 'cells_NA_API_warehouse_move.html',
-      1 => 1768905550,
+      1 => 1768911110,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_696f5c25dd6144_75101702 (\Smarty\Template $_smarty_tpl) {
+function content_696f72b2104382_83053679 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>    <div class="pagetitle">
       <h1>Warehouse Move</h1>
@@ -88,8 +88,55 @@ $_smarty_current_dir = '/home/cells/web/templates';
                   </div>
                 </div>
                 <div class="tab-pane fade" id="warehouse-move-batch" role="tabpanel" aria-labelledby="warehouse-move-batch-tab">
-                  <p class="text-muted mb-1">Содержимое вкладки будет добавлено позже.</p>
+                  <p class="text-muted mb-1">Выберите ячейку и добавляйте посылки по трек-номеру.</p>
                   <small class="text-muted">Цель: пакетное присвоение новых значений <code>warehouse_item_stock.cell_id</code>.</small>
+
+                  <div class="row g-2 align-items-end mt-3">
+                    <div class="col-12 col-md-5">
+                      <label class="form-label small mb-1" for="warehouse-move-batch-cell">Ячейка склада</label>
+                      <select class="form-select form-select-sm" id="warehouse-move-batch-cell">
+                        <option value="">— выберите ячейку —</option>
+                        <?php
+$_from = $_smarty_tpl->getSmarty()->getRuntime('Foreach')->init($_smarty_tpl, $_smarty_tpl->getValue('cells'), 'cell');
+$foreach0DoElse = true;
+foreach ($_from ?? [] as $_smarty_tpl->getVariable('cell')->value) {
+$foreach0DoElse = false;
+?>
+                          <option value="<?php echo htmlspecialchars((string)$_smarty_tpl->getValue('cell')['id'], ENT_QUOTES, 'UTF-8', true);?>
+"><?php echo htmlspecialchars((string)$_smarty_tpl->getValue('cell')['code'], ENT_QUOTES, 'UTF-8', true);?>
+</option>
+                        <?php
+}
+$_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
+                      </select>
+                    </div>
+                    <div class="col-12 col-md-7">
+                      <label class="form-label small mb-1" for="warehouse-move-batch-search">Трек-номер</label>
+                      <input type="text" id="warehouse-move-batch-search" class="form-control form-control-sm" placeholder="TUID или трек-номер">
+                    </div>
+                  </div>
+
+                  <p class="small text-muted mb-2 mt-3">
+                    Найдено: <span id="warehouse-move-batch-total">0</span>
+                  </p>
+
+                  <div class="table-responsive">
+                    <table class="table table-sm align-middle users-table">
+                      <thead>
+                        <tr>
+                          <th scope="col">Посылка</th>
+                          <th scope="col">Источник</th>
+                          <th scope="col">Ячейка</th>
+                          <th scope="col">Переместить</th>
+                          <?php if ($_smarty_tpl->getValue('current_user')['role'] == 'ADMIN') {?>
+                            <th scope="col">Пользователь</th>
+                          <?php }?>
+                          <th scope="col">Дата</th>
+                        </tr>
+                      </thead>
+                      <tbody id="warehouse-move-batch-results-tbody"></tbody>
+                    </table>
+                  </div>
                 </div>
               </div>
             </div>
@@ -142,6 +189,5 @@ $_smarty_current_dir = '/home/cells/web/templates';
         </div>
       </div>
     </div><!-- End Full Screen Modal-->
-
 <?php }
 }

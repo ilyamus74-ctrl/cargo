@@ -64,8 +64,46 @@
                   </div>
                 </div>
                 <div class="tab-pane fade" id="warehouse-move-batch" role="tabpanel" aria-labelledby="warehouse-move-batch-tab">
-                  <p class="text-muted mb-1">Содержимое вкладки будет добавлено позже.</p>
+                  <p class="text-muted mb-1">Выберите ячейку и добавляйте посылки по трек-номеру.</p>
                   <small class="text-muted">Цель: пакетное присвоение новых значений <code>warehouse_item_stock.cell_id</code>.</small>
+
+                  <div class="row g-2 align-items-end mt-3">
+                    <div class="col-12 col-md-5">
+                      <label class="form-label small mb-1" for="warehouse-move-batch-cell">Ячейка склада</label>
+                      <select class="form-select form-select-sm" id="warehouse-move-batch-cell">
+                        <option value="">— выберите ячейку —</option>
+                        {foreach $cells as $cell}
+                          <option value="{$cell.id|escape}">{$cell.code|escape}</option>
+                        {/foreach}
+                      </select>
+                    </div>
+                    <div class="col-12 col-md-7">
+                      <label class="form-label small mb-1" for="warehouse-move-batch-search">Трек-номер</label>
+                      <input type="text" id="warehouse-move-batch-search" class="form-control form-control-sm" placeholder="TUID или трек-номер">
+                    </div>
+                  </div>
+
+                  <p class="small text-muted mb-2 mt-3">
+                    Найдено: <span id="warehouse-move-batch-total">0</span>
+                  </p>
+
+                  <div class="table-responsive">
+                    <table class="table table-sm align-middle users-table">
+                      <thead>
+                        <tr>
+                          <th scope="col">Посылка</th>
+                          <th scope="col">Источник</th>
+                          <th scope="col">Ячейка</th>
+                          <th scope="col">Переместить</th>
+                          {if $current_user.role == 'ADMIN'}
+                            <th scope="col">Пользователь</th>
+                          {/if}
+                          <th scope="col">Дата</th>
+                        </tr>
+                      </thead>
+                      <tbody id="warehouse-move-batch-results-tbody"></tbody>
+                    </table>
+                  </div>
                 </div>
               </div>
             </div>
@@ -113,4 +151,3 @@
         </div>
       </div>
     </div><!-- End Full Screen Modal-->
-

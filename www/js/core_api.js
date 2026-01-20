@@ -82,7 +82,15 @@ const CoreAPI = {
                 'open_item_in_batch': () => this.withAttribute('batch_uid', link),
                 'open_item_stock_modal': () => this.withAttribute('item_id', link),
                 'warehouse_move_open_modal': () => this.withAttribute('item_id', link),
-                'warehouse_move_save_cell': () => this.getFormById('item-stock-modal-form')
+                'warehouse_move_save_cell': () => this.getFormById('item-stock-modal-form'),
+                'warehouse_move_batch_assign': () => {
+                    const fd = this.withAttribute('item_id', link);
+                    const cellSelect = document.getElementById('warehouse-move-batch-cell');
+                    if (cellSelect) {
+                        fd.append('cell_id', cellSelect.value || '');
+                    }
+                    return fd;
+                }
             };
             const fd = builders[action] ? builders[action]() : new FormData();
             fd.append('action', action);
@@ -458,7 +466,12 @@ const CoreAPI = {
             });
             CoreAPI.ui.closeModal();
         },
-
+        'warehouse_move_batch_assign': (data) => {
+            alert(data.message || 'Сохранено');
+            if (CoreAPI.warehouseMoveBatch?.clearAfterMove) {
+                CoreAPI.warehouseMoveBatch.clearAfterMove();
+            }
+        },
         'save_permission': async (data) => {
             alert(data.message || 'Сохранено');
             await CoreAPI.ui.reloadList('view_role_permissions');
@@ -997,6 +1010,103 @@ const CoreAPI = {
         }
     },
     // ====================================
+    // WAREHOUSE - Move (batch)
+    // ====================================
+    warehouseMoveBatch: {
+        root: null,
+        tbody: null,
+        total: null,
+        searchInput: null,
+        cellSelect: null,
+        searchTimer: null,
+        initialized: false,
+        init() {
+            const root = document.getElementById('warehouse-move-batch');
+            if (!root) return;
+            if (this.initialized && this.root === root) {
+                return;
+            }
+            this.root = root;
+            this.tbody = root.querySelector('#warehouse-move-batch-results-tbody');
+            this.total = root.querySelector('#warehouse-move-batch-total');
+            this.searchInput = root.querySelector('#warehouse-move-batch-search');
+            this.cellSelect = root.querySelector('#warehouse-move-batch-cell');
+
+            if (!this.tbody || !this.total || !this.searchInput || !this.cellSelect) {
+                return;
+            }
+
+            this.bindEvents();
+            this.clearResults();
+            this.initialized = true;
+        },
+        bindEvents() {
+            this.searchInput.addEventListener('input', () => {
+                if (this.searchTimer) {
+                    clearTimeout(this.searchTimer);
+                }
+                this.searchTimer = setTimeout(() => {
+                    const value = this.searchInput.value.trim();
+                    if (!value) {
+                        this.clearResults();
+                        return;
+                    }
+                    this.fetchResults(value);
+                }, 300);
+            });
+            this.cellSelect.addEventListener('change', () => {
+                this.updateMoveButtons();
+            });
+        },
+        clearResults() {
+            if (this.tbody) {
+                this.tbody.innerHTML = '';
+            }
+            if (this.total) {
+                this.total.textContent = '0';
+            }
+            this.updateMoveButtons();
+        },
+        clearAfterMove() {
+            if (this.searchInput) {
+                this.searchInput.value = '';
+            }
+            this.clearResults();
+            if (this.searchInput) {
+                this.searchInput.focus();
+            }
+        },
+        updateMoveButtons() {
+            if (!this.tbody) return;
+            const hasCell = Boolean(this.cellSelect?.value);
+            this.tbody.querySelectorAll('.js-warehouse-move-batch-action').forEach((button) => {
+                if (!(button instanceof HTMLButtonElement)) return;
+                button.disabled = !hasCell;
+            });
+        },
+        async fetchResults(search) {
+            const fd = new FormData();
+            fd.append('action', 'warehouse_move_batch_search');
+            fd.append('search', search);
+            try {
+                const data = await CoreAPI.client.call(fd);
+                if (!data || data.status !== 'ok') {
+                    console.error('core_api error (warehouse_move_batch_search):', data);
+                    return;
+                }
+                if (this.tbody) {
+                    this.tbody.innerHTML = data.html || '';
+                }
+                if (this.total) {
+                    this.total.textContent = String(data.total ?? 0);
+                }
+                this.updateMoveButtons();
+            } catch (err) {
+                console.error('core_api fetch error (warehouse_move_batch_search):', err);
+            }
+        }
+    },
+    // ====================================
     // INIT - инициализация
     // ====================================
     init() {
@@ -1011,6 +1121,7 @@ const CoreAPI = {
         this.warehouseWithoutCells.init();
         this.warehouseInStorage.init();
         this.warehouseMove.init();
+        this.warehouseMoveBatch.init();
         console.log('CoreAPI initialized');
     }
 };
