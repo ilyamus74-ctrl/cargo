@@ -1,0 +1,120 @@
+<form id="item-stock-modal-form" class="row g-3">
+  <input type="hidden" name="item_id" value="{$item.id}">
+
+  <div class="col-md-4">
+    <label for="tuid" class="form-label">
+      TUID
+      <span id="ocrCarrierInfo" class="text-muted"></span>
+    </label>
+    <input type="text" class="form-control" id="tuid" name="tuid" required value="{$item.tuid|escape}">
+  </div>
+
+  <div class="col-md-4">
+    <label for="trackingNo" class="form-label">Трек-номер</label>
+    <input type="text" class="form-control" id="trackingNo" name="tracking_no" required value="{$item.tracking_no|escape}">
+  </div>
+
+  <div class="col-md-4">
+    <label for="carrierName" class="form-label">Перевозчик</label>
+    <input type="text" class="form-control" id="carrierName" name="carrier_name" readonly value="{$item.carrier_name|escape}">
+    <input type="hidden" id="senderName" name="carrier_code" value="{$item.carrier_code|escape}">
+  </div>
+
+  <div class="col-md-4">
+    <label class="form-label" for="receiverCountry">Страна получателя</label>
+    <select class="form-select"
+            id="receiverCountry"
+            name="receiver_country_code">
+      {foreach $dest_country as $b}
+        <option value="{$b.code_iso2}" {if $b.code_iso2 == $item.receiver_country_code}selected{/if}>{$b.name_en}</option>
+      {/foreach}
+    </select>
+  </div>
+
+  <div class="col-md-6">
+    <label for="receiverName" class="form-label">Получатель</label>
+    <input type="text" class="form-control" id="receiverName" name="receiver_name" value="{$item.receiver_name|escape}">
+  </div>
+
+  <div class="col-md-6">
+    <label for="receiverAddress" class="form-label">Ячейка</label>
+    <input type="text" class="form-control" id="receiverAddress" name="receiver_address" value="{$item.receiver_address|escape}">
+  </div>
+
+  <div class="col-md-6">
+    <label for="cellId" class="form-label">Ячейки (адрес хранения)</label>
+    <select class="form-select" id="cellId" name="cell_id">
+      <option value="">— не назначать —</option>
+      {foreach $cells as $cell}
+        <option value="{$cell.id|escape}" {if $cell.id == $item.cell_id}selected{/if}>{$cell.code|escape}</option>
+      {/foreach}
+    </select>
+  </div>
+
+
+  <div class="col-md-6">
+    <label class="form-label" for="receiverCompany">Компания форвард</label>
+    <select class="form-select"
+            id="receiverCompany"
+            name="receiver_company">
+      <option value="COLIBRI" {if $item.receiver_company == 'COLIBRI'}selected{/if}>COLIBRI</option>
+      <option value="KOLLI" {if $item.receiver_company == 'KOLLI'}selected{/if}>KOLLI</option>
+      <option value="ASER" {if $item.receiver_company == 'ASER'}selected{/if}>ASER</option>
+      <option value="CAMEX" {if $item.receiver_company == 'CAMEX'}selected{/if}>CAMEX</option>
+      <option value="KARGOFLEX" {if $item.receiver_company == 'KARGOFLEX'}selected{/if}>KARGOFLEX</option>
+      <option value="CAMARATC" {if $item.receiver_company == 'CAMARATC'}selected{/if}>CAMARATC</option>
+      <option value="POSTLINK" {if $item.receiver_company == 'POSTLINK'}selected{/if}>POSTLINK</option>
+    </select>
+  </div>
+
+  <div class="col-md-6">
+    <label for="senderName" class="form-label">Форвард CODE</label>
+    <input type="text" class="form-control" id="carrierCode" name="sender_code" value="{$item.sender_name|escape}">
+  </div>
+
+  <div class="col-md-6">
+    <label for="standDevice" class="form-label">Устройство измерения</label>
+    <select class="form-select" id="standDevice" name="stand_device_uid">
+      <option value="">— выберите устройство —</option>
+      {foreach $stand_devices as $device}
+        <option value="{$device.device_uid|escape}" data-device-token="{$device.device_token|escape}">
+          {if $device.name}{$device.name|escape}{else}{$device.device_uid|escape}{/if}
+        </option>
+      {/foreach}
+    </select>
+  </div>
+
+  <div class="col-md-6 d-flex align-items-end">
+    <button type="button" class="btn btn-outline-secondary" id="standMeasureBtn">
+      Получить измерения
+    </button>
+  </div>
+
+  <div class="col-md-3">
+    <label for="weightKg" class="form-label">Вес, кг</label>
+    <input type="number" step="0.001" class="form-control" id="weightKg" name="weight_kg" value="{$item.weight_kg|escape}">
+  </div>
+
+  <div class="col-md-3">
+    <label for="sizeL" class="form-label">Длина, см</label>
+    <input type="number" step="0.1" class="form-control" id="sizeL" name="size_l_cm" value="{$item.size_l_cm|escape}">
+  </div>
+
+  <div class="col-md-3">
+    <label for="sizeW" class="form-label">Ширина, см</label>
+    <input type="number" step="0.1" class="form-control" id="sizeW" name="size_w_cm" value="{$item.size_w_cm|escape}">
+  </div>
+
+  <div class="col-md-3">
+    <label for="sizeH" class="form-label">Высота, см</label>
+    <input type="number" step="0.1" class="form-control" id="sizeH" name="size_h_cm" value="{$item.size_h_cm|escape}">
+  </div>
+
+  <div class="col-12">
+    <button type="button"
+            class="btn btn-primary js-core-link"
+            data-core-action="save_item_stock">
+      Сохранить
+    </button>
+  </div>
+</form>
