@@ -33,6 +33,7 @@
                 <div class="tab-pane fade show active" id="warehouse-move-scanner" role="tabpanel" aria-labelledby="warehouse-move-scanner-tab">
                   <p class="text-muted mb-1">Содержимое вкладки будет добавлено позже.</p>
                   <small class="text-muted">Цель: присвоение новых значений <code>warehouse_item_stock.cell_id</code> для товаров на складе.</small>
+                  <input type="hidden" id="warehouseMoveTracking" value="">
                 </div>
                 <div class="tab-pane fade" id="warehouse-move-batch" role="tabpanel" aria-labelledby="warehouse-move-batch-tab">
                   <p class="text-muted mb-1">Содержимое вкладки будет добавлено позже.</p>
@@ -44,3 +45,24 @@
         </div>
       </div>
     </section>
+
+
+<script id="device-scan-config" type="application/json">
+{
+  "task_id": "warehouse_move",
+  "default_mode": "ocr",
+  "modes": ["ocr"],
+  "barcode": { "action": "fill_field", "field_id": "warehouseMoveTracking" },
+  "qr":      { "action": "api_check",  "endpoint": "/api/qr_check.php" }
+}
+</script>
+<div id="ocr-templates" style="display:none">
+    {$jsonOcrTemplates}
+</div>
+<div id="ocr-templates-destcountry" style="display:none">
+    {$jsonDestCountry}
+</div>
+
+<div id="ocr-dicts" style="display:none">
+    {$jsonOcrDicts}
+</div>

@@ -1,11 +1,17 @@
 {
     "stand_id": "dev-6db694ae-ca1c-4c0a-8658-bce37ca8681c-b3752d559a60137b",
     "device_id": 17,
-    "timestamp": 1768745687,
+    "timestamp": 1768836993,
     "debug_payload": {
-        "stable_count": 0,
+        "raw_json": "{\"status\":\"heartbeat\",\"ms\":48625,\"calibrated\":true,\"hx711_ready\":false,\"scale_cal\":-21000.000}",
+        "stable_count": 11,
         "raw_metrics": [],
-        "calibrated": [],
+        "calibrated": {
+            "weight_g": 389,
+            "width_mm": 172,
+            "depth_mm": 260,
+            "height_mm": 132
+        },
         "deviation": []
     }
 }

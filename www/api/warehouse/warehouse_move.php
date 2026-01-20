@@ -10,6 +10,10 @@ $response = ['status' => 'error', 'message' => 'Unknown warehouse move action'];
 if ($action === 'warehouse_move') {
     auth_require_login();
 
+///    require_once __DIR__ . '/../../ocr_templates.php';
+///    require_once __DIR__ . '/../../ocr_dicts.php';
+
+
     $smarty->assign('current_user', $user);
     ob_start();
     $smarty->display('cells_NA_API_warehouse_move.html');
