@@ -956,6 +956,7 @@ fun AppRoot() {
                         destConfig = destConfig,
                         config = config,
                         nameDict = nameDict,
+                        taskConfig = taskConfig,
                         isDefaultMode = ocrIsDefault,
                         onResult = { ocrData ->
                             showOcr = false
@@ -3264,6 +3265,7 @@ fun OcrScanScreen(
     destConfig: List<DestCountryCfg>,          // ДОБАВЛЕНО
     config: DeviceConfig,
     nameDict: NameDict?,                         // <<< НОВОЕ
+    taskConfig: ScanTaskConfig?,
     isDefaultMode: Boolean,
     onResult: (OcrParcelData) -> Unit,
     onCancel: () -> Unit,
@@ -3522,8 +3524,20 @@ fun OcrScanScreen(
                 modifier = Modifier.fillMaxSize(),
                 factory = { previewView }
             )
-            // БАННЕР DEFAULT поверх камеры
-            if (isDefaultMode) {
+
+            val taskLabel = taskConfig?.taskId
+                ?.trim()
+                ?.takeIf { it.isNotEmpty() }
+                ?.replace("_", " ")
+            val bannerText = taskLabel ?: if (isDefaultMode) "DEFAULT" else null
+            val bannerColor = if (taskLabel != null) {
+                androidx.compose.ui.graphics.Color(0xFF2E7D32)
+            } else {
+                MaterialTheme.colorScheme.error
+            }
+
+            // БАННЕР поверх камеры
+            if (bannerText != null) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -3532,8 +3546,8 @@ fun OcrScanScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = "DEFAULT",
-                        color = MaterialTheme.colorScheme.error,
+                        text = bannerText,
+                        color = bannerColor,
                         style = MaterialTheme.typography.headlineLarge,
                         fontWeight = androidx.compose.ui.text.font.FontWeight.Black
                     )
