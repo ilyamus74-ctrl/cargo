@@ -4,6 +4,7 @@ package com.example.ocrscannertest
 import android.content.Context
 import android.os.Build
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import java.io.InputStream
@@ -110,20 +111,94 @@ if (root) new MutationObserver(schedule).observe(root, {childList:true, subtree:
 """.trimIndent()
 
 enum class WarehouseScanStep { BARCODE, OCR, MEASURE, SUBMIT }
-class MainActivity : ComponentActivity() {
-    companion object {
-        var onVolumeDown: (() -> Unit)? = null
-        var onVolumeUp:   (() -> Unit)? = null
+
+private const val VOLUME_DOUBLE_TAP_WINDOW_MS = 300L
+
+private class VolumeButtonDispatcher(
+    private val handler: Handler = Handler(Looper.getMainLooper())
+) {
+    private var lastVolumeDownTs: Long = 0L
+    private var lastVolumeUpTs: Long = 0L
+    private var pendingVolumeDown: Runnable? = null
+    private var pendingVolumeUp: Runnable? = null
+
+    fun onVolumeDown(single: (() -> Unit)?, double: (() -> Unit)?) {
+        handlePress(
+            now = System.currentTimeMillis(),
+            lastTs = lastVolumeDownTs,
+            setLastTs = { lastVolumeDownTs = it },
+            pending = pendingVolumeDown,
+            setPending = { pendingVolumeDown = it },
+            single = single,
+            double = double
+        )
     }
 
+    fun onVolumeUp(single: (() -> Unit)?, double: (() -> Unit)?) {
+        handlePress(
+            now = System.currentTimeMillis(),
+            lastTs = lastVolumeUpTs,
+            setLastTs = { lastVolumeUpTs = it },
+            pending = pendingVolumeUp,
+            setPending = { pendingVolumeUp = it },
+            single = single,
+            double = double
+        )
+    }
+
+    private fun handlePress(
+        now: Long,
+        lastTs: Long,
+        setLastTs: (Long) -> Unit,
+        pending: Runnable?,
+        setPending: (Runnable?) -> Unit,
+        single: (() -> Unit)?,
+        double: (() -> Unit)?
+    ) {
+        val delta = now - lastTs
+        if (delta in 0..VOLUME_DOUBLE_TAP_WINDOW_MS) {
+            pending?.let { handler.removeCallbacks(it) }
+            setPending(null)
+            setLastTs(0L)
+            double?.invoke()
+            return
+        }
+
+        setLastTs(now)
+        val runnable = Runnable {
+            setPending(null)
+            single?.invoke()
+        }
+        setPending(runnable)
+        handler.postDelayed(runnable, VOLUME_DOUBLE_TAP_WINDOW_MS)
+    }
+}
+
+class MainActivity : ComponentActivity() {
+    companion object {
+        var onVolDownSingle: (() -> Unit)? = null
+        var onVolDownDouble: (() -> Unit)? = null
+        var onVolUpSingle: (() -> Unit)? = null
+        var onVolUpDouble: (() -> Unit)? = null
+    }
+
+    private val volumeButtonDispatcher = VolumeButtonDispatcher()
+
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
+        val repeat = event?.repeatCount ?: 0
+
+        // глушим авто-повтор ТОЛЬКО для кнопок громкости
+        if (repeat > 0 && (keyCode == KeyEvent.KEYCODE_VOLUME_DOWN || keyCode == KeyEvent.KEYCODE_VOLUME_UP)) {
+            return true
+        }
+
         when (keyCode) {
             KeyEvent.KEYCODE_VOLUME_DOWN -> {
-                onVolumeDown?.invoke()
+                volumeButtonDispatcher.onVolumeDown(onVolDownSingle, onVolDownDouble)
                 return true
             }
             KeyEvent.KEYCODE_VOLUME_UP -> {
-                onVolumeUp?.invoke()
+                volumeButtonDispatcher.onVolumeUp(onVolUpSingle, onVolUpDouble)
                 return true
             }
         }
@@ -192,51 +267,311 @@ fun AppRoot() {
     // Шаги потока складского сканирования
 
     var warehouseScanStep by remember { mutableStateOf(WarehouseScanStep.BARCODE) }
+    var warehouseMoveScannerCellId by remember { mutableStateOf<String?>(null) }
+    var warehouseMoveScannerCellCode by remember { mutableStateOf<String?>(null) }
+    var warehouseMoveBatchCellId by remember { mutableStateOf<String?>(null) }
+    var warehouseMoveBatchCellCode by remember { mutableStateOf<String?>(null) }
 
     // Оверлей штрих-кодов
     var showBarcodeScan by remember { mutableStateOf(false) }
 
-    // трекинг двойного нажатия
-    var lastVolumeUpTs by remember { mutableStateOf(0L) }
-
     // колбэк, который будет вызываться при VOL_DOWN, когда открыт OCR
     var ocrHardwareTrigger by remember { mutableStateOf<(() -> Unit)?>(null) }
     var barcodeHardwareTrigger by remember { mutableStateOf<(() -> Unit)?>(null) }
-    LaunchedEffect(showWebView, showOcr, showBarcodeScan, ocrHardwareTrigger, barcodeHardwareTrigger, webViewRef) {
+
+    val buttonMappings = taskConfig?.buttons ?: emptyMap()
+    val hasButtonMappings = buttonMappings.isNotEmpty()
+    val taskIdNorm = taskConfig?.taskId?.trim()?.lowercase()
+    val isWarehouseMove = taskConfig?.taskId == "warehouse_move"
+    val isWarehouseIn = taskConfig?.taskId == "warehouse_in"
+
+    fun fieldSelector(action: ScanAction?): String? {
+        val fieldId = action?.fieldId?.trim()?.takeIf { it.isNotEmpty() }
+        val fieldName = action?.fieldName?.trim()?.takeIf { it.isNotEmpty() }
+        return when {
+            fieldId != null -> "#$fieldId"
+            fieldName != null -> "[name=\"${escapeJsSelector(fieldName)}\"]"
+            else -> null
+        }
+    }
+
+    fun openDefaultScanner() {
+        when (taskConfig?.defaultMode?.lowercase()) {
+            "ocr" -> {
+                ocrIsDefault = (taskConfig == null)
+                showOcr = true
+            }
+            "barcode", "qr" -> {
+                // QR тоже пусть идет через BarcodeScanScreen, он у тебя умеет QR
+                showBarcodeScan = true
+            }
+            else -> {
+                // безопасный дефолт
+                showBarcodeScan = true
+            }
+        }
+    }
+
+    fun triggerScanAction() {
         when {
-            showBarcodeScan && barcodeHardwareTrigger != null -> {
-                MainActivity.onVolumeDown = {
-                    barcodeHardwareTrigger?.invoke()
-                }
-                MainActivity.onVolumeUp = null
-            }
+            showBarcodeScan && barcodeHardwareTrigger != null -> barcodeHardwareTrigger?.invoke()
+            showOcr && ocrHardwareTrigger != null -> ocrHardwareTrigger?.invoke()
+            else -> openDefaultScanner()
+        }
+    }
 
-            // Если открыт экран OCR и есть триггер — VOL_DOWN стреляет OCR
-            showOcr && ocrHardwareTrigger != null -> {
-                MainActivity.onVolumeDown = {
-                    ocrHardwareTrigger?.invoke()
-                }
-                MainActivity.onVolumeUp = null
-            }
+    fun clearWarehouseMoveState(contextKey: String, contextConfig: ScanContextConfig) {
+        val field = fieldSelector(contextConfig.barcode)
+        val selectId = contextConfig.qr?.applyToSelectId
+        webViewRef?.let { web ->
+            field?.let { setInputValueBySelector(web, it, "") }
+            selectId?.let { setSelectValueById(web, it, "") }
+        }
+        if (contextKey == "batch" || selectId != null) {
+            warehouseMoveBatchCellId = null
+            warehouseMoveBatchCellCode = null
+        } else {
+            warehouseMoveScannerCellId = null
+            warehouseMoveScannerCellCode = null
+        }
+    }
 
-            // Если открыт WebView (форма склада)
-            showWebView -> {
-                val isWarehouseIn = taskConfig?.taskId == "warehouse_in"
+    fun handleWarehouseMoveConfirm(contextKey: String, contextConfig: ScanContextConfig) {
+        val moveEndpoint = taskConfig?.api?.get("move_apply") ?: return
+        val trackingField = fieldSelector(contextConfig.barcode)
+        if (trackingField.isNullOrBlank()) return
+        val isBatchContext = contextKey == "batch" || contextConfig.qr?.applyToSelectId != null
+        val cellId = if (isBatchContext) warehouseMoveBatchCellId else warehouseMoveScannerCellId
+        if (cellId.isNullOrBlank()) return
 
-                fun handleDoubleVolumeUp(): Boolean {
-                    val now = System.currentTimeMillis()
-                    val delta = now - lastVolumeUpTs
-                    lastVolumeUpTs = now
-                    val isDouble = delta in 50..450
-                    if (isDouble) {
-                        webViewRef?.let { web -> clearParcelFormInWebView(web) }
-                        warehouseScanStep = WarehouseScanStep.BARCODE
-                        showOcr = false
-                        showBarcodeScan = false
+        webViewRef?.let { web ->
+            getInputValueBySelector(web, trackingField) { tracking ->
+                val cleanTracking = tracking?.trim()?.takeIf { it.isNotEmpty() } ?: return@getInputValueBySelector
+                scope.launch {
+                    val result = applyWarehouseMoveWithSession(
+                        cfg = config,
+                        endpoint = moveEndpoint,
+                        tracking = cleanTracking,
+                        cellId = cellId,
+                        mode = contextKey
+                    )
+                    if (result.ok) {
+                        webViewRef?.let { view ->
+                            setInputValueBySelector(view, trackingField, "")
+                        }
                     }
-                    return isDouble
                 }
-                MainActivity.onVolumeDown = {
+            }
+        }
+    }
+    fun resolveActiveWarehouseContext(onResolved: (String, ScanContextConfig) -> Unit) {
+        val cfg = taskConfig ?: return
+        val webView = webViewRef ?: return
+
+        val contexts = cfg.contexts
+
+        // fallback: если contexts нет — используем корневые barcode/qr как единственный контекст
+        if (contexts.isEmpty()) {
+            val fallbackCtx = ScanContextConfig(
+                activeTabSelector = null,
+                barcode = cfg.barcodeAction,
+                qr = cfg.qrAction
+            )
+            onResolved("default", fallbackCtx)
+            return
+        }
+
+        resolveActiveContextId(webView, contexts) { activeKey ->
+            val resolvedKey = activeKey ?: contexts.keys.firstOrNull()
+            val resolvedContext = resolvedKey?.let { contexts[it] }
+            if (resolvedKey != null && resolvedContext != null) {
+                onResolved(resolvedKey, resolvedContext)
+            }
+        }
+    }
+    fun warehouseInDownSingle() {
+        when (warehouseScanStep) {
+            WarehouseScanStep.BARCODE -> {
+                webViewRef?.let { web -> clearTrackingAndTuidInWebView(web) }
+                showBarcodeScan = true
+            }
+            WarehouseScanStep.OCR -> {
+                ocrIsDefault = taskConfig == null
+                showOcr = true
+            }
+            WarehouseScanStep.MEASURE -> {
+                webViewRef?.let { web ->
+                    withStandDeviceSelected(web) { selected ->
+                        if (selected) {
+                            requestStandMeasurementInWebView(web)
+                            warehouseScanStep = WarehouseScanStep.SUBMIT
+                        } else {
+                            prepareFormForNextScanInWebView(web)
+                            warehouseScanStep = WarehouseScanStep.BARCODE
+                        }
+                    }
+                }
+            }
+            WarehouseScanStep.SUBMIT -> {
+                webViewRef?.let { web -> prepareFormForNextScanInWebView(web) }
+                warehouseScanStep = WarehouseScanStep.BARCODE
+            }
+        }
+    }
+
+    fun warehouseInConfirm() {
+        // confirm имеет смысл только на SUBMIT (добавление/фиксирование)
+        if (warehouseScanStep == WarehouseScanStep.SUBMIT) {
+            webViewRef?.let { web -> prepareFormForNextScanInWebView(web) }
+            warehouseScanStep = WarehouseScanStep.BARCODE
+        }
+    }
+
+    fun warehouseInUpSingle() {
+        when (warehouseScanStep) {
+            WarehouseScanStep.BARCODE -> {
+                webViewRef?.let { web -> clearTrackingAndTuidInWebView(web) }
+            }
+            WarehouseScanStep.OCR -> {
+                webViewRef?.let { web -> clearParcelFormExceptTrack(web) }
+                warehouseScanStep = WarehouseScanStep.OCR
+            }
+            WarehouseScanStep.MEASURE -> {
+                webViewRef?.let { web ->
+                    withStandDeviceSelected(web) { selected ->
+                        if (selected) {
+                            clearMeasurementsInWebView(web)
+                        } else {
+                            clearParcelFormExceptTrack(web)
+                            warehouseScanStep = WarehouseScanStep.OCR
+                        }
+                    }
+                }
+            }
+            WarehouseScanStep.SUBMIT -> {
+                webViewRef?.let { web ->
+                    withStandDeviceSelected(web) { selected ->
+                        if (selected) {
+                            clearMeasurementsInWebView(web)
+                            warehouseScanStep = WarehouseScanStep.MEASURE
+                        } else {
+                            clearParcelFormExceptTrack(web)
+                            warehouseScanStep = WarehouseScanStep.OCR
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    fun warehouseInResetAll() {
+        webViewRef?.let { web -> clearParcelFormInWebView(web) }
+        warehouseScanStep = WarehouseScanStep.BARCODE
+        showOcr = false
+        showBarcodeScan = false
+    }
+    fun dispatchButtonAction(action: String?) {
+        when (action) {
+
+            "scan" -> {
+                // если уже открыт overlay — scan должен триггерить камеру
+                if (showBarcodeScan || showOcr) {
+                    triggerScanAction()
+                    return
+                }
+                // если warehouse_in и мы на WebView — рулит step machine
+                if (isWarehouseIn && showWebView) {
+                    warehouseInDownSingle()
+                    return
+                }
+                triggerScanAction()
+            }
+
+            "confirm" -> {
+                when {
+                    isWarehouseMove -> {
+                        resolveActiveWarehouseContext { key, ctx ->
+                            handleWarehouseMoveConfirm(key, ctx)
+                        }
+                    }
+                    isWarehouseIn -> {
+                        warehouseInConfirm()
+                    }
+                }
+            }
+
+            "clear" -> {
+                when {
+                    isWarehouseMove -> {
+                        resolveActiveWarehouseContext { key, ctx ->
+                            clearWarehouseMoveState(key, ctx)
+                        }
+                    }
+                    isWarehouseIn -> {
+                        warehouseInUpSingle()
+                    }
+                    else -> {
+                        webViewRef?.let { web -> clearParcelFormInWebView(web) }
+                    }
+                }
+            }
+
+            "reset" -> {
+                // отдельное действие для double-up в твоей логике
+                when {
+                    isWarehouseIn -> warehouseInResetAll()
+                    else -> webViewRef?.let { web -> clearParcelFormInWebView(web) }
+                }
+            }
+
+            "back" -> {
+                val web = webViewRef
+                if (web != null && web.canGoBack()) {
+                    web.goBack()
+                } else {
+                    showWebView = false
+                }
+            }
+
+            "toggle_mode", "noop", null -> Unit
+        }
+    }
+
+
+    LaunchedEffect(
+        showWebView,
+        showOcr,
+        showBarcodeScan,
+        ocrHardwareTrigger,
+        barcodeHardwareTrigger,
+        webViewRef,
+        taskConfig
+    ) {
+        when {
+            hasButtonMappings && (showWebView || showBarcodeScan || showOcr) -> {
+                MainActivity.onVolDownSingle = { dispatchButtonAction(buttonMappings["vol_down_single"]) }
+                MainActivity.onVolDownDouble = { dispatchButtonAction(buttonMappings["vol_down_double"]) }
+                MainActivity.onVolUpSingle = { dispatchButtonAction(buttonMappings["vol_up_single"]) }
+                MainActivity.onVolUpDouble = { dispatchButtonAction(buttonMappings["vol_up_double"]) }
+            }
+
+            showBarcodeScan && barcodeHardwareTrigger != null -> {
+                MainActivity.onVolDownSingle = { barcodeHardwareTrigger?.invoke() }
+                MainActivity.onVolDownDouble = null
+                MainActivity.onVolUpSingle = null
+                MainActivity.onVolUpDouble = null
+            }
+
+            showOcr && ocrHardwareTrigger != null -> {
+                MainActivity.onVolDownSingle = { ocrHardwareTrigger?.invoke() }
+                MainActivity.onVolDownDouble = null
+                MainActivity.onVolUpSingle = null
+                MainActivity.onVolUpDouble = null
+            }
+
+
+            showWebView -> {
+                MainActivity.onVolDownSingle = {
                     if (isWarehouseIn) {
                         when (warehouseScanStep) {
                             WarehouseScanStep.BARCODE -> {
@@ -276,14 +611,25 @@ fun AppRoot() {
                             "qr"      -> { showQrScan = true }
                             "barcode" -> { /* showBarcodeScan = true */ }
                             "ocr"     -> { showOcr = true }
-                            else      -> { showOcr = true } // fallback
+                            else      -> { showOcr = true }
                         }
                     }
                 }
-
-                MainActivity.onVolumeUp = volumeUp@{
+                MainActivity.onVolDownDouble = {
                     if (isWarehouseIn) {
-                        if (handleDoubleVolumeUp()) return@volumeUp
+                        warehouseInConfirm()
+                    }
+                }
+                MainActivity.onVolUpDouble = {
+                    if (isWarehouseIn) {
+                        webViewRef?.let { web -> clearParcelFormInWebView(web) }
+                        warehouseScanStep = WarehouseScanStep.BARCODE
+                        showOcr = false
+                        showBarcodeScan = false
+                    }
+                }
+                MainActivity.onVolUpSingle = {
+                    if (isWarehouseIn) {
 
                         when (warehouseScanStep) {
                             WarehouseScanStep.BARCODE -> {
@@ -323,13 +669,13 @@ fun AppRoot() {
                         webViewRef?.let { web -> clearParcelFormInWebView(web) }
                     }
                 }
-
             }
 
-            // В остальных экранах кнопки громкости не трогаем
             else -> {
-                MainActivity.onVolumeDown = null
-                MainActivity.onVolumeUp = null
+                MainActivity.onVolDownSingle = null
+                MainActivity.onVolDownDouble = null
+                MainActivity.onVolUpSingle = null
+                MainActivity.onVolUpDouble = null
             }
         }
     }
@@ -471,9 +817,14 @@ fun AppRoot() {
                         config = config,
                         onWebViewReady = { webView -> webViewRef = webView },
 
-                        onContextUpdated = { taskJson: String?, tmplJson: String?, destJson: String?, dictJson: String? ->
-                            taskConfigJson = taskJson
-                            taskConfig = taskJson?.let { parseScanTaskConfig(it) }
+                        onContextUpdated = { taskJson, tmplJson, destJson, dictJson ->
+
+                            val parsedTask = taskJson?.let { parseScanTaskConfig(it) }
+                            if (parsedTask != null) {
+                                taskConfigJson = taskJson
+                                taskConfig = parsedTask
+                            }
+                            // ВАЖНО: если taskJson == null — ничего не делаем, оставляем старый taskConfig
 
                             tmplJson?.let { ocrTemplates = parseOcrTemplates(it) }
                             destJson?.let { destConfig = parseDestConfigJson(it) }
@@ -533,16 +884,48 @@ fun AppRoot() {
                     val isWarehouseIn = taskConfig?.taskId == "warehouse_in"
                     BarcodeScanScreen(
                         modifier = Modifier.fillMaxSize(),
-                        onResult = { raw ->
+                        onResult = { result ->
                             showBarcodeScan = false
-                            val cleanBarcode = sanitizeBarcodeInput(raw)
-                            val data = buildParcelFromBarcode(cleanBarcode, sanitizeInput = false)
-                            webViewRef?.let { web ->
-                                fillBarcodeUsingTemplate(web, cleanBarcode, taskConfig?.barcodeAction)
-                                fillParcelFormInWebView(web, data, taskConfig)
-                            }
-                            if (isWarehouseIn) {
-                                warehouseScanStep = WarehouseScanStep.OCR
+                            if (isWarehouseMove) {
+                                resolveActiveWarehouseContext { contextKey, contextConfig ->
+                                    val action = if (result.isQr) {
+                                        contextConfig.qr
+                                    } else {
+                                        contextConfig.barcode
+                                    }
+                                    handleWarehouseMoveScanResult(
+                                        config = config,
+                                        scope = scope,
+                                        webView = webViewRef,
+                                        scanResult = result,
+                                        action = action,
+                                        contextKey = contextKey,
+                                        contextConfig = contextConfig,
+                                        onScannerCellUpdate = { cellId, cellCode ->
+                                            warehouseMoveScannerCellId = cellId
+                                            warehouseMoveScannerCellCode = cellCode
+                                        },
+                                        onBatchCellUpdate = { cellId, cellCode ->
+                                            warehouseMoveBatchCellId = cellId
+                                            warehouseMoveBatchCellCode = cellCode
+                                        }
+                                    )
+                                }
+                            } else {
+                                val cleanBarcode = sanitizeBarcodeInput(result.rawValue)
+                                val data = buildParcelFromBarcode(cleanBarcode, sanitizeInput = false)
+                                webViewRef?.let { web ->
+                                    val action = if (result.isQr) {
+                                        taskConfig?.qrAction
+                                    } else {
+                                        taskConfig?.barcodeAction
+                                    }
+                                    fillBarcodeUsingTemplate(web, cleanBarcode, action)
+                                    fillParcelFormInWebView(web, data, taskConfig)
+                                }
+                                if (isWarehouseIn) {
+                                    warehouseScanStep = WarehouseScanStep.OCR
+                                }
                             }
                         },
                         onCancel = {
@@ -1305,6 +1688,154 @@ data class QrLoginResult(
     val sessionId: String?,
     val errorMessage: String?
 )
+
+data class ApiCallResult(
+    val ok: Boolean,
+    val json: JSONObject?,
+    val errorMessage: String?
+)
+
+data class QrCheckResult(
+    val ok: Boolean,
+    val cellId: String?,
+    val cellCode: String?,
+    val errorMessage: String?
+)
+
+data class MoveApplyResult(
+    val ok: Boolean,
+    val errorMessage: String?
+)
+
+private fun applyInsecureSslIfNeeded(conn: HttpURLConnection, cfg: DeviceConfig) {
+    if (conn is HttpsURLConnection && cfg.allowInsecureSsl) {
+        val trustAllCerts = arrayOf<TrustManager>(
+            object : X509TrustManager {
+                override fun checkClientTrusted(chain: Array<X509Certificate>, authType: String) {}
+                override fun checkServerTrusted(chain: Array<X509Certificate>, authType: String) {}
+                override fun getAcceptedIssuers(): Array<X509Certificate> = emptyArray()
+            }
+        )
+        val sslContext = SSLContext.getInstance("TLS")
+        sslContext.init(null, trustAllCerts, SecureRandom())
+        conn.sslSocketFactory = sslContext.socketFactory
+        conn.hostnameVerifier = HostnameVerifier { _: String?, _: SSLSession? -> true }
+    }
+}
+
+private fun buildApiUrl(baseUrl: String, endpoint: String): String {
+    if (endpoint.startsWith("http://") || endpoint.startsWith("https://")) {
+        return endpoint
+    }
+    val base = baseUrl.trimEnd('/')
+    val path = if (endpoint.startsWith("/")) endpoint else "/$endpoint"
+    return base + path
+}
+
+suspend fun callApiWithSessionCookie(
+    cfg: DeviceConfig,
+    endpoint: String,
+    method: String = "POST",
+    body: JSONObject
+): ApiCallResult = withContext(Dispatchers.IO) {
+    val baseUrl = normalizeServerUrl(cfg.serverUrl)
+    if (baseUrl.isBlank()) {
+        return@withContext ApiCallResult(false, null, "Пустой Server URL")
+    }
+
+    val urlStr = buildApiUrl(baseUrl, endpoint)
+    val url = URL(urlStr)
+    val conn = (url.openConnection() as HttpURLConnection)
+    applyInsecureSslIfNeeded(conn, cfg)
+
+    try {
+        conn.requestMethod = method
+        conn.connectTimeout = 5000
+        conn.readTimeout = 5000
+        conn.doOutput = true
+        conn.setRequestProperty("Content-Type", "application/json; charset=utf-8")
+
+        val cookies = CookieManager.getInstance().getCookie(urlStr)
+            ?: CookieManager.getInstance().getCookie(baseUrl)
+        if (!cookies.isNullOrBlank()) {
+            conn.setRequestProperty("Cookie", cookies)
+        }
+
+        val bodyBytes = body.toString().toByteArray(Charsets.UTF_8)
+        conn.outputStream.use { it.write(bodyBytes) }
+
+        val code = conn.responseCode
+        val stream: InputStream? =
+            if (code in 200..299) conn.inputStream else conn.errorStream
+
+        val respText = stream?.bufferedReader(Charsets.UTF_8)?.readText() ?: ""
+        if (respText.isBlank()) {
+            return@withContext ApiCallResult(false, null, "Пустой ответ сервера (HTTP $code)")
+        }
+
+        val obj = try {
+            JSONObject(respText)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            return@withContext ApiCallResult(false, null, "Некорректный JSON ответа")
+        }
+
+        ApiCallResult(true, obj, null)
+    } catch (e: Exception) {
+        e.printStackTrace()
+        ApiCallResult(false, null, e.message ?: "Ошибка соединения")
+    } finally {
+        conn.disconnect()
+    }
+}
+
+suspend fun qrCheckWithSession(
+    cfg: DeviceConfig,
+    endpoint: String,
+    qrRaw: String
+): QrCheckResult {
+    val payload = JSONObject().apply {
+        put("qr", qrRaw)
+    }
+    val result = callApiWithSessionCookie(cfg, endpoint, body = payload)
+    if (!result.ok) {
+        return QrCheckResult(false, null, null, result.errorMessage)
+    }
+    val obj = result.json ?: return QrCheckResult(false, null, null, "Нет ответа сервера")
+    val status = obj.optString("status", "error")
+    if (status != "ok") {
+        val msg = obj.optString("message", "status != ok")
+        return QrCheckResult(false, null, null, msg)
+    }
+    val cellId = obj.optString("cell_id", "").takeIf { it.isNotBlank() }
+    val cellCode = obj.optString("cell_code", "").takeIf { it.isNotBlank() }
+    return QrCheckResult(true, cellId, cellCode, null)
+}
+
+suspend fun applyWarehouseMoveWithSession(
+    cfg: DeviceConfig,
+    endpoint: String,
+    tracking: String,
+    cellId: String,
+    mode: String
+): MoveApplyResult {
+    val payload = JSONObject().apply {
+        put("tracking", tracking)
+        put("cell_id", cellId)
+        put("mode", mode)
+    }
+    val result = callApiWithSessionCookie(cfg, endpoint, body = payload)
+    if (!result.ok) {
+        return MoveApplyResult(false, result.errorMessage)
+    }
+    val obj = result.json ?: return MoveApplyResult(false, "Нет ответа сервера")
+    val status = obj.optString("status", "error")
+    if (status != "ok") {
+        val msg = obj.optString("message", "status != ok")
+        return MoveApplyResult(false, msg)
+    }
+    return MoveApplyResult(true, null)
+}
 /**
  * Логин по QR:
  * POST /api/device_enroll.php
@@ -1779,6 +2310,93 @@ data class OcrParcelData(
 
 )
 
+fun escapeJsString(input: String): String =
+    input.replace("\\", "\\\\")
+        .replace("'", "\\'")
+        .replace("\n", " ")
+        .replace("\r", " ")
+
+fun escapeJsSelector(input: String): String =
+    input.replace("\\", "\\\\")
+        .replace("\"", "\\\"")
+
+fun setInputValueBySelector(webView: WebView, selector: String, value: String) {
+    val js = """
+        (function(){
+          var el = document.querySelector('${escapeJsString(selector)}');
+          if (!el) return;
+          el.value = '${escapeJsString(value)}';
+          el.dispatchEvent(new Event('input',{bubbles:true}));
+          el.dispatchEvent(new Event('change',{bubbles:true}));
+        })();
+    """.trimIndent()
+    webView.post { webView.evaluateJavascript(js, null) }
+}
+
+fun getInputValueBySelector(webView: WebView, selector: String, onResult: (String?) -> Unit) {
+    val js = """
+        (function(){
+          var el = document.querySelector('${escapeJsString(selector)}');
+          return el ? (el.value || '') : '';
+        })();
+    """.trimIndent()
+    webView.post {
+        webView.evaluateJavascript(js) { raw ->
+            val normalized = raw?.trim()?.trim('"')
+            onResult(normalized)
+        }
+    }
+}
+
+fun setSelectValueById(webView: WebView, selectId: String, value: String) {
+    val js = """
+        (function(){
+          var el = document.getElementById('${escapeJsString(selectId)}');
+          if (!el) return;
+          el.value = '${escapeJsString(value)}';
+          el.dispatchEvent(new Event('input',{bubbles:true}));
+          el.dispatchEvent(new Event('change',{bubbles:true}));
+        })();
+    """.trimIndent()
+    webView.post { webView.evaluateJavascript(js, null) }
+}
+
+fun resolveActiveContextId(
+    webView: WebView,
+    contexts: Map<String, ScanContextConfig>,
+    onResult: (String?) -> Unit
+) {
+    val entries = contexts.entries.toList()
+    fun checkIndex(index: Int) {
+        if (index >= entries.size) {
+            onResult(null)
+            return
+        }
+        val entry = entries[index]
+        val selector = entry.value.activeTabSelector?.takeIf { it.isNotBlank() }
+        if (selector.isNullOrBlank()) {
+            checkIndex(index + 1)
+            return
+        }
+        val js = """
+            (function(){
+              return !!document.querySelector('${escapeJsString(selector)}');
+            })();
+        """.trimIndent()
+        webView.post {
+            webView.evaluateJavascript(js) { raw ->
+                val isActive = raw?.trim()?.trim('"')?.lowercase() == "true"
+                if (isActive) {
+                    onResult(entry.key)
+                } else {
+                    checkIndex(index + 1)
+                }
+            }
+        }
+    }
+    checkIndex(0)
+}
+
 fun fillBarcodeUsingTemplate(webView: WebView, barcodeValue: String, action: ScanAction?) {
     if (action?.action != "fill_field") return
     val field = action.fieldId?.takeIf { it.isNotBlank() }
@@ -1806,6 +2424,47 @@ fun fillBarcodeUsingTemplate(webView: WebView, barcodeValue: String, action: Sca
 
     webView.post { webView.evaluateJavascript(js, null) }
 }
+
+fun handleWarehouseMoveScanResult(
+    config: DeviceConfig,
+    scope: CoroutineScope,
+    webView: WebView?,
+    scanResult: BarcodeScanResult,
+    action: ScanAction?,
+    contextKey: String,
+    contextConfig: ScanContextConfig,
+    onScannerCellUpdate: (String?, String?) -> Unit,
+    onBatchCellUpdate: (String?, String?) -> Unit
+) {
+    val targetWebView = webView ?: return
+    val resolvedAction = action ?: return
+    when (resolvedAction.action) {
+        "fill_field" -> {
+            val selector = resolvedAction.fieldId?.let { "#$it" }
+                ?: resolvedAction.fieldName?.let { "[name=\"${escapeJsSelector(it)}\"]" }
+                ?: return
+            setInputValueBySelector(targetWebView, selector, scanResult.rawValue)
+        }
+        "api_check" -> {
+            val endpoint = resolvedAction.endpoint ?: return
+            scope.launch {
+                val result = qrCheckWithSession(cfg = config, endpoint = endpoint, qrRaw = scanResult.rawValue)
+                if (!result.ok) return@launch
+                val cellId = result.cellId ?: return@launch
+                val cellCode = result.cellCode
+                val selectId = resolvedAction.applyToSelectId
+                    ?: contextConfig.qr?.applyToSelectId
+                if (contextKey == "batch" || selectId != null) {
+                    onBatchCellUpdate(cellId, cellCode)
+                    selectId?.let { setSelectValueById(targetWebView, it, cellId) }
+                } else {
+                    onScannerCellUpdate(cellId, cellCode)
+                }
+            }
+        }
+    }
+}
+
 
 fun requestStandMeasurementInWebView(webView: WebView) {
     val js = "if (window.requestStandMeasurement) { window.requestStandMeasurement(); }"
@@ -2365,10 +3024,17 @@ fun prepareFormForNextScanInWebView(webView: WebView) {
     webView.post { webView.evaluateJavascript(js, null) }
 }
 
+
+data class BarcodeScanResult(
+    val rawValue: String,
+    val format: Int,
+    val isQr: Boolean
+)
+
 @Composable
 fun BarcodeScanScreen(
     modifier: Modifier = Modifier,
-    onResult: (String) -> Unit,
+    onResult: (BarcodeScanResult) -> Unit,
     onCancel: () -> Unit,
     onBindHardwareTrigger: ( (()->Unit)? ) -> Unit,
 ) {
@@ -2442,18 +3108,41 @@ fun BarcodeScanScreen(
                             Barcode.FORMAT_EAN_13,
                             Barcode.FORMAT_UPC_A,
                             Barcode.FORMAT_UPC_E,
-                            Barcode.FORMAT_QR_CODE
+                            Barcode.FORMAT_QR_CODE,
+                            Barcode.FORMAT_EAN_8,
+                            Barcode.FORMAT_EAN_13,
+                            Barcode.FORMAT_UPC_A,
+                            Barcode.FORMAT_UPC_E,
+
+                            // 2D:
+                            Barcode.FORMAT_QR_CODE,
+                            Barcode.FORMAT_DATA_MATRIX,
+                            Barcode.FORMAT_PDF417,
+                            Barcode.FORMAT_AZTEC
                         )
                         .build()
 
                     val scanner = BarcodeScanning.getClient(options)
                     scanner.process(inputImage)
                         .addOnSuccessListener { codes ->
-                            val raw = codes.firstOrNull()?.rawValue
+                            val first = codes.firstOrNull()
+                            val raw = first?.rawValue
                             if (raw.isNullOrBlank()) {
                                 errorText = "Штрихкод не найден"
                             } else {
-                                onResult(raw)
+                                val is2D =
+                                    first.format == Barcode.FORMAT_QR_CODE ||
+                                            first.format == Barcode.FORMAT_DATA_MATRIX ||
+                                            first.format == Barcode.FORMAT_PDF417 ||
+                                            first.format == Barcode.FORMAT_AZTEC
+
+                                onResult(
+                                    BarcodeScanResult(
+                                        rawValue = raw,
+                                        format = first.format,
+                                        isQr = is2D
+                                    )
+                                )
                             }
                         }
                         .addOnFailureListener { e ->
@@ -3410,9 +4099,33 @@ data class ScanAction(
     val action: String,
     val fieldId: String? = null,
     val fieldName: String? = null,
-    val endpoint: String? = null
+    val endpoint: String? = null,
+    val applyToSelectId: String? = null
 )
 
+data class ScanContextConfig(
+    val activeTabSelector: String? = null,
+    val barcode: ScanAction? = null,
+    val qr: ScanAction? = null
+)
+
+/**
+ * device-scan-config поддерживает per-tab контексты:
+ *
+ * {
+ *   "contexts": {
+ *     "scanner": {
+ *       "active_tab_selector": "#warehouse-move-scanner-tab.nav-link.active",
+ *       "barcode": { "action": "fill_field", "field_id": "warehouse-move-search" },
+ *       "qr":      { "action": "api_check", "endpoint": "/api/qr_check.php" }
+ *     }
+ *   },
+ *   "buttons": {
+ *     "vol_down_single": "scan",
+ *     "vol_down_double": "confirm"
+ *   }
+ * }
+ */
 data class ScanTaskConfig(
     val taskId: String,
     val defaultMode: String,   // "ocr" | "barcode" | "qr"
@@ -3420,7 +4133,10 @@ data class ScanTaskConfig(
     val barcodeAction: ScanAction? = null,
     val qrAction: ScanAction? = null,
     val cellNullDefaultForward: Map<String, String> = emptyMap(),
-)
+    val contexts: Map<String, ScanContextConfig> = emptyMap(),
+    val buttons: Map<String, String> = emptyMap(),
+    val api: Map<String, String> = emptyMap()
+    )
 
 
 fun parseScanAction(obj: JSONObject?): ScanAction? {
@@ -3429,31 +4145,116 @@ fun parseScanAction(obj: JSONObject?): ScanAction? {
     val fieldId = obj.optString("field_id", "").takeIf { it.isNotBlank() }
     val fieldName = obj.optString("field_name", "").takeIf { it.isNotBlank() }
     val endpoint = obj.optString("endpoint", "").takeIf { it.isNotBlank() }
-    return ScanAction(action = action, fieldId = fieldId, fieldName = fieldName, endpoint = endpoint)
+    val applyToSelectId = obj.optString("apply_to_select_id", "").takeIf { it.isNotBlank() }
+    return ScanAction(
+        action = action,
+        fieldId = fieldId,
+        fieldName = fieldName,
+        endpoint = endpoint,
+        applyToSelectId = applyToSelectId
+    )
 }
 
 fun parseScanTaskConfig(json: String): ScanTaskConfig? = try {
     val obj = JSONObject(json)
-    val taskId = obj.optString("task_id", "unknown")
-    val def = obj.optString("default_mode", "ocr")
+
+    val taskId = obj.optString("task_id", "unknown").trim().lowercase()
+    val def = obj.optString("default_mode", "ocr").trim().lowercase()
+
     val arr = obj.optJSONArray("modes")
     val modes = mutableSetOf<String>()
-    if (arr != null) for (i in 0 until arr.length()) modes += arr.optString(i)
+    if (arr != null) {
+        for (i in 0 until arr.length()) {
+            val m = arr.optString(i, "").trim().lowercase()
+            if (m.isNotBlank()) modes += m
+        }
+    }
+
     val barcode = parseScanAction(obj.optJSONObject("barcode"))
     val qr = parseScanAction(obj.optJSONObject("qr"))
-    val cellDefaultsObj = obj.optJSONObject("cell_null_default_forwrad")
+
+    // поддержка и правильного, и кривого ключа
+    val cellDefaultsObj =
+        obj.optJSONObject("cell_null_default_forward")
+            ?: obj.optJSONObject("cell_null_default_forwrad")
+
     val cellDefaults = mutableMapOf<String, String>()
     if (cellDefaultsObj != null) {
         val names = cellDefaultsObj.names()
         if (names != null) {
             for (i in 0 until names.length()) {
-                val key = names.optString(i)?.trim()?.uppercase()
-                val value = cellDefaultsObj.optString(names.optString(i), "").trim()
-                if (!key.isNullOrEmpty() && value.isNotEmpty()) {
+                val rawKey = names.optString(i, "")
+                val key = rawKey.trim().uppercase()
+                val value = cellDefaultsObj.optString(rawKey, "").trim()
+                if (key.isNotBlank() && value.isNotBlank()) {
                     cellDefaults[key] = value
                 }
             }
         }
     }
-    ScanTaskConfig(taskId, def, modes, barcode, qr, cellDefaults)
-} catch (e: Exception) { null }
+
+    val contextsObj = obj.optJSONObject("contexts")
+    val contexts = mutableMapOf<String, ScanContextConfig>()
+    if (contextsObj != null) {
+        val names = contextsObj.names()
+        if (names != null) {
+            for (i in 0 until names.length()) {
+                val key = names.optString(i, "").trim()
+                val ctxObj = contextsObj.optJSONObject(key) ?: continue
+                val selector = ctxObj.optString("active_tab_selector", "").trim().takeIf { it.isNotEmpty() }
+                val barcodeCtx = parseScanAction(ctxObj.optJSONObject("barcode"))
+                val qrCtx = parseScanAction(ctxObj.optJSONObject("qr"))
+                contexts[key] = ScanContextConfig(
+                    activeTabSelector = selector,
+                    barcode = barcodeCtx,
+                    qr = qrCtx
+                )
+            }
+        }
+    }
+
+    val buttonsObj = obj.optJSONObject("buttons")
+    val buttons = mutableMapOf<String, String>()
+    if (buttonsObj != null) {
+        val names = buttonsObj.names()
+        if (names != null) {
+            for (i in 0 until names.length()) {
+                val key = names.optString(i, "").trim()
+                val value = buttonsObj.optString(key, "").trim().lowercase()
+                if (key.isNotBlank() && value.isNotBlank()) {
+                    buttons[key] = value
+                }
+            }
+        }
+    }
+
+    val apiObj = obj.optJSONObject("api")
+    val api = mutableMapOf<String, String>()
+    if (apiObj != null) {
+        val names = apiObj.names()
+        if (names != null) {
+            for (i in 0 until names.length()) {
+                val key = names.optString(i, "").trim()
+                val value = apiObj.optString(key, "").trim()
+                if (key.isNotBlank() && value.isNotBlank()) {
+                    api[key] = value
+                }
+            }
+        }
+    }
+
+    ScanTaskConfig(
+        taskId = taskId,
+        defaultMode = def,
+        modes = modes,
+        barcodeAction = barcode,
+        qrAction = qr,
+        cellNullDefaultForward = cellDefaults,
+        contexts = contexts,
+        buttons = buttons,
+        api = api
+    )
+} catch (e: Exception) {
+    e.printStackTrace()
+    null
+}
