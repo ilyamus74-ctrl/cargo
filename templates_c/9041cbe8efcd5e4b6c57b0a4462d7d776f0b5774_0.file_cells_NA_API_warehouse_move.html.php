@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-01-20 12:18:58
+/* Smarty version 5.3.1, created on 2026-01-20 14:24:48
   from 'file:cells_NA_API_warehouse_move.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_696f72b2104382_83053679',
+  'unifunc' => 'content_696f9030d8a142_35534003',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '9041cbe8efcd5e4b6c57b0a4462d7d776f0b5774' => 
     array (
       0 => 'cells_NA_API_warehouse_move.html',
-      1 => 1768911110,
+      1 => 1768919075,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_696f72b2104382_83053679 (\Smarty\Template $_smarty_tpl) {
+function content_696f9030d8a142_35534003 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>    <div class="pagetitle">
       <h1>Warehouse Move</h1>
@@ -150,10 +150,32 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
  id="device-scan-config" type="application/json">
 {
   "task_id": "warehouse_move",
-  "default_mode": "ocr",
-  "modes": ["ocr"],
-  "barcode": { "action": "fill_field", "field_id": "warehouse-move-search" },
-  "qr":      { "action": "api_check",  "endpoint": "/api/qr_check.php" }
+  "default_mode": "barcode",
+  "modes": ["barcode", "qr"],
+
+  "contexts": {
+    "scanner": {
+      "active_tab_selector": "#warehouse-move-scanner-tab.nav-link.active",
+      "barcode": { "action": "fill_field", "field_id": "warehouse-move-search" },
+      "qr":      { "action": "api_check", "endpoint": "/api/qr_check.php" }
+    },
+    "batch": {
+      "active_tab_selector": "#warehouse-move-batch-tab.nav-link.active",
+      "barcode": { "action": "fill_field", "field_id": "warehouse-move-batch-search" },
+      "qr":      { "action": "api_check", "endpoint": "/api/qr_check.php", "apply_to_select_id": "warehouse-move-batch-cell" }
+    }
+  },
+
+  "buttons": {
+    "vol_down_single": "scan",
+    "vol_down_double": "confirm",
+    "vol_up_single":   "clear",
+    "vol_up_double":   "back"
+  },
+
+  "api": {
+    "move_apply": "/api/warehouse_move_apply.php"
+  }
 }
 <?php echo '</script'; ?>
 >
