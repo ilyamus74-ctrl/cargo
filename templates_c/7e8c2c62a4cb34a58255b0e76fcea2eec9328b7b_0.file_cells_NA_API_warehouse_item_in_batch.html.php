@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-01-21 12:16:39
+/* Smarty version 5.3.1, created on 2026-01-21 13:17:12
   from 'file:cells_NA_API_warehouse_item_in_batch.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_6970c3a77c8145_17066487',
+  'unifunc' => 'content_6970d1d8149e99_06668091',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '7e8c2c62a4cb34a58255b0e76fcea2eec9328b7b' => 
     array (
       0 => 'cells_NA_API_warehouse_item_in_batch.html',
-      1 => 1768997795,
+      1 => 1768999031,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_6970c3a77c8145_17066487 (\Smarty\Template $_smarty_tpl) {
+function content_6970d1d8149e99_06668091 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>
 
@@ -250,10 +250,12 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
  id="device-scan-config" type="application/json">
 {
   "task_id": "warehouse_in",
-  "default_mode": "ocr",
+  "default_mode": "barcode",
   "modes": ["barcode","ocr"],
+
   "barcode": { "action": "fill_field", "field_id": "trackingNo" },
   "qr":      { "action": "api_check",  "endpoint": "/api/qr_check.php" },
+
   "cell_null_default_forwrad": {
     "CAMEX_AZB": "A99",
     "CAMEX_TBS": "C99",
@@ -261,35 +263,45 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
     "COLIBRI_AZB": "C0",
     "ASER": "AS0"
   },
+
   "buttons": {
-  "vol_down_single": "scan",
-  "vol_down_double": "confirm",
-  "vol_up_single":   "clear",
-  "vol_up_double":   "reset"
+    "vol_down_single": "scan",
+    "vol_down_double": "confirm",
+    "vol_up_single":   "clear",
+    "vol_up_double":   "reset"
+  },
+
+  "ui": {
+    "title": "Приёмка",
+    "step_labels": {
+      "barcode": "Штрихкод",
+      "ocr":     "OCR",
+      "measure": "Замер",
+      "submit":  "Подтвердить"
+    }
   },
 
   "flow": {
     "start": "barcode",
-
     "steps": {
       "barcode": {
+        "next_on_scan": "ocr",
         "on_action": {
-          "scan":   [ { "op":"open_scanner", "mode":"barcode" } ],
-          "clear":  [ { "op":"web", "name":"clear_tracking" } ],
-          "reset":  [ { "op":"web", "name":"clear_all" }, { "op":"set_step", "to":"barcode" } ],
-          "confirm":[ { "op":"noop" } ]
-        },
-        "next_on_scan": "ocr"
+          "scan":    [ { "op":"open_scanner", "mode":"barcode" } ],
+          "clear":   [ { "op":"web", "name":"clear_tracking" } ],
+          "reset":   [ { "op":"web", "name":"clear_all" }, { "op":"set_step", "to":"barcode" } ],
+          "confirm": [ { "op":"noop" } ]
+        }
       },
 
       "ocr": {
+        "next_on_scan": "measure",
         "on_action": {
-          "scan":   [ { "op":"open_scanner", "mode":"ocr" } ],
-          "clear":  [ { "op":"web", "name":"clear_except_track" } ],
-          "reset":  [ { "op":"web", "name":"clear_all" }, { "op":"set_step", "to":"barcode" } ],
-          "confirm":[ { "op":"noop" } ]
-        },
-        "next_on_scan": "measure"
+          "scan":    [ { "op":"open_scanner", "mode":"ocr" } ],
+          "clear":   [ { "op":"web", "name":"clear_except_track" } ],
+          "reset":   [ { "op":"web", "name":"clear_all" }, { "op":"set_step", "to":"barcode" } ],
+          "confirm": [ { "op":"noop" } ]
+        }
       },
 
       "measure": {
@@ -297,22 +309,28 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
           "scan": [
             { "op":"web_if",
               "cond":"stand_selected",
-              "then":[ { "op":"web","name":"measure_request" }, { "op":"set_step","to":"submit" } ],
-              "else":[ { "op":"web","name":"add_new_item" },   { "op":"set_step","to":"barcode" } ]
+              "then": [
+                { "op":"web","name":"measure_request" },
+                { "op":"set_step","to":"submit" }
+              ],
+              "else": [
+                { "op":"web","name":"add_new_item" },
+                { "op":"set_step","to":"barcode" }
+              ]
             }
           ],
-          "clear": [ { "op":"web", "name":"clear_measurements" } ],
-          "reset": [ { "op":"web", "name":"clear_all" }, { "op":"set_step", "to":"barcode" } ],
-          "confirm":[ { "op":"noop" } ]
+          "clear":   [ { "op":"web", "name":"clear_measurements" } ],
+          "reset":   [ { "op":"web", "name":"clear_all" }, { "op":"set_step", "to":"barcode" } ],
+          "confirm": [ { "op":"noop" } ]
         }
       },
 
       "submit": {
         "on_action": {
-          "confirm":[ { "op":"web", "name":"add_new_item" }, { "op":"set_step", "to":"barcode" } ],
-          "scan":   [ { "op":"web", "name":"add_new_item" }, { "op":"set_step", "to":"barcode" } ],
-          "clear":  [ { "op":"web", "name":"clear_measurements" }, { "op":"set_step", "to":"measure" } ],
-          "reset":  [ { "op":"web", "name":"clear_all" }, { "op":"set_step", "to":"barcode" } ]
+          "confirm": [ { "op":"web","name":"add_new_item" }, { "op":"set_step","to":"barcode" } ],
+          "scan":    [ { "op":"web","name":"add_new_item" }, { "op":"set_step","to":"barcode" } ],
+          "clear":   [ { "op":"web","name":"clear_measurements" }, { "op":"set_step", "to":"measure" } ],
+          "reset":   [ { "op":"web","name":"clear_all" }, { "op":"set_step", "to":"barcode" } ]
         }
       }
     }

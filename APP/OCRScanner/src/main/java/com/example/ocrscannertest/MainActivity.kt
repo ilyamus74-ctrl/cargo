@@ -80,7 +80,13 @@ private val INSTALL_MAIN_OBSERVER_JS = """
 function read(id){
   var el = document.getElementById(id);
   if(!el) return null;
-  var t = (el.textContent || el.innerText || "").trim();
+  var t = "";
+  if (el.tagName === "INPUT" || el.tagName === "TEXTAREA") {
+    t = el.value;
+  } else {
+    t = el.textContent || el.innerText || "";
+  }
+  t = (t || "").trim();
   if (!t || t === "null" || t === "undefined") return null;
   return t;
 }
@@ -91,7 +97,7 @@ function read(id){
         task: read("device-scan-config"),
         ocr_templates: read("ocr-templates"),
         destcountry: read("ocr-templates-destcountry"),
-        ////dicts: read("ocr-dicts")
+        dicts: read("ocr-dicts")
       };
       if (window.DeviceApp && window.DeviceApp.onMainContext) {
         window.DeviceApp.onMainContext(JSON.stringify(payload));
@@ -2025,10 +2031,6 @@ fun DeviceWebViewScreen(
                         if (payload.isNullOrBlank()) return
                         try {
                             val obj = JSONObject(payload)
-                            val task = obj.optString("task", "").takeIf { it.isNotBlank() }
-                            val tmpl = obj.optString("ocr_templates", "").takeIf { it.isNotBlank() }
-                            val dest = obj.optString("destcountry", "").takeIf { it.isNotBlank() }
-                            val dict = obj.optString("dicts", "").takeIf { it.isNotBlank() }
 
                             mainHandler.post {
                                 fun clean(v: String?): String? {
