@@ -268,7 +268,7 @@ fun AppRoot() {
     var taskConfigJson by remember { mutableStateOf<String?>(null) }
     var taskConfig by remember { mutableStateOf<ScanTaskConfig?>(null) }
 
-    var ocrIsDefault by remember { mutableStateOf(false) }
+
 
     // Шаги потока складского сканирования
 
@@ -304,7 +304,7 @@ fun AppRoot() {
     fun openDefaultScanner() {
         when (taskConfig?.defaultMode?.lowercase()) {
             "ocr" -> {
-                ocrIsDefault = (taskConfig == null)
+
                 showOcr = true
             }
             "barcode", "qr" -> {
@@ -402,7 +402,7 @@ fun AppRoot() {
                 showBarcodeScan = true
             }
             WarehouseScanStep.OCR -> {
-                ocrIsDefault = taskConfig == null
+
                 showOcr = true
             }
             WarehouseScanStep.MEASURE -> {
@@ -585,7 +585,7 @@ fun AppRoot() {
                                 showBarcodeScan = true
                             }
                             WarehouseScanStep.OCR -> {
-                                ocrIsDefault = taskConfig == null
+
                                 showOcr = true
                             }
                             WarehouseScanStep.MEASURE -> {
@@ -609,8 +609,7 @@ fun AppRoot() {
                     } else {
                         webViewRef?.let { web -> prepareFormForNextScanInWebView(web) }
 
-                        val hasTask = taskConfig != null
-                        ocrIsDefault = !hasTask
+
                         showOcr = true
 
                         when (taskConfig?.defaultMode) {
@@ -939,7 +938,9 @@ fun AppRoot() {
                         },
                         onBindHardwareTrigger = { action ->
                             barcodeHardwareTrigger = action
-                        }
+                        },
+                        taskConfig = taskConfig,
+                        scanMode = "barcode"
                     )
                 }
             }
@@ -957,7 +958,7 @@ fun AppRoot() {
                         config = config,
                         nameDict = nameDict,
                         taskConfig = taskConfig,
-                        isDefaultMode = ocrIsDefault,
+                        scanMode = "ocr",
                         onResult = { ocrData ->
                             showOcr = false
                             webViewRef?.let { web ->
@@ -3040,6 +3041,8 @@ fun BarcodeScanScreen(
     onResult: (BarcodeScanResult) -> Unit,
     onCancel: () -> Unit,
     onBindHardwareTrigger: ( (()->Unit)? ) -> Unit,
+    taskConfig: ScanTaskConfig?,
+    scanMode: String
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -3226,6 +3229,36 @@ fun BarcodeScanScreen(
                 factory = { previewView }
             )
 
+
+            val taskLabel = taskConfig?.ui?.stepLabels?.get(scanMode)
+                ?.trim()
+                ?.takeIf { it.isNotEmpty() }
+                ?: taskConfig?.taskId
+                    ?.trim()
+                    ?.takeIf { it.isNotEmpty() }
+                    ?.replace("_", " ")
+            val bannerText = taskLabel ?: "DEFAULT SCAN"
+            val bannerColor = if (taskLabel != null) {
+                androidx.compose.ui.graphics.Color(0xFF2E7D32)
+            } else {
+                MaterialTheme.colorScheme.error
+            }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .fillMaxHeight(0.15f)
+                    .align(Alignment.TopCenter),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = bannerText,
+                    color = bannerColor,
+                    style = MaterialTheme.typography.headlineLarge,
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.Black
+                )
+            }
+
             Column(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
@@ -3266,7 +3299,7 @@ fun OcrScanScreen(
     config: DeviceConfig,
     nameDict: NameDict?,                         // <<< НОВОЕ
     taskConfig: ScanTaskConfig?,
-    isDefaultMode: Boolean,
+    scanMode: String,
     onResult: (OcrParcelData) -> Unit,
     onCancel: () -> Unit,
     onBindHardwareTrigger: ((() -> Unit)?) -> Unit,
@@ -3524,34 +3557,33 @@ fun OcrScanScreen(
                 modifier = Modifier.fillMaxSize(),
                 factory = { previewView }
             )
-
-            val taskLabel = taskConfig?.taskId
+            val taskLabel = taskConfig?.ui?.stepLabels?.get(scanMode)
                 ?.trim()
                 ?.takeIf { it.isNotEmpty() }
-                ?.replace("_", " ")
-            val bannerText = taskLabel ?: if (isDefaultMode) "DEFAULT" else null
+                ?: taskConfig?.taskId
+                    ?.trim()
+                    ?.takeIf { it.isNotEmpty() }
+                    ?.replace("_", " ")
+            val bannerText = taskLabel ?: "DEFAULT SCAN"
             val bannerColor = if (taskLabel != null) {
                 androidx.compose.ui.graphics.Color(0xFF2E7D32)
             } else {
                 MaterialTheme.colorScheme.error
             }
 
-            // БАННЕР поверх камеры
-            if (bannerText != null) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .fillMaxHeight(0.15f)
-                        .align(Alignment.TopCenter),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = bannerText,
-                        color = bannerColor,
-                        style = MaterialTheme.typography.headlineLarge,
-                        fontWeight = androidx.compose.ui.text.font.FontWeight.Black
-                    )
-                }
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .fillMaxHeight(0.15f)
+                    .align(Alignment.TopCenter),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = bannerText,
+                    color = bannerColor,
+                    style = MaterialTheme.typography.headlineLarge,
+                    fontWeight = androidx.compose.ui.text.font.FontWeight.Black
+                )
             }
 
             // Нижняя панель с кнопками
@@ -4125,6 +4157,10 @@ data class ScanContextConfig(
     val qr: ScanAction? = null
 )
 
+data class ScanTaskUiConfig(
+    val title: String? = null,
+    val stepLabels: Map<String, String> = emptyMap()
+)
 /**
  * device-scan-config поддерживает per-tab контексты:
  *
@@ -4151,7 +4187,8 @@ data class ScanTaskConfig(
     val cellNullDefaultForward: Map<String, String> = emptyMap(),
     val contexts: Map<String, ScanContextConfig> = emptyMap(),
     val buttons: Map<String, String> = emptyMap(),
-    val api: Map<String, String> = emptyMap()
+    val api: Map<String, String> = emptyMap(),
+    val ui: ScanTaskUiConfig? = null
     )
 
 
@@ -4244,6 +4281,23 @@ fun parseScanTaskConfig(json: String): ScanTaskConfig? = try {
         }
     }
 
+    val uiObj = obj.optJSONObject("ui")
+    val uiTitle = uiObj?.optString("title", "")?.trim()?.takeIf { it.isNotEmpty() }
+    val stepLabelsObj = uiObj?.optJSONObject("step_labels")
+    val stepLabels = mutableMapOf<String, String>()
+    if (stepLabelsObj != null) {
+        val names = stepLabelsObj.names()
+        if (names != null) {
+            for (i in 0 until names.length()) {
+                val key = names.optString(i, "").trim().lowercase()
+                val value = stepLabelsObj.optString(key, "").trim()
+                if (key.isNotBlank() && value.isNotBlank()) {
+                    stepLabels[key] = value
+                }
+            }
+        }
+    }
+
     val apiObj = obj.optJSONObject("api")
     val api = mutableMapOf<String, String>()
     if (apiObj != null) {
@@ -4268,7 +4322,15 @@ fun parseScanTaskConfig(json: String): ScanTaskConfig? = try {
         cellNullDefaultForward = cellDefaults,
         contexts = contexts,
         buttons = buttons,
-        api = api
+        api = api,
+        ui = if (uiTitle != null || stepLabels.isNotEmpty()) {
+            ScanTaskUiConfig(
+                title = uiTitle,
+                stepLabels = stepLabels
+            )
+        } else {
+            null
+        }
     )
 } catch (e: Exception) {
     e.printStackTrace()
