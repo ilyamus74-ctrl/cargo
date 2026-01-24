@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-01-24 12:32:43
+/* Smarty version 5.3.1, created on 2026-01-24 14:29:11
   from 'file:cells_NA_API_warehouse_item_in_batch.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_6974bbeb3e3dd5_36067414',
+  'unifunc' => 'content_6974d737dba9a6_82586085',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '7e8c2c62a4cb34a58255b0e76fcea2eec9328b7b' => 
     array (
       0 => 'cells_NA_API_warehouse_item_in_batch.html',
-      1 => 1769257915,
+      1 => 1769263593,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_6974bbeb3e3dd5_36067414 (\Smarty\Template $_smarty_tpl) {
+function content_6974d737dba9a6_82586085 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>
 
@@ -318,6 +318,7 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
         }
       },
 
+  
       "submit": {
         "on_action": {
           "scan":    [ { "op":"web","name":"add_new_item" }, { "op":"set_step","to":"barcode" } ],
