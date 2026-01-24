@@ -4357,7 +4357,8 @@ data class ScanAction(
 data class ScanContextConfig(
     val activeTabSelector: String? = null,
     val barcode: ScanAction? = null,
-    val qr: ScanAction? = null
+    val qr: ScanAction? = null,
+    val flow: FlowConfig? = null
 )
 
 data class ScanTaskUiConfig(
@@ -4372,7 +4373,10 @@ data class FlowConfig(
 
 data class FlowStep(
     val nextOnScan: String? = null,
-    val onAction: Map<String, List<FlowOp>> = emptyMap()
+    val onAction: Map<String, List<FlowOp>> = emptyMap(),
+    val mode: String? = null,
+    val barcodeAction: ScanAction? = null,
+    val qrAction: ScanAction? = null
 )
 
 sealed interface FlowOp {
@@ -4499,6 +4503,63 @@ fun parseFlowOp(obj: JSONObject?): FlowOp? {
     }
 }
 
+fun parseFlowConfig(flowObj: JSONObject?): FlowConfig? {
+    if (flowObj == null) return null
+    
+    val start = flowObj.optString("start", "").trim().lowercase()
+    if (start.isBlank()) return null
+    
+    val stepsObj = flowObj.optJSONObject("steps")
+    val steps = mutableMapOf<String, FlowStep>()
+    
+    if (stepsObj != null) {
+        val stepNames = stepsObj.names()
+        if (stepNames != null) {
+            for (i in 0 until stepNames.length()) {
+                val stepKey = stepNames.optString(i, "").trim().lowercase()
+                val stepObj = stepsObj.optJSONObject(stepKey) ?: continue
+                
+                val nextOnScan = stepObj.optString("next_on_scan", "").trim().lowercase()
+                    .takeIf { it.isNotBlank() }
+                val mode = stepObj.optString("mode", "").trim().lowercase()
+                    .takeIf { it.isNotBlank() }
+                
+                // Парсим действия для этого шага
+                val barcodeAction = parseScanAction(stepObj.optJSONObject("barcode"))
+                val qrAction = parseScanAction(stepObj.optJSONObject("qr"))
+                
+                // Парсим on_action
+                val onActionObj = stepObj.optJSONObject("on_action")
+                val onAction = mutableMapOf<String, List<FlowOp>>()
+                if (onActionObj != null) {
+                    val actionNames = onActionObj.names()
+                    if (actionNames != null) {
+                        for (j in 0 until actionNames.length()) {
+                            val actionKey = actionNames.optString(j, "").trim().lowercase()
+                            val ops = parseFlowOpsArray(onActionObj.optJSONArray(actionKey))
+                            if (actionKey.isNotBlank()) {
+                                onAction[actionKey] = ops
+                            }
+                        }
+                    }
+                }
+                
+                if (stepKey.isNotBlank()) {
+                    steps[stepKey] = FlowStep(
+                        nextOnScan = nextOnScan,
+                        onAction = onAction,
+                        mode = mode,
+                        barcodeAction = barcodeAction,
+                        qrAction = qrAction
+                    )
+                }
+            }
+        }
+    }
+    
+    return if (steps.isNotEmpty()) FlowConfig(start, steps) else null
+}
+
 fun parseScanTaskConfig(json: String): ScanTaskConfig? = try {
     val obj = JSONObject(json)
 
@@ -4548,10 +4609,15 @@ fun parseScanTaskConfig(json: String): ScanTaskConfig? = try {
                 val selector = ctxObj.optString("active_tab_selector", "").trim().takeIf { it.isNotEmpty() }
                 val barcodeCtx = parseScanAction(ctxObj.optJSONObject("barcode"))
                 val qrCtx = parseScanAction(ctxObj.optJSONObject("qr"))
+                
+                // НОВОЕ: парсим flow внутри контекста
+                val contextFlow = parseFlowConfig(ctxObj.optJSONObject("flow"))
+                
                 contexts[key] = ScanContextConfig(
                     activeTabSelector = selector,
                     barcode = barcodeCtx,
-                    qr = qrCtx
+                    qr = qrCtx,
+                    flow = contextFlow
                 )
             }
         }
@@ -4573,50 +4639,7 @@ fun parseScanTaskConfig(json: String): ScanTaskConfig? = try {
     }
 
 
-    val flowObj = obj.optJSONObject("flow")
-    val flow = if (flowObj != null) {
-        val start = flowObj.optString("start", "").trim().lowercase()
-        val stepsObj = flowObj.optJSONObject("steps")
-        val steps = mutableMapOf<String, FlowStep>()
-        if (stepsObj != null) {
-            val names = stepsObj.names()
-            if (names != null) {
-                for (i in 0 until names.length()) {
-                    val stepKey = names.optString(i, "").trim().lowercase()
-                    val stepObj = stepsObj.optJSONObject(stepKey) ?: continue
-                    val nextOnScan = stepObj.optString("next_on_scan", "").trim().lowercase()
-                        .takeIf { it.isNotBlank() }
-                    val onActionObj = stepObj.optJSONObject("on_action")
-                    val onAction = mutableMapOf<String, List<FlowOp>>()
-                    if (onActionObj != null) {
-                        val actionNames = onActionObj.names()
-                        if (actionNames != null) {
-                            for (j in 0 until actionNames.length()) {
-                                val actionKey = actionNames.optString(j, "").trim().lowercase()
-                                val ops = parseFlowOpsArray(onActionObj.optJSONArray(actionKey))
-                                if (actionKey.isNotBlank()) {
-                                    onAction[actionKey] = ops
-                                }
-                            }
-                        }
-                    }
-                    if (stepKey.isNotBlank()) {
-                        steps[stepKey] = FlowStep(
-                            nextOnScan = nextOnScan,
-                            onAction = onAction
-                        )
-                    }
-                }
-            }
-        }
-        if (start.isNotBlank() && steps.isNotEmpty()) {
-            FlowConfig(start = start, steps = steps)
-        } else {
-            null
-        }
-    } else {
-        null
-    }
+    val flow = parseFlowConfig(obj.optJSONObject("flow"))
 
     val uiObj = obj.optJSONObject("ui")
     val uiTitle = uiObj?.optString("title", "")?.trim()?.takeIf { it.isNotEmpty() }
