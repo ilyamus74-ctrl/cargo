@@ -1056,7 +1056,12 @@ fun AppRoot() {
                         onResult = { ocrData ->
                             showOcr = false
                             webViewRef?.let { web ->
-                                fillParcelFormInWebView(web, ocrData, taskConfig)
+                                fillParcelFormInWebView(
+                                    webView = web,
+                                    data = ocrData,
+                                    config = taskConfig,
+                                    includeCarrierFields = false
+                                )
                             }
                             val flow = taskConfig?.flow
                             if (flow != null) {
@@ -2539,6 +2544,7 @@ fun fillBarcodeUsingTemplate(
             "tuid" -> parcel.tuid ?: cleanBarcode
             "trackingno", "tracking_no" -> parcel.trackingNo ?: cleanBarcode
             "carriername", "carrier_name" -> parcel.localCarrierName ?: ""
+            "sendername", "carrier_code" -> parcel.localCarrierName ?: ""
             else -> cleanBarcode
         }
     }
@@ -2644,7 +2650,12 @@ fun withStandDeviceSelected(webView: WebView, onResult: (Boolean) -> Unit) {
     }
 }
 
-fun fillParcelFormInWebView(webView: WebView, data: OcrParcelData, config: ScanTaskConfig? = null) {
+fun fillParcelFormInWebView(
+    webView: WebView,
+    data: OcrParcelData,
+    config: ScanTaskConfig? = null,
+    includeCarrierFields: Boolean = true
+) {
     println("### fillParcelFormInWebView() data = $data")
 
     fun esc(str: String): String =
@@ -2759,10 +2770,11 @@ fun fillParcelFormInWebView(webView: WebView, data: OcrParcelData, config: ScanT
 
         // 2) carrierName (локальный перевозчик: DHL/GLS/HERMES/UPS/AMAZON)
         // carrierName — можно отдельно
-        localCarrier?.let {
-            val v = esc(it)
-            append("setValById('carrierName','$v');")
-
+        if (includeCarrierFields) {
+            localCarrier?.let {
+                val v = esc(it)
+                append("setValById('carrierName','$v');")
+            }
         }
 
         // 3) receiverCountry (по назначению) — строго ISO2 из select
