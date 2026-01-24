@@ -2494,33 +2494,58 @@ fun resolveActiveContextId(
     checkIndex(0)
 }
 
-fun fillBarcodeUsingTemplate(webView: WebView, barcodeValue: String, action: ScanAction?) {
-    if (action?.action != "fill_field") return
-    val field = action.fieldId?.takeIf { it.isNotBlank() }
-        ?: action.fieldName?.takeIf { it.isNotBlank() }
-        ?: return
-
-    fun esc(str: String): String =
-        str.replace("\\", "\\\\")
-            .replace("'", "\\'")
-            .replace("\n", " ")
-            .replace("\r", " ")
-
-    val js = """
-        (function(){
-          function fill(id){
-            var el=document.getElementById(id) || document.querySelector('[name=""+id+""]');
-            if(!el) return;
-            el.value='${esc(barcodeValue)}';
-            el.dispatchEvent(new Event('input',{bubbles:true}));
-            el.dispatchEvent(new Event('change',{bubbles:true}));
-          }
-          fill('${esc(field)}');
-        })();
-    """.trimIndent()
-
-    webView.post { webView.evaluateJavascript(js, null) }
+fun setWebInputValueBySelector(webView: WebView, selector: String, value: String) {
+    setInputValueBySelector(webView, selector, value)
 }
+
+fun fillBarcodeUsingTemplate(web: WebView, rawBarcode: String, action: ScanAction?) {
+    if (action == null) return
+
+    val cleanBarcode = rawBarcode.trim()
+    val parcel = buildParcelFromBarcode(cleanBarcode)
+
+    fun valueForKey(key: String): String {
+        return when (key.lowercase()) {
+            "tuid" -> parcel.tuid ?: cleanBarcode
+            "trackingno", "tracking_no" -> parcel.trackingNo ?: cleanBarcode
+            "carriername", "carrier_name" -> parcel.localCarrierName ?: ""
+            else -> cleanBarcode
+        }
+    }
+
+    fun idToSelector(id: String) = "#${escapeJsSelector(id)}"
+    fun nameToSelector(name: String) = "[name=\"${escapeJsSelector(name)}\"]"
+
+    when (action.action) {
+        "fill_field" -> {
+            val ids = (action.fieldIds ?: emptyList()).ifEmpty {
+                action.fieldId?.let { listOf(it) } ?: emptyList()
+            }
+            val names = (action.fieldNames ?: emptyList()).ifEmpty {
+                action.fieldName?.let { listOf(it) } ?: emptyList()
+            }
+
+            // ids
+            for (id in ids) {
+                val v = valueForKey(id)
+                //setWebInputValueBySelector(web, idToSelector(id), v)
+                setInputValueBySelector(web, idToSelector(id), v)
+            }
+
+            // names
+            for (name in names) {
+                val v = valueForKey(name)
+                setWebInputValueBySelector(web, nameToSelector(name), v)
+            }
+        }
+
+        "api_check" -> {
+            val endpoint = action.endpoint ?: return
+            callApiCheck(endpoint, cleanBarcode)
+        }
+    }
+}
+
 
 fun handleWarehouseMoveScanResult(
     config: DeviceConfig,
@@ -4260,10 +4285,16 @@ fun detectForwarderByText(textRaw: String): String? {
 
 
 data class ScanAction(
-    val action: String,
+    val action: String? = null,
     val fieldId: String? = null,
     val fieldName: String? = null,
+
+    // NEW: мультизаполнение
+    val fieldIds: List<String>? = null,
+    val fieldNames: List<String>? = null,
+
     val endpoint: String? = null,
+    // NEW: куда писать cell_id из qr_check (id селекта)
     val applyToSelectId: String? = null
 )
 
@@ -4333,17 +4364,43 @@ data class ScanTaskConfig(
 
 fun parseScanAction(obj: JSONObject?): ScanAction? {
     if (obj == null) return null
-    val action = obj.optString("action", "").takeIf { it.isNotBlank() } ?: return null
-    val fieldId = obj.optString("field_id", "").takeIf { it.isNotBlank() }
-    val fieldName = obj.optString("field_name", "").takeIf { it.isNotBlank() }
-    val endpoint = obj.optString("endpoint", "").takeIf { it.isNotBlank() }
-    val applyToSelectId = obj.optString("apply_to_select_id", "").takeIf { it.isNotBlank() }
+
+    fun optStringList(key: String): List<String>? {
+        if (!obj.has(key)) return null
+        val v = obj.opt(key) ?: return null
+
+        val list = when (v) {
+            is JSONArray -> (0 until v.length())
+                .mapNotNull { idx -> v.optString(idx, null)?.trim() }
+                .filter { it.isNotEmpty() }
+
+            is String -> v.split(",")
+                .map { it.trim() }
+                .filter { it.isNotEmpty() }
+
+            else -> emptyList()
+        }
+        return list.takeIf { it.isNotEmpty() }
+    }
+
+    val action = obj.optString("action", null)
+    val endpoint = obj.optString("endpoint", null)
+
+    val fieldIds = optStringList("field_ids") ?: optStringList("field_id")
+    val fieldNames = optStringList("field_names") ?: optStringList("field_name")
+
+    // NEW: поддержка apply_to_select_id (и на всякий случай camelCase)
+    val applyToSelectId =
+        obj.optString("apply_to_select_id", "").trim().takeIf { it.isNotEmpty() }
+            ?: obj.optString("applyToSelectId", "").trim().takeIf { it.isNotEmpty() }
+
     return ScanAction(
         action = action,
-        fieldId = fieldId,
-        fieldName = fieldName,
-        endpoint = endpoint,
-        applyToSelectId = applyToSelectId
+        fieldId = obj.optString("field_id", null),
+        fieldName = obj.optString("field_name", null),
+        fieldIds = fieldIds,
+        fieldNames = fieldNames,
+        endpoint = endpoint
     )
 }
 

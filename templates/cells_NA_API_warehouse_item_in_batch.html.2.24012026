@@ -188,14 +188,8 @@
   "default_mode": "barcode",
   "modes": ["barcode","ocr"],
 
-  "barcode": {
-    "action": "fill_field",
-    "field_ids": ["tuid","trackingNo","carrierName"]
-  },
-  "qr": {
-    "action": "api_check",
-    "endpoint": "/api/qr_check.php"
-  },
+  "barcode": { "action": "fill_field", "field_id": "trackingNo" },
+  "qr":      { "action": "api_check",  "endpoint": "/api/qr_check.php" },
 
   "cell_null_default_forwrad": {
     "CAMEX_AZB": "A99",
@@ -239,7 +233,10 @@
         "next_on_scan": "measure",
         "on_action": {
           "scan":    [ { "op":"open_scanner", "mode":"ocr" } ],
-          "clear":   [ { "op":"web", "name":"clear_except_track" }, { "op":"set_step", "to":"barcode" } ],
+
+          /* шаг назад: в OCR нажал "вверх" -> чистим предыдущий шаг (штрихкод) и уходим на barcode */
+          "clear":   [ { "op":"web", "name":"clear_tracking" }, { "op":"set_step", "to":"barcode" } ],
+
           "reset":   [ { "op":"web", "name":"clear_all" }, { "op":"set_step", "to":"barcode" } ],
           "confirm": [ { "op":"noop" } ]
         }
@@ -247,8 +244,18 @@
 
       "measure": {
         "on_action": {
-          "scan":    [ { "op":"web","name":"measure_request" }, { "op":"set_step","to":"submit" } ],
-          "clear":   [ { "op":"web", "name":"clear_measurements" }, { "op":"set_step", "to":"ocr" } ],
+          /* тут сканнер не нужен: забираем замер с устройства и переходим в submit */
+          "scan": [
+            { "op":"web", "name":"measure_request" },
+            { "op":"set_step", "to":"submit" }
+          ],
+
+          /* шаг назад: из measure "вверх" -> чистим предыдущий шаг (OCR-поля), уходим в ocr */
+          "clear": [
+            { "op":"web", "name":"clear_except_track" },
+            { "op":"set_step", "to":"ocr" }
+          ],
+
           "reset":   [ { "op":"web", "name":"clear_all" }, { "op":"set_step", "to":"barcode" } ],
           "confirm": [ { "op":"noop" } ]
         }
@@ -256,10 +263,14 @@
 
       "submit": {
         "on_action": {
+          /* одиночное/двойное вниз: добавить и начать заново */
           "scan":    [ { "op":"web","name":"add_new_item" }, { "op":"set_step","to":"barcode" } ],
           "confirm": [ { "op":"web","name":"add_new_item" }, { "op":"set_step","to":"barcode" } ],
-          "clear":   [ { "op":"web","name":"clear_measurements" }, { "op":"set_step", "to":"measure" } ],
-          "reset":   [ { "op":"web","name":"clear_all" }, { "op":"set_step", "to":"barcode" } ]
+
+          /* шаг назад: из submit "вверх" -> чистим замеры, уходим в measure */
+          "clear":   [ { "op":"web","name":"clear_measurements" }, { "op":"set_step","to":"measure" } ],
+
+          "reset":   [ { "op":"web","name":"clear_all" }, { "op":"set_step","to":"barcode" } ]
         }
       }
     }
