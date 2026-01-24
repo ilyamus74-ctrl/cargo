@@ -462,14 +462,14 @@ fun AppRoot() {
     fun dispatchContextFlowAction(eventName: String) {
         if (!isWarehouseMove) return
 
-        resolveActiveWarehouseContext { contextKey, contextConfig ->
-            val contextFlow = contextConfig.flow
+        resolveActiveWarehouseContext { contextKey: String, contextConfig: ScanContextConfig ->
+            val contextFlow: FlowConfig? = contextConfig.flow
             if (contextFlow != null) {
                 val action = taskConfig?.buttons?.get(eventName) ?: return@resolveActiveWarehouseContext
-                val stepId = currentFlowStep ?: contextFlow.start.also { setFlowStep(it) }
-                val step = contextFlow.steps[stepId]
-                val ops = step?.onAction?.get(action) ?: emptyList()
-
+                val flowStartStep: String = contextFlow.start
+                val stepId = currentFlowStep ?: flowStartStep.also { setFlowStep(it) }
+                val step: FlowStep? = contextFlow.steps[stepId]
+                val ops: List<FlowOp> = step?.onAction?.get(action) ?: emptyList()
                 if (ops.isNotEmpty()) {
                     executeFlowActionsInContext(ops, contextConfig)
                 } else {
@@ -1212,10 +1212,11 @@ fun AppRoot() {
 
                             // НОВОЕ: поддержка context flow
                             if (isWarehouseMove) {
-                                resolveActiveWarehouseContext { contextKey, contextConfig ->
-                                    val contextFlow = contextConfig.flow
+                                resolveActiveWarehouseContext { contextKey: String, contextConfig: ScanContextConfig ->
+                                    val contextFlow: FlowConfig? = contextConfig.flow
                                     if (contextFlow != null) {
-                                        val stepId = currentFlowStep ?: contextFlow.start
+                                        val flowStartStep: String = contextFlow.start
+                                        val stepId = currentFlowStep ?: flowStartStep
                                         contextFlow.steps[stepId]?.nextOnScan?.let { next ->
                                             setFlowStep(next)
                                         }
