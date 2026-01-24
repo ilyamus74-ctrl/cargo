@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-01-24 19:48:35
+/* Smarty version 5.3.1, created on 2026-01-24 20:40:08
   from 'file:cells_NA_API_warehouse_move.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_69752213c8c505_82856203',
+  'unifunc' => 'content_69752e28844754_39429538',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '9041cbe8efcd5e4b6c57b0a4462d7d776f0b5774' => 
     array (
       0 => 'cells_NA_API_warehouse_move.html',
-      1 => 1769284107,
+      1 => 1769287204,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_69752213c8c505_82856203 (\Smarty\Template $_smarty_tpl) {
+function content_69752e28844754_39429538 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>    <div class="pagetitle">
       <h1>Warehouse Move</h1>
@@ -64,6 +64,10 @@ $_smarty_current_dir = '/home/cells/web/templates';
                       <label class="form-label small mb-1" for="warehouse-move-search">Поиск</label>
                       <input type="text" id="warehouse-move-search" class="form-control form-control-sm" placeholder="TUID или трек-номер">
                     </div>
+                  </div>
+                  <!-- Debug status indicator for device testing -->
+                  <div id="scanner-debug-status" style="display:none; margin-top:10px; padding:8px; border-radius:4px; font-size:12px; background:#f8f9fa; border:1px solid #dee2e6;">
+                    <strong>Debug:</strong> <span id="scanner-debug-text"></span>
                   </div>
 
                   <p class="small text-muted mb-2 mt-3">
@@ -151,50 +155,69 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
 // ============================================================================
 // JavaScript функции для работы с перемещением через сканер
 // ============================================================================
+// Вспомогательная функция для отображения отладочных сообщений на устройстве
+function showDebug(message, isError = false) {
+  console.log(message);
+  const debugDiv = document.getElementById('scanner-debug-status');
+  const debugText = document.getElementById('scanner-debug-text');
+  if (debugDiv && debugText) {
+    debugDiv.style.display = 'block';
+    debugDiv.style.background = isError ? '#fff3cd' : '#d1ecf1';
+    debugDiv.style.borderColor = isError ? '#ffc107' : '#0dcaf0';
+    debugText.textContent = message;
+    
+    // Автоматически скрываем через 5 секунд для неошибочных сообщений
+    if (!isError) {
+      setTimeout(() => {
+        debugDiv.style.display = 'none';
+      }, 5000);
+    }
+  }
+}
+
 /**
  * Открывает модальное окно для перемещения товара
  * Вызывается после сканирования трека, если найдена ровно 1 запись
  */
 window.openMoveModal = function() {
-  console.log('📦 openMoveModal: начало');
-  
+  showDebug('📦 openMoveModal: начало');
+    
   const searchInput = document.getElementById('warehouse-move-search');
   const searchValue = searchInput?.value?.trim();
   
   if (!searchValue) {
-    console.log('❌ Нет значения для поиска');
+    showDebug('❌ Нет значения для поиска', true);
     return false;
   }
   
-  console.log('🔍 Ищем записи для трека:', searchValue);
-  
+  showDebug('🔍 Ищем записи для: ' + searchValue);
+    
   // Проверяем количество записей в таблице результатов
   const tbody = document.getElementById('warehouse-move-results-tbody');
   const rows = tbody?.querySelectorAll('tr:not(.no-results)');
   
   if (!rows || rows.length === 0) {
-    console.log('❌ Записей не найдено');
+    showDebug('❌ Записей не найдено', true);
     return false;
   }
   
   if (rows.length !== 1) {
-    console.log('❌ Найдено записей:', rows.length, '(нужна ровно 1 для автоматического открытия)');
+    showDebug('❌ Найдено записей: ' + rows.length + ' (нужна ровно 1)', true);
     return false;
   }
   
-  console.log('✓ Найдена ровно 1 запись');
-  
+  showDebug('✓ Найдена 1 запись, открываем модалку');
+    
     // Получаем кнопку для открытия модалки из первой строки
   const firstRow = rows[0];
   const button = firstRow.querySelector('button[data-core-action="warehouse_move_open_modal"]');
   
   if (!button) {
-    console.log('❌ Не найдена кнопка для открытия модалки');
-    console.log('Доступные элементы в строке:', firstRow.innerHTML);
+    showDebug('❌ Не найдена кнопка открытия', true);
     return false;
   }
 
-  console.log('✓ Открываем модалку');
+  showDebug('✓ Модалка должна открыться');
   button.click();
 
   return true;
@@ -207,8 +230,8 @@ window.openMoveModal = function() {
  * @returns {boolean} true если ячейка найдена и установлена, иначе false
  */
 window.setCellFromQR = function(qrValue) {
-  console.log('📱 setCellFromQR: получен QR =', qrValue);
-  
+  showDebug('📱 setCellFromQR: ' + qrValue);
+    
   // Парсим QR: ожидаем формат "CELL:D1" или просто "D1"
   let cellCode = null;
   
@@ -217,34 +240,34 @@ window.setCellFromQR = function(qrValue) {
     console.log('✓ Извлечён код ячейки из формата CELL:', cellCode);
   } else {
     cellCode = qrValue.trim();
-    console.log('✓ Используем QR как код ячейки:', cellCode);
+    showDebug('✓ Код ячейки: ' + cellCode);
   }
   
   if (!cellCode) {
-    console.log('❌ Не удалось извлечь код ячейки из QR');
+    showDebug('❌ Не удалось извлечь код ячейки', true);
     return false;
   }
   
   // Функция для попытки установки значения
   const trySetCell = (retryCount = 0) => {
-    console.log('🔄 Попытка', retryCount + 1, 'найти и установить ячейку');
-    
+    showDebug('🔄 Попытка ' + (retryCount + 1) + ' установить ячейку');
+
     // Ищем select в модалке
     const cellSelect = document.getElementById('cellId');
     if (!cellSelect) {
-      console.log('❌ Не найден select #cellId в модалке');
-      
+      showDebug('❌ Select #cellId не найден', true);
+            
       // Если модалка ещё не загружена, повторяем через 300ms (максимум 5 попыток)
       if (retryCount < 5) {
         setTimeout(() => trySetCell(retryCount + 1), 300);
         return false;
       }
-      console.log('❌ Превышено количество попыток поиска select #cellId');
+      showDebug('❌ Превышено кол-во попыток', true);
       return false;
     }
     
-    console.log('🔍 Ищем ячейку с кодом:', cellCode);
-    
+    showDebug('🔍 Ищем ячейку: ' + cellCode);
+        
     // Ищем option с нужным кодом ячейки (case-insensitive)
     let foundOption = null;
     const upperCellCode = cellCode.toUpperCase();
@@ -253,14 +276,13 @@ window.setCellFromQR = function(qrValue) {
       const optionText = option.text.trim().toUpperCase();
       if (optionText === upperCellCode) {
         foundOption = option;
-        console.log('✓ Найдена ячейка:', option.text, '(ID:', option.value, ')');
+        showDebug('✓ Найдена: ' + option.text);
         break;
       }
     }
     
     if (!foundOption) {
-      console.log('❌ Не найдена ячейка с кодом:', cellCode);
-      console.log('Доступные ячейки:', Array.from(cellSelect.options).map(o => o.text.trim()).join(', '));
+      showDebug('❌ Ячейка ' + cellCode + ' не найдена', true);
       return false;
     }
 
@@ -270,7 +292,7 @@ window.setCellFromQR = function(qrValue) {
     cellSelect.dispatchEvent(new Event('change', { bubbles: true }));
     cellSelect.dispatchEvent(new Event('input', { bubbles: true }));
       
-  console.log('✓ Ячейка успешно установлена:', foundOption.text);
+    showDebug('✅ Ячейка установлена: ' + foundOption.text);
   foundOption.text);
   return true;
     // Запускаем попытку установки
@@ -281,14 +303,13 @@ window.setCellFromQR = function(qrValue) {
  * Вызывается при двойном нажатии Vol Down после выбора ячейки
  */
 window.saveMoveAndClose = function() {
-  console.log('💾 saveMoveAndClose: начало');
-  
+  showDebug('💾 saveMoveAndClose: начало');
+    
   // Ищем кнопку сохранения в модалке
   const saveBtn = document.querySelector('button.js-core-link[data-core-action="warehouse_move_save_cell"]');
   
   if (!saveBtn) {
-    console.log('❌ Не найдена кнопка сохранения');
-    console.log('Доступные кнопки:', document.querySelectorAll('button[data-core-action]'));
+    showDebug('❌ Кнопка сохранения не найдена', true);
     return false;
   }
   
@@ -297,11 +318,13 @@ window.saveMoveAndClose = function() {
   console.log('Кнопка видна:', saveBtn.offsetParent !== null);
   
   console.log('✓ Нажимаем кнопку сохранения');
+  showDebug('✓ Нажимаем кнопку сохранения');
   saveBtn.click();
   
   // Закрываем модалку через небольшую задержку (чтобы сохранение успело выполниться)
   setTimeout(() => {
     console.log('🚪 Закрываем модалку');
+    showDebug('🚪 Закрываем модалку');
     const modal = document.querySelector('.modal.show');
     if (modal) {
       const closeBtn = modal.querySelector('.btn-close, [data-bs-dismiss="modal"]');
