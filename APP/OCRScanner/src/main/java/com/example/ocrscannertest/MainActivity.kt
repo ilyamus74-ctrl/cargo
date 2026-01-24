@@ -2911,35 +2911,6 @@ fun callWebCallback(webView: WebView, functionName: String, value: String) {
  * @param functionName Имя функции в window объекте
  * @param value Значение для передачи в функцию (результат сканирования)
  */
-fun callWebCallback(webView: WebView, functionName: String, value: String) {
-    val escapedFunctionName = escapeJsString(functionName)
-    val escapedValue = escapeJsString(value)
-
-    val js = """
-        (function(){
-          if (typeof window['$escapedFunctionName'] === 'function') {
-            try {
-              var result = window['$escapedFunctionName']('$escapedValue');
-              console.log('✓ Callback $escapedFunctionName returned:', result);
-              return result;
-            } catch(e) {
-              console.error('✗ Error in callback $escapedFunctionName:', e);
-              return false;
-            }
-          } else {
-            console.error('✗ Callback function $escapedFunctionName not found in window');
-            return false;
-          }
-        })();
-    """.trimIndent()
-
-    webView.post {
-        webView.evaluateJavascript(js) { result ->
-            println("### callWebCallback($functionName, $value) -> $result")
-        }
-    }
-}
-
 
 fun requestStandMeasurementInWebView(webView: WebView) {
     val js = "if (window.requestStandMeasurement) { window.requestStandMeasurement(); }"
