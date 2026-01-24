@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-01-24 17:55:49
+/* Smarty version 5.3.1, created on 2026-01-24 18:16:15
   from 'file:cells_NA_API_warehouse_move.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_697507a5138890_00315796',
+  'unifunc' => 'content_69750c6f4cc7f8_62965210',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '9041cbe8efcd5e4b6c57b0a4462d7d776f0b5774' => 
     array (
       0 => 'cells_NA_API_warehouse_move.html',
-      1 => 1769275343,
+      1 => 1769278564,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_697507a5138890_00315796 (\Smarty\Template $_smarty_tpl) {
+function content_69750c6f4cc7f8_62965210 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>    <div class="pagetitle">
       <h1>Warehouse Move</h1>
@@ -175,7 +175,7 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
             "next_on_scan": "scan_cell",
             "barcode": {
               "action": "fill_field",
-              "field_id": "warehouse-move-search"
+              "field_id": "warehouse-move-batch-search"
             },
             "on_action": {
               "scan": [{"op": "open_scanner", "mode": "barcode"}],
