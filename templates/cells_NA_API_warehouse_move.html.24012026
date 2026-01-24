@@ -117,36 +117,12 @@
   "task_id":"warehouse_move",
   "default_mode":"barcode",
   "modes":["barcode","qr"],
-
   "buttons":{
     "vol_down_single":"scan",
     "vol_down_double":"confirm",
     "vol_up_single":"clear",
     "vol_up_double":"reset"
   },
-
-  "api": {
-    "move_apply": "/api/warehouse_move_apply.php"
-  },
-
-  "contexts": {
-    "scanner": {
-      "active_tab_selector": "#warehouse-move-scanner-tab.nav-link.active",
-      "barcode": { "action":"fill_field", "field_id":"warehouse-move-search" },
-      "qr":      { "action":"api_check", "endpoint":"/api/qr_check.php" }
-    },
-
-    "batch": {
-      "active_tab_selector": "#warehouse-move-batch-tab.nav-link.active",
-      "barcode": { "action":"fill_field", "field_id":"warehouse-move-search" },
-      "qr":      {
-        "action":"api_check",
-        "endpoint":"/api/qr_check.php",
-        "apply_to_select_id":"warehouse-move-cell-select"
-      }
-    }
-  },
-
   "flow":{
     "start":"scan_parcel",
     "steps":{
@@ -154,26 +130,26 @@
         "next_on_scan":"scan_from_cell",
         "on_action":{
           "scan":[{"op":"open_scanner","mode":"barcode"}],
-          "confirm":[{"op":"noop"}],
-          "clear":[{"op":"noop"}],
-          "reset":[{"op":"noop"}]
+          "clear":[{"op":"web","name":"clear_parcel"}],
+          "reset":[{"op":"web","name":"clear_all"},{"op":"set_step","to":"scan_parcel"}],
+          "confirm":[{"op":"noop"}]
         }
       },
       "scan_from_cell":{
         "next_on_scan":"scan_to_cell",
         "on_action":{
           "scan":[{"op":"open_scanner","mode":"qr"}],
-          "confirm":[{"op":"noop"}],
-          "clear":[{"op":"noop"}],
-          "reset":[{"op":"noop"}]
+          "clear":[{"op":"web","name":"clear_from_cell"}],
+          "reset":[{"op":"web","name":"clear_all"},{"op":"set_step","to":"scan_parcel"}],
+          "confirm":[{"op":"noop"}]
         }
       },
       "scan_to_cell":{
         "on_action":{
           "scan":[{"op":"open_scanner","mode":"qr"}],
-          "confirm":[{"op":"noop"}],
-          "clear":[{"op":"noop"}],
-          "reset":[{"op":"noop"}]
+          "confirm":[{"op":"web","name":"move_confirm"},{"op":"set_step","to":"scan_parcel"}],
+          "clear":[{"op":"web","name":"clear_to_cell"}],
+          "reset":[{"op":"web","name":"clear_all"},{"op":"set_step","to":"scan_parcel"}]
         }
       }
     }

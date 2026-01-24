@@ -2781,7 +2781,7 @@ fun fillParcelFormInWebView(
         if (includeCarrierFields) {
             localCarrier?.let {
                 val v = esc(it)
-                append("setValById('carrierName','$v');")
+                append("setSelectVal('carrierName','$v');")
             }
         }
 
@@ -4456,7 +4456,9 @@ fun parseScanAction(obj: JSONObject?): ScanAction? {
         fieldName = obj.optString("field_name", null),
         fieldIds = fieldIds,
         fieldNames = fieldNames,
-        endpoint = endpoint
+        endpoint = endpoint,
+        applyToSelectId = applyToSelectId,
+
     )
 }
 

@@ -752,16 +752,11 @@ function detect_forwarder_by_cell_code(string $cell): ?string {
 function detect_local_carrier_name(string $text): ?string {
     $t = mb_strtolower($text, 'UTF-8');
 
-//    if (preg_match('/\bhermes\b/u', $t)) return 'HERMES';
-//    if (preg_match('/\bgls\b/u', $t)) return 'GLS';
-//    if (preg_match('/\bups\b/u', $t) || preg_match('/\b1z[0-9a-z]{16}\b/iu', $text)) return 'UPS';
-//    if (preg_match('/\bazamazon\b/u', $t) || preg_match('/\btba\d{10,}\b/iu', $text)) return 'AMAZON';
-//    if (preg_match('/\bdhl\b/u', $t) || mb_strpos($t, 'deutsche post') !== false) return 'DHL';
-    if (preg_match('/\bh[\W_]*e[\W_]*r[\W_]*m[\W_]*e[\W_]*s\b/u', $t)) return 'HERMES';
-    if (preg_match('/\bg[\W_]*l[\W_]*s\b/u', $t)) return 'GLS';
-    if (preg_match('/\bu[\W_]*p[\W_]*s\b/u', $t) || preg_match('/\b1z[0-9a-z]{16}\b/iu', $text)) return 'UPS';
-    if (preg_match('/\ba[\W_]*m[\W_]*a[\W_]*z[\W_]*o[\W_]*n\b/u', $t) || preg_match('/\btba\d{10,}\b/iu', $text)) return 'AMAZON';
-    if (preg_match('/\bd[\W_]*h[\W_]*l\b/u', $t) || mb_strpos($t, 'deutsche post') !== false) return 'DHL';
+    if (preg_match('/\bhermes\b/u', $t)) return 'HERMES';
+    if (preg_match('/\bgls\b/u', $t)) return 'GLS';
+    if (preg_match('/\bups\b/u', $t) || preg_match('/\b1z[0-9a-z]{16}\b/iu', $text)) return 'UPS';
+    if (preg_match('/\bazamazon\b/u', $t) || preg_match('/\btba\d{10,}\b/iu', $text)) return 'AMAZON';
+    if (preg_match('/\bdhl\b/u', $t) || mb_strpos($t, 'deutsche post') !== false) return 'DHL';
 
     return null;
 }
