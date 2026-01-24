@@ -294,6 +294,9 @@ fun AppRoot() {
     val isWarehouseIn = taskConfig?.taskId == "warehouse_in"
     val hasFlow = taskConfig?.flow != null
 
+    // Check if any context has a flow
+    val hasContextFlow = taskConfig?.contexts?.values?.any { it.flow != null } == true
+
     fun fieldSelector(action: ScanAction?): String? {
         val fieldId = action?.fieldId?.trim()?.takeIf { it.isNotEmpty() }
         val fieldName = action?.fieldName?.trim()?.takeIf { it.isNotEmpty() }
@@ -384,6 +387,69 @@ fun AppRoot() {
         }
     }
 
+    fun executeFlowActionsInContext(
+        actions: List<FlowOp>,
+        contextConfig: ScanContextConfig?
+    ) {
+        val contextFlow = contextConfig?.flow
+        val globalFlow = taskConfig?.flow
+
+        for (op in actions) {
+            when (op) {
+                is FlowOp.OpenScanner -> {
+                    when (op.mode) {
+                        "barcode", "qr" -> showBarcodeScan = true
+                        "ocr" -> showOcr = true
+                    }
+                }
+                is FlowOp.SetStep -> {
+                    // Используем context flow если есть, иначе глобальный
+                    val flow = contextFlow ?: globalFlow
+                    if (flow != null && flow.steps.containsKey(op.to)) {
+                        setFlowStep(op.to)
+                    }
+                }
+                is FlowOp.Web -> {
+                    webViewRef?.let { web ->
+                        when (op.name) {
+                            "clear_search" -> {
+                                // Очищаем поле поиска в контексте
+                                val field = fieldSelector(contextConfig?.barcode)
+                                field?.let { setInputValueBySelector(web, it, "") }
+                            }
+                            "reset_form" -> {
+                                // Сбрасываем форму
+                                contextConfig?.let { clearWarehouseMoveState("", it) }
+                            }
+                            "apply_move" -> {
+                                // Применяем перемещение
+                                contextConfig?.let { handleWarehouseMoveConfirm("", it) }
+                            }
+                            "clear_tracking" -> clearTrackingAndTuidInWebView(web)
+                            "clear_except_track" -> clearParcelFormExceptTrack(web)
+                            "clear_all" -> clearAllInWebView(web)
+                            "clear_measurements" -> clearMeasurementsInWebView(web)
+                            "measure_request" -> requestStandMeasurementInWebView(web)
+                            "add_new_item" -> prepareFormForNextScanInWebView(web)
+                        }
+                    }
+                }
+                is FlowOp.Noop -> { /* do nothing */ }
+                is FlowOp.WebIf -> {
+                    when (op.cond) {
+                        "stand_selected" -> {
+                            val web = webViewRef ?: return
+                            withStandDeviceSelected(web) { selected ->
+                                executeFlowActionsInContext(if (selected) op.thenOps else op.elseOps, contextConfig)
+                            }
+                        }
+                        else -> executeFlowActionsInContext(op.elseOps, contextConfig)
+                    }
+                }
+            }
+        }
+    }
+
     fun dispatchFlowAction(eventName: String) {
         val flow = taskConfig?.flow ?: return
         val action = taskConfig?.buttons?.get(eventName) ?: return
@@ -391,6 +457,31 @@ fun AppRoot() {
         val step = flow.steps[stepId] ?: return
         val ops = step.onAction[action] ?: return
         executeFlowOps(ops)
+    }
+
+    fun dispatchContextFlowAction(eventName: String) {
+        if (!isWarehouseMove) return
+
+        resolveActiveWarehouseContext { contextKey, contextConfig ->
+            val contextFlow = contextConfig.flow
+            if (contextFlow != null) {
+                val action = taskConfig?.buttons?.get(eventName) ?: return@resolveActiveWarehouseContext
+                val stepId = currentFlowStep ?: contextFlow.start.also { setFlowStep(it) }
+                val step = contextFlow.steps[stepId]
+                val ops = step?.onAction?.get(action) ?: emptyList()
+
+                if (ops.isNotEmpty()) {
+                    executeFlowActionsInContext(ops, contextConfig)
+                } else {
+                    // Fallback на старую логику если нет действий
+                    dispatchButtonAction(action)
+                }
+            } else {
+                // Если нет flow в контексте, используем старую логику
+                val action = taskConfig?.buttons?.get(eventName)
+                dispatchButtonAction(action)
+            }
+        }
     }
 
     fun clearWarehouseMoveState(contextKey: String, contextConfig: ScanContextConfig) {
@@ -649,6 +740,12 @@ fun AppRoot() {
                     MainActivity.onVolDownDouble = { dispatchFlowAction("vol_down_double") }
                     MainActivity.onVolUpSingle = { dispatchFlowAction("vol_up_single") }
                     MainActivity.onVolUpDouble = { dispatchFlowAction("vol_up_double") }
+                } else if (hasContextFlow && isWarehouseMove) {
+                    // Используем context flow для warehouse_move
+                    MainActivity.onVolDownSingle = { dispatchContextFlowAction("vol_down_single") }
+                    MainActivity.onVolDownDouble = { dispatchContextFlowAction("vol_down_double") }
+                    MainActivity.onVolUpSingle = { dispatchContextFlowAction("vol_up_single") }
+                    MainActivity.onVolUpDouble = { dispatchContextFlowAction("vol_up_double") }
                 } else {
                     MainActivity.onVolDownSingle = {
                         if (isWarehouseIn) {
@@ -980,28 +1077,69 @@ fun AppRoot() {
                             showBarcodeScan = false
                             if (isWarehouseMove) {
                                 resolveActiveWarehouseContext { contextKey, contextConfig ->
-                                    val action = if (result.isQr) {
-                                        contextConfig.qr
-                                    } else {
-                                        contextConfig.barcode
-                                    }
-                                    handleWarehouseMoveScanResult(
-                                        config = config,
-                                        scope = scope,
-                                        webView = webViewRef,
-                                        scanResult = result,
-                                        action = action,
-                                        contextKey = contextKey,
-                                        contextConfig = contextConfig,
-                                        onScannerCellUpdate = { cellId, cellCode ->
-                                            warehouseMoveScannerCellId = cellId
-                                            warehouseMoveScannerCellCode = cellCode
-                                        },
-                                        onBatchCellUpdate = { cellId, cellCode ->
-                                            warehouseMoveBatchCellId = cellId
-                                            warehouseMoveBatchCellCode = cellCode
+                                    // НОВАЯ ЛОГИКА: проверяем, есть ли flow у контекста
+                                    val contextFlow = contextConfig.flow
+
+                                    if (contextFlow != null) {
+                                        // Используем flow внутри контекста
+                                        val stepId = currentFlowStep ?: contextFlow.start
+                                        val currentStep = contextFlow.steps[stepId]
+
+                                        // Определяем действие: сначала из шага, потом из контекста (fallback)
+                                        val action = if (result.isQr) {
+                                            currentStep?.qrAction ?: contextConfig.qr
+                                        } else {
+                                            currentStep?.barcodeAction ?: contextConfig.barcode
                                         }
-                                    )
+
+                                        handleWarehouseMoveScanResult(
+                                            config = config,
+                                            scope = scope,
+                                            webView = webViewRef,
+                                            scanResult = result,
+                                            action = action,
+                                            contextKey = contextKey,
+                                            contextConfig = contextConfig,
+                                            onScannerCellUpdate = { cellId, cellCode ->
+                                                warehouseMoveScannerCellId = cellId
+                                                warehouseMoveScannerCellCode = cellCode
+                                            },
+                                            onBatchCellUpdate = { cellId, cellCode ->
+                                                warehouseMoveBatchCellId = cellId
+                                                warehouseMoveBatchCellCode = cellCode
+                                            }
+                                        )
+
+                                        // Переходим к следующему шагу flow
+                                        currentStep?.nextOnScan?.let { next ->
+                                            setFlowStep(next)
+                                        }
+                                    } else {
+                                        // Старая простая логика (fallback для обратной совместимости)
+                                        val action = if (result.isQr) {
+                                            contextConfig.qr
+                                        } else {
+                                            contextConfig.barcode
+                                        }
+
+                                        handleWarehouseMoveScanResult(
+                                            config = config,
+                                            scope = scope,
+                                            webView = webViewRef,
+                                            scanResult = result,
+                                            action = action,
+                                            contextKey = contextKey,
+                                            contextConfig = contextConfig,
+                                            onScannerCellUpdate = { cellId, cellCode ->
+                                                warehouseMoveScannerCellId = cellId
+                                                warehouseMoveScannerCellCode = cellCode
+                                            },
+                                            onBatchCellUpdate = { cellId, cellCode ->
+                                                warehouseMoveBatchCellId = cellId
+                                                warehouseMoveBatchCellCode = cellCode
+                                            }
+                                        )
+                                    }
                                 }
                             } else {
                                 val cleanBarcode = sanitizeBarcodeInput(result.rawValue)
@@ -1071,14 +1209,30 @@ fun AppRoot() {
                                     includeCarrierFields = false
                                 )
                             }
-                            val flow = taskConfig?.flow
-                            if (flow != null) {
-                                val stepId = currentFlowStep ?: flow.start
-                                flow.steps[stepId]?.nextOnScan?.let { next ->
-                                    setFlowStep(next)
+
+                            // НОВОЕ: поддержка context flow
+                            if (isWarehouseMove) {
+                                resolveActiveWarehouseContext { contextKey, contextConfig ->
+                                    val contextFlow = contextConfig.flow
+                                    if (contextFlow != null) {
+                                        val stepId = currentFlowStep ?: contextFlow.start
+                                        contextFlow.steps[stepId]?.nextOnScan?.let { next ->
+                                            setFlowStep(next)
+                                        }
+                                    }
                                 }
-                            } else if (isWarehouseIn) {
-                                warehouseScanStep = WarehouseScanStep.MEASURE
+                            } else {
+                                // Глобальный flow для warehouse_in и других
+                                val flow = taskConfig?.flow
+                                if (flow != null) {
+                                    val stepId = currentFlowStep ?: flow.start
+                                    flow.steps[stepId]?.nextOnScan?.let { next ->
+                                        setFlowStep(next)
+                                    }
+                                } else if (isWarehouseIn) {
+                                    warehouseScanStep = WarehouseScanStep.MEASURE
+                                }
+
                             }
                         },
                         onCancel = {
@@ -4357,7 +4511,8 @@ data class ScanAction(
 data class ScanContextConfig(
     val activeTabSelector: String? = null,
     val barcode: ScanAction? = null,
-    val qr: ScanAction? = null
+    val qr: ScanAction? = null,
+    val flow: FlowConfig? = null
 )
 
 data class ScanTaskUiConfig(
@@ -4372,7 +4527,10 @@ data class FlowConfig(
 
 data class FlowStep(
     val nextOnScan: String? = null,
-    val onAction: Map<String, List<FlowOp>> = emptyMap()
+    val onAction: Map<String, List<FlowOp>> = emptyMap(),
+    val mode: String? = null,
+    val barcodeAction: ScanAction? = null,
+    val qrAction: ScanAction? = null
 )
 
 sealed interface FlowOp {
@@ -4499,6 +4657,63 @@ fun parseFlowOp(obj: JSONObject?): FlowOp? {
     }
 }
 
+fun parseFlowConfig(flowObj: JSONObject?): FlowConfig? {
+    if (flowObj == null) return null
+
+    val start = flowObj.optString("start", "").trim().lowercase()
+    if (start.isBlank()) return null
+
+    val stepsObj = flowObj.optJSONObject("steps")
+    val steps = mutableMapOf<String, FlowStep>()
+
+    if (stepsObj != null) {
+        val stepNames = stepsObj.names()
+        if (stepNames != null) {
+            for (i in 0 until stepNames.length()) {
+                val stepKey = stepNames.optString(i, "").trim().lowercase()
+                val stepObj = stepsObj.optJSONObject(stepKey) ?: continue
+
+                val nextOnScan = stepObj.optString("next_on_scan", "").trim().lowercase()
+                    .takeIf { it.isNotBlank() }
+                val mode = stepObj.optString("mode", "").trim().lowercase()
+                    .takeIf { it.isNotBlank() }
+
+                // Парсим действия для этого шага
+                val barcodeAction = parseScanAction(stepObj.optJSONObject("barcode"))
+                val qrAction = parseScanAction(stepObj.optJSONObject("qr"))
+
+                // Парсим on_action
+                val onActionObj = stepObj.optJSONObject("on_action")
+                val onAction = mutableMapOf<String, List<FlowOp>>()
+                if (onActionObj != null) {
+                    val actionNames = onActionObj.names()
+                    if (actionNames != null) {
+                        for (j in 0 until actionNames.length()) {
+                            val actionKey = actionNames.optString(j, "").trim().lowercase()
+                            val ops = parseFlowOpsArray(onActionObj.optJSONArray(actionKey))
+                            if (actionKey.isNotBlank()) {
+                                onAction[actionKey] = ops
+                            }
+                        }
+                    }
+                }
+
+                if (stepKey.isNotBlank()) {
+                    steps[stepKey] = FlowStep(
+                        nextOnScan = nextOnScan,
+                        onAction = onAction,
+                        mode = mode,
+                        barcodeAction = barcodeAction,
+                        qrAction = qrAction
+                    )
+                }
+            }
+        }
+    }
+
+    return if (steps.isNotEmpty()) FlowConfig(start, steps) else null
+}
+
 fun parseScanTaskConfig(json: String): ScanTaskConfig? = try {
     val obj = JSONObject(json)
 
@@ -4548,10 +4763,15 @@ fun parseScanTaskConfig(json: String): ScanTaskConfig? = try {
                 val selector = ctxObj.optString("active_tab_selector", "").trim().takeIf { it.isNotEmpty() }
                 val barcodeCtx = parseScanAction(ctxObj.optJSONObject("barcode"))
                 val qrCtx = parseScanAction(ctxObj.optJSONObject("qr"))
+
+                // НОВОЕ: парсим flow внутри контекста
+                val contextFlow = parseFlowConfig(ctxObj.optJSONObject("flow"))
+
                 contexts[key] = ScanContextConfig(
                     activeTabSelector = selector,
                     barcode = barcodeCtx,
-                    qr = qrCtx
+                    qr = qrCtx,
+                    flow = contextFlow
                 )
             }
         }
@@ -4573,50 +4793,7 @@ fun parseScanTaskConfig(json: String): ScanTaskConfig? = try {
     }
 
 
-    val flowObj = obj.optJSONObject("flow")
-    val flow = if (flowObj != null) {
-        val start = flowObj.optString("start", "").trim().lowercase()
-        val stepsObj = flowObj.optJSONObject("steps")
-        val steps = mutableMapOf<String, FlowStep>()
-        if (stepsObj != null) {
-            val names = stepsObj.names()
-            if (names != null) {
-                for (i in 0 until names.length()) {
-                    val stepKey = names.optString(i, "").trim().lowercase()
-                    val stepObj = stepsObj.optJSONObject(stepKey) ?: continue
-                    val nextOnScan = stepObj.optString("next_on_scan", "").trim().lowercase()
-                        .takeIf { it.isNotBlank() }
-                    val onActionObj = stepObj.optJSONObject("on_action")
-                    val onAction = mutableMapOf<String, List<FlowOp>>()
-                    if (onActionObj != null) {
-                        val actionNames = onActionObj.names()
-                        if (actionNames != null) {
-                            for (j in 0 until actionNames.length()) {
-                                val actionKey = actionNames.optString(j, "").trim().lowercase()
-                                val ops = parseFlowOpsArray(onActionObj.optJSONArray(actionKey))
-                                if (actionKey.isNotBlank()) {
-                                    onAction[actionKey] = ops
-                                }
-                            }
-                        }
-                    }
-                    if (stepKey.isNotBlank()) {
-                        steps[stepKey] = FlowStep(
-                            nextOnScan = nextOnScan,
-                            onAction = onAction
-                        )
-                    }
-                }
-            }
-        }
-        if (start.isNotBlank() && steps.isNotEmpty()) {
-            FlowConfig(start = start, steps = steps)
-        } else {
-            null
-        }
-    } else {
-        null
-    }
+    val flow = parseFlowConfig(obj.optJSONObject("flow"))
 
     val uiObj = obj.optJSONObject("ui")
     val uiTitle = uiObj?.optString("title", "")?.trim()?.takeIf { it.isNotEmpty() }
