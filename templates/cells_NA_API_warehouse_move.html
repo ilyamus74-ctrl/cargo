@@ -150,17 +150,18 @@ window.openMoveModal = function() {
   
   console.log('✓ Найдена ровно 1 запись');
   
-  // Получаем ссылку для открытия модалки из первой строки
+  // Получаем кнопку для открытия модалки из первой строки
   const firstRow = rows[0];
-  const link = firstRow.querySelector('a[data-core-action="load_parcel"]');
+  const button = firstRow.querySelector('button[data-core-action="warehouse_move_open_modal"]');
   
-  if (!link) {
-    console.log('❌ Не найдена ссылка для открытия модалки');
+  if (!button) {
+    console.log('❌ Не найдена кнопка для открытия модалки');
+    console.log('Доступные элементы в строке:', firstRow.innerHTML);
     return false;
   }
   
   console.log('✓ Открываем модалку');
-  link.click();
+  button.click();
   
   return true;
 };
@@ -191,41 +192,56 @@ window.setCellFromQR = function(qrValue) {
     return false;
   }
   
-  // Ищем select в модалке
-  const cellSelect = document.getElementById('cellId');
-  if (!cellSelect) {
-    console.log('❌ Не найден select #cellId в модалке');
-    return false;
-  }
-  
-  console.log('🔍 Ищем ячейку с кодом:', cellCode);
-  
-  // Ищем option с нужным кодом ячейки (case-insensitive)
-  let foundOption = null;
-  const upperCellCode = cellCode.toUpperCase();
-  
-  for (let option of cellSelect.options) {
-    const optionText = option.text.trim().toUpperCase();
-    if (optionText === upperCellCode) {
-      foundOption = option;
-      console.log('✓ Найдена ячейка:', option.text, '(ID:', option.value, ')');
-      break;
+  // Функция для попытки установки значения
+  const trySetCell = (retryCount = 0) => {
+    console.log('🔄 Попытка', retryCount + 1, 'найти и установить ячейку');
+    
+    // Ищем select в модалке
+    const cellSelect = document.getElementById('cellId');
+    if (!cellSelect) {
+      console.log('❌ Не найден select #cellId в модалке');
+      
+      // Если модалка ещё не загружена, повторяем через 300ms (максимум 5 попыток)
+      if (retryCount < 5) {
+        setTimeout(() => trySetCell(retryCount + 1), 300);
+        return false;
+      }
+      console.log('❌ Превышено количество попыток поиска select #cellId');
+      return false;
     }
-  }
+    
+    console.log('🔍 Ищем ячейку с кодом:', cellCode);
+    
+    // Ищем option с нужным кодом ячейки (case-insensitive)
+    let foundOption = null;
+    const upperCellCode = cellCode.toUpperCase();
+    
+    for (let option of cellSelect.options) {
+      const optionText = option.text.trim().toUpperCase();
+      if (optionText === upperCellCode) {
+        foundOption = option;
+        console.log('✓ Найдена ячейка:', option.text, '(ID:', option.value, ')');
+        break;
+      }
+    }
+    
+    if (!foundOption) {
+      console.log('❌ Не найдена ячейка с кодом:', cellCode);
+      console.log('Доступные ячейки:', Array.from(cellSelect.options).map(o => o.text.trim()).join(', '));
+      return false;
+    }
+    
+    // Устанавливаем значение
+    cellSelect.value = foundOption.value;
+    cellSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    cellSelect.dispatchEvent(new Event('input', { bubbles: true }));
+    
+    console.log('✓ Ячейка успешно установлена:', foundOption.text);
+    return true;
+  };
   
-  if (!foundOption) {
-    console.log('❌ Не найдена ячейка с кодом:', cellCode);
-    console.log('Доступные ячейки:', Array.from(cellSelect.options).map(o => o.text.trim()).join(', '));
-    return false;
-  }
-  
-  // Устанавливаем значение
-  cellSelect.value = foundOption.value;
-  cellSelect.dispatchEvent(new Event('change', { bubbles: true }));
-  cellSelect.dispatchEvent(new Event('input', { bubbles: true }));
-  
-  console.log('✓ Ячейка успешно установлена:', foundOption.text);
-  return true;
+  // Запускаем попытку установки
+  return trySetCell();
 };
 
 /**
@@ -240,8 +256,13 @@ window.saveMoveAndClose = function() {
   
   if (!saveBtn) {
     console.log('❌ Не найдена кнопка сохранения');
+    console.log('Доступные кнопки:', document.querySelectorAll('button[data-core-action]'));
     return false;
   }
+  
+  console.log('✓ Найдена кнопка сохранения, проверяем состояние');
+  console.log('Кнопка disabled:', saveBtn.disabled);
+  console.log('Кнопка видна:', saveBtn.offsetParent !== null);
   
   console.log('✓ Нажимаем кнопку сохранения');
   saveBtn.click();
