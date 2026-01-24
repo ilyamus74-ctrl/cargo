@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-01-24 10:15:30
+/* Smarty version 5.3.1, created on 2026-01-24 10:46:25
   from 'file:cells_NA_API_warehouse_item_in_batch.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_69749bc29f9996_82226242',
+  'unifunc' => 'content_6974a301150779_50123267',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '7e8c2c62a4cb34a58255b0e76fcea2eec9328b7b' => 
     array (
       0 => 'cells_NA_API_warehouse_item_in_batch.html',
-      1 => 1769249724,
+      1 => 1769251564,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_69749bc29f9996_82226242 (\Smarty\Template $_smarty_tpl) {
+function content_6974a301150779_50123267 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>
 
@@ -245,7 +245,6 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
   </button>
 </div>
 
-
 <?php echo '<script'; ?>
  id="device-scan-config" type="application/json">
 {
@@ -298,7 +297,10 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
         "next_on_scan": "measure",
         "on_action": {
           "scan":    [ { "op":"open_scanner", "mode":"ocr" } ],
-          "clear":   [ { "op":"web", "name":"clear_except_track" },{ "op":"set_step", "to":"barcode" }],
+
+          /* шаг назад: в OCR нажал "вверх" -> чистим предыдущий шаг (штрихкод) и уходим на barcode */
+          "clear":   [ { "op":"web", "name":"clear_tracking" }, { "op":"set_step", "to":"barcode" } ],
+
           "reset":   [ { "op":"web", "name":"clear_all" }, { "op":"set_step", "to":"barcode" } ],
           "confirm": [ { "op":"noop" } ]
         }
@@ -306,20 +308,18 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
 
       "measure": {
         "on_action": {
+          /* тут сканнер не нужен: забираем замер с устройства и переходим в submit */
           "scan": [
-            { "op":"web_if",
-              "cond":"stand_selected",
-              "then": [
-                { "op":"web","name":"measure_request" },
-                { "op":"set_step","to":"submit" }
-              ],
-              "else": [
-                { "op":"web","name":"add_new_item" },
-                { "op":"set_step","to":"barcode" }
-              ]
-            }
+            { "op":"web", "name":"measure_request" },
+            { "op":"set_step", "to":"submit" }
           ],
-          "clear":   [{ "op":"web", "name":"clear_measurements" },{ "op":"set_step", "to":"ocr" }],
+
+          /* шаг назад: из measure "вверх" -> чистим предыдущий шаг (OCR-поля), уходим в ocr */
+          "clear": [
+            { "op":"web", "name":"clear_except_track" },
+            { "op":"set_step", "to":"ocr" }
+          ],
+
           "reset":   [ { "op":"web", "name":"clear_all" }, { "op":"set_step", "to":"barcode" } ],
           "confirm": [ { "op":"noop" } ]
         }
@@ -327,10 +327,14 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
 
       "submit": {
         "on_action": {
-          "confirm": [ { "op":"web","name":"add_new_item" }, { "op":"set_step","to":"barcode" } ],
+          /* одиночное/двойное вниз: добавить и начать заново */
           "scan":    [ { "op":"web","name":"add_new_item" }, { "op":"set_step","to":"barcode" } ],
-          "clear":   [ { "op":"web","name":"clear_measurements" }, { "op":"set_step", "to":"measure" } ],
-          "reset":   [ { "op":"web","name":"clear_all" }, { "op":"set_step", "to":"barcode" } ]
+          "confirm": [ { "op":"web","name":"add_new_item" }, { "op":"set_step","to":"barcode" } ],
+
+          /* шаг назад: из submit "вверх" -> чистим замеры, уходим в measure */
+          "clear":   [ { "op":"web","name":"clear_measurements" }, { "op":"set_step","to":"measure" } ],
+
+          "reset":   [ { "op":"web","name":"clear_all" }, { "op":"set_step","to":"barcode" } ]
         }
       }
     }
@@ -338,6 +342,7 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
 }
 <?php echo '</script'; ?>
 >
+
 <div id="ocr-templates" style="display:none">
     <?php echo $_smarty_tpl->getValue('jsonOcrTemplates');?>
 
