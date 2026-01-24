@@ -238,7 +238,7 @@
       "ocr": {
         "next_on_scan": "measure",
         "on_action": {
-          "scan":    [ { "op":"open_scanner", "mode":"ocr" } ],
+          "scan":    [ { "op":"open_scanner", "mode":"ocr" }, { "op":"set_step", "to":"measure" } ],
           "clear":   [ { "op":"web", "name":"clear_except_track" }, { "op":"set_step", "to":"barcode" } ],
           "reset":   [ { "op":"web", "name":"clear_all" }, { "op":"set_step", "to":"barcode" } ],
           "confirm": [ { "op":"noop" } ]
@@ -254,6 +254,7 @@
         }
       },
 
+  
       "submit": {
         "on_action": {
           "scan":    [ { "op":"web","name":"add_new_item" }, { "op":"set_step","to":"barcode" } ],

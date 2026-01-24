@@ -119,7 +119,7 @@ if (root) new MutationObserver(schedule).observe(root, {childList:true, subtree:
 
 enum class WarehouseScanStep { BARCODE, OCR, MEASURE, SUBMIT }
 
-private const val VOLUME_DOUBLE_TAP_WINDOW_MS = 300L
+private const val VOLUME_DOUBLE_TAP_WINDOW_MS = 650L
 
 private class VolumeButtonDispatcher(
     private val handler: Handler = Handler(Looper.getMainLooper())
@@ -900,11 +900,19 @@ fun AppRoot() {
                             val parsedTask = taskJson?.let { parseScanTaskConfig(it) }
                             if (parsedTask != null) {
                                 taskConfigJson = taskJson
+                                val prevTaskId = taskConfig?.taskId
+                                val prevJson = taskConfigJson
+
                                 taskConfig = parsedTask
-                                currentFlowStep = parsedTask.flow?.start
-                                parsedTask.flow?.start?.let { start ->
-                                    if (parsedTask.taskId == "warehouse_in") {
-                                        warehouseStepForFlow(start)?.let { warehouseScanStep = it }
+                                taskConfigJson = taskJson
+
+                                val flow = parsedTask.flow
+                                if (flow != null) {
+                                    val stepValid = currentFlowStep?.let { flow.steps.containsKey(it) } ?: false
+                                    val taskChanged = (prevTaskId == null) || (prevTaskId != parsedTask.taskId) || (prevJson != taskJson)
+
+                                    if (!stepValid || taskChanged) {
+                                        setFlowStep(flow.start) // setFlowStep() у тебя уже обновляет warehouseScanStep
                                     }
                                 }
                             }

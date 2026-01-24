@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-01-24 12:22:25
+/* Smarty version 5.3.1, created on 2026-01-24 12:32:43
   from 'file:cells_NA_API_warehouse_item_in_batch.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_6974b981bad9d4_55142730',
+  'unifunc' => 'content_6974bbeb3e3dd5_36067414',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '7e8c2c62a4cb34a58255b0e76fcea2eec9328b7b' => 
     array (
       0 => 'cells_NA_API_warehouse_item_in_batch.html',
-      1 => 1769257054,
+      1 => 1769257915,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_6974b981bad9d4_55142730 (\Smarty\Template $_smarty_tpl) {
+function content_6974bbeb3e3dd5_36067414 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>
 
@@ -302,7 +302,7 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
       "ocr": {
         "next_on_scan": "measure",
         "on_action": {
-          "scan":    [ { "op":"open_scanner", "mode":"ocr" } ],
+          "scan":    [ { "op":"open_scanner", "mode":"ocr" }, { "op":"set_step", "to":"measure" } ],
           "clear":   [ { "op":"web", "name":"clear_except_track" }, { "op":"set_step", "to":"barcode" } ],
           "reset":   [ { "op":"web", "name":"clear_all" }, { "op":"set_step", "to":"barcode" } ],
           "confirm": [ { "op":"noop" } ]
