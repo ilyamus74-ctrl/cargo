@@ -293,6 +293,9 @@ fun AppRoot() {
     val isWarehouseMove = taskConfig?.taskId == "warehouse_move"
     val isWarehouseIn = taskConfig?.taskId == "warehouse_in"
     val hasFlow = taskConfig?.flow != null
+    
+    // Check if any context has a flow
+    val hasContextFlow = taskConfig?.contexts?.values?.any { it.flow != null } == true
 
     fun fieldSelector(action: ScanAction?): String? {
         val fieldId = action?.fieldId?.trim()?.takeIf { it.isNotEmpty() }
@@ -454,6 +457,31 @@ fun AppRoot() {
         val step = flow.steps[stepId] ?: return
         val ops = step.onAction[action] ?: return
         executeFlowOps(ops)
+    }
+
+    fun dispatchContextFlowAction(eventName: String) {
+        if (!isWarehouseMove) return
+        
+        resolveActiveWarehouseContext { contextKey, contextConfig ->
+            val contextFlow = contextConfig.flow
+            if (contextFlow != null) {
+                val action = taskConfig?.buttons?.get(eventName) ?: return@resolveActiveWarehouseContext
+                val stepId = currentFlowStep ?: contextFlow.start.also { setFlowStep(it) }
+                val step = contextFlow.steps[stepId]
+                val ops = step?.onAction?.get(action) ?: emptyList()
+                
+                if (ops.isNotEmpty()) {
+                    executeFlowActionsInContext(ops, contextConfig)
+                } else {
+                    // Fallback на старую логику если нет действий
+                    dispatchButtonAction(action)
+                }
+            } else {
+                // Если нет flow в контексте, используем старую логику
+                val action = taskConfig?.buttons?.get(eventName)
+                dispatchButtonAction(action)
+            }
+        }
     }
 
     fun clearWarehouseMoveState(contextKey: String, contextConfig: ScanContextConfig) {
@@ -712,6 +740,12 @@ fun AppRoot() {
                     MainActivity.onVolDownDouble = { dispatchFlowAction("vol_down_double") }
                     MainActivity.onVolUpSingle = { dispatchFlowAction("vol_up_single") }
                     MainActivity.onVolUpDouble = { dispatchFlowAction("vol_up_double") }
+                } else if (hasContextFlow && isWarehouseMove) {
+                    // Используем context flow для warehouse_move
+                    MainActivity.onVolDownSingle = { dispatchContextFlowAction("vol_down_single") }
+                    MainActivity.onVolDownDouble = { dispatchContextFlowAction("vol_down_double") }
+                    MainActivity.onVolUpSingle = { dispatchContextFlowAction("vol_up_single") }
+                    MainActivity.onVolUpDouble = { dispatchContextFlowAction("vol_up_double") }
                 } else {
                     MainActivity.onVolDownSingle = {
                         if (isWarehouseIn) {
