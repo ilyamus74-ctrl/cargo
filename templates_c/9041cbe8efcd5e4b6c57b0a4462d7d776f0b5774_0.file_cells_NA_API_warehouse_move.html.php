@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-01-21 18:29:32
+/* Smarty version 5.3.1, created on 2026-01-24 17:55:49
   from 'file:cells_NA_API_warehouse_move.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_69711b0c557d11_63579467',
+  'unifunc' => 'content_697507a5138890_00315796',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '9041cbe8efcd5e4b6c57b0a4462d7d776f0b5774' => 
     array (
       0 => 'cells_NA_API_warehouse_move.html',
-      1 => 1769020167,
+      1 => 1769275343,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_69711b0c557d11_63579467 (\Smarty\Template $_smarty_tpl) {
+function content_697507a5138890_00315796 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>    <div class="pagetitle">
       <h1>Warehouse Move</h1>
@@ -151,40 +151,63 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
   "task_id":"warehouse_move",
   "default_mode":"barcode",
   "modes":["barcode","qr"],
+
   "buttons":{
     "vol_down_single":"scan",
     "vol_down_double":"confirm",
     "vol_up_single":"clear",
     "vol_up_double":"reset"
   },
-  "flow":{
-    "start":"scan_parcel",
-    "steps":{
-      "scan_parcel":{
-        "next_on_scan":"scan_from_cell",
-        "on_action":{
-          "scan":[{"op":"open_scanner","mode":"barcode"}],
-          "clear":[{"op":"web","name":"clear_parcel"}],
-          "reset":[{"op":"web","name":"clear_all"},{"op":"set_step","to":"scan_parcel"}],
-          "confirm":[{"op":"noop"}]
+
+  "api": {
+    "move_apply": "/api/warehouse_move_apply.php"
+  },
+
+  "contexts": {
+    "scanner": {
+      "active_tab_selector": "#warehouse-move-scanner-tab.nav-link.active",
+
+      "flow": {
+        "start": "scan_parcel",
+        "steps": {
+          "scan_parcel": {
+            "mode": "barcode",
+            "next_on_scan": "scan_cell",
+            "barcode": {
+              "action": "fill_field",
+              "field_id": "warehouse-move-search"
+            },
+            "on_action": {
+              "scan": [{"op": "open_scanner", "mode": "barcode"}],
+              "clear": [{"op": "web", "name": "clear_search"}],
+              "reset": [{"op": "web", "name": "reset_form"}, {"op": "set_step", "to": "scan_parcel"}]
+            }
+          },
+          "scan_cell": {
+            "mode": "qr",
+            "next_on_scan": "scan_parcel",
+            "qr": {
+              "action": "api_check",
+              "endpoint": "/api/qr_check.php"
+            },
+            "on_action": {
+              "scan": [{"op": "open_scanner", "mode": "qr"}],
+              "confirm": [{"op": "web", "name": "apply_move"}, {"op": "set_step", "to": "scan_parcel"}],
+              "clear": [{"op": "set_step", "to": "scan_parcel"}],
+              "reset": [{"op": "web", "name": "reset_form"}, {"op": "set_step", "to": "scan_parcel"}]
+            }
+          }
         }
-      },
-      "scan_from_cell":{
-        "next_on_scan":"scan_to_cell",
-        "on_action":{
-          "scan":[{"op":"open_scanner","mode":"qr"}],
-          "clear":[{"op":"web","name":"clear_from_cell"}],
-          "reset":[{"op":"web","name":"clear_all"},{"op":"set_step","to":"scan_parcel"}],
-          "confirm":[{"op":"noop"}]
-        }
-      },
-      "scan_to_cell":{
-        "on_action":{
-          "scan":[{"op":"open_scanner","mode":"qr"}],
-          "confirm":[{"op":"web","name":"move_confirm"},{"op":"set_step","to":"scan_parcel"}],
-          "clear":[{"op":"web","name":"clear_to_cell"}],
-          "reset":[{"op":"web","name":"clear_all"},{"op":"set_step","to":"scan_parcel"}]
-        }
+      }
+    },
+
+    "batch": {
+      "active_tab_selector": "#warehouse-move-batch-tab.nav-link.active",
+      "barcode": { "action":"fill_field", "field_id":"warehouse-move-batch-search" },
+      "qr":      {
+        "action":"api_check",
+        "endpoint":"/api/qr_check.php",
+        "apply_to_select_id":"warehouse-move-batch-cell"
       }
     }
   }

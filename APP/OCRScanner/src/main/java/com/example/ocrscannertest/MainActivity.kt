@@ -387,68 +387,7 @@ fun AppRoot() {
         }
     }
 
-    fun executeFlowActionsInContext(
-        actions: List<FlowOp>,
-        contextConfig: ScanContextConfig?
-    ) {
-        val contextFlow = contextConfig?.flow
-        val globalFlow = taskConfig?.flow
 
-        for (op in actions) {
-            when (op) {
-                is FlowOp.OpenScanner -> {
-                    when (op.mode) {
-                        "barcode", "qr" -> showBarcodeScan = true
-                        "ocr" -> showOcr = true
-                    }
-                }
-                is FlowOp.SetStep -> {
-                    // Используем context flow если есть, иначе глобальный
-                    val flow = contextFlow ?: globalFlow
-                    if (flow != null && flow.steps.containsKey(op.to)) {
-                        setFlowStep(op.to)
-                    }
-                }
-                is FlowOp.Web -> {
-                    webViewRef?.let { web ->
-                        when (op.name) {
-                            "clear_search" -> {
-                                // Очищаем поле поиска в контексте
-                                val field = fieldSelector(contextConfig?.barcode)
-                                field?.let { setInputValueBySelector(web, it, "") }
-                            }
-                            "reset_form" -> {
-                                // Сбрасываем форму
-                                contextConfig?.let { clearWarehouseMoveState("", it) }
-                            }
-                            "apply_move" -> {
-                                // Применяем перемещение
-                                contextConfig?.let { handleWarehouseMoveConfirm("", it) }
-                            }
-                            "clear_tracking" -> clearTrackingAndTuidInWebView(web)
-                            "clear_except_track" -> clearParcelFormExceptTrack(web)
-                            "clear_all" -> clearAllInWebView(web)
-                            "clear_measurements" -> clearMeasurementsInWebView(web)
-                            "measure_request" -> requestStandMeasurementInWebView(web)
-                            "add_new_item" -> prepareFormForNextScanInWebView(web)
-                        }
-                    }
-                }
-                is FlowOp.Noop -> { /* do nothing */ }
-                is FlowOp.WebIf -> {
-                    when (op.cond) {
-                        "stand_selected" -> {
-                            val web = webViewRef ?: return
-                            withStandDeviceSelected(web) { selected ->
-                                executeFlowActionsInContext(if (selected) op.thenOps else op.elseOps, contextConfig)
-                            }
-                        }
-                        else -> executeFlowActionsInContext(op.elseOps, contextConfig)
-                    }
-                }
-            }
-        }
-    }
 
     fun dispatchFlowAction(eventName: String) {
         val flow = taskConfig?.flow ?: return
@@ -459,30 +398,7 @@ fun AppRoot() {
         executeFlowOps(ops)
     }
 
-    fun dispatchContextFlowAction(eventName: String) {
-        if (!isWarehouseMove) return
 
-        resolveActiveWarehouseContext { contextKey: String, contextConfig: ScanContextConfig ->
-            val contextFlow: FlowConfig? = contextConfig.flow
-            if (contextFlow != null) {
-                val action = taskConfig?.buttons?.get(eventName) ?: return@resolveActiveWarehouseContext
-                val flowStartStep: String = contextFlow.start
-                val stepId = currentFlowStep ?: flowStartStep.also { setFlowStep(it) }
-                val step: FlowStep? = contextFlow.steps[stepId]
-                val ops: List<FlowOp> = step?.onAction?.get(action) ?: emptyList()
-                if (ops.isNotEmpty()) {
-                    executeFlowActionsInContext(ops, contextConfig)
-                } else {
-                    // Fallback на старую логику если нет действий
-                    dispatchButtonAction(action)
-                }
-            } else {
-                // Если нет flow в контексте, используем старую логику
-                val action = taskConfig?.buttons?.get(eventName)
-                dispatchButtonAction(action)
-            }
-        }
-    }
 
     fun clearWarehouseMoveState(contextKey: String, contextConfig: ScanContextConfig) {
         val field = fieldSelector(contextConfig.barcode)
@@ -701,6 +617,93 @@ fun AppRoot() {
         }
     }
 
+    fun executeFlowActionsInContext(
+        actions: List<FlowOp>,
+        contextConfig: ScanContextConfig?
+    ) {
+        val contextFlow = contextConfig?.flow
+        val globalFlow = taskConfig?.flow
+
+        for (op in actions) {
+            when (op) {
+                is FlowOp.OpenScanner -> {
+                    when (op.mode) {
+                        "barcode", "qr" -> showBarcodeScan = true
+                        "ocr" -> showOcr = true
+                    }
+                }
+                is FlowOp.SetStep -> {
+                    // Используем context flow если есть, иначе глобальный
+                    val flow = contextFlow ?: globalFlow
+                    if (flow != null && flow.steps.containsKey(op.to)) {
+                        setFlowStep(op.to)
+                    }
+                }
+                is FlowOp.Web -> {
+                    webViewRef?.let { web ->
+                        when (op.name) {
+                            "clear_search" -> {
+                                // Очищаем поле поиска в контексте
+                                val field = fieldSelector(contextConfig?.barcode)
+                                field?.let { setInputValueBySelector(web, it, "") }
+                            }
+                            "reset_form" -> {
+                                // Сбрасываем форму
+                                contextConfig?.let { clearWarehouseMoveState("", it) }
+                            }
+                            "apply_move" -> {
+                                // Применяем перемещение
+                                contextConfig?.let { handleWarehouseMoveConfirm("", it) }
+                            }
+                            "clear_tracking" -> clearTrackingAndTuidInWebView(web)
+                            "clear_except_track" -> clearParcelFormExceptTrack(web)
+                            "clear_all" -> clearAllInWebView(web)
+                            "clear_measurements" -> clearMeasurementsInWebView(web)
+                            "measure_request" -> requestStandMeasurementInWebView(web)
+                            "add_new_item" -> prepareFormForNextScanInWebView(web)
+                        }
+                    }
+                }
+                is FlowOp.Noop -> { /* do nothing */ }
+                is FlowOp.WebIf -> {
+                    when (op.cond) {
+                        "stand_selected" -> {
+                            val web = webViewRef ?: return
+                            withStandDeviceSelected(web) { selected ->
+                                executeFlowActionsInContext(if (selected) op.thenOps else op.elseOps, contextConfig)
+                            }
+                        }
+                        else -> executeFlowActionsInContext(op.elseOps, contextConfig)
+                    }
+                }
+            }
+        }
+    }
+    fun dispatchContextFlowAction(eventName: String) {
+        if (!isWarehouseMove) return
+
+        resolveActiveWarehouseContext { contextKey: String, contextConfig: ScanContextConfig ->
+            val contextFlow: FlowConfig? = contextConfig.flow
+            if (contextFlow != null) {
+                val action = taskConfig?.buttons?.get(eventName) ?: return@resolveActiveWarehouseContext
+                val flowStartStep: String = contextFlow.start
+                val stepId = currentFlowStep ?: flowStartStep.also { setFlowStep(it) }
+                val step: FlowStep? = contextFlow.steps[stepId]
+                val ops: List<FlowOp> = step?.onAction?.get(action) ?: emptyList()
+
+                if (ops.isNotEmpty()) {
+                    executeFlowActionsInContext(ops, contextConfig)
+                } else {
+                    // Fallback на старую логику если нет действий
+                    dispatchButtonAction(action)
+                }
+            } else {
+                // Если нет flow в контексте, используем старую логику
+                val action = taskConfig?.buttons?.get(eventName)
+                dispatchButtonAction(action)
+            }
+        }
+    }
 
     LaunchedEffect(
         showWebView,
