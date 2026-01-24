@@ -1004,7 +1004,14 @@ fun AppRoot() {
                                     } else {
                                         taskConfig?.barcodeAction
                                     }
-                                    fillBarcodeUsingTemplate(web, cleanBarcode, action)
+                                    fillBarcodeUsingTemplate(
+                                        web = web,
+                                        rawBarcode = cleanBarcode,
+                                        action = action,
+                                        config = config,
+                                        scope = scope,
+                                        isQr = result.isQr
+                                    )
                                     if (!isWarehouseIn) {
                                         fillParcelFormInWebView(web, data, taskConfig)
                                     }
@@ -1890,6 +1897,22 @@ suspend fun callApiWithSessionCookie(
     }
 }
 
+
+fun callApiCheck(
+    scope: CoroutineScope,
+    cfg: DeviceConfig,
+    endpoint: String,
+    rawValue: String,
+    payloadKey: String
+) {
+    scope.launch {
+        val payload = JSONObject().apply {
+            put(payloadKey, rawValue)
+        }
+        callApiWithSessionCookie(cfg, endpoint, body = payload)
+    }
+}
+
 suspend fun qrCheckWithSession(
     cfg: DeviceConfig,
     endpoint: String,
@@ -2498,7 +2521,14 @@ fun setWebInputValueBySelector(webView: WebView, selector: String, value: String
     setInputValueBySelector(webView, selector, value)
 }
 
-fun fillBarcodeUsingTemplate(web: WebView, rawBarcode: String, action: ScanAction?) {
+fun fillBarcodeUsingTemplate(
+    web: WebView,
+    rawBarcode: String,
+    action: ScanAction?,
+    config: DeviceConfig,
+    scope: CoroutineScope,
+    isQr: Boolean
+) {
     if (action == null) return
 
     val cleanBarcode = rawBarcode.trim()
@@ -2541,7 +2571,13 @@ fun fillBarcodeUsingTemplate(web: WebView, rawBarcode: String, action: ScanActio
 
         "api_check" -> {
             val endpoint = action.endpoint ?: return
-            callApiCheck(endpoint, cleanBarcode)
+            callApiCheck(
+                scope = scope,
+                cfg = config,
+                endpoint = endpoint,
+                rawValue = cleanBarcode,
+                payloadKey = if (isQr) "qr" else "barcode"
+            )
         }
     }
 }
