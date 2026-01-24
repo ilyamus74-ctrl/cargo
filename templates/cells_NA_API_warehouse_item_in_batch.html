@@ -20,7 +20,16 @@
 
   <div class="col-md-4">
      <label for="carrierName" class="form-label">Перевозчик</label>
-     <input type="text" class="form-control" id="carrierName" name="carrier_name" readonly>
+     <select class="form-select" id="carrierName" name="carrier_name">
+       <option value="">— выберите —</option>
+       <option value="DHL">DHL</option>
+       <option value="GLS">GLS</option>
+       <option value="HERMES">HERMES</option>
+       <option value="UPS">UPS</option>
+       <option value="AMAZON">AMAZON</option>
+       <option value="DPD">DPD</option>
+       <option value="OTHER">OTHER</option>
+     </select>
      <input type="hidden" id="senderName" name="carrier_code">
   </div>
 
@@ -190,7 +199,7 @@
 
   "barcode": {
     "action": "fill_field",
-    "field_ids": ["tuid","trackingNo","carrierName","senderName"]
+    "field_ids": ["tuid","trackingNo","senderName"]
   },
   "qr": {
     "action": "api_check",
