@@ -6,6 +6,7 @@ import android.os.Build
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.withContext
+import org.json.JSONArray
 import org.json.JSONObject
 import java.io.InputStream
 import java.net.HttpURLConnection
@@ -273,6 +274,7 @@ fun AppRoot() {
     // Шаги потока складского сканирования
 
     var warehouseScanStep by remember { mutableStateOf(WarehouseScanStep.BARCODE) }
+    var currentFlowStep by remember { mutableStateOf<String?>(null) }
     var warehouseMoveScannerCellId by remember { mutableStateOf<String?>(null) }
     var warehouseMoveScannerCellCode by remember { mutableStateOf<String?>(null) }
     var warehouseMoveBatchCellId by remember { mutableStateOf<String?>(null) }
@@ -290,6 +292,7 @@ fun AppRoot() {
     val taskIdNorm = taskConfig?.taskId?.trim()?.lowercase()
     val isWarehouseMove = taskConfig?.taskId == "warehouse_move"
     val isWarehouseIn = taskConfig?.taskId == "warehouse_in"
+    val hasFlow = taskConfig?.flow != null
 
     fun fieldSelector(action: ScanAction?): String? {
         val fieldId = action?.fieldId?.trim()?.takeIf { it.isNotEmpty() }
@@ -324,6 +327,70 @@ fun AppRoot() {
             showOcr && ocrHardwareTrigger != null -> ocrHardwareTrigger?.invoke()
             else -> openDefaultScanner()
         }
+    }
+
+
+    fun warehouseStepForFlow(step: String): WarehouseScanStep? = when (step) {
+        "barcode" -> WarehouseScanStep.BARCODE
+        "ocr" -> WarehouseScanStep.OCR
+        "measure" -> WarehouseScanStep.MEASURE
+        "submit" -> WarehouseScanStep.SUBMIT
+        else -> null
+    }
+
+    fun setFlowStep(step: String) {
+        currentFlowStep = step
+        if (isWarehouseIn) {
+            warehouseStepForFlow(step)?.let { warehouseScanStep = it }
+        }
+    }
+
+    fun executeFlowOps(ops: List<FlowOp>) {
+        if (ops.isEmpty()) return
+        ops.forEach { op ->
+            when (op) {
+                is FlowOp.OpenScanner -> {
+                    when (op.mode.lowercase()) {
+                        "barcode" -> showBarcodeScan = true
+                        "qr" -> showBarcodeScan = true
+                        "ocr" -> showOcr = true
+                    }
+                }
+                is FlowOp.Web -> {
+                    val web = webViewRef ?: return@forEach
+                    when (op.name) {
+                        "clear_tracking" -> clearTrackingAndTuidInWebView(web)
+                        "clear_except_track" -> clearParcelFormExceptTrack(web)
+                        "clear_all" -> clearAllInWebView(web)
+                        "clear_measurements" -> clearMeasurementsInWebView(web)
+                        "measure_request" -> requestStandMeasurementInWebView(web)
+                        "add_new_item" -> prepareFormForNextScanInWebView(web)
+                    }
+                }
+                is FlowOp.SetStep -> setFlowStep(op.to)
+                FlowOp.Noop -> Unit
+                is FlowOp.WebIf -> {
+                    when (op.cond) {
+                        "stand_selected" -> {
+                            val web = webViewRef ?: return@forEach
+                            withStandDeviceSelected(web) { selected ->
+                                executeFlowOps(if (selected) op.thenOps else op.elseOps)
+                            }
+                        }
+                        else -> executeFlowOps(op.elseOps)
+                    }
+                }
+            }
+        }
+    }
+
+    fun dispatchFlowAction(eventName: String) {
+        val flow = taskConfig?.flow ?: return
+        val action = taskConfig?.buttons?.get(eventName) ?: return
+        val stepId = currentFlowStep ?: flow.start.also { setFlowStep(it) }
+        val step = flow.steps[stepId] ?: return
+        val ops = step.onAction[action] ?: return
+        executeFlowOps(ops)
     }
 
     fun clearWarehouseMoveState(contextKey: String, contextConfig: ScanContextConfig) {
@@ -554,7 +621,7 @@ fun AppRoot() {
         taskConfig
     ) {
         when {
-            hasButtonMappings && (showWebView || showBarcodeScan || showOcr) -> {
+            hasButtonMappings && (showWebView || showBarcodeScan || showOcr) && !hasFlow -> {
                 MainActivity.onVolDownSingle = { dispatchButtonAction(buttonMappings["vol_down_single"]) }
                 MainActivity.onVolDownDouble = { dispatchButtonAction(buttonMappings["vol_down_double"]) }
                 MainActivity.onVolUpSingle = { dispatchButtonAction(buttonMappings["vol_up_single"]) }
@@ -577,101 +644,107 @@ fun AppRoot() {
 
 
             showWebView -> {
-                MainActivity.onVolDownSingle = {
-                    if (isWarehouseIn) {
-                        when (warehouseScanStep) {
-                            WarehouseScanStep.BARCODE -> {
-                                webViewRef?.let { web -> clearTrackingAndTuidInWebView(web) }
-                                showBarcodeScan = true
+                if (hasFlow) {
+                    MainActivity.onVolDownSingle = { dispatchFlowAction("vol_down_single") }
+                    MainActivity.onVolDownDouble = { dispatchFlowAction("vol_down_double") }
+                    MainActivity.onVolUpSingle = { dispatchFlowAction("vol_up_single") }
+                    MainActivity.onVolUpDouble = { dispatchFlowAction("vol_up_double") }
+                } else {
+                    MainActivity.onVolDownSingle = {
+                        if (isWarehouseIn) {
+                            when (warehouseScanStep) {
+                                WarehouseScanStep.BARCODE -> {
+                                    webViewRef?.let { web -> clearTrackingAndTuidInWebView(web) }
+                                    showBarcodeScan = true
+                                }
+                                WarehouseScanStep.OCR -> {
+                                    showOcr = true
+                                }
+                                WarehouseScanStep.MEASURE -> {
+                                    webViewRef?.let { web ->
+                                        withStandDeviceSelected(web) { selected ->
+                                            if (selected) {
+                                                requestStandMeasurementInWebView(web)
+                                                warehouseScanStep = WarehouseScanStep.SUBMIT
+                                            } else {
+                                                prepareFormForNextScanInWebView(web)
+                                                warehouseScanStep = WarehouseScanStep.BARCODE
+                                            }
+                                        }
+                                    }
+                                }
+                                WarehouseScanStep.SUBMIT -> {
+                                    webViewRef?.let { web -> prepareFormForNextScanInWebView(web) }
+                                    warehouseScanStep = WarehouseScanStep.BARCODE
+                                }
                             }
-                            WarehouseScanStep.OCR -> {
+                        } else {
+                            webViewRef?.let { web -> prepareFormForNextScanInWebView(web) }
 
-                                showOcr = true
+
+                            showOcr = true
+
+                            when (taskConfig?.defaultMode) {
+                                "qr"      -> { showQrScan = true }
+                                "barcode" -> { /* showBarcodeScan = true */ }
+                                "ocr"     -> { showOcr = true }
+                                else      -> { showOcr = true }
                             }
-                            WarehouseScanStep.MEASURE -> {
-                                webViewRef?.let { web ->
-                                    withStandDeviceSelected(web) { selected ->
-                                        if (selected) {
-                                            requestStandMeasurementInWebView(web)
-                                            warehouseScanStep = WarehouseScanStep.SUBMIT
-                                        } else {
-                                            prepareFormForNextScanInWebView(web)
-                                            warehouseScanStep = WarehouseScanStep.BARCODE
+                        }
+                    }
+                    MainActivity.onVolDownDouble = {
+                        if (isWarehouseIn) {
+                            warehouseInConfirm()
+                        }
+                    }
+                    MainActivity.onVolUpDouble = {
+                        if (isWarehouseIn) {
+                            webViewRef?.let { web -> clearParcelFormInWebView(web) }
+                            warehouseScanStep = WarehouseScanStep.BARCODE
+                            showOcr = false
+                            showBarcodeScan = false
+                        }
+                    }
+                    MainActivity.onVolUpSingle = {
+                        if (isWarehouseIn) {
+
+                            when (warehouseScanStep) {
+                                WarehouseScanStep.BARCODE -> {
+                                    webViewRef?.let { web -> clearTrackingAndTuidInWebView(web) }
+                                }
+                                WarehouseScanStep.OCR -> {
+                                    webViewRef?.let { web -> clearParcelFormExceptTrack(web) }
+                                    warehouseScanStep = WarehouseScanStep.OCR
+                                }
+                                WarehouseScanStep.MEASURE -> {
+                                    webViewRef?.let { web ->
+                                        withStandDeviceSelected(web) { selected ->
+                                            if (selected) {
+                                                clearMeasurementsInWebView(web)
+                                            } else {
+                                                clearParcelFormExceptTrack(web)
+                                                warehouseScanStep = WarehouseScanStep.OCR
+                                            }
+                                        }
+                                    }
+                                }
+                                WarehouseScanStep.SUBMIT -> {
+                                    webViewRef?.let { web ->
+                                        withStandDeviceSelected(web) { selected ->
+                                            if (selected) {
+                                                clearMeasurementsInWebView(web)
+                                                warehouseScanStep = WarehouseScanStep.MEASURE
+                                            } else {
+                                                clearParcelFormExceptTrack(web)
+                                                warehouseScanStep = WarehouseScanStep.OCR
+                                            }
                                         }
                                     }
                                 }
                             }
-                            WarehouseScanStep.SUBMIT -> {
-                                webViewRef?.let { web -> prepareFormForNextScanInWebView(web) }
-                                warehouseScanStep = WarehouseScanStep.BARCODE
-                            }
+                        } else {
+                            webViewRef?.let { web -> clearParcelFormInWebView(web) }
                         }
-                    } else {
-                        webViewRef?.let { web -> prepareFormForNextScanInWebView(web) }
-
-
-                        showOcr = true
-
-                        when (taskConfig?.defaultMode) {
-                            "qr"      -> { showQrScan = true }
-                            "barcode" -> { /* showBarcodeScan = true */ }
-                            "ocr"     -> { showOcr = true }
-                            else      -> { showOcr = true }
-                        }
-                    }
-                }
-                MainActivity.onVolDownDouble = {
-                    if (isWarehouseIn) {
-                        warehouseInConfirm()
-                    }
-                }
-                MainActivity.onVolUpDouble = {
-                    if (isWarehouseIn) {
-                        webViewRef?.let { web -> clearParcelFormInWebView(web) }
-                        warehouseScanStep = WarehouseScanStep.BARCODE
-                        showOcr = false
-                        showBarcodeScan = false
-                    }
-                }
-                MainActivity.onVolUpSingle = {
-                    if (isWarehouseIn) {
-
-                        when (warehouseScanStep) {
-                            WarehouseScanStep.BARCODE -> {
-                                webViewRef?.let { web -> clearTrackingAndTuidInWebView(web) }
-                            }
-                            WarehouseScanStep.OCR -> {
-                                webViewRef?.let { web -> clearParcelFormExceptTrack(web) }
-                                warehouseScanStep = WarehouseScanStep.OCR
-                            }
-                            WarehouseScanStep.MEASURE -> {
-                                webViewRef?.let { web ->
-                                    withStandDeviceSelected(web) { selected ->
-                                        if (selected) {
-                                            clearMeasurementsInWebView(web)
-                                        } else {
-                                            clearParcelFormExceptTrack(web)
-                                            warehouseScanStep = WarehouseScanStep.OCR
-                                        }
-                                    }
-                                }
-                            }
-                            WarehouseScanStep.SUBMIT -> {
-                                webViewRef?.let { web ->
-                                    withStandDeviceSelected(web) { selected ->
-                                        if (selected) {
-                                            clearMeasurementsInWebView(web)
-                                            warehouseScanStep = WarehouseScanStep.MEASURE
-                                        } else {
-                                            clearParcelFormExceptTrack(web)
-                                            warehouseScanStep = WarehouseScanStep.OCR
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    } else {
-                        webViewRef?.let { web -> clearParcelFormInWebView(web) }
                     }
                 }
             }
@@ -828,6 +901,12 @@ fun AppRoot() {
                             if (parsedTask != null) {
                                 taskConfigJson = taskJson
                                 taskConfig = parsedTask
+                                currentFlowStep = parsedTask.flow?.start
+                                parsedTask.flow?.start?.let { start ->
+                                    if (parsedTask.taskId == "warehouse_in") {
+                                        warehouseStepForFlow(start)?.let { warehouseScanStep = it }
+                                    }
+                                }
                             }
                             // ВАЖНО: если taskJson == null — ничего не делаем, оставляем старый taskConfig
 
@@ -926,9 +1005,17 @@ fun AppRoot() {
                                         taskConfig?.barcodeAction
                                     }
                                     fillBarcodeUsingTemplate(web, cleanBarcode, action)
-                                    fillParcelFormInWebView(web, data, taskConfig)
+                                    if (!isWarehouseIn) {
+                                        fillParcelFormInWebView(web, data, taskConfig)
+                                    }
                                 }
-                                if (isWarehouseIn) {
+                                val flow = taskConfig?.flow
+                                if (flow != null) {
+                                    val stepId = currentFlowStep ?: flow.start
+                                    flow.steps[stepId]?.nextOnScan?.let { next ->
+                                        setFlowStep(next)
+                                    }
+                                } else if (isWarehouseIn) {
                                     warehouseScanStep = WarehouseScanStep.OCR
                                 }
                             }
@@ -964,7 +1051,13 @@ fun AppRoot() {
                             webViewRef?.let { web ->
                                 fillParcelFormInWebView(web, ocrData, taskConfig)
                             }
-                            if (isWarehouseIn) {
+                            val flow = taskConfig?.flow
+                            if (flow != null) {
+                                val stepId = currentFlowStep ?: flow.start
+                                flow.steps[stepId]?.nextOnScan?.let { next ->
+                                    setFlowStep(next)
+                                }
+                            } else if (isWarehouseIn) {
                                 warehouseScanStep = WarehouseScanStep.MEASURE
                             }
                         },
@@ -2874,6 +2967,29 @@ fun clearParcelFormInWebView(webView: WebView) {
     webView.post { webView.evaluateJavascript(js, null) }
 }
 
+fun clearAllInWebView(webView: WebView) {
+    clearParcelFormInWebView(webView)
+
+    webView.post {
+        webView.evaluateJavascript(
+            """(function(){
+                try {
+                    var ids = ["fromCell","toCell","from_cell","to_cell","cellFrom","cellTo"];
+                    ids.forEach(function(id){
+                        var el = document.getElementById(id);
+                        if(!el) return;
+                        if(el.tagName === "SELECT") el.selectedIndex = 0;
+                        else el.value = "";
+                        el.dispatchEvent(new Event('input',{bubbles:true}));
+                        el.dispatchEvent(new Event('change',{bubbles:true}));
+                    });
+                } catch(e) {}
+            })();""".trimIndent(),
+            null
+        )
+    }
+}
+
 fun clearTrackingAndTuidInWebView(webView: WebView) {
     val js = """
         (function(){
@@ -4161,6 +4277,28 @@ data class ScanTaskUiConfig(
     val title: String? = null,
     val stepLabels: Map<String, String> = emptyMap()
 )
+
+data class FlowConfig(
+    val start: String,
+    val steps: Map<String, FlowStep>
+)
+
+data class FlowStep(
+    val nextOnScan: String? = null,
+    val onAction: Map<String, List<FlowOp>> = emptyMap()
+)
+
+sealed interface FlowOp {
+    data class OpenScanner(val mode: String) : FlowOp
+    data class Web(val name: String) : FlowOp
+    data class SetStep(val to: String) : FlowOp
+    data object Noop : FlowOp
+    data class WebIf(
+        val cond: String,
+        val thenOps: List<FlowOp>,
+        val elseOps: List<FlowOp>
+    ) : FlowOp
+}
 /**
  * device-scan-config поддерживает per-tab контексты:
  *
@@ -4187,6 +4325,7 @@ data class ScanTaskConfig(
     val cellNullDefaultForward: Map<String, String> = emptyMap(),
     val contexts: Map<String, ScanContextConfig> = emptyMap(),
     val buttons: Map<String, String> = emptyMap(),
+    val flow: FlowConfig? = null,
     val api: Map<String, String> = emptyMap(),
     val ui: ScanTaskUiConfig? = null
     )
@@ -4206,6 +4345,43 @@ fun parseScanAction(obj: JSONObject?): ScanAction? {
         endpoint = endpoint,
         applyToSelectId = applyToSelectId
     )
+}
+
+
+fun parseFlowOpsArray(arr: JSONArray?): List<FlowOp> {
+    if (arr == null) return emptyList()
+    val result = mutableListOf<FlowOp>()
+    for (i in 0 until arr.length()) {
+        val op = parseFlowOp(arr.optJSONObject(i))
+        if (op != null) result += op
+    }
+    return result
+}
+
+fun parseFlowOp(obj: JSONObject?): FlowOp? {
+    if (obj == null) return null
+    return when (obj.optString("op", "").trim().lowercase()) {
+        "open_scanner" -> {
+            val mode = obj.optString("mode", "").trim().lowercase()
+            if (mode.isBlank()) null else FlowOp.OpenScanner(mode)
+        }
+        "web" -> {
+            val name = obj.optString("name", "").trim().lowercase()
+            if (name.isBlank()) null else FlowOp.Web(name)
+        }
+        "set_step" -> {
+            val to = obj.optString("to", "").trim().lowercase()
+            if (to.isBlank()) null else FlowOp.SetStep(to)
+        }
+        "noop" -> FlowOp.Noop
+        "web_if" -> {
+            val cond = obj.optString("cond", "").trim().lowercase()
+            val thenOps = parseFlowOpsArray(obj.optJSONArray("then"))
+            val elseOps = parseFlowOpsArray(obj.optJSONArray("else"))
+            if (cond.isBlank()) null else FlowOp.WebIf(cond, thenOps, elseOps)
+        }
+        else -> null
+    }
 }
 
 fun parseScanTaskConfig(json: String): ScanTaskConfig? = try {
@@ -4281,6 +4457,52 @@ fun parseScanTaskConfig(json: String): ScanTaskConfig? = try {
         }
     }
 
+
+    val flowObj = obj.optJSONObject("flow")
+    val flow = if (flowObj != null) {
+        val start = flowObj.optString("start", "").trim().lowercase()
+        val stepsObj = flowObj.optJSONObject("steps")
+        val steps = mutableMapOf<String, FlowStep>()
+        if (stepsObj != null) {
+            val names = stepsObj.names()
+            if (names != null) {
+                for (i in 0 until names.length()) {
+                    val stepKey = names.optString(i, "").trim().lowercase()
+                    val stepObj = stepsObj.optJSONObject(stepKey) ?: continue
+                    val nextOnScan = stepObj.optString("next_on_scan", "").trim().lowercase()
+                        .takeIf { it.isNotBlank() }
+                    val onActionObj = stepObj.optJSONObject("on_action")
+                    val onAction = mutableMapOf<String, List<FlowOp>>()
+                    if (onActionObj != null) {
+                        val actionNames = onActionObj.names()
+                        if (actionNames != null) {
+                            for (j in 0 until actionNames.length()) {
+                                val actionKey = actionNames.optString(j, "").trim().lowercase()
+                                val ops = parseFlowOpsArray(onActionObj.optJSONArray(actionKey))
+                                if (actionKey.isNotBlank()) {
+                                    onAction[actionKey] = ops
+                                }
+                            }
+                        }
+                    }
+                    if (stepKey.isNotBlank()) {
+                        steps[stepKey] = FlowStep(
+                            nextOnScan = nextOnScan,
+                            onAction = onAction
+                        )
+                    }
+                }
+            }
+        }
+        if (start.isNotBlank() && steps.isNotEmpty()) {
+            FlowConfig(start = start, steps = steps)
+        } else {
+            null
+        }
+    } else {
+        null
+    }
+
     val uiObj = obj.optJSONObject("ui")
     val uiTitle = uiObj?.optString("title", "")?.trim()?.takeIf { it.isNotEmpty() }
     val stepLabelsObj = uiObj?.optJSONObject("step_labels")
@@ -4322,6 +4544,7 @@ fun parseScanTaskConfig(json: String): ScanTaskConfig? = try {
         cellNullDefaultForward = cellDefaults,
         contexts = contexts,
         buttons = buttons,
+        flow = flow,
         api = api,
         ui = if (uiTitle != null || stepLabels.isNotEmpty()) {
             ScanTaskUiConfig(
