@@ -462,13 +462,14 @@ fun AppRoot() {
     fun dispatchContextFlowAction(eventName: String) {
         if (!isWarehouseMove) return
         
-        resolveActiveWarehouseContext { contextKey, contextConfig ->
-            val contextFlow = contextConfig.flow
+        resolveActiveWarehouseContext { contextKey: String, contextConfig: ScanContextConfig ->
+            val contextFlow: FlowConfig? = contextConfig.flow
             if (contextFlow != null) {
                 val action = taskConfig?.buttons?.get(eventName) ?: return@resolveActiveWarehouseContext
-                val stepId = currentFlowStep ?: contextFlow.start.also { setFlowStep(it) }
-                val step = contextFlow.steps[stepId]
-                val ops = step?.onAction?.get(action) ?: emptyList()
+                val flowStartStep: String = contextFlow.start
+                val stepId = currentFlowStep ?: flowStartStep.also { setFlowStep(it) }
+                val step: FlowStep? = contextFlow.steps[stepId]
+                val ops: List<FlowOp> = step?.onAction?.get(action) ?: emptyList()
                 
                 if (ops.isNotEmpty()) {
                     executeFlowActionsInContext(ops, contextConfig)
@@ -1076,14 +1077,15 @@ fun AppRoot() {
                         onResult = { result ->
                             showBarcodeScan = false
                             if (isWarehouseMove) {
-                                resolveActiveWarehouseContext { contextKey, contextConfig ->
+                                resolveActiveWarehouseContext { contextKey: String, contextConfig: ScanContextConfig ->
                                     // НОВАЯ ЛОГИКА: проверяем, есть ли flow у контекста
-                                    val contextFlow = contextConfig.flow
+                                    val contextFlow: FlowConfig? = contextConfig.flow
                                     
                                     if (contextFlow != null) {
                                         // Используем flow внутри контекста
-                                        val stepId = currentFlowStep ?: contextFlow.start
-                                        val currentStep = contextFlow.steps[stepId]
+                                        val flowStartStep: String = contextFlow.start
+                                        val stepId = currentFlowStep ?: flowStartStep
+                                        val currentStep: FlowStep? = contextFlow.steps[stepId]
                                         
                                         // Определяем действие: сначала из шага, потом из контекста (fallback)
                                         val action = if (result.isQr) {
@@ -1212,10 +1214,11 @@ fun AppRoot() {
                             
                             // НОВОЕ: поддержка context flow
                             if (isWarehouseMove) {
-                                resolveActiveWarehouseContext { contextKey, contextConfig ->
-                                    val contextFlow = contextConfig.flow
+                                resolveActiveWarehouseContext { contextKey: String, contextConfig: ScanContextConfig ->
+                                    val contextFlow: FlowConfig? = contextConfig.flow
                                     if (contextFlow != null) {
-                                        val stepId = currentFlowStep ?: contextFlow.start
+                                        val flowStartStep: String = contextFlow.start
+                                        val stepId = currentFlowStep ?: flowStartStep
                                         contextFlow.steps[stepId]?.nextOnScan?.let { next ->
                                             setFlowStep(next)
                                         }
