@@ -2751,6 +2751,16 @@ fun fillBarcodeUsingTemplate(
                 payloadKey = if (isQr) "qr" else "barcode"
             )
         }
+        "web_callback" -> {
+            val callbackName = action.callback
+            if (callbackName.isNullOrBlank()) {
+                println("### web_callback action: callback name is missing")
+                return
+            }
+
+            println("### Calling web callback: $callbackName with value: $cleanBarcode")
+            callWebCallback(web, callbackName, cleanBarcode)
+        }
     }
 }
 
@@ -2791,6 +2801,51 @@ fun handleWarehouseMoveScanResult(
                     onScannerCellUpdate(cellId, cellCode)
                 }
             }
+        }
+        "web_callback" -> {
+            val callbackName = resolvedAction.callback
+            if (callbackName.isNullOrBlank()) {
+                println("### web_callback action: callback name is missing")
+                return
+            }
+
+            println("### Calling web callback: $callbackName with value: ${scanResult.rawValue}")
+            callWebCallback(targetWebView, callbackName, scanResult.rawValue)
+        }
+    }
+}
+/**
+ * Вызывает JavaScript callback функцию на веб-странице.
+ *
+ * @param webView WebView для выполнения JavaScript
+ * @param functionName Имя функции в window объекте
+ * @param value Значение для передачи в функцию (результат сканирования)
+ */
+fun callWebCallback(webView: WebView, functionName: String, value: String) {
+    val escapedFunctionName = escapeJsString(functionName)
+    val escapedValue = escapeJsString(value)
+
+    val js = """
+        (function(){
+          if (typeof window['$escapedFunctionName'] === 'function') {
+            try {
+              var result = window['$escapedFunctionName']('$escapedValue');
+              console.log('✓ Callback $escapedFunctionName returned:', result);
+              return result;
+            } catch(e) {
+              console.error('✗ Error in callback $escapedFunctionName:', e);
+              return false;
+            }
+          } else {
+            console.error('✗ Callback function $escapedFunctionName not found in window');
+            return false;
+          }
+        })();
+    """.trimIndent()
+
+    webView.post {
+        webView.evaluateJavascript(js) { result ->
+            println("### callWebCallback($functionName, $value) -> $result")
         }
     }
 }
@@ -4509,7 +4564,9 @@ data class ScanAction(
 
     val endpoint: String? = null,
     // NEW: куда писать cell_id из qr_check (id селекта)
-    val applyToSelectId: String? = null
+    val applyToSelectId: String? = null,
+    // NEW: имя JavaScript функции для вызова
+    val callback: String? = null
 )
 
 data class ScanContextConfig(
@@ -4612,6 +4669,8 @@ fun parseScanAction(obj: JSONObject?): ScanAction? {
         obj.optString("apply_to_select_id", "").trim().takeIf { it.isNotEmpty() }
             ?: obj.optString("applyToSelectId", "").trim().takeIf { it.isNotEmpty() }
 
+    val callback = obj.optString("callback", "").trim().takeIf { it.isNotEmpty() }
+
     return ScanAction(
         action = action,
         fieldId = obj.optString("field_id", null),
@@ -4620,6 +4679,7 @@ fun parseScanAction(obj: JSONObject?): ScanAction? {
         fieldNames = fieldNames,
         endpoint = endpoint,
         applyToSelectId = applyToSelectId,
+        callback = callback
 
     )
 }

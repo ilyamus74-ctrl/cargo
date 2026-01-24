@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-01-24 18:24:15
+/* Smarty version 5.3.1, created on 2026-01-24 19:16:05
   from 'file:cells_NA_API_warehouse_move.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_69750e4f15a574_67115431',
+  'unifunc' => 'content_69751a75b72735_66311983',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '9041cbe8efcd5e4b6c57b0a4462d7d776f0b5774' => 
     array (
       0 => 'cells_NA_API_warehouse_move.html',
-      1 => 1769279051,
+      1 => 1769282158,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_69750e4f15a574_67115431 (\Smarty\Template $_smarty_tpl) {
+function content_69751a75b72735_66311983 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>    <div class="pagetitle">
       <h1>Warehouse Move</h1>
@@ -147,6 +147,178 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
 
 
 <?php echo '<script'; ?>
+>
+// ============================================================================
+// JavaScript функции для работы с перемещением через сканер
+// ============================================================================
+/**
+ * Открывает модальное окно для перемещения товара
+ * Вызывается после сканирования трека, если найдена ровно 1 запись
+ */
+window.openMoveModal = function() {
+  console.log('📦 openMoveModal: начало');
+  
+  const searchInput = document.getElementById('warehouse-move-search');
+  const searchValue = searchInput?.value?.trim();
+  
+  if (!searchValue) {
+    console.log('❌ Нет значения для поиска');
+    return false;
+  }
+  
+  console.log('🔍 Ищем записи для трека:', searchValue);
+  
+  // Проверяем количество записей в таблице результатов
+  const tbody = document.getElementById('warehouse-move-results-tbody');
+  const rows = tbody?.querySelectorAll('tr:not(.no-results)');
+  
+  if (!rows || rows.length === 0) {
+    console.log('❌ Записей не найдено');
+    return false;
+  }
+  
+  if (rows.length !== 1) {
+    console.log('❌ Найдено записей:', rows.length, '(нужна ровно 1 для автоматического открытия)');
+    return false;
+  }
+  
+  console.log('✓ Найдена ровно 1 запись');
+  
+  // Получаем ссылку для открытия модалки из первой строки
+  const firstRow = rows[0];
+  const link = firstRow.querySelector('a[data-core-action="load_parcel"]');
+  
+  if (!link) {
+    console.log('❌ Не найдена ссылка для открытия модалки');
+    return false;
+  }
+  
+  console.log('✓ Открываем модалку');
+  link.click();
+  
+  return true;
+};
+/**
+ * Устанавливает значение ячейки из отсканированного QR кода
+ * Вызывается из приложения при сканировании QR в модалке
+ * 
+ * @param {string} qrValue - Значение QR кода (формат: "CELL:D1" или просто "D1")
+ * @returns {boolean} true если ячейка найдена и установлена, иначе false
+ */
+window.setCellFromQR = function(qrValue) {
+  console.log('📱 setCellFromQR: получен QR =', qrValue);
+  
+  // Парсим QR: ожидаем формат "CELL:D1" или просто "D1"
+  let cellCode = null;
+  
+  if (qrValue.toUpperCase().startsWith('CELL:')) {
+    cellCode = qrValue.substring(5).trim();
+    console.log('✓ Извлечён код ячейки из формата CELL:', cellCode);
+  } else {
+    cellCode = qrValue.trim();
+    console.log('✓ Используем QR как код ячейки:', cellCode);
+  }
+  
+  if (!cellCode) {
+    console.log('❌ Не удалось извлечь код ячейки из QR');
+    return false;
+  }
+  
+  // Ищем select в модалке
+  const cellSelect = document.getElementById('cellId');
+  if (!cellSelect) {
+    console.log('❌ Не найден select #cellId в модалке');
+    return false;
+  }
+  
+  console.log('🔍 Ищем ячейку с кодом:', cellCode);
+  
+  // Ищем option с нужным кодом ячейки (case-insensitive)
+  let foundOption = null;
+  const upperCellCode = cellCode.toUpperCase();
+  
+  for (let option of cellSelect.options) {
+    const optionText = option.text.trim().toUpperCase();
+    if (optionText === upperCellCode) {
+      foundOption = option;
+      console.log('✓ Найдена ячейка:', option.text, '(ID:', option.value, ')');
+      break;
+    }
+  }
+  
+  if (!foundOption) {
+    console.log('❌ Не найдена ячейка с кодом:', cellCode);
+    console.log('Доступные ячейки:', Array.from(cellSelect.options).map(o => o.text.trim()).join(', '));
+    return false;
+  }
+  
+  // Устанавливаем значение
+  cellSelect.value = foundOption.value;
+  cellSelect.dispatchEvent(new Event('change', { bubbles: true }));
+  cellSelect.dispatchEvent(new Event('input', { bubbles: true }));
+  
+  console.log('✓ Ячейка успешно установлена:', foundOption.text);
+  return true;
+};
+/**
+ * Сохраняет перемещение и закрывает модальное окно
+ * Вызывается при двойном нажатии Vol Down после выбора ячейки
+ */
+window.saveMoveAndClose = function() {
+  console.log('💾 saveMoveAndClose: начало');
+  
+  // Ищем кнопку сохранения в модалке
+  const saveBtn = document.querySelector('button.js-core-link[data-core-action="warehouse_move_save_cell"]');
+  
+  if (!saveBtn) {
+    console.log('❌ Не найдена кнопка сохранения');
+    return false;
+  }
+  
+  console.log('✓ Нажимаем кнопку сохранения');
+  saveBtn.click();
+  
+  // Закрываем модалку через небольшую задержку (чтобы сохранение успело выполниться)
+  setTimeout(() => {
+    console.log('🚪 Закрываем модалку');
+    const modal = document.querySelector('.modal.show');
+    if (modal) {
+      const closeBtn = modal.querySelector('.btn-close, [data-bs-dismiss="modal"]');
+      if (closeBtn) {
+        closeBtn.click();
+        console.log('✓ Модалка закрыта');
+      } else {
+        console.log('❌ Не найдена кнопка закрытия модалки');
+      }
+    } else {
+      console.log('⚠️ Модалка уже закрыта или не найдена');
+    }
+  }, 500);
+  
+  return true;
+};
+// Вспомогательная функция: очистка поля поиска
+window.clear_search = function() {
+  const searchInput = document.getElementById('warehouse-move-search');
+  if (searchInput) {
+    searchInput.value = '';
+    searchInput.dispatchEvent(new Event('input', { bubbles: true }));
+    console.log('✓ Поле поиска очищено');
+  }
+};
+// Вспомогательная функция: сброс формы
+window.reset_form = function() {
+  window.clear_search();
+  const tbody = document.getElementById('warehouse-move-results-tbody');
+  if (tbody) tbody.innerHTML = '';
+  console.log('✓ Форма сброшена');
+};
+console.log('✓ Функции для warehouse move загружены');
+<?php echo '</script'; ?>
+>
+
+
+<?php echo '<script'; ?>
  id="device-scan-config" type="application/json">
 {
   "task_id":"warehouse_move",
@@ -182,28 +354,61 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
         "steps": {
           "scan_parcel": {
             "mode": "barcode",
-            "next_on_scan": "scan_cell",
+            "next_on_scan": "wait_for_confirm",
             "barcode": {
               "action": "fill_field",
               "field_id": "warehouse-move-search"
             },
             "on_action": {
               "scan": [{"op": "open_scanner", "mode": "barcode"}],
+              "confirm": [
+                {"op": "web", "name": "openMoveModal"}, 
+                {"op": "set_step", "to": "scan_cell_in_modal"}
+              ],
               "clear": [{"op": "web", "name": "clear_search"}],
               "reset": [{"op": "web", "name": "reset_form"}, {"op": "set_step", "to": "scan_parcel"}]
             }
           },
-          "scan_cell": {
+
+          "wait_for_confirm": {
+            "mode": "none",
+            "on_action": {
+              "scan": [{"op": "noop"}],
+              "confirm": [
+                {"op": "web", "name": "openMoveModal"}, 
+                {"op": "set_step", "to": "scan_cell_in_modal"}
+              ],
+              "clear": [{"op": "web", "name": "clear_search"}, {"op": "set_step", "to": "scan_parcel"}],
+              "reset": [{"op": "web", "name": "reset_form"}, {"op": "set_step", "to": "scan_parcel"}]
+            }
+          },
+
+          "scan_cell_in_modal": {
             "mode": "qr",
-            "next_on_scan": "scan_parcel",
+            "next_on_scan": "wait_for_save",
             "qr": {
-              "action": "api_check",
-              "endpoint": "/api/qr_check.php"
+              "action": "web_callback",
+              "callback": "setCellFromQR"
             },
             "on_action": {
               "scan": [{"op": "open_scanner", "mode": "qr"}],
-              "confirm": [{"op": "web", "name": "apply_move"}, {"op": "set_step", "to": "scan_parcel"}],
-              "clear": [{"op": "set_step", "to": "scan_parcel"}],
+              "confirm": [
+                {"op": "web", "name": "saveMoveAndClose"}, 
+                {"op": "set_step", "to": "scan_parcel"}
+              ],
+              "clear": [{"op": "set_step", "to": "scan_cell_in_modal"}],
+              "reset": [{"op": "web", "name": "reset_form"}, {"op": "set_step", "to": "scan_parcel"}]
+            }
+          },
+          "wait_for_save": {
+            "mode": "none",
+            "on_action": {
+              "scan": [{"op": "noop"}],
+              "confirm": [
+                {"op": "web", "name": "saveMoveAndClose"}, 
+                {"op": "set_step", "to": "scan_parcel"}
+              ],
+              "clear": [{"op": "set_step", "to": "scan_cell_in_modal"}],
               "reset": [{"op": "web", "name": "reset_form"}, {"op": "set_step", "to": "scan_parcel"}]
             }
           }
