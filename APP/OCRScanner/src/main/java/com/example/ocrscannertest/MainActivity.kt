@@ -368,6 +368,32 @@ fun AppRoot() {
                         "clear_measurements" -> clearMeasurementsInWebView(web)
                         "measure_request" -> requestStandMeasurementInWebView(web)
                         "add_new_item" -> prepareFormForNextScanInWebView(web)
+                        else -> {
+                            // Вызываем любую другую JavaScript функцию из window
+                            val escapedFunctionName = escapeJsString(op.name)
+                            val js = """
+                                (function(){
+                                  if (typeof window['$escapedFunctionName'] === 'function') {
+                                    try {
+                                      var result = window['$escapedFunctionName']();
+                                      console.log('✓ Web op $escapedFunctionName() returned:', result);
+                                      return result;
+                                    } catch(e) {
+                                      console.error('✗ Error in web op $escapedFunctionName():', e);
+                                      return false;
+                                    }
+                                  } else {
+                                    console.error('✗ Web op function $escapedFunctionName not found in window');
+                                    return false;
+                                  }
+                                })();
+                            """.trimIndent()
+                            web.post {
+                                web.evaluateJavascript(js) { result ->
+                                    println("### FlowOp.Web(${op.name}) -> $result")
+                                }
+                            }
+                        }
                     }
                 }
                 is FlowOp.SetStep -> setFlowStep(op.to)
@@ -661,6 +687,32 @@ fun AppRoot() {
                             "clear_measurements" -> clearMeasurementsInWebView(web)
                             "measure_request" -> requestStandMeasurementInWebView(web)
                             "add_new_item" -> prepareFormForNextScanInWebView(web)
+                            else -> {
+                                // Вызываем любую другую JavaScript функцию из window
+                                val escapedFunctionName = escapeJsString(op.name)
+                                val js = """
+                                    (function(){
+                                      if (typeof window['$escapedFunctionName'] === 'function') {
+                                        try {
+                                          var result = window['$escapedFunctionName']();
+                                          console.log('✓ Web op $escapedFunctionName() returned:', result);
+                                          return result;
+                                        } catch(e) {
+                                          console.error('✗ Error in web op $escapedFunctionName():', e);
+                                          return false;
+                                        }
+                                      } else {
+                                        console.error('✗ Web op function $escapedFunctionName not found in window');
+                                        return false;
+                                      }
+                                    })();
+                                """.trimIndent()
+                                web.post {
+                                    web.evaluateJavascript(js) { result ->
+                                        println("### Context FlowOp.Web(${op.name}) -> $result")
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -2751,6 +2803,7 @@ fun fillBarcodeUsingTemplate(
                 payloadKey = if (isQr) "qr" else "barcode"
             )
         }
+
         "web_callback" -> {
             val callbackName = action.callback
             if (callbackName.isNullOrBlank()) {
@@ -2811,6 +2864,43 @@ fun handleWarehouseMoveScanResult(
 
             println("### Calling web callback: $callbackName with value: ${scanResult.rawValue}")
             callWebCallback(targetWebView, callbackName, scanResult.rawValue)
+        }
+    }
+}
+
+
+/**
+ * Вызывает JavaScript callback функцию на веб-странице.
+ *
+ * @param webView WebView для выполнения JavaScript
+ * @param functionName Имя функции в window объекте
+ * @param value Значение для передачи в функцию (результат сканирования)
+ */
+fun callWebCallback(webView: WebView, functionName: String, value: String) {
+    val escapedFunctionName = escapeJsString(functionName)
+    val escapedValue = escapeJsString(value)
+
+    val js = """
+        (function(){
+          if (typeof window['$escapedFunctionName'] === 'function') {
+            try {
+              var result = window['$escapedFunctionName']('$escapedValue');
+              console.log('✓ Callback $escapedFunctionName returned:', result);
+              return result;
+            } catch(e) {
+              console.error('✗ Error in callback $escapedFunctionName:', e);
+              return false;
+            }
+          } else {
+            console.error('✗ Callback function $escapedFunctionName not found in window');
+            return false;
+          }
+        })();
+    """.trimIndent()
+
+    webView.post {
+        webView.evaluateJavascript(js) { result ->
+            println("### callWebCallback($functionName, $value) -> $result")
         }
     }
 }
