@@ -295,8 +295,9 @@ fun AppRoot() {
     val hasFlow = taskConfig?.flow != null
 
     // Check if any context has a flow
-    val hasContextFlow = taskConfig?.contexts?.values?.any { it.flow != null } == true
-
+    val hasContextFlow = remember(taskConfig) {
+        taskConfig?.contexts?.values?.any { it.flow != null } == true
+    }
     fun fieldSelector(action: ScanAction?): String? {
         val fieldId = action?.fieldId?.trim()?.takeIf { it.isNotEmpty() }
         val fieldName = action?.fieldName?.trim()?.takeIf { it.isNotEmpty() }
