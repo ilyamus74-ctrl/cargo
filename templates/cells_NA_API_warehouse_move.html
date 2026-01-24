@@ -112,6 +112,7 @@
       </div>
     </section>
 {literal}
+
 <script id="device-scan-config" type="application/json">
 {
   "task_id":"warehouse_move",
@@ -132,6 +133,15 @@
   "contexts": {
     "scanner": {
       "active_tab_selector": "#warehouse-move-scanner-tab.nav-link.active",
+      
+      "barcode": { 
+        "action": "fill_field",
+        "field_id": "warehouse-move-search"
+      },
+      "qr": {
+        "action": "api_check",
+        "endpoint": "/api/qr_check.php"
+      },
 
       "flow": {
         "start": "scan_parcel",
@@ -169,16 +179,20 @@
 
     "batch": {
       "active_tab_selector": "#warehouse-move-batch-tab.nav-link.active",
-      "barcode": { "action":"fill_field", "field_id":"warehouse-move-batch-search" },
-      "qr":      {
+      "barcode": { 
+        "action":"fill_field", 
+        "field_id":"warehouse-move-batch-search"
+      },
+      "qr": {
         "action":"api_check",
         "endpoint":"/api/qr_check.php",
-        "apply_to_select_id":"warehouse-move-batch-cell"
+        "apply_to_select_id":"warehouse-move-cell-select"
       }
     }
   }
 }
 </script>
+
 {/literal}
 
 

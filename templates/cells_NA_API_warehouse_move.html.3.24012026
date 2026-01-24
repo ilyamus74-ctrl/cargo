@@ -1,28 +1,4 @@
-<?php
-/* Smarty version 5.3.1, created on 2026-01-24 18:24:15
-  from 'file:cells_NA_API_warehouse_move.html' */
-
-/* @var \Smarty\Template $_smarty_tpl */
-if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
-  'version' => '5.3.1',
-  'unifunc' => 'content_69750e4f15a574_67115431',
-  'has_nocache_code' => false,
-  'file_dependency' => 
-  array (
-    '9041cbe8efcd5e4b6c57b0a4462d7d776f0b5774' => 
-    array (
-      0 => 'cells_NA_API_warehouse_move.html',
-      1 => 1769279051,
-      2 => 'file',
-    ),
-  ),
-  'includes' => 
-  array (
-  ),
-))) {
-function content_69750e4f15a574_67115431 (\Smarty\Template $_smarty_tpl) {
-$_smarty_current_dir = '/home/cells/web/templates';
-?>    <div class="pagetitle">
+    <div class="pagetitle">
       <h1>Warehouse Move</h1>
       <nav>
         <ol class="breadcrumb">
@@ -77,9 +53,9 @@ $_smarty_current_dir = '/home/cells/web/templates';
                           <th scope="col">Посылка</th>
                           <th scope="col">Источник</th>
                           <th scope="col">Ячейка</th>
-                          <?php if ($_smarty_tpl->getValue('current_user')['role'] == 'ADMIN') {?>
+                          {if $current_user.role == 'ADMIN'}
                             <th scope="col">Пользователь</th>
-                          <?php }?>
+                          {/if}
                           <th scope="col">Дата</th>
                         </tr>
                       </thead>
@@ -96,18 +72,9 @@ $_smarty_current_dir = '/home/cells/web/templates';
                       <label class="form-label small mb-1" for="warehouse-move-batch-cell">Ячейка склада</label>
                       <select class="form-select form-select-sm" id="warehouse-move-batch-cell">
                         <option value="">— выберите ячейку —</option>
-                        <?php
-$_from = $_smarty_tpl->getSmarty()->getRuntime('Foreach')->init($_smarty_tpl, $_smarty_tpl->getValue('cells'), 'cell');
-$foreach0DoElse = true;
-foreach ($_from ?? [] as $_smarty_tpl->getVariable('cell')->value) {
-$foreach0DoElse = false;
-?>
-                          <option value="<?php echo htmlspecialchars((string)$_smarty_tpl->getValue('cell')['id'], ENT_QUOTES, 'UTF-8', true);?>
-"><?php echo htmlspecialchars((string)$_smarty_tpl->getValue('cell')['code'], ENT_QUOTES, 'UTF-8', true);?>
-</option>
-                        <?php
-}
-$_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
+                        {foreach $cells as $cell}
+                          <option value="{$cell.id|escape}">{$cell.code|escape}</option>
+                        {/foreach}
                       </select>
                     </div>
                     <div class="col-12 col-md-7">
@@ -128,9 +95,9 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
                           <th scope="col">Источник</th>
                           <th scope="col">Ячейка</th>
                           <th scope="col">Переместить</th>
-                          <?php if ($_smarty_tpl->getValue('current_user')['role'] == 'ADMIN') {?>
+                          {if $current_user.role == 'ADMIN'}
                             <th scope="col">Пользователь</th>
-                          <?php }?>
+                          {/if}
                           <th scope="col">Дата</th>
                         </tr>
                       </thead>
@@ -144,10 +111,8 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
         </div>
       </div>
     </section>
-
-
-<?php echo '<script'; ?>
- id="device-scan-config" type="application/json">
+{literal}
+<script id="device-scan-config" type="application/json">
 {
   "task_id":"warehouse_move",
   "default_mode":"barcode",
@@ -167,15 +132,6 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
   "contexts": {
     "scanner": {
       "active_tab_selector": "#warehouse-move-scanner-tab.nav-link.active",
-      
-      "barcode": { 
-        "action": "fill_field",
-        "field_id": "warehouse-move-search"
-      },
-      "qr": {
-        "action": "api_check",
-        "endpoint": "/api/qr_check.php"
-      },
 
       "flow": {
         "start": "scan_parcel",
@@ -213,37 +169,29 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
 
     "batch": {
       "active_tab_selector": "#warehouse-move-batch-tab.nav-link.active",
-      "barcode": { 
-        "action":"fill_field", 
-        "field_id":"warehouse-move-batch-search"
-      },
-      "qr": {
+      "barcode": { "action":"fill_field", "field_id":"warehouse-move-batch-search" },
+      "qr":      {
         "action":"api_check",
         "endpoint":"/api/qr_check.php",
-        "apply_to_select_id":"warehouse-move-cell-select"
+        "apply_to_select_id":"warehouse-move-batch-cell"
       }
     }
   }
 }
-<?php echo '</script'; ?>
->
-
-
+</script>
+{/literal}
 
 
 
 <div id="ocr-templates" style="display:none">
-    <?php echo $_smarty_tpl->getValue('jsonOcrTemplates');?>
-
+    {$jsonOcrTemplates}
 </div>
 <div id="ocr-templates-destcountry" style="display:none">
-    <?php echo $_smarty_tpl->getValue('jsonDestCountry');?>
-
+    {$jsonDestCountry}
 </div>
 
 <div id="ocr-dicts" style="display:none">
-    <?php echo $_smarty_tpl->getValue('jsonOcrDicts');?>
-
+    {$jsonOcrDicts}
 </div>
 
     <!-- Full Screen Modal -->
@@ -264,5 +212,3 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
         </div>
       </div>
     </div><!-- End Full Screen Modal-->
-<?php }
-}
