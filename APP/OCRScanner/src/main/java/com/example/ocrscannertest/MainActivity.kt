@@ -409,35 +409,6 @@ fun AppRoot() {
                     }
                 }
                 is FlowOp.SetStep -> setFlowStep(op.to)
-                // ← ДОБАВИТЬ ЭТИ ДВЕ СТРОКИ:
-                is FlowOp.ClickButton -> {
-                    webViewRef?.post {
-                        webViewRef?.evaluateJavascript(
-                            """
-            (function() {
-                const btn = document.querySelector('${op.selector.replace("'", "\\'")}');
-                if (btn) {
-                    // Триггерим событие ��лика правильно (для event delegation)
-                    const clickEvent = new MouseEvent('click', {
-                        bubbles: true,
-                        cancelable: true,
-                        view: window
-                    });
-                    btn.dispatchEvent(clickEvent);
-                    console.log('✓ Событие клика отправлено на: ${op.selector}');
-                } else {
-                    console.log('❌ Кнопка не найдена: ${op.selector}');
-                }
-            })();
-            """.trimIndent(),
-                            null
-                        )
-                    }
-                }
-                is FlowOp.Delay -> {
-                    Thread.sleep(op.ms)
-                }
-
                 FlowOp.Noop -> Unit
                 is FlowOp.WebIf -> {
                     when (op.cond) {
@@ -757,32 +728,6 @@ fun AppRoot() {
                         }
                     }
                 }
-                is FlowOp.ClickButton -> {
-                    webViewRef?.post {
-                        webViewRef?.evaluateJavascript(
-                            """
-            (function() {
-                const btn = document.querySelector('${op.selector.replace("'", "\\'")}');
-                if (btn) {
-                    const clickEvent = new MouseEvent('click', {
-                        bubbles: true,
-                        cancelable: true,
-                        view: window
-                    });
-                    btn.dispatchEvent(clickEvent);
-                    console.log('✓ Событие клика отправлено на: ${op.selector}');
-                } else {
-                    console.log('❌ Кнопка не найдена: ${op.selector}');
-                }
-            })();
-            """.trimIndent(),
-                            null
-                        )
-                    }
-                }
-                is FlowOp.Delay -> {
-                    Thread.sleep(op.ms)
-                }
                 is FlowOp.Noop -> { /* do nothing */ }
                 is FlowOp.WebIf -> {
                     when (op.cond) {
@@ -799,37 +744,26 @@ fun AppRoot() {
         }
     }
     fun dispatchContextFlowAction(eventName: String) {
-        //if (!isWarehouseMove) {
-        //    println("### dispatchContextFlowAction: skipped, not warehouse_move")
-        //    return
-        //}
+        if (!isWarehouseMove) return
 
         resolveActiveWarehouseContext { contextKey: String, contextConfig: ScanContextConfig ->
             val contextFlow: FlowConfig? = contextConfig.flow
-
-            println("### dispatchContextFlowAction: eventName=$eventName, contextKey=$contextKey, hasFlow=${contextFlow != null}, currentStep=$currentFlowStep")
-
             if (contextFlow != null) {
-                val action = taskConfig?.buttons?.get(eventName) ?: run {
-                    println("### dispatchContextFlowAction: no action for $eventName")
-                    return@resolveActiveWarehouseContext
-                }
+                val action = taskConfig?.buttons?.get(eventName) ?: return@resolveActiveWarehouseContext
                 val flowStartStep: String = contextFlow.start
                 val stepId = currentFlowStep ?: flowStartStep.also { setFlowStep(it) }
                 val step: FlowStep? = contextFlow.steps[stepId]
                 val ops: List<FlowOp> = step?.onAction?.get(action) ?: emptyList()
 
-                println("### dispatchContextFlowAction: action=$action, stepId=$stepId, ops count=${ops.size}")
-
                 if (ops.isNotEmpty()) {
                     executeFlowActionsInContext(ops, contextConfig)
                 } else {
-                    println("### dispatchContextFlowAction: no ops, falling back to dispatchButtonAction")
+                    // Fallback на старую логику если нет действий
                     dispatchButtonAction(action)
                 }
             } else {
+                // Если нет flow в контексте, используем старую логику
                 val action = taskConfig?.buttons?.get(eventName)
-                println("### dispatchContextFlowAction: no context flow, falling back to dispatchButtonAction($action)")
                 dispatchButtonAction(action)
             }
         }
@@ -841,67 +775,150 @@ fun AppRoot() {
         showBarcodeScan,
         ocrHardwareTrigger,
         barcodeHardwareTrigger,
-        showOcr,
-        taskConfig,
-        currentFlowStep,
-        isWarehouseMove,  // ← ДОБАВИТЬ!
-        hasContextFlow    // ← И ЭТО ТОЖЕ!
+        webViewRef,
+        taskConfig
     ) {
-        // Сброс всех кнопок
-        MainActivity.onVolDownSingle = null
-        MainActivity.onVolDownDouble = null
-        MainActivity.onVolUpSingle = null
-        MainActivity.onVolUpDouble = null
-
-        // Определяем, какой диспетчер использовать для основных кнопок
         when {
-            // 1. Если есть flow - используем его (приоритет 1)
-            hasFlow -> {
-                MainActivity.onVolDownSingle = { dispatchFlowAction("vol_down_single") }
-                MainActivity.onVolDownDouble = { dispatchFlowAction("vol_down_double") }
-                MainActivity.onVolUpSingle = { dispatchFlowAction("vol_up_single") }
-                MainActivity.onVolUpDouble = { dispatchFlowAction("vol_up_double") }
-                println("### Volume buttons: using flow dispatcher")
-            }
-
-            // 2. Если есть context flow для warehouse_move (приоритет 2)
-            hasContextFlow && isWarehouseMove -> {
-                MainActivity.onVolDownSingle = { dispatchContextFlowAction("vol_down_single") }
-                MainActivity.onVolDownDouble = { dispatchContextFlowAction("vol_down_double") }
-                MainActivity.onVolUpSingle = { dispatchContextFlowAction("vol_up_single") }
-                MainActivity.onVolUpDouble = { dispatchContextFlowAction("vol_up_double") }
-                println("### Volume buttons: using context flow dispatcher for warehouse_move")
-            }
-
-            // 3. Если есть button mappings (приоритет 3)
-            hasButtonMappings && showWebView -> {                MainActivity.onVolDownSingle = { dispatchButtonAction(buttonMappings["vol_down_single"]) }
+            hasButtonMappings && (showWebView || showBarcodeScan || showOcr) && !hasFlow -> {
+                MainActivity.onVolDownSingle = { dispatchButtonAction(buttonMappings["vol_down_single"]) }
                 MainActivity.onVolDownDouble = { dispatchButtonAction(buttonMappings["vol_down_double"]) }
                 MainActivity.onVolUpSingle = { dispatchButtonAction(buttonMappings["vol_up_single"]) }
                 MainActivity.onVolUpDouble = { dispatchButtonAction(buttonMappings["vol_up_double"]) }
-                println("### Volume buttons: using button mappings")
+            }
+
+            showBarcodeScan && barcodeHardwareTrigger != null -> {
+                MainActivity.onVolDownSingle = { barcodeHardwareTrigger?.invoke() }
+                MainActivity.onVolDownDouble = null
+                MainActivity.onVolUpSingle = null
+                MainActivity.onVolUpDouble = null
+            }
+
+            showOcr && ocrHardwareTrigger != null -> {
+                MainActivity.onVolDownSingle = { ocrHardwareTrigger?.invoke() }
+                MainActivity.onVolDownDouble = null
+                MainActivity.onVolUpSingle = null
+                MainActivity.onVolUpDouble = null
             }
 
 
-            // 4. Fallback для старой логики warehouse_in
-            isWarehouseIn && showWebView -> {
-                MainActivity.onVolDownSingle = { warehouseInDownSingle() }
-                MainActivity.onVolDownDouble = { warehouseInConfirm() }
-                MainActivity.onVolUpSingle = { warehouseInUpSingle() }
-                MainActivity.onVolUpDouble = { warehouseInResetAll() }
-                println("### Volume buttons: using warehouse_in legacy logic")
+            showWebView -> {
+                if (hasFlow) {
+                    MainActivity.onVolDownSingle = { dispatchFlowAction("vol_down_single") }
+                    MainActivity.onVolDownDouble = { dispatchFlowAction("vol_down_double") }
+                    MainActivity.onVolUpSingle = { dispatchFlowAction("vol_up_single") }
+                    MainActivity.onVolUpDouble = { dispatchFlowAction("vol_up_double") }
+                } else if (hasContextFlow && isWarehouseMove) {
+                    // Используем context flow для warehouse_move
+                    MainActivity.onVolDownSingle = { dispatchContextFlowAction("vol_down_single") }
+                    MainActivity.onVolDownDouble = { dispatchContextFlowAction("vol_down_double") }
+                    MainActivity.onVolUpSingle = { dispatchContextFlowAction("vol_up_single") }
+                    MainActivity.onVolUpDouble = { dispatchContextFlowAction("vol_up_double") }
+                } else {
+                    MainActivity.onVolDownSingle = {
+                        if (isWarehouseIn) {
+                            when (warehouseScanStep) {
+                                WarehouseScanStep.BARCODE -> {
+                                    webViewRef?.let { web -> clearTrackingAndTuidInWebView(web) }
+                                    showBarcodeScan = true
+                                }
+                                WarehouseScanStep.OCR -> {
+                                    showOcr = true
+                                }
+                                WarehouseScanStep.MEASURE -> {
+                                    webViewRef?.let { web ->
+                                        withStandDeviceSelected(web) { selected ->
+                                            if (selected) {
+                                                requestStandMeasurementInWebView(web)
+                                                warehouseScanStep = WarehouseScanStep.SUBMIT
+                                            } else {
+                                                prepareFormForNextScanInWebView(web)
+                                                warehouseScanStep = WarehouseScanStep.BARCODE
+                                            }
+                                        }
+                                    }
+                                }
+                                WarehouseScanStep.SUBMIT -> {
+                                    webViewRef?.let { web -> prepareFormForNextScanInWebView(web) }
+                                    warehouseScanStep = WarehouseScanStep.BARCODE
+                                }
+                            }
+                        } else {
+                            webViewRef?.let { web -> prepareFormForNextScanInWebView(web) }
+
+
+                            showOcr = true
+
+                            when (taskConfig?.defaultMode) {
+                                "qr"      -> { showQrScan = true }
+                                "barcode" -> { /* showBarcodeScan = true */ }
+                                "ocr"     -> { showOcr = true }
+                                else      -> { showOcr = true }
+                            }
+                        }
+                    }
+                    MainActivity.onVolDownDouble = {
+                        if (isWarehouseIn) {
+                            warehouseInConfirm()
+                        }
+                    }
+                    MainActivity.onVolUpDouble = {
+                        if (isWarehouseIn) {
+                            webViewRef?.let { web -> clearParcelFormInWebView(web) }
+                            warehouseScanStep = WarehouseScanStep.BARCODE
+                            showOcr = false
+                            showBarcodeScan = false
+                        }
+                    }
+                    MainActivity.onVolUpSingle = {
+                        if (isWarehouseIn) {
+
+                            when (warehouseScanStep) {
+                                WarehouseScanStep.BARCODE -> {
+                                    webViewRef?.let { web -> clearTrackingAndTuidInWebView(web) }
+                                }
+                                WarehouseScanStep.OCR -> {
+                                    webViewRef?.let { web -> clearParcelFormExceptTrack(web) }
+                                    warehouseScanStep = WarehouseScanStep.OCR
+                                }
+                                WarehouseScanStep.MEASURE -> {
+                                    webViewRef?.let { web ->
+                                        withStandDeviceSelected(web) { selected ->
+                                            if (selected) {
+                                                clearMeasurementsInWebView(web)
+                                            } else {
+                                                clearParcelFormExceptTrack(web)
+                                                warehouseScanStep = WarehouseScanStep.OCR
+                                            }
+                                        }
+                                    }
+                                }
+                                WarehouseScanStep.SUBMIT -> {
+                                    webViewRef?.let { web ->
+                                        withStandDeviceSelected(web) { selected ->
+                                            if (selected) {
+                                                clearMeasurementsInWebView(web)
+                                                warehouseScanStep = WarehouseScanStep.MEASURE
+                                            } else {
+                                                clearParcelFormExceptTrack(web)
+                                                warehouseScanStep = WarehouseScanStep.OCR
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        } else {
+                            webViewRef?.let { web -> clearParcelFormInWebView(web) }
+                        }
+                    }
+                }
             }
-        }
-        // ВАЖНО: Переопределяем vol_down_single для аппаратного триггера сканера
-        // Это позволяет использовать кнопку громкости для запуска сканирования,
-        // когда открыт оверлей сканера, но НЕ блокирует другие кнопки (double-click и т.д.)
-        if (showBarcodeScan && barcodeHardwareTrigger != null) {
-            MainActivity.onVolDownSingle = { barcodeHardwareTrigger?.invoke() }
-            MainActivity.onVolDownDouble = { dispatchContextFlowAction("vol_down_double") }  // ← ДОБАВИТЬ!
-            println("### Volume down: overridden for barcode hardware trigger")
-        } else if (showOcr && ocrHardwareTrigger != null) {
-            MainActivity.onVolDownSingle = { ocrHardwareTrigger?.invoke() }
-            MainActivity.onVolDownDouble = { dispatchContextFlowAction("vol_down_double") }  // ← ДОБАВИТЬ!
-            println("### Volume down: overridden for OCR hardware trigger")
+
+            else -> {
+                MainActivity.onVolDownSingle = null
+                MainActivity.onVolDownDouble = null
+                MainActivity.onVolUpSingle = null
+                MainActivity.onVolUpDouble = null
+            }
         }
     }
     Scaffold(
@@ -2394,22 +2411,6 @@ fun DeviceWebViewScreen(
 
                 settings.javaScriptEnabled = true
                 settings.domStorageEnabled = true
-
-                addJavascriptInterface(object {
-                    @JavascriptInterface
-                    fun setFlowStep(step: String) {
-                        println("### JavaScript вызвал setFlowStep: $step")
-                        mainHandler.post {
-                            onFlowStepChanged(step)  // ← Используем callback
-                        }
-                    }
-
-                    @JavascriptInterface
-                    fun getFlowStep(): String? {
-                        println("### JavaScript запросил currentFlowStep")
-                        return getCurrentFlowStep()  // ← Используем callback
-                    }
-                }, "DeviceApp")
 
                 webViewClient = object : WebViewClient() {
 
@@ -4670,8 +4671,6 @@ sealed interface FlowOp {
     data class OpenScanner(val mode: String) : FlowOp
     data class Web(val name: String) : FlowOp
     data class SetStep(val to: String) : FlowOp
-    data class ClickButton(val selector: String) : FlowOp  // ← ДОБАВЛЕНО
-    data class Delay(val ms: Long) : FlowOp                // ← ДОБАВЛЕНО
     data object Noop : FlowOp
     data class WebIf(
         val cond: String,
@@ -4784,14 +4783,6 @@ fun parseFlowOp(obj: JSONObject?): FlowOp? {
             val to = obj.optString("to", "").trim().lowercase()
             if (to.isBlank()) null else FlowOp.SetStep(to)
         }
-        "click_button" -> {  // ← ДОБАВЛЕНО
-            val selector = obj.optString("selector", "").trim()
-            if (selector.isBlank()) null else FlowOp.ClickButton(selector)
-        }
-        "delay" -> {  // ← ДОБАВЛЕНО
-            val ms = obj.optLong("ms", 500L)
-            FlowOp.Delay(ms)
-        }
         "noop" -> FlowOp.Noop
         "web_if" -> {
             val cond = obj.optString("cond", "").trim().lowercase()
@@ -4802,7 +4793,6 @@ fun parseFlowOp(obj: JSONObject?): FlowOp? {
         else -> null
     }
 }
-
 
 fun parseFlowConfig(flowObj: JSONObject?): FlowConfig? {
     if (flowObj == null) return null
