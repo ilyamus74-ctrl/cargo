@@ -414,16 +414,22 @@ fun AppRoot() {
                     webViewRef?.post {
                         webViewRef?.evaluateJavascript(
                             """
-                        (function() {
-                            const btn = document.querySelector('${op.selector.replace("'", "\\'")}');
-                            if (btn) {
-                                btn.click();
-                                console.log('✓ Кнопка нажата: ${op.selector}');
-                            } else {
-                                console.log('❌ Кнопка не найдена: ${op.selector}');
-                            }
-                        })();
-                        """.trimIndent(),
+            (function() {
+                const btn = document.querySelector('${op.selector.replace("'", "\\'")}');
+                if (btn) {
+                    // Триггерим событие ��лика правильно (для event delegation)
+                    const clickEvent = new MouseEvent('click', {
+                        bubbles: true,
+                        cancelable: true,
+                        view: window
+                    });
+                    btn.dispatchEvent(clickEvent);
+                    console.log('✓ Событие клика отправлено на: ${op.selector}');
+                } else {
+                    console.log('❌ Кнопка не найдена: ${op.selector}');
+                }
+            })();
+            """.trimIndent(),
                             null
                         )
                     }
@@ -751,25 +757,31 @@ fun AppRoot() {
                         }
                     }
                 }
-                is FlowOp.ClickButton -> {  // ← ДОБАВЛЕНО
+                is FlowOp.ClickButton -> {
                     webViewRef?.post {
                         webViewRef?.evaluateJavascript(
                             """
-                            (function() {
-                                const btn = document.querySelector('${op.selector.replace("'", "\\'")}');
-                                if (btn) {
-                                    btn.click();
-                                    console.log('✓ Кнопка нажата: ${op.selector}');
-                                    return true;
-                                } else {
-                                    console.log('❌ Кнопка не найдена: ${op.selector}');
-                                    return false;
-                                }
-                            })();
-                            """.trimIndent(),
+            (function() {
+                const btn = document.querySelector('${op.selector.replace("'", "\\'")}');
+                if (btn) {
+                    // Триггерим событие ��лика правильно (для event delegation)
+                    const clickEvent = new MouseEvent('click', {
+                        bubbles: true,
+                        cancelable: true,
+                        view: window
+                    });
+                    btn.dispatchEvent(clickEvent);
+                    console.log('✓ Событие клика отправлено на: ${op.selector}');
+                } else {
+                    console.log('❌ Кнопка не найдена: ${op.selector}');
+                }
+            })();
+            """.trimIndent(),
                             null
                         )
                     }
+                }
+            }
                 }
                 is FlowOp.Delay -> {  // ← ДОБАВЛЕНО
                     Thread.sleep(op.ms)

@@ -325,22 +325,6 @@ window.reset_form = function() {
 };
 console.log('✓ Функции для warehouse move загружены');
 
-window.debugClickButton = function() {
-  alert('1. Функция вызвана');
-  
-  const saveBtn = document.querySelector('button[data-core-action="warehouse_move_save_cell"]');
-  
-  if (!saveBtn) {
-    alert('2. ОШИБКА: Кнопка не найдена');
-    return false;
-  }
-  
-  alert('3. Кнопка найдена, нажимаем...');
-  saveBtn.click();
-  alert('4. Кнопка нажата!');
-  
-  return true;
-};
 
 </script>
 
@@ -418,9 +402,8 @@ window.debugClickButton = function() {
   "on_action": {
     "scan": [{"op": "open_scanner", "mode": "qr"}],
     "confirm": [
-      {"op": "web", "name": "debugClickButton"},
-//      {"op": "click_button", "selector": "button[data-core-action='warehouse_move_save_cell']"},
-      {"op": "delay", "ms": 2000},
+      {"op": "click_button", "selector": "button[data-core-action='warehouse_move_save_cell']"},
+      {"op": "delay", "ms": 1000},
       {"op": "click_button", "selector": ".modal.show .btn-close"},
       {"op": "set_step", "to": "scan_parcel"}
     ],
@@ -428,18 +411,21 @@ window.debugClickButton = function() {
     "reset": [{"op": "web", "name": "reset_form"}, {"op": "set_step", "to": "scan_parcel"}]
   }
 },
-          "wait_for_save": {
-            "mode": "none",
-            "on_action": {
-              "scan": [{"op": "noop"}],
-              "confirm": [
-                {"op": "web", "name": "saveMoveAndClose"}, 
-                {"op": "set_step", "to": "scan_parcel"}
-              ],
-              "clear": [{"op": "set_step", "to": "scan_cell_in_modal"}],
-              "reset": [{"op": "web", "name": "reset_form"}, {"op": "set_step", "to": "scan_parcel"}]
-            }
-          }
+"wait_for_save": {
+  "mode": "none",
+  "on_action": {
+    "scan": [{"op": "noop"}],
+    "confirm": [
+      {"op": "click_button", "selector": "button[data-core-action='warehouse_move_save_cell']"},
+      {"op": "delay", "ms": 1000},
+      {"op": "click_button", "selector": ".modal.show .btn-close"},
+      {"op": "set_step", "to": "scan_parcel"}
+    ],
+    "clear": [{"op": "set_step", "to": "scan_cell_in_modal"}],
+    "reset": [{"op": "web", "name": "reset_form"}, {"op": "set_step", "to": "scan_parcel"}]
+  }
+}
+
         }
       }
     },
