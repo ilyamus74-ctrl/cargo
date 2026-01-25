@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-01-25 14:43:17
+/* Smarty version 5.3.1, created on 2026-01-25 15:14:58
   from 'file:cells_NA_API_warehouse_move.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_69762c054b36d9_68947476',
+  'unifunc' => 'content_69763372da6c95_97516466',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '9041cbe8efcd5e4b6c57b0a4462d7d776f0b5774' => 
     array (
       0 => 'cells_NA_API_warehouse_move.html',
-      1 => 1769352189,
+      1 => 1769353463,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_69762c054b36d9_68947476 (\Smarty\Template $_smarty_tpl) {
+function content_69763372da6c95_97516466 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>    <div class="pagetitle">
       <h1>Warehouse Move</h1>
@@ -426,24 +426,25 @@ console.log('✓ Функции для warehouse move загружены');
               "reset": [{"op": "web", "name": "reset_form"}, {"op": "set_step", "to": "scan_parcel"}]
             }
           },
-
-          "scan_cell_in_modal": {
-            "mode": "qr",
-            "next_on_scan": "wait_for_save",
-            "qr": {
-              "action": "web_callback",
-              "callback": "setCellFromQR"
-            },
-            "on_action": {
-              "scan": [{"op": "open_scanner", "mode": "qr"}],
-              "confirm": [
-                {"op": "web", "name": "saveMoveAndClose"}, 
-                {"op": "set_step", "to": "scan_parcel"}
-              ],
-              "clear": [{"op": "set_step", "to": "scan_cell_in_modal"}],
-              "reset": [{"op": "web", "name": "reset_form"}, {"op": "set_step", "to": "scan_parcel"}]
-            }
-          },
+"scan_cell_in_modal": {
+  "mode": "qr",
+  "next_on_scan": "wait_for_save",
+  "qr": {
+    "action": "web_callback",
+    "callback": "setCellFromQR"
+  },
+  "on_action": {
+    "scan": [{"op": "open_scanner", "mode": "qr"}],
+    "confirm": [
+      {"op": "click_button", "selector": "button[data-core-action='warehouse_move_save_cell']"},
+      {"op": "delay", "ms": 500},
+      {"op": "click_button", "selector": ".modal.show .btn-close"},
+      {"op": "set_step", "to": "scan_parcel"}
+    ],
+    "clear": [{"op": "set_step", "to": "scan_cell_in_modal"}],
+    "reset": [{"op": "web", "name": "reset_form"}, {"op": "set_step", "to": "scan_parcel"}]
+  }
+},
           "wait_for_save": {
             "mode": "none",
             "on_action": {

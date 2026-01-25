@@ -409,6 +409,29 @@ fun AppRoot() {
                     }
                 }
                 is FlowOp.SetStep -> setFlowStep(op.to)
+                // ← ДОБАВИТЬ ЭТИ ДВЕ СТРОКИ:
+                is FlowOp.ClickButton -> {
+                    webViewRef?.post {
+                        webViewRef?.evaluateJavascript(
+                            """
+                        (function() {
+                            const btn = document.querySelector('${op.selector.replace("'", "\\'")}');
+                            if (btn) {
+                                btn.click();
+                                console.log('✓ Кнопка нажата: ${op.selector}');
+                            } else {
+                                console.log('❌ Кнопка не найдена: ${op.selector}');
+                            }
+                        })();
+                        """.trimIndent(),
+                            null
+                        )
+                    }
+                }
+                is FlowOp.Delay -> {
+                    Thread.sleep(op.ms)
+                }
+
                 FlowOp.Noop -> Unit
                 is FlowOp.WebIf -> {
                     when (op.cond) {
