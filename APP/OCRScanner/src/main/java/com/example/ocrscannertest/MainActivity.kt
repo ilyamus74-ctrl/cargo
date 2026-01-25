@@ -744,10 +744,10 @@ fun AppRoot() {
         }
     }
     fun dispatchContextFlowAction(eventName: String) {
-        if (!isWarehouseMove) {
-            println("### dispatchContextFlowAction: skipped, not warehouse_move")
-            return
-        }
+        //if (!isWarehouseMove) {
+        //    println("### dispatchContextFlowAction: skipped, not warehouse_move")
+        //    return
+        //}
 
         resolveActiveWarehouseContext { contextKey: String, contextConfig: ScanContextConfig ->
             val contextFlow: FlowConfig? = contextConfig.flow
@@ -788,7 +788,9 @@ fun AppRoot() {
         barcodeHardwareTrigger,
         showOcr,
         taskConfig,
-        currentFlowStep
+        currentFlowStep,
+        isWarehouseMove,  // ← ДОБАВИТЬ!
+        hasContextFlow    // ← И ЭТО ТОЖЕ!
     ) {
         // Сброс всех кнопок
         MainActivity.onVolDownSingle = null
