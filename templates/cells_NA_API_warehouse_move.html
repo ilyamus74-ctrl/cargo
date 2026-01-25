@@ -390,24 +390,25 @@ console.log('✓ Функции для warehouse move загружены');
               "reset": [{"op": "web", "name": "reset_form"}, {"op": "set_step", "to": "scan_parcel"}]
             }
           },
-
-          "scan_cell_in_modal": {
-            "mode": "qr",
-            "next_on_scan": "wait_for_save",
-            "qr": {
-              "action": "web_callback",
-              "callback": "setCellFromQR"
-            },
-            "on_action": {
-              "scan": [{"op": "open_scanner", "mode": "qr"}],
-              "confirm": [
-                {"op": "web", "name": "saveMoveAndClose"}, 
-                {"op": "set_step", "to": "scan_parcel"}
-              ],
-              "clear": [{"op": "set_step", "to": "scan_cell_in_modal"}],
-              "reset": [{"op": "web", "name": "reset_form"}, {"op": "set_step", "to": "scan_parcel"}]
-            }
-          },
+"scan_cell_in_modal": {
+  "mode": "qr",
+  "next_on_scan": "wait_for_save",
+  "qr": {
+    "action": "web_callback",
+    "callback": "setCellFromQR"
+  },
+  "on_action": {
+    "scan": [{"op": "open_scanner", "mode": "qr"}],
+    "confirm": [
+      {"op": "click_button", "selector": "button[data-core-action='warehouse_move_save_cell']"},
+      {"op": "delay", "ms": 500},
+      {"op": "click_button", "selector": ".modal.show .btn-close"},
+      {"op": "set_step", "to": "scan_parcel"}
+    ],
+    "clear": [{"op": "set_step", "to": "scan_cell_in_modal"}],
+    "reset": [{"op": "web", "name": "reset_form"}, {"op": "set_step", "to": "scan_parcel"}]
+  }
+},
           "wait_for_save": {
             "mode": "none",
             "on_action": {

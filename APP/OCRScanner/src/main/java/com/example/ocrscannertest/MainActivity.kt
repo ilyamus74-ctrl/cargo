@@ -728,6 +728,29 @@ fun AppRoot() {
                         }
                     }
                 }
+                is FlowOp.ClickButton -> {  // ← ДОБАВЛЕНО
+                    webViewRef?.post {
+                        webViewRef?.evaluateJavascript(
+                            """
+                            (function() {
+                                const btn = document.querySelector('${op.selector.replace("'", "\\'")}');
+                                if (btn) {
+                                    btn.click();
+                                    console.log('✓ Кнопка нажата: ${op.selector}');
+                                    return true;
+                                } else {
+                                    console.log('❌ Кнопка не найдена: ${op.selector}');
+                                    return false;
+                                }
+                            })();
+                            """.trimIndent(),
+                            null
+                        )
+                    }
+                }
+                is FlowOp.Delay -> {  // ← ДОБАВЛЕНО
+                    Thread.sleep(op.ms)
+                }
                 is FlowOp.Noop -> { /* do nothing */ }
                 is FlowOp.WebIf -> {
                     when (op.cond) {
@@ -4599,6 +4622,8 @@ sealed interface FlowOp {
     data class OpenScanner(val mode: String) : FlowOp
     data class Web(val name: String) : FlowOp
     data class SetStep(val to: String) : FlowOp
+    data class ClickButton(val selector: String) : FlowOp  // ← ДОБАВЛЕНО
+    data class Delay(val ms: Long) : FlowOp                // ← ДОБАВЛЕНО
     data object Noop : FlowOp
     data class WebIf(
         val cond: String,
@@ -4711,6 +4736,14 @@ fun parseFlowOp(obj: JSONObject?): FlowOp? {
             val to = obj.optString("to", "").trim().lowercase()
             if (to.isBlank()) null else FlowOp.SetStep(to)
         }
+        "click_button" -> {  // ← ДОБАВЛЕНО
+            val selector = obj.optString("selector", "").trim()
+            if (selector.isBlank()) null else FlowOp.ClickButton(selector)
+        }
+        "delay" -> {  // ← ДОБАВЛЕНО
+            val ms = obj.optLong("ms", 500L)
+            FlowOp.Delay(ms)
+        }
         "noop" -> FlowOp.Noop
         "web_if" -> {
             val cond = obj.optString("cond", "").trim().lowercase()
@@ -4721,6 +4754,7 @@ fun parseFlowOp(obj: JSONObject?): FlowOp? {
         else -> null
     }
 }
+
 
 fun parseFlowConfig(flowObj: JSONObject?): FlowConfig? {
     if (flowObj == null) return null
