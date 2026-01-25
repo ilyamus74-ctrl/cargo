@@ -839,10 +839,12 @@ fun AppRoot() {
         // когда открыт оверлей сканера, но НЕ блокирует другие кнопки (double-click и т.д.)
         if (showBarcodeScan && barcodeHardwareTrigger != null) {
             MainActivity.onVolDownSingle = { barcodeHardwareTrigger?.invoke() }
-            println("### Volume down single: overridden for barcode hardware trigger")
+            MainActivity.onVolDownDouble = { dispatchContextFlowAction("vol_down_double") }  // ← ДОБАВИТЬ!
+            println("### Volume down: overridden for barcode hardware trigger")
         } else if (showOcr && ocrHardwareTrigger != null) {
             MainActivity.onVolDownSingle = { ocrHardwareTrigger?.invoke() }
-            println("### Volume down single: overridden for OCR hardware trigger")
+            MainActivity.onVolDownDouble = { dispatchContextFlowAction("vol_down_double") }  // ← ДОБАВИТЬ!
+            println("### Volume down: overridden for OCR hardware trigger")
         }
     }
     Scaffold(
