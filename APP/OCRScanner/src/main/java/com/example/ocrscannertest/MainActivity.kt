@@ -2395,6 +2395,22 @@ fun DeviceWebViewScreen(
                 settings.javaScriptEnabled = true
                 settings.domStorageEnabled = true
 
+                addJavascriptInterface(object {
+                    @JavascriptInterface
+                    fun setFlowStep(step: String) {
+                        println("### JavaScript вызвал setFlowStep: $step")
+                        mainHandler.post {
+                            onFlowStepChanged(step)  // ← Используем callback
+                        }
+                    }
+
+                    @JavascriptInterface
+                    fun getFlowStep(): String? {
+                        println("### JavaScript запросил currentFlowStep")
+                        return getCurrentFlowStep()  // ← Используем callback
+                    }
+                }, "DeviceApp")
+
                 webViewClient = object : WebViewClient() {
 
                     private var firstPageLoaded = false

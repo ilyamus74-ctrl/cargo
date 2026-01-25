@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-01-25 15:59:48
+/* Smarty version 5.3.1, created on 2026-01-25 16:07:47
   from 'file:cells_NA_API_warehouse_move.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_69763df4cb8af3_35581323',
+  'unifunc' => 'content_69763fd32bbaa9_20287075',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '9041cbe8efcd5e4b6c57b0a4462d7d776f0b5774' => 
     array (
       0 => 'cells_NA_API_warehouse_move.html',
-      1 => 1769356774,
+      1 => 1769357264,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_69763df4cb8af3_35581323 (\Smarty\Template $_smarty_tpl) {
+function content_69763fd32bbaa9_20287075 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>    <div class="pagetitle">
       <h1>Warehouse Move</h1>
@@ -222,6 +222,26 @@ window.openMoveModal = function() {
 
   return true;
 };
+
+// Отслеживаем открытие модалки и устанавливаем flow step
+if (typeof window.bootstrap !== 'undefined' && window.bootstrap.Modal) {
+  document.addEventListener('shown.bs.modal', function(event) {
+    const modal = event.target;
+    
+    // Проверяем, это наша модалка перемещения
+    const saveBtn = modal.querySelector('button[data-core-action="warehouse_move_save_cell"]');
+    
+    if (saveBtn) {
+      console.log('✓ Модалка перемещения открыта, устанавливаем flow step');
+      
+      // Уведомляем Android о смене шага
+      if (window.DeviceApp && window.DeviceApp.setFlowStep) {
+        window.DeviceApp.setFlowStep('scan_cell_in_modal');
+        console.log('✓ Flow step установлен через DeviceApp: scan_cell_in_modal');
+      }
+    }
+  });
+}
 /**
  * Устанавливает значение ячейки из отсканированного QR кода
  * Вызывается из приложения при сканировании QR в модалке
