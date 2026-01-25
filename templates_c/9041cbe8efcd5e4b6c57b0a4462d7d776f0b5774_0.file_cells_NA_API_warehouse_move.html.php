@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-01-25 15:28:11
+/* Smarty version 5.3.1, created on 2026-01-25 15:50:34
   from 'file:cells_NA_API_warehouse_move.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_6976368b5c4e08_77887869',
+  'unifunc' => 'content_69763bca159194_52865174',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '9041cbe8efcd5e4b6c57b0a4462d7d776f0b5774' => 
     array (
       0 => 'cells_NA_API_warehouse_move.html',
-      1 => 1769354872,
+      1 => 1769355808,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_6976368b5c4e08_77887869 (\Smarty\Template $_smarty_tpl) {
+function content_69763bca159194_52865174 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>    <div class="pagetitle">
       <h1>Warehouse Move</h1>
@@ -359,22 +359,6 @@ window.reset_form = function() {
 };
 console.log('✓ Функции для warehouse move загружены');
 
-window.debugClickButton = function() {
-  alert('1. Функция вызвана');
-  
-  const saveBtn = document.querySelector('button[data-core-action="warehouse_move_save_cell"]');
-  
-  if (!saveBtn) {
-    alert('2. ОШИБКА: Кнопка не найдена');
-    return false;
-  }
-  
-  alert('3. Кнопка найдена, нажимаем...');
-  saveBtn.click();
-  alert('4. Кнопка нажата!');
-  
-  return true;
-};
 
 <?php echo '</script'; ?>
 >
@@ -454,9 +438,8 @@ window.debugClickButton = function() {
   "on_action": {
     "scan": [{"op": "open_scanner", "mode": "qr"}],
     "confirm": [
-      {"op": "web", "name": "debugClickButton"},
-//      {"op": "click_button", "selector": "button[data-core-action='warehouse_move_save_cell']"},
-      {"op": "delay", "ms": 2000},
+      {"op": "click_button", "selector": "button[data-core-action='warehouse_move_save_cell']"},
+      {"op": "delay", "ms": 1000},
       {"op": "click_button", "selector": ".modal.show .btn-close"},
       {"op": "set_step", "to": "scan_parcel"}
     ],
@@ -464,18 +447,21 @@ window.debugClickButton = function() {
     "reset": [{"op": "web", "name": "reset_form"}, {"op": "set_step", "to": "scan_parcel"}]
   }
 },
-          "wait_for_save": {
-            "mode": "none",
-            "on_action": {
-              "scan": [{"op": "noop"}],
-              "confirm": [
-                {"op": "web", "name": "saveMoveAndClose"}, 
-                {"op": "set_step", "to": "scan_parcel"}
-              ],
-              "clear": [{"op": "set_step", "to": "scan_cell_in_modal"}],
-              "reset": [{"op": "web", "name": "reset_form"}, {"op": "set_step", "to": "scan_parcel"}]
-            }
-          }
+"wait_for_save": {
+  "mode": "none",
+  "on_action": {
+    "scan": [{"op": "noop"}],
+    "confirm": [
+      {"op": "click_button", "selector": "button[data-core-action='warehouse_move_save_cell']"},
+      {"op": "delay", "ms": 1000},
+      {"op": "click_button", "selector": ".modal.show .btn-close"},
+      {"op": "set_step", "to": "scan_parcel"}
+    ],
+    "clear": [{"op": "set_step", "to": "scan_cell_in_modal"}],
+    "reset": [{"op": "web", "name": "reset_form"}, {"op": "set_step", "to": "scan_parcel"}]
+  }
+}
+
         }
       }
     },

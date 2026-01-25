@@ -764,7 +764,6 @@ fun AppRoot() {
             (function() {
                 const btn = document.querySelector('${op.selector.replace("'", "\\'")}');
                 if (btn) {
-                    // Триггерим событие ��лика правильно (для event delegation)
                     const clickEvent = new MouseEvent('click', {
                         bubbles: true,
                         cancelable: true,
@@ -781,9 +780,7 @@ fun AppRoot() {
                         )
                     }
                 }
-            }
-                }
-                is FlowOp.Delay -> {  // ← ДОБАВЛЕНО
+                is FlowOp.Delay -> {
                     Thread.sleep(op.ms)
                 }
                 is FlowOp.Noop -> { /* do nothing */ }
