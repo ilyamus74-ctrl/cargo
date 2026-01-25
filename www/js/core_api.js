@@ -1332,3 +1332,127 @@ window.reloadUserList = () => CoreAPI.ui.reloadList('view_users');
 window.reloadToolsStock = () => CoreAPI.ui.reloadList('view_tools_stock');
 window.reloadDevices = () => CoreAPI.ui.reloadList('view_devices');
 window.reloadWarehouseItemIn = () => CoreAPI.ui.reloadList('warehouse_item_in');
+
+
+
+
+// --- DeviceScanConfig helper ---------------------------------
+window.DeviceScanConfig = window.DeviceScanConfig || (function () {
+  function _getScriptEl() {
+    return document.getElementById('device-scan-config');
+  }
+
+  function getRaw() {
+    const el = _getScriptEl();
+    return el ? (el.textContent || el.innerText || '') : '';
+  }
+
+  function get() {
+    const raw = (getRaw() || '').trim();
+    if (!raw) return null;
+    try {
+      return JSON.parse(raw);
+    } catch (e) {
+      console.error('DeviceScanConfig.get(): invalid JSON in #device-scan-config', e);
+      return null;
+    }
+  }
+
+  function set(obj) {
+    const el = _getScriptEl();
+    if (!el) return false;
+    try {
+      el.textContent = JSON.stringify(obj, null, 2);
+      return true;
+    } catch (e) {
+      console.error('DeviceScanConfig.set(): failed', e);
+      return false;
+    }
+  }
+
+  function setActiveContext(key) {
+    if (!key) return false;
+    const cfg = get();
+    if (!cfg) return false;
+    if (!cfg.contexts || !cfg.contexts[key]) {
+      console.warn('DeviceScanConfig.setActiveContext(): unknown context:', key);
+      // можно вернуть false, но иногда удобно всё равно проставить строку
+      // return false;
+    }
+    cfg.active_context = key;
+    const ok = set(cfg);
+    if (ok && typeof emitDeviceContext === 'function') {
+      emitDeviceContext();
+    }
+    return ok;
+  }
+
+  return { get, set, setActiveContext };
+})();
+
+// --- Auto context switching by config.context_switch ----------
+(function installDeviceScanContextSwitching() {
+  if (window.__deviceScanContextSwitchInstalled) return;
+  window.__deviceScanContextSwitchInstalled = true;
+
+  // Tabs: map tab button selector -> context key
+  document.addEventListener('shown.bs.tab', function (event) {
+    try {
+      const cfg = window.DeviceScanConfig.get();
+      const map = cfg?.context_switch?.tabs;
+      if (!map || !event?.target) return;
+
+      // event.target is the activated tab button
+      for (const selector in map) {
+        if (!Object.prototype.hasOwnProperty.call(map, selector)) continue;
+        if (event.target.matches(selector)) {
+          window.DeviceScanConfig.setActiveContext(map[selector]);
+          break;
+        }
+      }
+    } catch (e) {
+      console.error('context_switch tabs handler error', e);
+    }
+  });
+
+  // Modals: map modal selector -> {shown, hidden}
+  document.addEventListener('shown.bs.modal', function (event) {
+    try {
+      const cfg = window.DeviceScanConfig.get();
+      const modals = cfg?.context_switch?.modals;
+      if (!modals || !event?.target) return;
+
+      const modalEl = event.target;
+      for (const selector in modals) {
+        if (!Object.prototype.hasOwnProperty.call(modals, selector)) continue;
+        const rule = modals[selector];
+        if (modalEl.matches(selector) && rule?.shown) {
+          window.DeviceScanConfig.setActiveContext(rule.shown);
+          break;
+        }
+      }
+    } catch (e) {
+      console.error('context_switch modal shown handler error', e);
+    }
+  });
+
+  document.addEventListener('hidden.bs.modal', function (event) {
+    try {
+      const cfg = window.DeviceScanConfig.get();
+      const modals = cfg?.context_switch?.modals;
+      if (!modals || !event?.target) return;
+
+      const modalEl = event.target;
+      for (const selector in modals) {
+        if (!Object.prototype.hasOwnProperty.call(modals, selector)) continue;
+        const rule = modals[selector];
+        if (modalEl.matches(selector) && rule?.hidden) {
+          window.DeviceScanConfig.setActiveContext(rule.hidden);
+          break;
+        }
+      }
+    } catch (e) {
+      console.error('context_switch modal hidden handler error', e);
+    }
+  });
+})();
