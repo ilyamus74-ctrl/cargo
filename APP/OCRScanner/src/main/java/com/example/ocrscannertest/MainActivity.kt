@@ -130,54 +130,65 @@ private class VolumeButtonDispatcher(
     private var pendingVolumeUp: Runnable? = null
 
     fun onVolumeDown(single: (() -> Unit)?, double: (() -> Unit)?) {
-        handlePress(
-            now = System.currentTimeMillis(),
-            lastTs = lastVolumeDownTs,
-            setLastTs = { lastVolumeDownTs = it },
-            pending = pendingVolumeDown,
-            setPending = { pendingVolumeDown = it },
-            single = single,
-            double = double
-        )
+        val now = System.currentTimeMillis()
+        val delta = now - lastVolumeDownTs
+        // Проверяем, это второе быстрое нажатие?
+        if (delta in 0..VOLUME_DOUBLE_TAP_WINDOW_MS) {
+            // Отменяем отложенное одиночное нажатие (если есть)
+            pendingVolumeDown?.let {
+                handler.removeCallbacks(it)
+                println("### VolumeDown: cancelled pending single tap")
+            }
+            pendingVolumeDown = null
+            lastVolumeDownTs = 0L
+
+            // Вызываем обработчик двойного нажатия
+            println("### VolumeDown: DOUBLE tap detected!")
+            double?.invoke()
+            return
+        }
+        // Первое нажатие - создаём отложенное одиночное нажатие
+        lastVolumeDownTs = now
+        val runnable = Runnable {
+            pendingVolumeDown = null
+            println("### VolumeDown: executing SINGLE tap (delayed)")
+            single?.invoke()
+        }
+        pendingVolumeDown = runnable
+        handler.postDelayed(runnable, VOLUME_DOUBLE_TAP_WINDOW_MS)
+        println("### VolumeDown: scheduled single tap (wait ${VOLUME_DOUBLE_TAP_WINDOW_MS}ms)")
     }
 
     fun onVolumeUp(single: (() -> Unit)?, double: (() -> Unit)?) {
-        handlePress(
-            now = System.currentTimeMillis(),
-            lastTs = lastVolumeUpTs,
-            setLastTs = { lastVolumeUpTs = it },
-            pending = pendingVolumeUp,
-            setPending = { pendingVolumeUp = it },
-            single = single,
-            double = double
-        )
-    }
+        val now = System.currentTimeMillis()
+        val delta = now - lastVolumeUpTs
 
-    private fun handlePress(
-        now: Long,
-        lastTs: Long,
-        setLastTs: (Long) -> Unit,
-        pending: Runnable?,
-        setPending: (Runnable?) -> Unit,
-        single: (() -> Unit)?,
-        double: (() -> Unit)?
-    ) {
-        val delta = now - lastTs
+        // Проверяем, это второе быстрое нажатие?
         if (delta in 0..VOLUME_DOUBLE_TAP_WINDOW_MS) {
-            pending?.let { handler.removeCallbacks(it) }
-            setPending(null)
-            setLastTs(0L)
+            // Отменяем отложенное одиночное нажатие (если есть)
+            pendingVolumeUp?.let {
+                handler.removeCallbacks(it)
+                println("### VolumeUp: cancelled pending single tap")
+            }
+            pendingVolumeUp = null
+            lastVolumeUpTs = 0L
+
+            // Вызываем обработчик двойного нажатия
+            println("### VolumeUp: DOUBLE tap detected!")
             double?.invoke()
             return
         }
 
-        setLastTs(now)
+        // Первое нажатие - создаём отложенное одиночное нажатие
+        lastVolumeUpTs = now
         val runnable = Runnable {
-            setPending(null)
+            pendingVolumeUp = null
+            println("### VolumeUp: executing SINGLE tap (delayed)")
             single?.invoke()
         }
-        setPending(runnable)
+        pendingVolumeUp = runnable
         handler.postDelayed(runnable, VOLUME_DOUBLE_TAP_WINDOW_MS)
+        println("### VolumeUp: scheduled single tap (wait ${VOLUME_DOUBLE_TAP_WINDOW_MS}ms)")
     }
 }
 
