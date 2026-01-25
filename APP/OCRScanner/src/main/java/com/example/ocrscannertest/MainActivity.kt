@@ -781,6 +781,10 @@ fun AppRoot() {
 
     LaunchedEffect(
         showWebView,
+        showOcr,
+        showBarcodeScan,
+        ocrHardwareTrigger,
+        barcodeHardwareTrigger,
         taskConfig,
         currentFlowStep
     ) {
@@ -790,7 +794,7 @@ fun AppRoot() {
         MainActivity.onVolUpSingle = null
         MainActivity.onVolUpDouble = null
 
-        // Определяем, какой диспетчер использовать
+        // Определяем, какой диспетчер использовать для основных кнопок
         when {
             // 1. Если есть flow - используем его (приоритет 1)
             hasFlow -> {
@@ -827,6 +831,17 @@ fun AppRoot() {
                 MainActivity.onVolUpDouble = { warehouseInResetAll() }
                 println("### Volume buttons: using warehouse_in legacy logic")
             }
+        }
+
+        // ВАЖНО: Переопределяем vol_down_single для аппаратного триггера сканера
+        // Это позволяет использовать кнопку громкости для запуска сканирования,
+        // когда открыт оверлей сканера, но НЕ блокирует другие кнопки (double-click и т.д.)
+        if (showBarcodeScan && barcodeHardwareTrigger != null) {
+            MainActivity.onVolDownSingle = { barcodeHardwareTrigger?.invoke() }
+            println("### Volume down single: overridden for barcode hardware trigger")
+        } else if (showOcr && ocrHardwareTrigger != null) {
+            MainActivity.onVolDownSingle = { ocrHardwareTrigger?.invoke() }
+            println("### Volume down single: overridden for OCR hardware trigger")
         }
     }
     Scaffold(
