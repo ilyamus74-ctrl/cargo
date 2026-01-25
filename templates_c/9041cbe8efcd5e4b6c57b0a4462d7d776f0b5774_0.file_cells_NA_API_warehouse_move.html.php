@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-01-25 15:14:58
+/* Smarty version 5.3.1, created on 2026-01-25 15:28:11
   from 'file:cells_NA_API_warehouse_move.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_69763372da6c95_97516466',
+  'unifunc' => 'content_6976368b5c4e08_77887869',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '9041cbe8efcd5e4b6c57b0a4462d7d776f0b5774' => 
     array (
       0 => 'cells_NA_API_warehouse_move.html',
-      1 => 1769353463,
+      1 => 1769354872,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_69763372da6c95_97516466 (\Smarty\Template $_smarty_tpl) {
+function content_6976368b5c4e08_77887869 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>    <div class="pagetitle">
       <h1>Warehouse Move</h1>
@@ -358,6 +358,24 @@ window.reset_form = function() {
   console.log('✓ Форма сброшена');
 };
 console.log('✓ Функции для warehouse move загружены');
+
+window.debugClickButton = function() {
+  alert('1. Функция вызвана');
+  
+  const saveBtn = document.querySelector('button[data-core-action="warehouse_move_save_cell"]');
+  
+  if (!saveBtn) {
+    alert('2. ОШИБКА: Кнопка не найдена');
+    return false;
+  }
+  
+  alert('3. Кнопка найдена, нажимаем...');
+  saveBtn.click();
+  alert('4. Кнопка нажата!');
+  
+  return true;
+};
+
 <?php echo '</script'; ?>
 >
 
@@ -436,8 +454,9 @@ console.log('✓ Функции для warehouse move загружены');
   "on_action": {
     "scan": [{"op": "open_scanner", "mode": "qr"}],
     "confirm": [
-      {"op": "click_button", "selector": "button[data-core-action='warehouse_move_save_cell']"},
-      {"op": "delay", "ms": 500},
+      {"op": "web", "name": "debugClickButton"},
+//      {"op": "click_button", "selector": "button[data-core-action='warehouse_move_save_cell']"},
+      {"op": "delay", "ms": 2000},
       {"op": "click_button", "selector": ".modal.show .btn-close"},
       {"op": "set_step", "to": "scan_parcel"}
     ],
@@ -477,11 +496,6 @@ console.log('✓ Функции для warehouse move загружены');
 }
 <?php echo '</script'; ?>
 >
-
-<!-- ВРЕМЕННАЯ КНОПКА ДЛЯ ТЕСТА -->
-<button onclick="window.saveMoveAndClose()" style="position:fixed; top:10px; right:10px; z-index:9999; padding:20px; background:red; color:white; font-size:20px;">
-  TEST DOUBLE
-</button>
 
 
 

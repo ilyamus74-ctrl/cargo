@@ -324,6 +324,24 @@ window.reset_form = function() {
   console.log('✓ Форма сброшена');
 };
 console.log('✓ Функции для warehouse move загружены');
+
+window.debugClickButton = function() {
+  alert('1. Функция вызвана');
+  
+  const saveBtn = document.querySelector('button[data-core-action="warehouse_move_save_cell"]');
+  
+  if (!saveBtn) {
+    alert('2. ОШИБКА: Кнопка не найдена');
+    return false;
+  }
+  
+  alert('3. Кнопка найдена, нажимаем...');
+  saveBtn.click();
+  alert('4. Кнопка нажата!');
+  
+  return true;
+};
+
 </script>
 
 
@@ -400,8 +418,9 @@ console.log('✓ Функции для warehouse move загружены');
   "on_action": {
     "scan": [{"op": "open_scanner", "mode": "qr"}],
     "confirm": [
-      {"op": "click_button", "selector": "button[data-core-action='warehouse_move_save_cell']"},
-      {"op": "delay", "ms": 500},
+      {"op": "web", "name": "debugClickButton"},
+//      {"op": "click_button", "selector": "button[data-core-action='warehouse_move_save_cell']"},
+      {"op": "delay", "ms": 2000},
       {"op": "click_button", "selector": ".modal.show .btn-close"},
       {"op": "set_step", "to": "scan_parcel"}
     ],
