@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-01-24 20:40:08
+/* Smarty version 5.3.1, created on 2026-01-25 14:43:17
   from 'file:cells_NA_API_warehouse_move.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_69752e28844754_39429538',
+  'unifunc' => 'content_69762c054b36d9_68947476',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '9041cbe8efcd5e4b6c57b0a4462d7d776f0b5774' => 
     array (
       0 => 'cells_NA_API_warehouse_move.html',
-      1 => 1769287204,
+      1 => 1769352189,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_69752e28844754_39429538 (\Smarty\Template $_smarty_tpl) {
+function content_69762c054b36d9_68947476 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>    <div class="pagetitle">
       <h1>Warehouse Move</h1>
@@ -476,6 +476,11 @@ console.log('✓ Функции для warehouse move загружены');
 }
 <?php echo '</script'; ?>
 >
+
+<!-- ВРЕМЕННАЯ КНОПКА ДЛЯ ТЕСТА -->
+<button onclick="window.saveMoveAndClose()" style="position:fixed; top:10px; right:10px; z-index:9999; padding:20px; background:red; color:white; font-size:20px;">
+  TEST DOUBLE
+</button>
 
 
 
