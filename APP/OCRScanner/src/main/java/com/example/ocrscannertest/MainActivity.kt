@@ -499,6 +499,17 @@ fun AppRoot() {
             return
         }
 
+            // NEW: если страница/JS уже явно указала active_context — доверяем ему
+            cfg.activeContext?.let { key ->
+                val ctx = contexts[key]
+                if (ctx != null) {
+                    onResolved(key, ctx)
+                    return
+                } else {
+                    println("### resolveActiveWarehouseContext: active_context='$key' not found in contexts, fallback to selector")
+                }
+            }
+
         resolveActiveContextId(webView, contexts) { activeKey ->
             val resolvedKey = activeKey ?: contexts.keys.firstOrNull()
             val resolvedContext = resolvedKey?.let { contexts[it] }
@@ -4703,11 +4714,14 @@ data class ScanTaskConfig(
     val qrAction: ScanAction? = null,
     val cellNullDefaultForward: Map<String, String> = emptyMap(),
     val contexts: Map<String, ScanContextConfig> = emptyMap(),
+    // NEW: сервер/страница может явно указать активный контекст
+    // (DeviceScanConfig.setActiveContext(...) обновляет это поле в <script id="device-scan-config">)
+    val activeContext: String? = null,
     val buttons: Map<String, String> = emptyMap(),
     val flow: FlowConfig? = null,
     val api: Map<String, String> = emptyMap(),
     val ui: ScanTaskUiConfig? = null
-    )
+)
 
 
 fun parseScanAction(obj: JSONObject?): ScanAction? {
@@ -4856,7 +4870,8 @@ fun parseScanTaskConfig(json: String): ScanTaskConfig? = try {
 
     val taskId = obj.optString("task_id", "unknown").trim().lowercase()
     val def = obj.optString("default_mode", "ocr").trim().lowercase()
-
+    // NEW: active_context (например: "scanner", "batch", "scanner_modal")
+    val activeContext = obj.optString("active_context", null)?.trim()?.takeIf { it.isNotEmpty() }
     val arr = obj.optJSONArray("modes")
     val modes = mutableSetOf<String>()
     if (arr != null) {
@@ -4964,6 +4979,7 @@ fun parseScanTaskConfig(json: String): ScanTaskConfig? = try {
         }
     }
 
+
     ScanTaskConfig(
         taskId = taskId,
         defaultMode = def,
@@ -4972,6 +4988,7 @@ fun parseScanTaskConfig(json: String): ScanTaskConfig? = try {
         qrAction = qr,
         cellNullDefaultForward = cellDefaults,
         contexts = contexts,
+        activeContext = activeContext,
         buttons = buttons,
         flow = flow,
         api = api,
