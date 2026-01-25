@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-01-25 16:27:02
+/* Smarty version 5.3.1, created on 2026-01-25 19:13:41
   from 'file:cells_NA_API_warehouse_move.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_69764456b9c353_80917956',
+  'unifunc' => 'content_69766b6551ee28_92031829',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '9041cbe8efcd5e4b6c57b0a4462d7d776f0b5774' => 
     array (
       0 => 'cells_NA_API_warehouse_move.html',
-      1 => 1769357522,
+      1 => 1769366715,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_69764456b9c353_80917956 (\Smarty\Template $_smarty_tpl) {
+function content_69766b6551ee28_92031829 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>    <div class="pagetitle">
       <h1>Warehouse Move</h1>
@@ -294,7 +294,6 @@ window.setCellFromQR = function(qrValue) {
     cellSelect.dispatchEvent(new Event('input', { bubbles: true }));
       
     showDebug('✅ Ячейка установлена: ' + foundOption.text);
-  foundOption.text);
   return true;
     // Запускаем попытку установки
   return trySetCell();
@@ -416,26 +415,38 @@ window.triggerSaveButton = function() {
 <?php echo '<script'; ?>
  id="device-scan-config" type="application/json">
 {
-  "task_id":"warehouse_move",
-  "default_mode":"barcode",
-  "modes":["barcode","qr"],
+  "task_id": "warehouse_move",
+  "default_mode": "barcode",
+  "modes": ["barcode", "qr"],
 
-  "buttons":{
-    "vol_down_single":"scan",
-    "vol_down_double":"confirm",
-    "vol_up_single":"clear",
-    "vol_up_double":"reset"
+  "buttons": {
+    "vol_down_single": "scan",
+    "vol_down_double": "confirm",
+    "vol_up_single":   "clear",
+    "vol_up_double":   "reset"
   },
 
   "api": {
     "move_apply": "/api/warehouse_move_apply.php"
   },
 
+  "active_context": "scanner",
+
+  "context_switch": {
+    "tabs": {
+      "#warehouse-move-scanner-tab": "scanner",
+      "#warehouse-move-batch-tab":   "batch"
+    },
+    "modals": {
+      "#fullscreenModal": { "shown": "scanner_modal", "hidden": "scanner" }
+    }
+  },
+
   "contexts": {
     "scanner": {
       "active_tab_selector": "#warehouse-move-scanner-tab.nav-link.active",
-      
-      "barcode": { 
+
+      "barcode": {
         "action": "fill_field",
         "field_id": "warehouse-move-search"
       },
@@ -450,81 +461,137 @@ window.triggerSaveButton = function() {
           "scan_parcel": {
             "mode": "barcode",
             "next_on_scan": "wait_for_confirm",
-            "barcode": {
-              "action": "fill_field",
-              "field_id": "warehouse-move-search"
-            },
             "on_action": {
-              "scan": [{"op": "open_scanner", "mode": "barcode"}],
-              "confirm": [
-                {"op": "web", "name": "openMoveModal"}, 
-                {"op": "set_step", "to": "scan_cell_in_modal"}
-              ],
-              "clear": [{"op": "web", "name": "clear_search"}],
-              "reset": [{"op": "web", "name": "reset_form"}, {"op": "set_step", "to": "scan_parcel"}]
+              "scan":    [ { "op": "open_scanner", "mode": "barcode" } ],
+              "confirm": [ { "op": "web", "name": "openMoveModal" }, { "op": "set_step", "to": "scan_cell_in_modal" } ],
+              "clear":   [ { "op": "web", "name": "clear_search" } ],
+              "reset":   [ { "op": "web", "name": "reset_form" }, { "op": "set_step", "to": "scan_parcel" } ]
             }
           },
 
           "wait_for_confirm": {
             "mode": "none",
             "on_action": {
-              "scan": [{"op": "noop"}],
-              "confirm": [
-                {"op": "web", "name": "openMoveModal"}, 
-                {"op": "set_step", "to": "scan_cell_in_modal"}
-              ],
-              "clear": [{"op": "web", "name": "clear_search"}, {"op": "set_step", "to": "scan_parcel"}],
-              "reset": [{"op": "web", "name": "reset_form"}, {"op": "set_step", "to": "scan_parcel"}]
+              "scan":    [ { "op": "noop" } ],
+              "confirm": [ { "op": "web", "name": "openMoveModal" }, { "op": "set_step", "to": "scan_cell_in_modal" } ],
+              "clear":   [ { "op": "web", "name": "clear_search" }, { "op": "set_step", "to": "scan_parcel" } ],
+              "reset":   [ { "op": "web", "name": "reset_form" }, { "op": "set_step", "to": "scan_parcel" } ]
             }
           },
-"scan_cell_in_modal": {
-  "mode": "qr",
-  "next_on_scan": "wait_for_save",
-  "qr": {
-    "action": "web_callback",
-    "callback": "setCellFromQR"
-  },
-  "on_action": {
-    "scan": [{"op": "open_scanner", "mode": "qr"}],
-    "confirm": [
-            {"op": "web", "name": "triggerSaveButton"},
-            {"op": "delay", "ms": 1000},
-            {"op": "click_button", "selector": ".modal.show .btn-close"},
-            {"op": "set_step", "to": "scan_parcel"}
-     ],
-    "clear": [{"op": "set_step", "to": "scan_cell_in_modal"}],
-    "reset": [{"op": "web", "name": "reset_form"}, {"op": "set_step", "to": "scan_parcel"}]
-  }
-},
-"wait_for_save": {
-  "mode": "none",
-  "on_action": {
-    "scan": [{"op": "noop"}],
-    "confirm": [
-      {"op": "click_button", "selector": "button[data-core-action='warehouse_move_save_cell']"},
-      {"op": "delay", "ms": 1000},
-      {"op": "click_button", "selector": ".modal.show .btn-close"},
-      {"op": "set_step", "to": "scan_parcel"}
-    ],
-    "clear": [{"op": "set_step", "to": "scan_cell_in_modal"}],
-    "reset": [{"op": "web", "name": "reset_form"}, {"op": "set_step", "to": "scan_parcel"}]
-  }
-}
 
+          "scan_cell_in_modal": {
+            "mode": "qr",
+            "next_on_scan": "wait_for_save",
+            "qr": {
+              "action": "web_callback",
+              "callback": "setCellFromQR"
+            },
+            "on_action": {
+              "scan":    [ { "op": "open_scanner", "mode": "qr" } ],
+              "confirm": [
+                { "op": "web", "name": "triggerSaveButton" },
+                { "op": "set_step", "to": "scan_parcel" }
+              ],
+              "clear":   [ { "op": "set_step", "to": "scan_cell_in_modal" } ],
+              "reset":   [ { "op": "web", "name": "reset_form" }, { "op": "set_step", "to": "scan_parcel" } ]
+            }
+          },
+
+          "wait_for_save": {
+            "mode": "none",
+            "on_action": {
+              "scan":    [ { "op": "noop" } ],
+              "confirm": [
+                { "op": "web", "name": "triggerSaveButton" },
+                { "op": "set_step", "to": "scan_parcel" }
+              ],
+              "clear":   [ { "op": "set_step", "to": "scan_cell_in_modal" } ],
+              "reset":   [ { "op": "web", "name": "reset_form" }, { "op": "set_step", "to": "scan_parcel" } ]
+            }
+          }
+        }
+      }
+    },
+
+    "scanner_modal": {
+      "flow": {
+        "start": "scan_cell_in_modal",
+        "steps": {
+          "scan_cell_in_modal": {
+            "mode": "qr",
+            "next_on_scan": "wait_for_save",
+            "qr": {
+              "action": "web_callback",
+              "callback": "setCellFromQR"
+            },
+            "on_action": {
+              "scan":    [ { "op": "open_scanner", "mode": "qr" } ],
+              "confirm": [ { "op": "web", "name": "triggerSaveButton" } ],
+              "clear":   [ { "op": "noop" } ],
+              "reset":   [ { "op": "web", "name": "reset_form" } ]
+            }
+          },
+          "wait_for_save": {
+            "mode": "none",
+            "on_action": {
+              "scan":    [ { "op": "noop" } ],
+              "confirm": [ { "op": "web", "name": "triggerSaveButton" } ],
+              "clear":   [ { "op": "noop" } ],
+              "reset":   [ { "op": "web", "name": "reset_form" } ]
+            }
+          }
         }
       }
     },
 
     "batch": {
       "active_tab_selector": "#warehouse-move-batch-tab.nav-link.active",
-      "barcode": { 
-        "action":"fill_field", 
-        "field_id":"warehouse-move-batch-search"
+
+      "barcode": {
+        "action": "fill_field",
+        "field_id": "warehouse-move-batch-search"
       },
       "qr": {
-        "action":"api_check",
-        "endpoint":"/api/qr_check.php",
-        "apply_to_select_id":"warehouse-move-cell-select"
+        "action": "api_check",
+        "endpoint": "/api/qr_check.php",
+        "apply_to_select_id": "warehouse-move-batch-cell"
+      },
+
+      "flow": {
+        "start": "scan_cell",
+        "steps": {
+          "scan_cell": {
+            "mode": "qr",
+            "next_on_scan": "scan_parcel",
+            "on_action": {
+              "scan":    [ { "op": "open_scanner", "mode": "qr" } ],
+              "clear":   [ { "op": "noop" } ],
+              "reset":   [ { "op": "web", "name": "reset_form" } ],
+              "confirm": [ { "op": "noop" } ]
+            }
+          },
+
+          "scan_parcel": {
+            "mode": "barcode",
+            "next_on_scan": "wait_confirm",
+            "on_action": {
+              "scan":    [ { "op": "open_scanner", "mode": "barcode" } ],
+              "clear":   [ { "op": "web", "name": "clear_search" } ],
+              "reset":   [ { "op": "web", "name": "reset_form" } ],
+              "confirm": [ { "op": "noop" } ]
+            }
+          },
+
+          "wait_confirm": {
+            "mode": "none",
+            "on_action": {
+              "scan":    [ { "op": "noop" } ],
+              "confirm": [ { "op": "web", "name": "apply_move" }, { "op": "set_step", "to": "scan_parcel" } ],
+              "clear":   [ { "op": "set_step", "to": "scan_parcel" } ],
+              "reset":   [ { "op": "web", "name": "reset_form" }, { "op": "set_step", "to": "scan_cell" } ]
+            }
+          }
+        }
       }
     }
   }
