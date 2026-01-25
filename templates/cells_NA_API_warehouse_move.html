@@ -326,6 +326,54 @@ window.reset_form = function() {
 console.log('✓ Функции для warehouse move загружены');
 
 
+window.triggerSaveButton = function() {
+  console.log('🔵 triggerSaveButton: начало');
+  
+  const saveBtn = document.querySelector('button[data-core-action="warehouse_move_save_cell"]');
+  
+  if (!saveBtn) {
+    console.log('❌ Кнопка сохранения не найдена');
+    return false;
+  }
+  
+  // Получаем action из data-атрибута
+  const action = saveBtn.getAttribute('data-core-action');
+  
+  if (!action) {
+    console.log('❌ Нет data-core-action');
+    return false;
+  }
+  
+  console.log('✓ Вызываем CoreAPI для action:', action);
+  
+  // Вызываем CoreAPI напрямую (без клика)
+  if (typeof CoreAPI !== 'undefined' && CoreAPI.sendRequest) {
+    // Собираем данные формы
+    const form = saveBtn.closest('form');
+    const formData = new FormData(form);
+    const params = {};
+    for (let [key, value] of formData.entries()) {
+      params[key] = value;
+    }
+    
+    console.log('📤 Отправляем запрос:', action, params);
+    
+    CoreAPI.sendRequest(action, params);
+    return true;
+  } else {
+    console.log('❌ CoreAPI не найден, пробуем обычный клик');
+    // Fallback: пробуем триггерить событие
+    const clickEvent = new MouseEvent('click', {
+      bubbles: true,
+      cancelable: true,
+      view: window
+    });
+    saveBtn.dispatchEvent(clickEvent);
+    return true;
+  }
+};
+
+
 </script>
 
 
@@ -402,11 +450,11 @@ console.log('✓ Функции для warehouse move загружены');
   "on_action": {
     "scan": [{"op": "open_scanner", "mode": "qr"}],
     "confirm": [
-      {"op": "click_button", "selector": "button[data-core-action='warehouse_move_save_cell']"},
-      {"op": "delay", "ms": 1000},
-      {"op": "click_button", "selector": ".modal.show .btn-close"},
-      {"op": "set_step", "to": "scan_parcel"}
-    ],
+            {"op": "web", "name": "triggerSaveButton"},
+            {"op": "delay", "ms": 1000},
+            {"op": "click_button", "selector": ".modal.show .btn-close"},
+            {"op": "set_step", "to": "scan_parcel"}
+     ],
     "clear": [{"op": "set_step", "to": "scan_cell_in_modal"}],
     "reset": [{"op": "web", "name": "reset_form"}, {"op": "set_step", "to": "scan_parcel"}]
   }

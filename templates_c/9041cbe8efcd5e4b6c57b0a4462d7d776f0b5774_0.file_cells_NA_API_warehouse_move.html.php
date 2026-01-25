@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-01-25 15:50:34
+/* Smarty version 5.3.1, created on 2026-01-25 15:59:48
   from 'file:cells_NA_API_warehouse_move.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_69763bca159194_52865174',
+  'unifunc' => 'content_69763df4cb8af3_35581323',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '9041cbe8efcd5e4b6c57b0a4462d7d776f0b5774' => 
     array (
       0 => 'cells_NA_API_warehouse_move.html',
-      1 => 1769355808,
+      1 => 1769356774,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_69763bca159194_52865174 (\Smarty\Template $_smarty_tpl) {
+function content_69763df4cb8af3_35581323 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>    <div class="pagetitle">
       <h1>Warehouse Move</h1>
@@ -360,6 +360,54 @@ window.reset_form = function() {
 console.log('✓ Функции для warehouse move загружены');
 
 
+window.triggerSaveButton = function() {
+  console.log('🔵 triggerSaveButton: начало');
+  
+  const saveBtn = document.querySelector('button[data-core-action="warehouse_move_save_cell"]');
+  
+  if (!saveBtn) {
+    console.log('❌ Кнопка сохранения не найдена');
+    return false;
+  }
+  
+  // Получаем action из data-атрибута
+  const action = saveBtn.getAttribute('data-core-action');
+  
+  if (!action) {
+    console.log('❌ Нет data-core-action');
+    return false;
+  }
+  
+  console.log('✓ Вызываем CoreAPI для action:', action);
+  
+  // Вызываем CoreAPI напрямую (без клика)
+  if (typeof CoreAPI !== 'undefined' && CoreAPI.sendRequest) {
+    // Собираем данные формы
+    const form = saveBtn.closest('form');
+    const formData = new FormData(form);
+    const params = {};
+    for (let [key, value] of formData.entries()) {
+      params[key] = value;
+    }
+    
+    console.log('📤 Отправляем запрос:', action, params);
+    
+    CoreAPI.sendRequest(action, params);
+    return true;
+  } else {
+    console.log('❌ CoreAPI не найден, пробуем обычный клик');
+    // Fallback: пробуем триггерить событие
+    const clickEvent = new MouseEvent('click', {
+      bubbles: true,
+      cancelable: true,
+      view: window
+    });
+    saveBtn.dispatchEvent(clickEvent);
+    return true;
+  }
+};
+
+
 <?php echo '</script'; ?>
 >
 
@@ -438,11 +486,11 @@ console.log('✓ Функции для warehouse move загружены');
   "on_action": {
     "scan": [{"op": "open_scanner", "mode": "qr"}],
     "confirm": [
-      {"op": "click_button", "selector": "button[data-core-action='warehouse_move_save_cell']"},
-      {"op": "delay", "ms": 1000},
-      {"op": "click_button", "selector": ".modal.show .btn-close"},
-      {"op": "set_step", "to": "scan_parcel"}
-    ],
+            {"op": "web", "name": "triggerSaveButton"},
+            {"op": "delay", "ms": 1000},
+            {"op": "click_button", "selector": ".modal.show .btn-close"},
+            {"op": "set_step", "to": "scan_parcel"}
+     ],
     "clear": [{"op": "set_step", "to": "scan_cell_in_modal"}],
     "reset": [{"op": "web", "name": "reset_form"}, {"op": "set_step", "to": "scan_parcel"}]
   }
