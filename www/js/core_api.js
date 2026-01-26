@@ -1132,6 +1132,16 @@ const CoreAPI = {
                 this.warehouseInStorage.init();
             }
         });
+        // Ensure page init handlers run on full page load (not only via loadMain).
+        try {
+            const initEl = document.querySelector('[data-page-init]');
+            const key = initEl?.getAttribute('data-page-init');
+            if (key && CoreAPI.pageInits && typeof CoreAPI.pageInits[key] === 'function') {
+                CoreAPI.pageInits[key]();
+            }
+        } catch (e) {
+            console.error('CoreAPI.pageInits init error', e);
+        }
         this.warehouseWithoutCells.init();
         this.warehouseInStorage.init();
         this.warehouseMove.init();
