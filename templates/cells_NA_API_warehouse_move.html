@@ -150,6 +150,7 @@ function showDebug(message, isError = false) {
  * Вызывается после сканирования трека, если найдена ровно 1 запись
  */
 window.openMoveModal = async function() {
+  showDebug('openMoveModal: TEMPLATE_HTML', true);
   try {
     const tbody = document.getElementById('warehouse-move-results-tbody');
     const row = tbody?.querySelector('tr:not(.no-results)');

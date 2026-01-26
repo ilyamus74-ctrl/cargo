@@ -1371,6 +1371,7 @@ window.__dbgConfirmModal = function() {
 
     // === ФУНКЦИИ, КОТОРЫЕ ДЁРГАЕТ FLOW ===
 window.openMoveModal = async function() {
+window.__wmOverlayDebug && window.__wmOverlayDebug('openMoveModal: CORE_API_JS', true);
   try {
     const tbody = document.getElementById('warehouse-move-results-tbody');
     const row = tbody?.querySelector('tr:not(.no-results)');
@@ -1649,3 +1650,9 @@ window.__wmOverlayDebugConfirm = function() {
   alert('CONFIRM FIRED');
   return true;
 }
+
+window.openMoveModal = function() {
+  alert('FORCE openMoveModal called');
+  console.log('FORCE openMoveModal called');
+  return true;
+};

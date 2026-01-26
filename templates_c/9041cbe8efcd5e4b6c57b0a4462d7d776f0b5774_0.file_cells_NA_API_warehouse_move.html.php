@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-01-26 13:26:49
+/* Smarty version 5.3.1, created on 2026-01-26 13:34:36
   from 'file:cells_NA_API_warehouse_move.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_69776b99884c14_48770197',
+  'unifunc' => 'content_69776d6ce25a79_99880358',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '9041cbe8efcd5e4b6c57b0a4462d7d776f0b5774' => 
     array (
       0 => 'cells_NA_API_warehouse_move.html',
-      1 => 1769433982,
+      1 => 1769434458,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_69776b99884c14_48770197 (\Smarty\Template $_smarty_tpl) {
+function content_69776d6ce25a79_99880358 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>    <div class="pagetitle">
       <h1>Warehouse Move</h1>
@@ -184,6 +184,7 @@ function showDebug(message, isError = false) {
  * Вызывается после сканирования трека, если найдена ровно 1 запись
  */
 window.openMoveModal = async function() {
+  showDebug('openMoveModal: TEMPLATE_HTML', true);
   try {
     const tbody = document.getElementById('warehouse-move-results-tbody');
     const row = tbody?.querySelector('tr:not(.no-results)');
