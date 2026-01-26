@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-01-26 09:17:07
+/* Smarty version 5.3.1, created on 2026-01-26 09:49:40
   from 'file:cells_NA_API_warehouse_move.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_69773113d94110_69660740',
+  'unifunc' => 'content_697738b47e1201_97309964',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '9041cbe8efcd5e4b6c57b0a4462d7d776f0b5774' => 
     array (
       0 => 'cells_NA_API_warehouse_move.html',
-      1 => 1769418965,
+      1 => 1769419434,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_69773113d94110_69660740 (\Smarty\Template $_smarty_tpl) {
+function content_697738b47e1201_97309964 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>    <div class="pagetitle">
       <h1>Warehouse Move</h1>
@@ -424,8 +424,8 @@ window.triggerSaveButton = function() {
   "modes": ["barcode", "qr"],
 
   "buttons": {
-    "vol_down_single": "confirm",
-    "vol_down_double": "scan",
+    "vol_down_single": "scan",
+    "vol_down_double": "confirm",
     "vol_up_single":   "clear",
     "vol_up_double":   "reset"
   },
