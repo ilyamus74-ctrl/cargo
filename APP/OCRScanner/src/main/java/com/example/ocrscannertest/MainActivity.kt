@@ -1186,6 +1186,8 @@ fun AppRoot() {
                     DeviceWebViewScreen(
                         modifier = Modifier.padding(innerPadding),
                         config = config,
+                        shouldClearWebViewData = shouldClearWebViewData,
+                        onWebViewDataCleared = { shouldClearWebViewData = false },
                         onWebViewReady = { webView -> webViewRef = webView },
 
                         onContextUpdated = { taskJson, tmplJson, destJson, dictJson ->
@@ -2493,6 +2495,8 @@ fun parseOcrTemplates(json: String): OcrTemplates? = try {
 @Composable
 fun DeviceWebViewScreen(
     config: DeviceConfig,
+    shouldClearWebViewData: Boolean,
+    onWebViewDataCleared: () -> Unit,
     onWebViewReady: (WebView) -> Unit,
     onSessionEnded: () -> Unit,
     modifier: Modifier = Modifier,
@@ -2543,7 +2547,7 @@ fun DeviceWebViewScreen(
 
                 // Clear WebView cache/storage only when requested (cold start / after login)
                 if (shouldClearWebViewData) {
-                    shouldClearWebViewData = false
+                    onWebViewDataCleared()
                     settings.cacheMode = WebSettings.LOAD_NO_CACHE
 
                     // force clean caches (helps with stale core_api.js / scripts)
