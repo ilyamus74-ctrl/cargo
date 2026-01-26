@@ -327,6 +327,8 @@ window.triggerSaveButton = function() {
   }
 };
 
+
+
 window.confirmBatchMove = function() {
   showDebug('📦 confirmBatchMove: проверка', true);
 
@@ -349,25 +351,52 @@ window.confirmBatchMove = function() {
     return false;
   }
 
-  const buttons = Array.from(tbody.querySelectorAll('.js-warehouse-move-batch-action'))
-    .filter((button) => button instanceof HTMLButtonElement);
-
-  if (buttons.length !== 1) {
-    showDebug('⚠️ Кнопка перемещения не найдена', true);
+  const row = tbody.querySelector('tr');
+  if (!row) {
+    showDebug('⚠️ Строка результата не найдена', true);
     return false;
   }
 
-  const moveButton = buttons[0];
-  if (moveButton.disabled) {
+  const button = row.querySelector('.js-warehouse-move-batch-action');
+  const itemLink = row.querySelector('[data-item-id]');
+  const itemId = button?.getAttribute('data-item-id') || itemLink?.getAttribute('data-item-id');
+
+  if (!itemId) {
+    showDebug('❌ Не найден data-item-id', true);
+    return false;
+  }
+
+  if (button && button instanceof HTMLButtonElement && button.disabled) {
     showDebug('❌ Кнопка перемещения недоступна', true);
     return false;
   }
 
   showDebug('✅ Перемещаем посылку', false);
-  moveButton.click();
+
+  const formData = new FormData();
+  formData.append('action', 'warehouse_move_batch_assign');
+  formData.append('item_id', itemId);
+  formData.append('cell_id', cellSelect.value);
+
+  CoreAPI.client.call(formData)
+    .then((data) => {
+      if (!data || data.status !== 'ok') {
+        console.error('core_api error:', data);
+        alert(data?.message || 'Ошибка при выполнении запроса');
+        return;
+      }
+      const handler = CoreAPI.handlers?.warehouse_move_batch_assign || CoreAPI.handlers?.default;
+      if (handler) {
+        handler(data);
+      }
+    })
+    .catch((err) => {
+      console.error('core_api fetch error:', err);
+      alert('Ошибка связи с сервером');
+    });
+
   return true;
 };
-
 </script>
 
 
