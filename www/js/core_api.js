@@ -1497,117 +1497,110 @@ if (!window.__deviceFlowApiInstalled) {
     };
     
     // Fallback openMoveModal - will be replaced by pageInit version
-    if (!window.openMoveModal) {
-        window.openMoveModal = async function() {
-            fallbackShowDebug('openMoveModal (fallback version)');
-            try {
-                const tbody = document.getElementById('warehouse-move-results-tbody');
-                if (!tbody) return "E_NO_TBODY";
-                
-                const el = tbody.querySelector('.js-core-link[data-core-action="warehouse_move_open_modal"]');
-                if (!el) return "E_NO_EL";
-                
-                const itemId = el.getAttribute('data-item-id') || el.getAttribute('data-item_id');
-                if (!itemId) return "E_NO_ITEM_ID";
-                
-                const fd = new FormData();
-                fd.append('action', 'warehouse_move_open_modal');
-                fd.append('item_id', itemId);
-                
-                CoreAPI.client.call(fd).then((data) => {
-                    try {
-                        if (!data || data.status !== 'ok') {
-                            console.error('openMoveModal (fallback): bad response', data);
-                            return;
-                        }
-                        const handler = CoreAPI.handlers['warehouse_move_open_modal'] || CoreAPI.handlers['default'];
-                        if (handler) handler(data, el, fd);
-                    } catch (e) {
-                        console.error('openMoveModal (fallback) handler failed:', e);
+    window.openMoveModal = async function() {
+        fallbackShowDebug('openMoveModal (fallback version)');
+        try {
+            const tbody = document.getElementById('warehouse-move-results-tbody');
+            if (!tbody) return "E_NO_TBODY";
+            
+            const el = tbody.querySelector('.js-core-link[data-core-action="warehouse_move_open_modal"]');
+            if (!el) return "E_NO_EL";
+            
+            const itemId = el.getAttribute('data-item-id') || el.getAttribute('data-item_id');
+            if (!itemId) return "E_NO_ITEM_ID";
+            
+            const fd = new FormData();
+            fd.append('action', 'warehouse_move_open_modal');
+            fd.append('item_id', itemId);
+            
+            CoreAPI.client.call(fd).then((data) => {
+                try {
+                    if (!data || data.status !== 'ok') {
+                        console.error('openMoveModal (fallback): bad response', data);
+                        return;
                     }
-                }).catch((e) => {
-                    console.error('openMoveModal (fallback) request failed:', e);
-                });
-                
-                return "STARTED";
-            } catch (e) {
-                console.error('openMoveModal (fallback) failed:', e);
-                return "E_EXCEPTION";
-            }
-        };
-    }
+                    const handler = CoreAPI.handlers['warehouse_move_open_modal'] || CoreAPI.handlers['default'];
+                    if (handler) handler(data, el, fd);
+                } catch (e) {
+                    console.error('openMoveModal (fallback) handler failed:', e);
+                }
+            }).catch((e) => {
+                console.error('openMoveModal (fallback) request failed:', e);
+            });
+            
+            return "STARTED";
+        } catch (e) {
+            console.error('openMoveModal (fallback) failed:', e);
+            return "E_EXCEPTION";
+        }
+    };
     
     // Fallback setCellFromQR
-    if (!window.setCellFromQR) {
-        window.setCellFromQR = function(qrValue) {
-            fallbackShowDebug('setCellFromQR (fallback): ' + qrValue);
-            let cellCode = String(qrValue || '').trim();
-            if (!cellCode) return false;
-            if (cellCode.toUpperCase().startsWith('CELL:')) cellCode = cellCode.slice(5).trim();
-            if (!cellCode) return false;
-            
-            const trySet = (tries = 5) => {
-                const cellSelect = document.getElementById('cellId');
-                if (!cellSelect) {
-                    if (tries > 0) return setTimeout(() => trySet(tries - 1), 300);
-                    fallbackShowDebug('setCellFromQR (fallback): #cellId not found', true);
-                    return false;
-                }
-                
-                const want = cellCode.toUpperCase();
-                let found = null;
-                for (const opt of cellSelect.options) {
-                    if ((opt.text || '').trim().toUpperCase() === want) { found = opt; break; }
-                }
-                if (!found) {
-                    fallbackShowDebug('setCellFromQR (fallback): cell not found ' + cellCode, true);
-                    return false;
-                }
-                
-                cellSelect.value = found.value;
-                cellSelect.dispatchEvent(new Event('change', { bubbles: true }));
-                cellSelect.dispatchEvent(new Event('input', { bubbles: true }));
-                fallbackShowDebug('setCellFromQR (fallback): OK ' + found.text);
-                return true;
-            };
-            
-            return trySet();
-        };
-    }
-    
-    // Fallback triggerSaveButton
-    if (!window.triggerSaveButton) {
-        window.triggerSaveButton = function() {
-            fallbackShowDebug('triggerSaveButton (fallback)');
-            const saveBtn = document.querySelector('button.js-core-link[data-core-action="warehouse_move_save_cell"]');
-            if (!saveBtn) {
-                fallbackShowDebug('triggerSaveButton (fallback): save button not found', true);
+    // Note: Uses recursive setTimeout pattern because it needs to return synchronously
+    // while still retrying internally. This is different from the Android retry pattern
+    // which can be fully async.
+    window.setCellFromQR = function(qrValue) {
+        fallbackShowDebug('setCellFromQR (fallback): ' + qrValue);
+        let cellCode = String(qrValue || '').trim();
+        if (!cellCode) return false;
+        if (cellCode.toUpperCase().startsWith('CELL:')) cellCode = cellCode.slice(5).trim();
+        if (!cellCode) return false;
+        
+        const trySet = (tries = 5) => {
+            const cellSelect = document.getElementById('cellId');
+            if (!cellSelect) {
+                if (tries > 0) return setTimeout(() => trySet(tries - 1), 300);
+                fallbackShowDebug('setCellFromQR (fallback): #cellId not found', true);
                 return false;
             }
-            saveBtn.click();
+            
+            const want = cellCode.toUpperCase();
+            let found = null;
+            for (const opt of cellSelect.options) {
+                if ((opt.text || '').trim().toUpperCase() === want) { found = opt; break; }
+            }
+            if (!found) {
+                fallbackShowDebug('setCellFromQR (fallback): cell not found ' + cellCode, true);
+                return false;
+            }
+            
+            cellSelect.value = found.value;
+            cellSelect.dispatchEvent(new Event('change', { bubbles: true }));
+            cellSelect.dispatchEvent(new Event('input', { bubbles: true }));
+            fallbackShowDebug('setCellFromQR (fallback): OK ' + found.text);
             return true;
         };
-    }
+        
+        return trySet();
+    };
+    
+    // Fallback triggerSaveButton
+    window.triggerSaveButton = function() {
+        fallbackShowDebug('triggerSaveButton (fallback)');
+        const saveBtn = document.querySelector('button.js-core-link[data-core-action="warehouse_move_save_cell"]');
+        if (!saveBtn) {
+            fallbackShowDebug('triggerSaveButton (fallback): save button not found', true);
+            return false;
+        }
+        saveBtn.click();
+        return true;
+    };
     
     // Fallback clear_search
-    if (!window.clear_search) {
-        window.clear_search = function() {
-            const el = document.getElementById('warehouse-move-search');
-            if (el) {
-                el.value = '';
-                el.dispatchEvent(new Event('input', { bubbles: true }));
-            }
-        };
-    }
+    window.clear_search = function() {
+        const el = document.getElementById('warehouse-move-search');
+        if (el) {
+            el.value = '';
+            el.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+    };
     
     // Fallback reset_form
-    if (!window.reset_form) {
-        window.reset_form = function() {
-            window.clear_search();
-            const tbody = document.getElementById('warehouse-move-results-tbody');
-            if (tbody) tbody.innerHTML = '';
-        };
-    }
+    window.reset_form = function() {
+        window.clear_search();
+        const tbody = document.getElementById('warehouse-move-results-tbody');
+        if (tbody) tbody.innerHTML = '';
+    };
     
     console.log('✓ Device flow fallback API installed');
 }

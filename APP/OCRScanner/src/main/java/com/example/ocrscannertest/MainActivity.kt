@@ -2182,7 +2182,9 @@ private fun MainActivity.executeWebFunctionWithRetry(
             println("### FlowOp.Web($originalName) [retry $currentRetry/$maxRetries] -> $result")
             
             // Parse result to check if we need to retry
-            val shouldRetry = result?.contains("\"status\":\"not_found\"") == true && currentRetry < maxRetries
+            // Use regex for more robust JSON field matching
+            val isNotFound = result?.matches(Regex(".*\"status\"\\s*:\\s*\"not_found\".*")) == true
+            val shouldRetry = isNotFound && currentRetry < maxRetries
             
             if (shouldRetry) {
                 // Wait 300ms and retry
@@ -2194,9 +2196,9 @@ private fun MainActivity.executeWebFunctionWithRetry(
                 // Show toast with result for context flows
                 Handler(Looper.getMainLooper()).post {
                     val displayResult = when {
-                        result?.contains("\"status\":\"ok\"") == true -> "✓ Success"
-                        result?.contains("\"status\":\"error\"") == true -> "✗ Error"
-                        result?.contains("\"status\":\"not_found\"") == true -> "✗ Not found after $currentRetry retries"
+                        result?.matches(Regex(".*\"status\"\\s*:\\s*\"ok\".*")) == true -> "✓ Success"
+                        result?.matches(Regex(".*\"status\"\\s*:\\s*\"error\".*")) == true -> "✗ Error"
+                        isNotFound -> "✗ Not found after $currentRetry retries"
                         else -> result?.take(50) ?: "null"
                     }
                     Toast.makeText(
