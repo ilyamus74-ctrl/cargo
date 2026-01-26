@@ -8,8 +8,23 @@
                 data-item-id="{$item.id}">
           {$item.parcel_uid|default:'—'}
         </button>
+                <div class="d-block d-md-none mt-1">
+          <button type="button"
+                  class="btn btn-sm btn-primary w-100 js-core-link js-warehouse-move-batch-action"
+                  data-core-action="warehouse_move_batch_assign"
+                  data-item-id="{$item.id}">
+            Переместить
+          </button>
+        </div>
+        
       {else}
         {$item.parcel_uid|default:'—'}
+                <div class="d-block d-md-none mt-1">
+          <button type="button" class="btn btn-sm btn-outline-secondary w-100" disabled>
+            Переместить
+          </button>
+        </div>
+        
       {/if}
     </td>
     <td>
@@ -23,10 +38,10 @@
     {if $current_user.role == 'ADMIN'}
       <td>{$item.user_name|default:'—'}</td>
     {/if}
-    <td>
+    <td class="d-none d-md-table-cell">
       {if $item.source == 'stock'}
         <button type="button"
-                class="btn btn-sm btn-outline-primary js-core-link js-warehouse-move-batch-action"
+                class="btn btn-sm btn-primary js-core-link js-warehouse-move-batch-action"
                 data-core-action="warehouse_move_batch_assign"
                 data-item-id="{$item.id}">
           Переместить

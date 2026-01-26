@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-01-26 19:48:28
+/* Smarty version 5.3.1, created on 2026-01-26 20:18:34
   from 'file:cells_NA_API_warehouse_move_batch_rows.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_6977c50cb9b262_39436053',
+  'unifunc' => 'content_6977cc1a02e452_87537300',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '6a10170628ad9642b87c28c9e2528f3b85fbc69d' => 
     array (
       0 => 'cells_NA_API_warehouse_move_batch_rows.html',
-      1 => 1769456866,
+      1 => 1769458706,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_6977c50cb9b262_39436053 (\Smarty\Template $_smarty_tpl) {
+function content_6977cc1a02e452_87537300 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 $_from = $_smarty_tpl->getSmarty()->getRuntime('Foreach')->init($_smarty_tpl, $_smarty_tpl->getValue('move_items'), 'item');
 $foreach0DoElse = true;
@@ -38,9 +38,25 @@ $foreach0DoElse = false;
           <?php echo (($tmp = $_smarty_tpl->getValue('item')['parcel_uid'] ?? null)===null||$tmp==='' ? '—' ?? null : $tmp);?>
 
         </button>
+                <div class="d-block d-md-none mt-1">
+          <button type="button"
+                  class="btn btn-sm btn-primary w-100 js-core-link js-warehouse-move-batch-action"
+                  data-core-action="warehouse_move_batch_assign"
+                  data-item-id="<?php echo $_smarty_tpl->getValue('item')['id'];?>
+">
+            Переместить
+          </button>
+        </div>
+        
       <?php } else { ?>
         <?php echo (($tmp = $_smarty_tpl->getValue('item')['parcel_uid'] ?? null)===null||$tmp==='' ? '—' ?? null : $tmp);?>
 
+                <div class="d-block d-md-none mt-1">
+          <button type="button" class="btn btn-sm btn-outline-secondary w-100" disabled>
+            Переместить
+          </button>
+        </div>
+        
       <?php }?>
     </td>
     <td>
@@ -56,10 +72,10 @@ $foreach0DoElse = false;
       <td><?php echo (($tmp = $_smarty_tpl->getValue('item')['user_name'] ?? null)===null||$tmp==='' ? '—' ?? null : $tmp);?>
 </td>
     <?php }?>
-    <td>
+    <td class="d-none d-md-table-cell">
       <?php if ($_smarty_tpl->getValue('item')['source'] == 'stock') {?>
         <button type="button"
-                class="btn btn-sm btn-outline-primary js-core-link js-warehouse-move-batch-action"
+                class="btn btn-sm btn-primary js-core-link js-warehouse-move-batch-action"
                 data-core-action="warehouse_move_batch_assign"
                 data-item-id="<?php echo $_smarty_tpl->getValue('item')['id'];?>
 ">
