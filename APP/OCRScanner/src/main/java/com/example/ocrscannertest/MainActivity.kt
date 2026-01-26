@@ -2139,7 +2139,7 @@ data class MoveApplyResult(
  * Execute a JavaScript function in WebView with retry logic and enhanced diagnostics.
  * If the function is not found, retries after a short delay.
  */
-private fun MainActivity.executeWebFunctionWithRetry(
+private fun executeWebFunctionWithRetry(
     web: WebView,
     escapedFunctionName: String,
     originalName: String,
