@@ -8,6 +8,6 @@ if (auth_is_logged_in()) {
     auth_logout();  // внутри уже есть audit_log(LOGOUT)
 }
 //auth_logout();
-header('Location: /login.html');
+header('Location: /login');
 exit;
 ?>
