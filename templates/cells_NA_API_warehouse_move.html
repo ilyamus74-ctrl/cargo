@@ -547,7 +547,7 @@ window.confirmBatchMove = function() {
               "scan":    [ { "op": "open_scanner", "mode": "qr" } ],
               "clear":   [ { "op": "noop" } ],
               "reset":   [ { "op": "web", "name": "reset_form" } ],
-              "confirm": [ { "op": "web", "name": "__dbgConfirmScanner" } ]
+              "confirm": [ { "op": "web", "name": "confirmBatchMove" } ]
             }
           },
 
@@ -558,7 +558,7 @@ window.confirmBatchMove = function() {
               "scan":    [ { "op": "open_scanner", "mode": "barcode" } ],
               "clear":   [ { "op": "web", "name": "clear_search" } ],
               "reset":   [ { "op": "web", "name": "reset_form" } ],
-              "confirm": [ { "op": "web", "name": "__dbgConfirmScanner" } ]
+              "confirm": [ { "op": "web", "name": "confirmBatchMove" } ]
 
             }
           },
