@@ -123,6 +123,12 @@ if (root) new MutationObserver(schedule).observe(root, {childList:true, subtree:
 enum class WarehouseScanStep { BARCODE, OCR, MEASURE, SUBMIT }
 
 private const val VOLUME_DOUBLE_TAP_WINDOW_MS = 650L
+private const val DEBUG_TOASTS = false
+
+private fun debugToast(context: Context, message: String, length: Int = Toast.LENGTH_SHORT) {
+    if (!DEBUG_TOASTS) return
+    Toast.makeText(context, message, length).show()
+}
 
 private class VolumeButtonDispatcher(
     private val context: Context,
@@ -149,7 +155,7 @@ private class VolumeButtonDispatcher(
             // Вызываем обработчик двойного нажатия
             println("### VolumeDown: DOUBLE tap detected!")
             handler.post {
-                Toast.makeText(context, "VOL DOWN DOUBLE", Toast.LENGTH_SHORT).show()
+                debugToast(context, "VOL DOWN DOUBLE")
             }
             double?.invoke()
             return
@@ -159,7 +165,7 @@ private class VolumeButtonDispatcher(
         val runnable = Runnable {
             pendingVolumeDown = null
             println("### VolumeDown: executing SINGLE tap (delayed)")
-            Toast.makeText(context, "VOL DOWN SINGLE", Toast.LENGTH_SHORT).show()
+            debugToast(context, "VOL DOWN SINGLE")
             single?.invoke()
         }
         pendingVolumeDown = runnable
@@ -184,7 +190,7 @@ private class VolumeButtonDispatcher(
             // Вызываем обработчик двойного нажатия
             println("### VolumeUp: DOUBLE tap detected!")
             handler.post {
-                Toast.makeText(context, "VOL UP DOUBLE", Toast.LENGTH_SHORT).show()
+                debugToast(context, "VOL UP DOUBLE")
             }
 
             double?.invoke()
@@ -196,7 +202,7 @@ private class VolumeButtonDispatcher(
         val runnable = Runnable {
             pendingVolumeUp = null
             println("### VolumeUp: executing SINGLE tap (delayed)")
-            Toast.makeText(context, "VOL UP SINGLE", Toast.LENGTH_SHORT).show()
+            debugToast(context, "VOL UP SINGLE")
             single?.invoke()
         }
         pendingVolumeUp = runnable
@@ -743,7 +749,7 @@ fun AppRoot() {
 
         // DEBUG: confirm that volume event reaches context flow dispatcher
         Handler(Looper.getMainLooper()).post {
-            Toast.makeText(context, "CTX FLOW EVENT: $eventName", Toast.LENGTH_SHORT).show()
+            debugToast(context, "CTX FLOW EVENT: $eventName")
         }
 
         resolveActiveWarehouseContext { contextKey: String, contextConfig: ScanContextConfig ->
@@ -764,18 +770,17 @@ fun AppRoot() {
 
                 // DEBUG: show what we resolved
                 Handler(Looper.getMainLooper()).post {
-                    Toast.makeText(
+                    debugToast(
                         context,
-                        "CTX=$contextKey step=$stepId action=$action ops=${ops.size}",
-                        Toast.LENGTH_SHORT
-                    ).show()
+                        "CTX=$contextKey step=$stepId action=$action ops=${ops.size}"
+                    )
                 }
 
                 // DEBUG: show first op and webView presence
                 val webOk = (webViewRef != null)
                 val firstOp = ops.firstOrNull()?.toString() ?: "null"
                 Handler(Looper.getMainLooper()).post {
-                    Toast.makeText(context, "webView=$webOk op0=$firstOp", Toast.LENGTH_LONG).show()
+                    debugToast(context, "webView=$webOk op0=$firstOp", Toast.LENGTH_LONG)
                 }
 
                 if (ops.isNotEmpty()) {
@@ -819,7 +824,7 @@ fun AppRoot() {
 
             hasButtonMappings && (showWebView || showBarcodeScan || showOcr) && !hasFlow -> {
                 Handler(Looper.getMainLooper()).post {
-                    Toast.makeText(context, "MODE: buttonMappings(no global flow)", Toast.LENGTH_SHORT).show()
+                    debugToast(context, "MODE: buttonMappings(no global flow)")
                 }
 
                 MainActivity.onVolDownSingle = { dispatchButtonAction(buttonMappings["vol_down_single"]) }
@@ -830,7 +835,7 @@ fun AppRoot() {
 
             showBarcodeScan && barcodeHardwareTrigger != null -> {
                 Handler(Looper.getMainLooper()).post {
-                    Toast.makeText(context, "MODE: barcode overlay", Toast.LENGTH_SHORT).show()
+                    debugToast(context, "MODE: barcode overlay")
                 }
 
                 MainActivity.onVolDownSingle = { barcodeHardwareTrigger?.invoke() }
@@ -850,7 +855,7 @@ fun AppRoot() {
 
             showOcr && ocrHardwareTrigger != null -> {
                 Handler(Looper.getMainLooper()).post {
-                    Toast.makeText(context, "MODE: OCR overlay", Toast.LENGTH_SHORT).show()
+                    debugToast(context, "MODE: OCR overlay")
                 }
 
                 MainActivity.onVolDownSingle = { ocrHardwareTrigger?.invoke() }
@@ -871,7 +876,7 @@ fun AppRoot() {
 
             showWebView -> {
                 Handler(Looper.getMainLooper()).post {
-                    Toast.makeText(context, "MODE: webview", Toast.LENGTH_SHORT).show()
+                    debugToast(context, "MODE: webview")
                 }
 
                 if (hasFlow) {
@@ -881,7 +886,7 @@ fun AppRoot() {
                     MainActivity.onVolUpDouble = { dispatchFlowAction("vol_up_double") }
                 } else if (hasContextFlow && isWarehouseMove) {
                     Handler(Looper.getMainLooper()).post {
-                        Toast.makeText(context, "MODE: webview + contextFlow(warehouse_move)", Toast.LENGTH_SHORT).show()
+                        debugToast(context, "MODE: webview + contextFlow(warehouse_move)")
                     }
                     // Используем context flow для warehouse_move
                     MainActivity.onVolDownSingle = { dispatchContextFlowAction("vol_down_single") }
@@ -890,7 +895,7 @@ fun AppRoot() {
                     MainActivity.onVolUpDouble = { dispatchContextFlowAction("vol_up_double") }
                 } else {
                     Handler(Looper.getMainLooper()).post {
-                        Toast.makeText(context, "MODE: webview (legacy)", Toast.LENGTH_SHORT).show()
+                        debugToast(context, "MODE: webview (legacy)")
                     }
 
                     MainActivity.onVolDownSingle = {
@@ -994,7 +999,7 @@ fun AppRoot() {
 
             else -> {
                 Handler(Looper.getMainLooper()).post {
-                    Toast.makeText(context, "MODE: handlers=null", Toast.LENGTH_SHORT).show()
+                    debugToast(context, "MODE: handlers=null")
                 }
 
                 MainActivity.onVolDownSingle = null
@@ -2209,11 +2214,7 @@ private fun executeWebFunctionWithRetry(
                         isNotFound -> "✗ Not found after $currentRetry retries"
                         else -> result?.take(50) ?: "null"
                     }
-                    Toast.makeText(
-                        web.context,
-                        "JS $originalName -> $displayResult",
-                        Toast.LENGTH_LONG
-                    ).show()
+                    debugToast(web.context, "JS $originalName -> $displayResult", Toast.LENGTH_LONG)
                 }
             }
         }
