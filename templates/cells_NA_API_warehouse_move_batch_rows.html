@@ -20,6 +20,9 @@
       {/if}
     </td>
     <td>{$item.cell_address|default:'—'}</td>
+    {if $current_user.role == 'ADMIN'}
+      <td>{$item.user_name|default:'—'}</td>
+    {/if}
     <td>
       {if $item.source == 'stock'}
         <button type="button"
@@ -34,15 +37,11 @@
         </button>
       {/if}
     </td>
-    {if $current_user.role == 'ADMIN'}
-      <td>{$item.user_name|default:'—'}</td>
-    {/if}
-    <td>{$item.created_at|default:'—'}</td>
   </tr>
 {/foreach}
 {if !$move_items && $show_empty}
   <tr>
-    <td colspan="{if $current_user.role == 'ADMIN'}6{else}5{/if}" class="text-center text-muted">
+    <td colspan="{if $current_user.role == 'ADMIN'}5{else}4{/if}" class="text-center text-muted">
       Совпадений не найдено
     </td>
   </tr>

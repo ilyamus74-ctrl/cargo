@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-01-26 19:34:58
+/* Smarty version 5.3.1, created on 2026-01-26 19:47:59
   from 'file:cells_NA_API_warehouse_move.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_6977c1e2ace162_74750465',
+  'unifunc' => 'content_6977c4efb2a5c5_36659691',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '9041cbe8efcd5e4b6c57b0a4462d7d776f0b5774' => 
     array (
       0 => 'cells_NA_API_warehouse_move.html',
-      1 => 1769456093,
+      1 => 1769456799,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_6977c1e2ace162_74750465 (\Smarty\Template $_smarty_tpl) {
+function content_6977c4efb2a5c5_36659691 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>    <div class="pagetitle">
       <h1>Warehouse Move</h1>
@@ -132,11 +132,10 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
                           <th scope="col">Посылка</th>
                           <th scope="col">Источник</th>
                           <th scope="col">Ячейка</th>
-                          <th scope="col">Переместить</th>
                           <?php if ($_smarty_tpl->getValue('current_user')['role'] == 'ADMIN') {?>
                             <th scope="col">Пользователь</th>
                           <?php }?>
-                          <th scope="col">Дата</th>
+                          <th scope="col">Переместить</th>
                         </tr>
                       </thead>
                       <tbody id="warehouse-move-batch-results-tbody"></tbody>
