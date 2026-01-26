@@ -747,6 +747,14 @@ fun AppRoot() {
                                 web.post {
                                     web.evaluateJavascript(js) { result ->
                                         println("### Context FlowOp.Web(${op.name}) -> $result")
+
+                                        Handler(Looper.getMainLooper()).post {
+                                            Toast.makeText(
+                                                context,
+                                                "JS ${op.name} -> $result",
+                                        Toast.LENGTH_LONG
+                                            ).show()
+                                        }
                                     }
                                 }
                             }
@@ -781,9 +789,32 @@ fun AppRoot() {
             if (contextFlow != null) {
                 val action = taskConfig?.buttons?.get(eventName) ?: return@resolveActiveWarehouseContext
                 val flowStartStep: String = contextFlow.start
-                val stepId = currentFlowStep ?: flowStartStep.also { setFlowStep(it) }
+                // If currentFlowStep is not part of THIS context flow, reset to context start
+                val stepId = if (currentFlowStep != null && contextFlow.steps.containsKey(currentFlowStep!!)) {
+                    currentFlowStep!!
+                } else {
+                    flowStartStep.also { setFlowStep(it) }
+                }
+
                 val step: FlowStep? = contextFlow.steps[stepId]
                 val ops: List<FlowOp> = step?.onAction?.get(action) ?: emptyList()
+
+
+                // DEBUG: show what we resolved
+                Handler(Looper.getMainLooper()).post {
+                    Toast.makeText(
+                        context,
+                        "CTX=$contextKey step=$stepId action=$action ops=${ops.size}",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+
+                // DEBUG: show first op and webView presence
+                val webOk = (webViewRef != null)
+                val firstOp = ops.firstOrNull()?.toString() ?: "null"
+                Handler(Looper.getMainLooper()).post {
+                    Toast.makeText(context, "webView=$webOk op0=$firstOp", Toast.LENGTH_LONG).show()
+                }
 
                 if (ops.isNotEmpty()) {
                     executeFlowActionsInContext(ops, contextConfig)
@@ -809,9 +840,16 @@ fun AppRoot() {
         taskConfig
     ) {
         when {
-            // IMPORTANT: For warehouse_move prefer context flow over legacy buttonMappings.
+            // IMPORTANT: For warehouse_move prefer context flow over legacy buttonMappings,
+            // but keep hardware triggers for scanner overlays (so VolDownSingle can "take scan").
             showWebView && hasContextFlow && isWarehouseMove -> {
-                MainActivity.onVolDownSingle = { dispatchContextFlowAction("vol_down_single") }
+                MainActivity.onVolDownSingle = {
+                    when {
+                        showBarcodeScan && barcodeHardwareTrigger != null -> barcodeHardwareTrigger?.invoke()
+                        showOcr && ocrHardwareTrigger != null -> ocrHardwareTrigger?.invoke()
+                        else -> dispatchContextFlowAction("vol_down_single")
+                    }
+                }
                 MainActivity.onVolDownDouble = { dispatchContextFlowAction("vol_down_double") }
                 MainActivity.onVolUpSingle = { dispatchContextFlowAction("vol_up_single") }
                 MainActivity.onVolUpDouble = { dispatchContextFlowAction("vol_up_double") }

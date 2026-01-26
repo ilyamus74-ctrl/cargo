@@ -145,39 +145,6 @@ function showDebug(message, isError = false) {
   }
 }
 
-/**
- * Открывает модальное окно для перемещения товара
- * Вызывается после сканирования трека, если найдена ровно 1 запись
- */
-window.openMoveModal = async function() {
-  showDebug('openMoveModal: TEMPLATE_HTML', true);
-  try {
-    const tbody = document.getElementById('warehouse-move-results-tbody');
-    const row = tbody?.querySelector('tr:not(.no-results)');
-    if (!row) return false;
-
-    const el = row.querySelector('.js-core-link[data-core-action="warehouse_move_open_modal"]');
-    if (!el) return false;
-
-    const itemId = el.getAttribute('data-item-id') || el.getAttribute('data-item_id');
-    if (!itemId) return false;
-
-    const fd = new FormData();
-    fd.append('action', 'warehouse_move_open_modal');
-    fd.append('item_id', itemId);
-
-    const data = await CoreAPI.client.call(fd);
-    if (!data || data.status !== 'ok') return false;
-
-    const handler = CoreAPI.handlers['warehouse_move_open_modal'] || CoreAPI.handlers['default'];
-    await handler(data, el, fd);
-
-    return true;
-  } catch (e) {
-    console.error('openMoveModal failed:', e);
-    return false;
-  }
-};
 
 /**
  * Устанавливает значение ячейки из отсканированного QR кода

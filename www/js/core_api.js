@@ -1371,34 +1371,42 @@ window.__dbgConfirmModal = function() {
 
     // === ФУНКЦИИ, КОТОРЫЕ ДЁРГАЕТ FLOW ===
 window.openMoveModal = async function() {
-window.__wmOverlayDebug && window.__wmOverlayDebug('openMoveModal: CORE_API_JS', true);
   try {
     const tbody = document.getElementById('warehouse-move-results-tbody');
-    const row = tbody?.querySelector('tr:not(.no-results)');
-    if (!row) return false;
+    if (!tbody) return "E_NO_TBODY";
 
-    const el = row.querySelector('.js-core-link[data-core-action="warehouse_move_open_modal"]');
-    if (!el) return false;
+    const el = tbody.querySelector('.js-core-link[data-core-action="warehouse_move_open_modal"]');
+    if (!el) return "E_NO_EL";
 
     const itemId = el.getAttribute('data-item-id') || el.getAttribute('data-item_id');
-    if (!itemId) return false;
+    if (!itemId) return "E_NO_ITEM_ID";
 
     const fd = new FormData();
     fd.append('action', 'warehouse_move_open_modal');
     fd.append('item_id', itemId);
 
-    const data = await CoreAPI.client.call(fd);
-    if (!data || data.status !== 'ok') return false;
+    // ВАЖНО: без await. Запускаем асинхронно.
+    CoreAPI.client.call(fd).then((data) => {
+      try {
+        if (!data || data.status !== 'ok') {
+          console.error('openMoveModal: bad response', data);
+          return;
+        }
+        const handler = CoreAPI.handlers['warehouse_move_open_modal'] || CoreAPI.handlers['default'];
+        if (handler) handler(data, el, fd);
+      } catch (e) {
+        console.error('openMoveModal handler failed:', e);
+      }
+    }).catch((e) => {
+      console.error('openMoveModal request failed:', e);
+    });
 
-    const handler = CoreAPI.handlers['warehouse_move_open_modal'] || CoreAPI.handlers['default'];
-    await handler(data, el, fd);
-
-    return true;
+    return "STARTED";
   } catch (e) {
     console.error('openMoveModal failed:', e);
-    return false;
+    return "E_EXCEPTION";
   }
-};
+ };
 
     window.setCellFromQR = function (qrValue) {
         showDebug('setCellFromQR: ' + qrValue);
@@ -1651,8 +1659,8 @@ window.__wmOverlayDebugConfirm = function() {
   return true;
 }
 
-window.openMoveModal = function() {
-  alert('FORCE openMoveModal called');
-  console.log('FORCE openMoveModal called');
-  return true;
-};
+//window.openMoveModal = function() {
+//  alert('FORCE openMoveModal called');
+//  console.log('FORCE openMoveModal called');
+//  return true;
+//};

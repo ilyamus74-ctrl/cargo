@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-01-26 13:34:36
+/* Smarty version 5.3.1, created on 2026-01-26 14:17:00
   from 'file:cells_NA_API_warehouse_move.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_69776d6ce25a79_99880358',
+  'unifunc' => 'content_6977775ce154e4_03073441',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '9041cbe8efcd5e4b6c57b0a4462d7d776f0b5774' => 
     array (
       0 => 'cells_NA_API_warehouse_move.html',
-      1 => 1769434458,
+      1 => 1769437013,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_69776d6ce25a79_99880358 (\Smarty\Template $_smarty_tpl) {
+function content_6977775ce154e4_03073441 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>    <div class="pagetitle">
       <h1>Warehouse Move</h1>
@@ -179,39 +179,6 @@ function showDebug(message, isError = false) {
   }
 }
 
-/**
- * Открывает модальное окно для перемещения товара
- * Вызывается после сканирования трека, если найдена ровно 1 запись
- */
-window.openMoveModal = async function() {
-  showDebug('openMoveModal: TEMPLATE_HTML', true);
-  try {
-    const tbody = document.getElementById('warehouse-move-results-tbody');
-    const row = tbody?.querySelector('tr:not(.no-results)');
-    if (!row) return false;
-
-    const el = row.querySelector('.js-core-link[data-core-action="warehouse_move_open_modal"]');
-    if (!el) return false;
-
-    const itemId = el.getAttribute('data-item-id') || el.getAttribute('data-item_id');
-    if (!itemId) return false;
-
-    const fd = new FormData();
-    fd.append('action', 'warehouse_move_open_modal');
-    fd.append('item_id', itemId);
-
-    const data = await CoreAPI.client.call(fd);
-    if (!data || data.status !== 'ok') return false;
-
-    const handler = CoreAPI.handlers['warehouse_move_open_modal'] || CoreAPI.handlers['default'];
-    await handler(data, el, fd);
-
-    return true;
-  } catch (e) {
-    console.error('openMoveModal failed:', e);
-    return false;
-  }
-};
 
 /**
  * Устанавливает значение ячейки из отсканированного QR кода
