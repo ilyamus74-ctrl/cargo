@@ -401,30 +401,7 @@ fun AppRoot() {
                         else -> {
                             // Вызываем любую другую JavaScript функцию из window
                             val escapedFunctionName = escapeJsString(op.name)
-                            val js = """
-                                (function(){
-                                  if (typeof window['$escapedFunctionName'] === 'function') {
-                                    try {
-                                      var result = window['$escapedFunctionName']();
-                                      console.log('✓ Web op $escapedFunctionName() returned:', result);
-                                      return result;
-                                    } catch(e) {
-                                      console.error('✗ Error in web op $escapedFunctionName():', e);
-                                      //return false;
-                                      return 'ERR:' + e;
-                                    }
-                                  } else {
-                                    console.error('✗ Web op function $escapedFunctionName not found in window');
-                                    //return false;
-                                    return 'NOFN:${'$'}escapedFunctionName';
-                                  }
-                                })();
-                            """.trimIndent()
-                            web.post {
-                                web.evaluateJavascript(js) { result ->
-                                    println("### FlowOp.Web(${op.name}) -> $result")
-                                }
-                            }
+                            executeWebFunctionWithRetry(web, escapedFunctionName, op.name, maxRetries = 3)
                         }
                     }
                 }
@@ -733,38 +710,7 @@ fun AppRoot() {
                             else -> {
                                 // Вызываем любую другую JavaScript функцию из window
                                 val escapedFunctionName = escapeJsString(op.name)
-                                val js = """
-                                    (function(){
-                                      if (typeof window['$escapedFunctionName'] === 'function') {
-                                        try {
-                                          var result = window['$escapedFunctionName']();
-                                          console.log('✓ Web op $escapedFunctionName() returned:', result);
-                                          return result;
-                                        } catch(e) {
-                                          console.error('✗ Error in web op $escapedFunctionName():', e);
-                                          //return false;
-                                          return 'ERR:' + e;
-                                        }
-                                      } else {
-                                        console.error('✗ Web op function $escapedFunctionName not found in window');
-                                        //return false;
-                                        return 'NOFN:${'$'}escapedFunctionName';
-                                      }
-                                    })();
-                                """.trimIndent()
-                                web.post {
-                                    web.evaluateJavascript(js) { result ->
-                                        println("### Context FlowOp.Web(${op.name}) -> $result")
-
-                                        Handler(Looper.getMainLooper()).post {
-                                            Toast.makeText(
-                                                context,
-                                                "JS ${op.name} -> $result",
-                                        Toast.LENGTH_LONG
-                                            ).show()
-                                        }
-                                    }
-                                }
+                                executeWebFunctionWithRetry(web, escapedFunctionName, op.name, maxRetries = 3, showToast = true)
                             }
                         }
                     }
@@ -2180,6 +2126,89 @@ data class MoveApplyResult(
     val ok: Boolean,
     val errorMessage: String?
 )
+
+/**
+ * Execute a JavaScript function in WebView with retry logic and enhanced diagnostics.
+ * If the function is not found, retries after a short delay.
+ */
+private fun MainActivity.executeWebFunctionWithRetry(
+    web: WebView,
+    escapedFunctionName: String,
+    originalName: String,
+    maxRetries: Int = 3,
+    currentRetry: Int = 0,
+    showToast: Boolean = false
+) {
+    val js = """
+        (function(){
+          var fnName = '$escapedFunctionName';
+          var fnType = typeof window[fnName];
+          
+          if (fnType === 'function') {
+            try {
+              var result = window[fnName]();
+              console.log('✓ Web op ' + fnName + '() returned:', result);
+              return JSON.stringify({status: 'ok', result: result, retry: $currentRetry});
+            } catch(e) {
+              console.error('✗ Error in web op ' + fnName + '():', e);
+              return JSON.stringify({status: 'error', error: String(e), retry: $currentRetry});
+            }
+          } else {
+            // Enhanced diagnostics when function is missing
+            var currentUrl = window.location.href;
+            var similarKeys = Object.keys(window).filter(function(k) {
+              return k.toLowerCase().includes('open') || k.toLowerCase().includes('move');
+            }).slice(0, 10);
+            
+            console.error('✗ Web op function ' + fnName + ' not found');
+            console.error('  typeof:', fnType);
+            console.error('  URL:', currentUrl);
+            console.error('  Similar keys:', similarKeys.join(', '));
+            
+            return JSON.stringify({
+              status: 'not_found',
+              fnName: fnName,
+              fnType: fnType,
+              url: currentUrl,
+              similarKeys: similarKeys,
+              retry: $currentRetry
+            });
+          }
+        })();
+    """.trimIndent()
+    
+    web.post {
+        web.evaluateJavascript(js) { result ->
+            println("### FlowOp.Web($originalName) [retry $currentRetry/$maxRetries] -> $result")
+            
+            // Parse result to check if we need to retry
+            val shouldRetry = result?.contains("\"status\":\"not_found\"") == true && currentRetry < maxRetries
+            
+            if (shouldRetry) {
+                // Wait 300ms and retry
+                Handler(Looper.getMainLooper()).postDelayed({
+                    println("### Retrying FlowOp.Web($originalName) after delay...")
+                    executeWebFunctionWithRetry(web, escapedFunctionName, originalName, maxRetries, currentRetry + 1, showToast)
+                }, 300)
+            } else if (showToast) {
+                // Show toast with result for context flows
+                Handler(Looper.getMainLooper()).post {
+                    val displayResult = when {
+                        result?.contains("\"status\":\"ok\"") == true -> "✓ Success"
+                        result?.contains("\"status\":\"error\"") == true -> "✗ Error"
+                        result?.contains("\"status\":\"not_found\"") == true -> "✗ Not found after $currentRetry retries"
+                        else -> result?.take(50) ?: "null"
+                    }
+                    Toast.makeText(
+                        this,
+                        "JS $originalName -> $displayResult",
+                        Toast.LENGTH_LONG
+                    ).show()
+                }
+            }
+        }
+    }
+}
 
 private fun applyInsecureSslIfNeeded(conn: HttpURLConnection, cfg: DeviceConfig) {
     if (conn is HttpsURLConnection && cfg.allowInsecureSsl) {
