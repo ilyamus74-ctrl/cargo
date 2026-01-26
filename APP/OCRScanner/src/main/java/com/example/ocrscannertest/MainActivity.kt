@@ -58,6 +58,8 @@ import android.view.ViewGroup
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.webkit.SslErrorHandler
+import android.webkit.WebSettings
+import android.webkit.WebStorage
 import android.net.http.SslError
 import android.webkit.CookieManager
 import android.view.KeyEvent
@@ -273,6 +275,8 @@ fun AppRoot() {
     var showSettings by remember { mutableStateOf(!config.enrolled || config.serverUrl.isBlank()) }
     var showQrScan by remember { mutableStateOf(false) }
     var showWebView by remember { mutableStateOf(false) }
+    // clear WebView cache/storage only on cold start or after (re)login
+    var shouldClearWebViewData by remember { mutableStateOf(true) }
 
     // новый экран для OCR
     var showOcr by remember { mutableStateOf(false) }
@@ -406,11 +410,13 @@ fun AppRoot() {
                                       return result;
                                     } catch(e) {
                                       console.error('✗ Error in web op $escapedFunctionName():', e);
-                                      return false;
+                                      //return false;
+                                      return 'ERR:' + e;
                                     }
                                   } else {
                                     console.error('✗ Web op function $escapedFunctionName not found in window');
-                                    return false;
+                                    //return false;
+                                    return 'NOFN:${'$'}escapedFunctionName';
                                   }
                                 })();
                             """.trimIndent()
@@ -736,11 +742,13 @@ fun AppRoot() {
                                           return result;
                                         } catch(e) {
                                           console.error('✗ Error in web op $escapedFunctionName():', e);
-                                          return false;
+                                          //return false;
+                                          return 'ERR:' + e;
                                         }
                                       } else {
                                         console.error('✗ Web op function $escapedFunctionName not found in window');
-                                        return false;
+                                        //return false;
+                                        return 'NOFN:${'$'}escapedFunctionName';
                                       }
                                     })();
                                 """.trimIndent()
@@ -2533,6 +2541,30 @@ fun DeviceWebViewScreen(
                 settings.javaScriptEnabled = true
                 settings.domStorageEnabled = true
 
+                // Clear WebView cache/storage only when requested (cold start / after login)
+                if (shouldClearWebViewData) {
+                    shouldClearWebViewData = false
+                    settings.cacheMode = WebSettings.LOAD_NO_CACHE
+
+                    // force clean caches (helps with stale core_api.js / scripts)
+                    try {
+                        clearCache(true)
+                    } catch (_: Exception) {
+                    }
+                    try {
+                        clearHistory()
+                    } catch (_: Exception) {
+                    }
+                    try {
+                        WebStorage.getInstance().deleteAllData()
+                    } catch (_: Exception) {
+                    }
+                    try {
+                        CookieManager.getInstance().removeAllCookies(null)
+                        CookieManager.getInstance().flush()
+                    } catch (_: Exception) {
+                    }
+                }
                 webViewClient = object : WebViewClient() {
 
                     private var firstPageLoaded = false
@@ -3022,11 +3054,13 @@ fun callWebCallback(webView: WebView, functionName: String, value: String) {
               return result;
             } catch(e) {
               console.error('✗ Error in callback $escapedFunctionName:', e);
-              return false;
+              //return false;
+              return 'ERR:' + e;
             }
           } else {
             console.error('✗ Callback function $escapedFunctionName not found in window');
-            return false;
+            //return false;
+            return 'NOFN:${'$'}escapedFunctionName';
           }
         })();
     """.trimIndent()
