@@ -1484,7 +1484,71 @@ window.reloadToolsStock = () => CoreAPI.ui.reloadList('view_tools_stock');
 window.reloadDevices = () => CoreAPI.ui.reloadList('view_devices');
 window.reloadWarehouseItemIn = () => CoreAPI.ui.reloadList('warehouse_item_in');
 
+// ============================================================================
+// Device Flow API (functions called from Android WebView via evaluateJavascript)
+// These must be always available and NOT depend on page init.
+// ============================================================================
+(function installDeviceFlowApi(){
+  if (window.__deviceFlowApiInstalled) return;
+  window.__deviceFlowApiInstalled = true;
 
+  window.openMoveModal = function () {
+    try {
+      const tbody = document.getElementById('warehouse-move-results-tbody');
+      if (!tbody) return false;
+
+      // click the actual core link (works with delegated handler)
+      const el = tbody.querySelector('.js-core-link[data-core-action="warehouse_move_open_modal"]');
+      if (!el) return false;
+
+      el.click();
+      return true;
+    } catch (e) {
+      console.error('openMoveModal error:', e);
+      return false;
+    }
+  };
+
+  window.triggerSaveButton = function () {
+    try {
+      const saveBtn = document.querySelector('button.js-core-link[data-core-action="warehouse_move_save_cell"]');
+      if (!saveBtn) return false;
+      saveBtn.click();
+      return true;
+    } catch (e) {
+      console.error('triggerSaveButton error:', e);
+      return false;
+    }
+  };
+
+  window.setCellFromQR = function (qrValue) {
+    // если у тебя есть “умная” версия в pageInit — отлично,
+    // но базовая должна существовать, чтобы не было NOFN.
+    try {
+      let cellCode = String(qrValue || '').trim();
+      if (!cellCode) return false;
+      if (cellCode.toUpperCase().startsWith('CELL:')) cellCode = cellCode.slice(5).trim();
+      if (!cellCode) return false;
+
+      const cellSelect = document.getElementById('cellId');
+      if (!cellSelect) return false;
+
+      const want = cellCode.toUpperCase();
+      for (const opt of cellSelect.options) {
+        if ((opt.text || '').trim().toUpperCase() === want) {
+          cellSelect.value = opt.value;
+          cellSelect.dispatchEvent(new Event('change', { bubbles: true }));
+          cellSelect.dispatchEvent(new Event('input', { bubbles: true }));
+          return true;
+        }
+      }
+      return false;
+    } catch (e) {
+      console.error('setCellFromQR error:', e);
+      return false;
+    }
+  };
+})();
 
 
 // --- DeviceScanConfig helper ---------------------------------

@@ -275,8 +275,16 @@ fun AppRoot() {
     var showSettings by remember { mutableStateOf(!config.enrolled || config.serverUrl.isBlank()) }
     var showQrScan by remember { mutableStateOf(false) }
     var showWebView by remember { mutableStateOf(false) }
-    // clear WebView cache/storage only on cold start or after (re)login
+    // clear WebView cache/storage only on app start
     var shouldClearWebViewData by remember { mutableStateOf(true) }
+
+    LaunchedEffect(Unit) {
+        if (shouldClearWebViewData) {
+            clearWebViewDataOnStart(context)
+            shouldClearWebViewData = false
+        }
+    }
+
 
     // новый экран для OCR
     var showOcr by remember { mutableStateOf(false) }
@@ -416,7 +424,7 @@ fun AppRoot() {
                                   } else {
                                     console.error('✗ Web op function $escapedFunctionName not found in window');
                                     //return false;
-                                    return 'NOFN:${'$'}escapedFunctionName';
+                                    return 'NOFN:' + '${'$'}escapedFunctionName';
                                   }
                                 })();
                             """.trimIndent()
@@ -748,7 +756,7 @@ fun AppRoot() {
                                       } else {
                                         console.error('✗ Web op function $escapedFunctionName not found in window');
                                         //return false;
-                                        return 'NOFN:${'$'}escapedFunctionName';
+                                        return 'NOFN:' + '${'$'}escapedFunctionName';
                                       }
                                     })();
                                 """.trimIndent()
@@ -2492,6 +2500,28 @@ fun parseOcrTemplates(json: String): OcrTemplates? = try {
     null
 }
 
+
+private fun clearWebViewDataOnStart(context: Context) {
+    val webView = WebView(context)
+    try {
+        webView.clearCache(true)
+    } catch (_: Exception) {
+    }
+    try {
+        webView.clearHistory()
+    } catch (_: Exception) {
+    }
+    try {
+        WebStorage.getInstance().deleteAllData()
+    } catch (_: Exception) {
+    }
+    try {
+        CookieManager.getInstance().removeAllCookies(null)
+        CookieManager.getInstance().flush()
+    } catch (_: Exception) {
+    }
+}
+
 @Composable
 fun DeviceWebViewScreen(
     config: DeviceConfig,
@@ -2545,7 +2575,7 @@ fun DeviceWebViewScreen(
                 settings.javaScriptEnabled = true
                 settings.domStorageEnabled = true
 
-                // Clear WebView cache/storage only when requested (cold start / after login)
+                // Clear WebView cache/storage only when requested (app start)
                 if (shouldClearWebViewData) {
                     onWebViewDataCleared()
                     settings.cacheMode = WebSettings.LOAD_NO_CACHE
@@ -3064,7 +3094,7 @@ fun callWebCallback(webView: WebView, functionName: String, value: String) {
           } else {
             console.error('✗ Callback function $escapedFunctionName not found in window');
             //return false;
-            return 'NOFN:${'$'}escapedFunctionName';
+            return 'NOFN:' + '${'$'}escapedFunctionName';
           }
         })();
     """.trimIndent()
