@@ -4998,7 +4998,7 @@ fun parseFlowOp(obj: JSONObject?): FlowOp? {
             if (mode.isBlank()) null else FlowOp.OpenScanner(mode)
         }
         "web" -> {
-            val name = obj.optString("name", "").trim().lowercase()
+            val name = obj.optString("name", "").trim()
             if (name.isBlank()) null else FlowOp.Web(name)
         }
         "set_step" -> {
