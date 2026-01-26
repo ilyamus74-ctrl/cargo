@@ -327,6 +327,46 @@ window.triggerSaveButton = function() {
   }
 };
 
+window.confirmBatchMove = function() {
+  showDebug('📦 confirmBatchMove: проверка', true);
+
+  const cellSelect = document.getElementById('warehouse-move-batch-cell');
+  if (!cellSelect || !cellSelect.value) {
+    showDebug('❌ Не выбрана ячейка', true);
+    return false;
+  }
+
+  const tbody = document.getElementById('warehouse-move-batch-results-tbody');
+  if (!tbody) {
+    showDebug('❌ Таблица результатов не найдена', true);
+    return false;
+  }
+
+  const totalEl = document.getElementById('warehouse-move-batch-total');
+  const total = Number((totalEl?.textContent || '').trim() || 0);
+  if (total !== 1) {
+    showDebug('⚠️ Нужно ровно одно совпадение', true);
+    return false;
+  }
+
+  const buttons = Array.from(tbody.querySelectorAll('.js-warehouse-move-batch-action'))
+    .filter((button) => button instanceof HTMLButtonElement);
+
+  if (buttons.length !== 1) {
+    showDebug('⚠️ Кнопка перемещения не найдена', true);
+    return false;
+  }
+
+  const moveButton = buttons[0];
+  if (moveButton.disabled) {
+    showDebug('❌ Кнопка перемещения недоступна', true);
+    return false;
+  }
+
+  showDebug('✅ Перемещаем посылку', false);
+  moveButton.click();
+  return true;
+};
 
 </script>
 
@@ -499,7 +539,7 @@ window.triggerSaveButton = function() {
             "mode": "none",
             "on_action": {
               "scan":    [ { "op": "noop" } ],
-              "confirm": [ { "op": "web", "name": "__dbgConfirmScanner" } ],
+              "confirm": [ { "op": "web", "name": "confirmBatchMove" } ],
               "clear":   [ { "op": "set_step", "to": "scan_parcel" } ],
               "reset":   [ { "op": "web", "name": "reset_form" }, { "op": "set_step", "to": "scan_cell" } ]
             }

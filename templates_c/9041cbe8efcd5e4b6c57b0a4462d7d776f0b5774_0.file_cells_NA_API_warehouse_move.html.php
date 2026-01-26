@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-01-26 19:11:10
+/* Smarty version 5.3.1, created on 2026-01-26 19:23:29
   from 'file:cells_NA_API_warehouse_move.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_6977bc4e6c6413_57263086',
+  'unifunc' => 'content_6977bf310ac3a7_49533680',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '9041cbe8efcd5e4b6c57b0a4462d7d776f0b5774' => 
     array (
       0 => 'cells_NA_API_warehouse_move.html',
-      1 => 1769454659,
+      1 => 1769455393,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_6977bc4e6c6413_57263086 (\Smarty\Template $_smarty_tpl) {
+function content_6977bf310ac3a7_49533680 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>    <div class="pagetitle">
       <h1>Warehouse Move</h1>
@@ -361,6 +361,46 @@ window.triggerSaveButton = function() {
   }
 };
 
+window.confirmBatchMove = function() {
+  showDebug('📦 confirmBatchMove: проверка', true);
+
+  const cellSelect = document.getElementById('warehouse-move-batch-cell');
+  if (!cellSelect || !cellSelect.value) {
+    showDebug('❌ Не выбрана ячейка', true);
+    return false;
+  }
+
+  const tbody = document.getElementById('warehouse-move-batch-results-tbody');
+  if (!tbody) {
+    showDebug('❌ Таблица результатов не найдена', true);
+    return false;
+  }
+
+  const totalEl = document.getElementById('warehouse-move-batch-total');
+  const total = Number((totalEl?.textContent || '').trim() || 0);
+  if (total !== 1) {
+    showDebug('⚠️ Нужно ровно одно совпадение', true);
+    return false;
+  }
+
+  const buttons = Array.from(tbody.querySelectorAll('.js-warehouse-move-batch-action'))
+    .filter((button) => button instanceof HTMLButtonElement);
+
+  if (buttons.length !== 1) {
+    showDebug('⚠️ Кнопка перемещения не найдена', true);
+    return false;
+  }
+
+  const moveButton = buttons[0];
+  if (moveButton.disabled) {
+    showDebug('❌ Кнопка перемещения недоступна', true);
+    return false;
+  }
+
+  showDebug('✅ Перемещаем посылку', false);
+  moveButton.click();
+  return true;
+};
 
 <?php echo '</script'; ?>
 >
@@ -535,7 +575,7 @@ window.triggerSaveButton = function() {
             "mode": "none",
             "on_action": {
               "scan":    [ { "op": "noop" } ],
-              "confirm": [ { "op": "web", "name": "__dbgConfirmScanner" } ],
+              "confirm": [ { "op": "web", "name": "confirmBatchMove" } ],
               "clear":   [ { "op": "set_step", "to": "scan_parcel" } ],
               "reset":   [ { "op": "web", "name": "reset_form" }, { "op": "set_step", "to": "scan_cell" } ]
             }

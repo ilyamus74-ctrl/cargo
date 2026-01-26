@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-01-20 12:54:17
+/* Smarty version 5.3.1, created on 2026-01-26 19:26:30
   from 'file:cells_NA_API_warehouse_move_batch_rows.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_696f7af9ac7b73_72019254',
+  'unifunc' => 'content_6977bfe6d21112_01597635',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '6a10170628ad9642b87c28c9e2528f3b85fbc69d' => 
     array (
       0 => 'cells_NA_API_warehouse_move_batch_rows.html',
-      1 => 1768911183,
+      1 => 1769455582,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_696f7af9ac7b73_72019254 (\Smarty\Template $_smarty_tpl) {
+function content_6977bfe6d21112_01597635 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 $_from = $_smarty_tpl->getSmarty()->getRuntime('Foreach')->init($_smarty_tpl, $_smarty_tpl->getValue('move_items'), 'item');
 $foreach0DoElse = true;
@@ -62,7 +62,7 @@ $foreach0DoElse = false;
           Переместить
         </button>
       <?php } else { ?>
-        <button type="button" class="btn btn-sm btn-outline-secondary" disabled>
+        <button type="button" class="btn btn-sm btn-outline-secondary">
           Переместить
         </button>
       <?php }?>
