@@ -3,6 +3,7 @@
 package com.example.ocrscannertest
 import android.content.Context
 import android.os.Build
+import android.widget.Toast
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.withContext
@@ -122,6 +123,7 @@ enum class WarehouseScanStep { BARCODE, OCR, MEASURE, SUBMIT }
 private const val VOLUME_DOUBLE_TAP_WINDOW_MS = 650L
 
 private class VolumeButtonDispatcher(
+    private val context: Context,
     private val handler: Handler = Handler(Looper.getMainLooper())
 ) {
     private var lastVolumeDownTs: Long = 0L
@@ -144,6 +146,9 @@ private class VolumeButtonDispatcher(
 
             // Вызываем обработчик двойного нажатия
             println("### VolumeDown: DOUBLE tap detected!")
+            handler.post {
+                Toast.makeText(context, "VOL DOWN DOUBLE", Toast.LENGTH_SHORT).show()
+            }
             double?.invoke()
             return
         }
@@ -152,6 +157,7 @@ private class VolumeButtonDispatcher(
         val runnable = Runnable {
             pendingVolumeDown = null
             println("### VolumeDown: executing SINGLE tap (delayed)")
+            Toast.makeText(context, "VOL DOWN SINGLE", Toast.LENGTH_SHORT).show()
             single?.invoke()
         }
         pendingVolumeDown = runnable
@@ -175,6 +181,10 @@ private class VolumeButtonDispatcher(
 
             // Вызываем обработчик двойного нажатия
             println("### VolumeUp: DOUBLE tap detected!")
+            handler.post {
+                Toast.makeText(context, "VOL UP DOUBLE", Toast.LENGTH_SHORT).show()
+            }
+
             double?.invoke()
             return
         }
@@ -184,6 +194,7 @@ private class VolumeButtonDispatcher(
         val runnable = Runnable {
             pendingVolumeUp = null
             println("### VolumeUp: executing SINGLE tap (delayed)")
+            Toast.makeText(context, "VOL UP SINGLE", Toast.LENGTH_SHORT).show()
             single?.invoke()
         }
         pendingVolumeUp = runnable
@@ -200,7 +211,7 @@ class MainActivity : ComponentActivity() {
         var onVolUpDouble: (() -> Unit)? = null
     }
 
-    private val volumeButtonDispatcher = VolumeButtonDispatcher()
+    private lateinit var volumeButtonDispatcher: VolumeButtonDispatcher
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
         val repeat = event?.repeatCount ?: 0
@@ -224,6 +235,9 @@ class MainActivity : ComponentActivity() {
     }
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // init volume dispatcher with context (for Toast)
+        volumeButtonDispatcher = VolumeButtonDispatcher(this)
 
         // экран не гаснет — поведение киоска
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -757,6 +771,11 @@ fun AppRoot() {
     fun dispatchContextFlowAction(eventName: String) {
         if (!isWarehouseMove) return
 
+        // DEBUG: confirm that volume event reaches context flow dispatcher
+        Handler(Looper.getMainLooper()).post {
+            Toast.makeText(context, "CTX FLOW EVENT: $eventName", Toast.LENGTH_SHORT).show()
+        }
+
         resolveActiveWarehouseContext { contextKey: String, contextConfig: ScanContextConfig ->
             val contextFlow: FlowConfig? = contextConfig.flow
             if (contextFlow != null) {
@@ -790,7 +809,19 @@ fun AppRoot() {
         taskConfig
     ) {
         when {
+            // IMPORTANT: For warehouse_move prefer context flow over legacy buttonMappings.
+            showWebView && hasContextFlow && isWarehouseMove -> {
+                MainActivity.onVolDownSingle = { dispatchContextFlowAction("vol_down_single") }
+                MainActivity.onVolDownDouble = { dispatchContextFlowAction("vol_down_double") }
+                MainActivity.onVolUpSingle = { dispatchContextFlowAction("vol_up_single") }
+                MainActivity.onVolUpDouble = { dispatchContextFlowAction("vol_up_double") }
+            }
+
             hasButtonMappings && (showWebView || showBarcodeScan || showOcr) && !hasFlow -> {
+                Handler(Looper.getMainLooper()).post {
+                    Toast.makeText(context, "MODE: buttonMappings(no global flow)", Toast.LENGTH_SHORT).show()
+                }
+
                 MainActivity.onVolDownSingle = { dispatchButtonAction(buttonMappings["vol_down_single"]) }
                 MainActivity.onVolDownDouble = { dispatchButtonAction(buttonMappings["vol_down_double"]) }
                 MainActivity.onVolUpSingle = { dispatchButtonAction(buttonMappings["vol_up_single"]) }
@@ -798,6 +829,10 @@ fun AppRoot() {
             }
 
             showBarcodeScan && barcodeHardwareTrigger != null -> {
+                Handler(Looper.getMainLooper()).post {
+                    Toast.makeText(context, "MODE: barcode overlay", Toast.LENGTH_SHORT).show()
+                }
+
                 MainActivity.onVolDownSingle = { barcodeHardwareTrigger?.invoke() }
                 // IMPORTANT:
                 // When scanner overlay is shown for warehouse_move, keep CONFIRM/CLEAR/RESET working via context flow.
@@ -814,6 +849,10 @@ fun AppRoot() {
             }
 
             showOcr && ocrHardwareTrigger != null -> {
+                Handler(Looper.getMainLooper()).post {
+                    Toast.makeText(context, "MODE: OCR overlay", Toast.LENGTH_SHORT).show()
+                }
+
                 MainActivity.onVolDownSingle = { ocrHardwareTrigger?.invoke() }
                 // Same logic for OCR overlay (if used in warehouse_move flows)
                    if (hasContextFlow && isWarehouseMove) {
@@ -827,22 +866,33 @@ fun AppRoot() {
                    }
             }
 
-        
+
 
 
             showWebView -> {
+                Handler(Looper.getMainLooper()).post {
+                    Toast.makeText(context, "MODE: webview", Toast.LENGTH_SHORT).show()
+                }
+
                 if (hasFlow) {
                     MainActivity.onVolDownSingle = { dispatchFlowAction("vol_down_single") }
                     MainActivity.onVolDownDouble = { dispatchFlowAction("vol_down_double") }
                     MainActivity.onVolUpSingle = { dispatchFlowAction("vol_up_single") }
                     MainActivity.onVolUpDouble = { dispatchFlowAction("vol_up_double") }
                 } else if (hasContextFlow && isWarehouseMove) {
+                    Handler(Looper.getMainLooper()).post {
+                        Toast.makeText(context, "MODE: webview + contextFlow(warehouse_move)", Toast.LENGTH_SHORT).show()
+                    }
                     // Используем context flow для warehouse_move
                     MainActivity.onVolDownSingle = { dispatchContextFlowAction("vol_down_single") }
                     MainActivity.onVolDownDouble = { dispatchContextFlowAction("vol_down_double") }
                     MainActivity.onVolUpSingle = { dispatchContextFlowAction("vol_up_single") }
                     MainActivity.onVolUpDouble = { dispatchContextFlowAction("vol_up_double") }
                 } else {
+                    Handler(Looper.getMainLooper()).post {
+                        Toast.makeText(context, "MODE: webview (legacy)", Toast.LENGTH_SHORT).show()
+                    }
+
                     MainActivity.onVolDownSingle = {
                         if (isWarehouseIn) {
                             when (warehouseScanStep) {
@@ -943,6 +993,10 @@ fun AppRoot() {
             }
 
             else -> {
+                Handler(Looper.getMainLooper()).post {
+                    Toast.makeText(context, "MODE: handlers=null", Toast.LENGTH_SHORT).show()
+                }
+
                 MainActivity.onVolDownSingle = null
                 MainActivity.onVolDownDouble = null
                 MainActivity.onVolUpSingle = null

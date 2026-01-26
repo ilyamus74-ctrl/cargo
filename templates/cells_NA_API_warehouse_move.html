@@ -149,48 +149,33 @@ function showDebug(message, isError = false) {
  * Открывает модальное окно для перемещения товара
  * Вызывается после сканирования трека, если найдена ровно 1 запись
  */
-window.openMoveModal = function() {
-  showDebug('📦 openMoveModal: начало');
-    
-  const searchInput = document.getElementById('warehouse-move-search');
-  const searchValue = searchInput?.value?.trim();
-  
-  if (!searchValue) {
-    showDebug('❌ Нет значения для поиска', true);
-    return false;
-  }
-  
-  showDebug('🔍 Ищем записи для: ' + searchValue);
-    
-  // Проверяем количество записей в таблице результатов
-  const tbody = document.getElementById('warehouse-move-results-tbody');
-  const rows = tbody?.querySelectorAll('tr:not(.no-results)');
-  
-  if (!rows || rows.length === 0) {
-    showDebug('❌ Записей не найдено', true);
-    return false;
-  }
-  
-  if (rows.length !== 1) {
-    showDebug('❌ Найдено записей: ' + rows.length + ' (нужна ровно 1)', true);
-    return false;
-  }
-  
-  showDebug('✓ Найдена 1 запись, открываем модалку');
-    
-    // Получаем кнопку для открытия модалки из первой строки
-  const firstRow = rows[0];
-  const button = firstRow.querySelector('button[data-core-action="warehouse_move_open_modal"]');
-  
-  if (!button) {
-    showDebug('❌ Не найдена кнопка открытия', true);
-    return false;
-  }
+window.openMoveModal = async function() {
+  try {
+    const tbody = document.getElementById('warehouse-move-results-tbody');
+    const row = tbody?.querySelector('tr:not(.no-results)');
+    if (!row) return false;
 
-  showDebug('✓ Модалка должна открыться');
-  button.click();
+    const el = row.querySelector('.js-core-link[data-core-action="warehouse_move_open_modal"]');
+    if (!el) return false;
 
-  return true;
+    const itemId = el.getAttribute('data-item-id') || el.getAttribute('data-item_id');
+    if (!itemId) return false;
+
+    const fd = new FormData();
+    fd.append('action', 'warehouse_move_open_modal');
+    fd.append('item_id', itemId);
+
+    const data = await CoreAPI.client.call(fd);
+    if (!data || data.status !== 'ok') return false;
+
+    const handler = CoreAPI.handlers['warehouse_move_open_modal'] || CoreAPI.handlers['default'];
+    await handler(data, el, fd);
+
+    return true;
+  } catch (e) {
+    console.error('openMoveModal failed:', e);
+    return false;
+  }
 };
 
 /**
@@ -431,7 +416,7 @@ window.triggerSaveButton = function() {
             "next_on_scan": "wait_for_confirm",
             "on_action": {
               "scan":    [ { "op": "open_scanner", "mode": "barcode" } ],
-              "confirm": [ { "op": "web", "name": "__dbgConfirmScanner" } ],
+              "confirm": [ { "op": "web", "name": "openMoveModal" } ],
               "clear":   [ { "op": "web", "name": "clear_search" } ],
               "reset":   [ { "op": "web", "name": "reset_form" }, { "op": "set_step", "to": "scan_parcel" } ]
             }
@@ -441,7 +426,7 @@ window.triggerSaveButton = function() {
             "mode": "none",
             "on_action": {
               "scan":    [ { "op": "noop" } ],
-              "confirm": [ { "op": "web", "name": "__dbgConfirmScanner" } ],
+              "confirm": [ { "op": "web", "name": "openMoveModal" } ],
               "clear":   [ { "op": "web", "name": "clear_search" }, { "op": "set_step", "to": "scan_parcel" } ],
               "reset":   [ { "op": "web", "name": "reset_form" }, { "op": "set_step", "to": "scan_parcel" } ]
             }
@@ -488,7 +473,7 @@ window.triggerSaveButton = function() {
             },
             "on_action": {
               "scan":    [ { "op": "open_scanner", "mode": "qr" } ],
-              "confirm": [ { "op": "web", "name": "__wmOverlayDebugConfirm" } ],
+              "confirm": [ { "op": "web", "name": "triggerSaveButton" } ],
               "clear":   [ { "op": "noop" } ],
               "reset":   [ { "op": "web", "name": "reset_form" } ]
             }
@@ -497,7 +482,7 @@ window.triggerSaveButton = function() {
             "mode": "none",
             "on_action": {
               "scan":    [ { "op": "noop" } ],
-              "confirm": [ { "op": "web", "name": "__wmOverlayDebugConfirm" } ],
+              "confirm": [ { "op": "web", "name": "triggerSaveButton" } ],
               "clear":   [ { "op": "noop" } ],
               "reset":   [ { "op": "web", "name": "reset_form" } ]
             }

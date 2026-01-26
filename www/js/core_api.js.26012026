@@ -1370,34 +1370,23 @@ window.__dbgConfirmModal = function() {
     }
 
     // === ФУНКЦИИ, КОТОРЫЕ ДЁРГАЕТ FLOW ===
-window.openMoveModal = async function() {
-  try {
-    const tbody = document.getElementById('warehouse-move-results-tbody');
-    const row = tbody?.querySelector('tr:not(.no-results)');
-    if (!row) return false;
+    window.openMoveModal = function () {
+        showDebug('openMoveModal()');
 
-    const el = row.querySelector('.js-core-link[data-core-action="warehouse_move_open_modal"]');
-    if (!el) return false;
-
-    const itemId = el.getAttribute('data-item-id') || el.getAttribute('data-item_id');
-    if (!itemId) return false;
-
-    const fd = new FormData();
-    fd.append('action', 'warehouse_move_open_modal');
-    fd.append('item_id', itemId);
-
-    const data = await CoreAPI.client.call(fd);
-    if (!data || data.status !== 'ok') return false;
-
-    const handler = CoreAPI.handlers['warehouse_move_open_modal'] || CoreAPI.handlers['default'];
-    await handler(data, el, fd);
-
-    return true;
-  } catch (e) {
-    console.error('openMoveModal failed:', e);
-    return false;
-  }
-};
+        const tbody = document.getElementById('warehouse-move-results-tbody');
+        const rows = tbody?.querySelectorAll('tr:not(.no-results)');
+        if (!rows || rows.length !== 1) {
+            showDebug(`openMoveModal: rows=${rows ? rows.length : 0} (нужно 1)`, true);
+            return false;
+        }
+        const button = rows[0].querySelector('button[data-core-action="warehouse_move_open_modal"]');
+        if (!button) {
+            showDebug('openMoveModal: button not found', true);
+            return false;
+        }
+        button.click();
+        return true;
+    };
 
     window.setCellFromQR = function (qrValue) {
         showDebug('setCellFromQR: ' + qrValue);
