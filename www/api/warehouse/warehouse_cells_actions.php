@@ -94,11 +94,13 @@ case 'add_new_cells':
         $first = strtoupper($first);
         $last  = strtoupper($last);
         // Парсим вида A10, B25 и т.п.
-        $re = '/^([A-Z])(\d{1,4})$/u';
+        //$re = '/^([A-Z])(\d{1,4})$/u';
+        // Парсим вида A10, B25, MAN10 и т.п.
+        $re = '/^([A-Z]{1,3})(\d{1,4})$/u';
         if (!preg_match($re, $first, $m1) || !preg_match($re, $last, $m2)) {
             $response = [
                 'status'  => 'error',
-                'message' => 'Коды ячеек должны быть вида A10, A99 и т.п.',
+                'message' => 'Коды ячеек должны быть вида A10, A99 , PI1 - PI99 , ZAL1 - ZAL99 и т.п.',
             ];
             break;
         }
@@ -109,7 +111,7 @@ case 'add_new_cells':
         if ($prefix1 !== $prefix2) {
             $response = [
                 'status'  => 'error',
-                'message' => 'Буквенная часть должна совпадать (например A10–A99, а не A10–B20)',
+                'message' => 'Буквенная часть должна совпадать (например A10–A99, PI1 - PI99, ZAL1 - ZAL99, а не A10–B20)',
             ];
             break;
         }
