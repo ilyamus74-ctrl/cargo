@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-01-26 14:17:00
+/* Smarty version 5.3.1, created on 2026-01-26 18:57:11
   from 'file:cells_NA_API_warehouse_move.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_6977775ce154e4_03073441',
+  'unifunc' => 'content_6977b907d7be80_64721708',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '9041cbe8efcd5e4b6c57b0a4462d7d776f0b5774' => 
     array (
       0 => 'cells_NA_API_warehouse_move.html',
-      1 => 1769437013,
+      1 => 1769453762,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_6977775ce154e4_03073441 (\Smarty\Template $_smarty_tpl) {
+function content_6977b907d7be80_64721708 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>    <div class="pagetitle">
       <h1>Warehouse Move</h1>
@@ -56,9 +56,6 @@ $_smarty_current_dir = '/home/cells/web/templates';
 
               <div class="tab-content pt-3" id="warehouseMoveTabsContent">
                 <div class="tab-pane fade show active" id="warehouse-move-scanner" role="tabpanel" aria-labelledby="warehouse-move-scanner-tab">
-                <button type="button" class="btn btn-sm btn-warning mt-2" onclick="window.openMoveModal && window.openMoveModal()">TEST openMoveModal()</button>
-
-                
                   <p class="text-muted mb-1">Введите или отсканируйте TUID/трек-номер для поиска.</p>
                   <small class="text-muted">Цель: присвоение новых значений <code>warehouse_item_stock.cell_id</code> для товаров на складе.</small>
 
@@ -420,7 +417,7 @@ window.triggerSaveButton = function() {
             "next_on_scan": "wait_for_confirm",
             "on_action": {
               "scan":    [ { "op": "open_scanner", "mode": "barcode" } ],
-              "confirm": [ { "op": "web", "name": "openMoveModal" } ],
+              "confirm": [ { "op": "web", "name": "openMoveModal" }, { "op": "set_step", "to": "scan_cell_in_modal" } ],
               "clear":   [ { "op": "web", "name": "clear_search" } ],
               "reset":   [ { "op": "web", "name": "reset_form" }, { "op": "set_step", "to": "scan_parcel" } ]
             }
@@ -430,7 +427,7 @@ window.triggerSaveButton = function() {
             "mode": "none",
             "on_action": {
               "scan":    [ { "op": "noop" } ],
-              "confirm": [ { "op": "web", "name": "openMoveModal" } ],
+              "confirm": [ { "op": "web", "name": "openMoveModal" }, { "op": "set_step", "to": "scan_cell_in_modal" } ],
               "clear":   [ { "op": "web", "name": "clear_search" }, { "op": "set_step", "to": "scan_parcel" } ],
               "reset":   [ { "op": "web", "name": "reset_form" }, { "op": "set_step", "to": "scan_parcel" } ]
             }
@@ -445,7 +442,7 @@ window.triggerSaveButton = function() {
             },
             "on_action": {
               "scan":    [ { "op": "open_scanner", "mode": "qr" } ],
-              "confirm": [ { "op": "web", "name":  "triggerSaveButton"  } ],
+              "confirm": [ { "op": "web", "name":  "triggerSaveButton"  }, { "op": "set_step", "to": "scan_parcel" } ],
               "clear":   [ { "op": "set_step", "to": "scan_cell_in_modal" } ],
               "reset":   [ { "op": "web", "name": "reset_form" }, { "op": "set_step", "to": "scan_parcel" } ]
             }
@@ -455,7 +452,7 @@ window.triggerSaveButton = function() {
             "mode": "none",
             "on_action": {
               "scan":    [ { "op": "noop" } ],
-              "confirm": [ { "op": "web", "name": "triggerSaveButton" } ],
+              "confirm": [ { "op": "web", "name": "triggerSaveButton" }, { "op": "set_step", "to": "scan_parcel" } ],
               "clear":   [ { "op": "set_step", "to": "scan_cell_in_modal" } ],
               "reset":   [ { "op": "web", "name": "reset_form" }, { "op": "set_step", "to": "scan_parcel" } ]
             }
@@ -477,7 +474,7 @@ window.triggerSaveButton = function() {
             },
             "on_action": {
               "scan":    [ { "op": "open_scanner", "mode": "qr" } ],
-              "confirm": [ { "op": "web", "name": "triggerSaveButton" } ],
+              "confirm": [ { "op": "web", "name": "triggerSaveButton" }, { "op": "set_step", "to": "scan_parcel" } ],
               "clear":   [ { "op": "noop" } ],
               "reset":   [ { "op": "web", "name": "reset_form" } ]
             }
@@ -486,7 +483,7 @@ window.triggerSaveButton = function() {
             "mode": "none",
             "on_action": {
               "scan":    [ { "op": "noop" } ],
-              "confirm": [ { "op": "web", "name": "triggerSaveButton" } ],
+              "confirm": [ { "op": "web", "name": "triggerSaveButton" }, { "op": "set_step", "to": "scan_parcel" } ],
               "clear":   [ { "op": "noop" } ],
               "reset":   [ { "op": "web", "name": "reset_form" } ]
             }

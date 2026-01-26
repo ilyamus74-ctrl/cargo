@@ -381,7 +381,7 @@ window.triggerSaveButton = function() {
             "next_on_scan": "wait_for_confirm",
             "on_action": {
               "scan":    [ { "op": "open_scanner", "mode": "barcode" } ],
-              "confirm": [ { "op": "web", "name": "openMoveModal" } ],
+              "confirm": [ { "op": "web", "name": "openMoveModal" }, { "op": "set_step", "to": "scan_cell_in_modal" } ],
               "clear":   [ { "op": "web", "name": "clear_search" } ],
               "reset":   [ { "op": "web", "name": "reset_form" }, { "op": "set_step", "to": "scan_parcel" } ]
             }
@@ -391,7 +391,7 @@ window.triggerSaveButton = function() {
             "mode": "none",
             "on_action": {
               "scan":    [ { "op": "noop" } ],
-              "confirm": [ { "op": "web", "name": "openMoveModal" } ],
+              "confirm": [ { "op": "web", "name": "openMoveModal" }, { "op": "set_step", "to": "scan_cell_in_modal" } ],
               "clear":   [ { "op": "web", "name": "clear_search" }, { "op": "set_step", "to": "scan_parcel" } ],
               "reset":   [ { "op": "web", "name": "reset_form" }, { "op": "set_step", "to": "scan_parcel" } ]
             }
@@ -406,7 +406,7 @@ window.triggerSaveButton = function() {
             },
             "on_action": {
               "scan":    [ { "op": "open_scanner", "mode": "qr" } ],
-              "confirm": [ { "op": "web", "name":  "triggerSaveButton"  } ],
+              "confirm": [ { "op": "web", "name":  "triggerSaveButton"  }, { "op": "set_step", "to": "scan_parcel" } ],
               "clear":   [ { "op": "set_step", "to": "scan_cell_in_modal" } ],
               "reset":   [ { "op": "web", "name": "reset_form" }, { "op": "set_step", "to": "scan_parcel" } ]
             }
@@ -416,7 +416,7 @@ window.triggerSaveButton = function() {
             "mode": "none",
             "on_action": {
               "scan":    [ { "op": "noop" } ],
-              "confirm": [ { "op": "web", "name": "triggerSaveButton" } ],
+              "confirm": [ { "op": "web", "name": "triggerSaveButton" }, { "op": "set_step", "to": "scan_parcel" } ],
               "clear":   [ { "op": "set_step", "to": "scan_cell_in_modal" } ],
               "reset":   [ { "op": "web", "name": "reset_form" }, { "op": "set_step", "to": "scan_parcel" } ]
             }
@@ -438,7 +438,7 @@ window.triggerSaveButton = function() {
             },
             "on_action": {
               "scan":    [ { "op": "open_scanner", "mode": "qr" } ],
-              "confirm": [ { "op": "web", "name": "triggerSaveButton" } ],
+              "confirm": [ { "op": "web", "name": "triggerSaveButton" }, { "op": "set_step", "to": "scan_parcel" } ],
               "clear":   [ { "op": "noop" } ],
               "reset":   [ { "op": "web", "name": "reset_form" } ]
             }
@@ -447,7 +447,7 @@ window.triggerSaveButton = function() {
             "mode": "none",
             "on_action": {
               "scan":    [ { "op": "noop" } ],
-              "confirm": [ { "op": "web", "name": "triggerSaveButton" } ],
+              "confirm": [ { "op": "web", "name": "triggerSaveButton" }, { "op": "set_step", "to": "scan_parcel" } ],
               "clear":   [ { "op": "noop" } ],
               "reset":   [ { "op": "web", "name": "reset_form" } ]
             }

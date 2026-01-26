@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-01-26 09:08:13
+/* Smarty version 5.3.1, created on 2026-01-26 18:51:32
   from 'file:cells_NA_API_warehouse_move_modal.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_69772efd5088a4_73222962',
+  'unifunc' => 'content_6977b7b4dd06b0_71607465',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     'db5cd9b9c15bf3ee2e649b730b60f75c9e089222' => 
     array (
       0 => 'cells_NA_API_warehouse_move_modal.html',
-      1 => 1769418486,
+      1 => 1769453378,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_69772efd5088a4_73222962 (\Smarty\Template $_smarty_tpl) {
+function content_6977b7b4dd06b0_71607465 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?><form id="item-stock-modal-form" class="row g-3">
   <input type="hidden" name="item_id" value="<?php echo $_smarty_tpl->getValue('item')['id'];?>
@@ -180,10 +180,6 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
   </div>
 
   <div class="col-12">
-  <button type="button" class="btn btn-warning" onclick="window.triggerSaveButton && window.triggerSaveButton()">
-  TEST triggerSaveButton()
-</button>
-
     <button type="button"
             class="btn btn-primary js-core-link"
             data-core-action="warehouse_move_save_cell">
