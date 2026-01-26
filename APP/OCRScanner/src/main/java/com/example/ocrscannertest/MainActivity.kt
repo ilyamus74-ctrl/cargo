@@ -2210,7 +2210,7 @@ private fun executeWebFunctionWithRetry(
                         else -> result?.take(50) ?: "null"
                     }
                     Toast.makeText(
-                        this,
+                        web.context,
                         "JS $originalName -> $displayResult",
                         Toast.LENGTH_LONG
                     ).show()
