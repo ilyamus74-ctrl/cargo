@@ -156,17 +156,6 @@ const CoreAPI = {
             const main = document.getElementById('main');
             if (main) {
                 main.innerHTML = html;
-                // NEW: page init registry (init scripts for content loaded via innerHTML)
-                try {
-                    const initEl = main.querySelector('[data-page-init]');
-                    const key = initEl?.getAttribute('data-page-init');
-                    if (key && CoreAPI.pageInits && typeof CoreAPI.pageInits[key] === 'function') {
-                        CoreAPI.pageInits[key]();
-                    }
-                } catch (e) {
-                    console.error('CoreAPI.pageInits init error', e);
-                }
-
                 if (typeof emitDeviceContext === 'function') {
                     emitDeviceContext();
                 }
@@ -1331,126 +1320,6 @@ function renderToolPhotos(photos) {
 }
 
 
-
-
-
-///////
-CoreAPI.pageInits = CoreAPI.pageInits || {};
-
-CoreAPI.pageInits.warehouse_move = function warehouseMoveInit() {
-    // guard, чтобы не навешивать одно и то же много раз
-    if (window.__warehouseMoveInitInstalled) return;
-    window.__warehouseMoveInitInstalled = true;
-
-window.__dbgConfirmScanner = function() {
-  showDebug('CONFIRM: scanner context', true);
-  return true;
-};
-
-window.__dbgConfirmModal = function() {
-  showDebug('CONFIRM: scanner_modal context', true);
-  return true;
-};
-
-    // --- debug helper (используем твой блок #scanner-debug-status) ---
-    function showDebug(message, isError = false) {
-        console.log(message);
-        const debugDiv = document.getElementById('scanner-debug-status');
-        const debugText = document.getElementById('scanner-debug-text');
-        if (debugDiv && debugText) {
-            debugDiv.style.display = 'block';
-            debugDiv.style.background = isError ? '#fff3cd' : '#d1ecf1';
-            debugDiv.style.borderColor = isError ? '#ffc107' : '#0dcaf0';
-            debugText.textContent = String(message);
-
-            if (!isError) {
-                setTimeout(() => { debugDiv.style.display = 'none'; }, 5000);
-            }
-        }
-    }
-
-    // === ФУНКЦИИ, КОТОРЫЕ ДЁРГАЕТ FLOW ===
-    window.openMoveModal = function () {
-        showDebug('openMoveModal()');
-
-        const tbody = document.getElementById('warehouse-move-results-tbody');
-        const rows = tbody?.querySelectorAll('tr:not(.no-results)');
-        if (!rows || rows.length !== 1) {
-            showDebug(`openMoveModal: rows=${rows ? rows.length : 0} (нужно 1)`, true);
-            return false;
-        }
-        const button = rows[0].querySelector('button[data-core-action="warehouse_move_open_modal"]');
-        if (!button) {
-            showDebug('openMoveModal: button not found', true);
-            return false;
-        }
-        button.click();
-        return true;
-    };
-
-    window.setCellFromQR = function (qrValue) {
-        showDebug('setCellFromQR: ' + qrValue);
-
-        let cellCode = String(qrValue || '').trim();
-        if (!cellCode) return false;
-        if (cellCode.toUpperCase().startsWith('CELL:')) cellCode = cellCode.slice(5).trim();
-        if (!cellCode) return false;
-
-        const trySet = (tries = 5) => {
-            const cellSelect = document.getElementById('cellId');
-            if (!cellSelect) {
-                if (tries > 0) return setTimeout(() => trySet(tries - 1), 300);
-                showDebug('setCellFromQR: #cellId not found', true);
-                return false;
-            }
-
-            const want = cellCode.toUpperCase();
-            let found = null;
-            for (const opt of cellSelect.options) {
-                if ((opt.text || '').trim().toUpperCase() === want) { found = opt; break; }
-            }
-            if (!found) {
-                showDebug('setCellFromQR: cell not found ' + cellCode, true);
-                return false;
-            }
-
-            cellSelect.value = found.value;
-            cellSelect.dispatchEvent(new Event('change', { bubbles: true }));
-            cellSelect.dispatchEvent(new Event('input', { bubbles: true }));
-            showDebug('setCellFromQR: OK ' + found.text);
-            return true;
-        };
-
-        return trySet();
-    };
-
-    window.triggerSaveButton = function () {
-        showDebug('triggerSaveButton()');
-        const saveBtn = document.querySelector('button.js-core-link[data-core-action="warehouse_move_save_cell"]');
-        if (!saveBtn) {
-            showDebug('triggerSaveButton: save button not found', true);
-            return false;
-        }
-        saveBtn.click();
-        return true;
-    };
-
-    window.clear_search = function () {
-        const el = document.getElementById('warehouse-move-search');
-        if (el) {
-            el.value = '';
-            el.dispatchEvent(new Event('input', { bubbles: true }));
-        }
-    };
-
-    window.reset_form = function () {
-        window.clear_search();
-        const tbody = document.getElementById('warehouse-move-results-tbody');
-        if (tbody) tbody.innerHTML = '';
-    };
-
-    showDebug('warehouse_move init installed');
-};
 // Инициализация при загрузке страницы
 CoreAPI.init();
 
@@ -1559,11 +1428,6 @@ window.DeviceScanConfig = window.DeviceScanConfig || (function () {
         const rule = modals[selector];
         if (modalEl.matches(selector) && rule?.shown) {
           window.DeviceScanConfig.setActiveContext(rule.shown);
-          // EXTRA: гарантированно пушим обновлённый JSON в Android
-          if (typeof emitDeviceContext === 'function') {
-            setTimeout(emitDeviceContext, 0);
-            setTimeout(emitDeviceContext, 150);
-          }
           break;
         }
       }
@@ -1584,10 +1448,6 @@ window.DeviceScanConfig = window.DeviceScanConfig || (function () {
         const rule = modals[selector];
         if (modalEl.matches(selector) && rule?.hidden) {
           window.DeviceScanConfig.setActiveContext(rule.hidden);
-          if (typeof emitDeviceContext === 'function') {
-            setTimeout(emitDeviceContext, 0);
-            setTimeout(emitDeviceContext, 150);
-          }
           break;
         }
       }
@@ -1596,45 +1456,3 @@ window.DeviceScanConfig = window.DeviceScanConfig || (function () {
     }
   });
 })();
-
-function showOverlayDebug(message, isError = false) {
-  console.log(message);
-
-  let box = document.getElementById('__wm_overlay_debug');
-  if (!box) {
-    box = document.createElement('div');
-    box.id = '__wm_overlay_debug';
-    box.style.position = 'fixed';
-    box.style.left = '10px';
-    box.style.right = '10px';
-    box.style.bottom = '10px';
-    box.style.zIndex = '999999';
-    box.style.padding = '10px 12px';
-    box.style.borderRadius = '8px';
-    box.style.fontSize = '14px';
-    box.style.border = '1px solid';
-    box.style.boxShadow = '0 6px 18px rgba(0,0,0,.2)';
-    document.body.appendChild(box);
-  }
-
-  box.style.background = isError ? '#fff3cd' : '#d1ecf1';
-  box.style.borderColor = isError ? '#ffc107' : '#0dcaf0';
-  box.textContent = String(message);
-
-  // можно автоскрывать, но для отладки лучше оставить
-}
-window.__wmOverlayDebug = showOverlayDebug;
-
-window.__dbgConfirmScanner = function() {
-  window.__wmOverlayDebug('CONFIRM fired: scanner', true);
-  return true;
-};
-window.__dbgConfirmModal = function() {
-  window.__wmOverlayDebug('CONFIRM fired: scanner_modal', true);
-  return true;
-};
-
-window.__wmOverlayDebugConfirm = function() {
-  alert('CONFIRM FIRED');
-  return true;
-}

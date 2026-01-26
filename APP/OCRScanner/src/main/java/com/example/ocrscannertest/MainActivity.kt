@@ -799,17 +799,35 @@ fun AppRoot() {
 
             showBarcodeScan && barcodeHardwareTrigger != null -> {
                 MainActivity.onVolDownSingle = { barcodeHardwareTrigger?.invoke() }
-                MainActivity.onVolDownDouble = null
-                MainActivity.onVolUpSingle = null
-                MainActivity.onVolUpDouble = null
+                // IMPORTANT:
+                // When scanner overlay is shown for warehouse_move, keep CONFIRM/CLEAR/RESET working via context flow.
+                // VolDownSingle stays as "scan trigger", but VolDownDouble should execute flow "confirm" (save/open modal).
+                    if (hasContextFlow && isWarehouseMove) {
+                        MainActivity.onVolDownDouble = { dispatchContextFlowAction("vol_down_double") }
+                        MainActivity.onVolUpSingle = { dispatchContextFlowAction("vol_up_single") }
+                        MainActivity.onVolUpDouble = { dispatchContextFlowAction("vol_up_double") }
+                    } else {
+                        MainActivity.onVolDownDouble = null
+                        MainActivity.onVolUpSingle = null
+                        MainActivity.onVolUpDouble = null
+                   }
             }
 
             showOcr && ocrHardwareTrigger != null -> {
                 MainActivity.onVolDownSingle = { ocrHardwareTrigger?.invoke() }
-                MainActivity.onVolDownDouble = null
-                MainActivity.onVolUpSingle = null
-                MainActivity.onVolUpDouble = null
+                // Same logic for OCR overlay (if used in warehouse_move flows)
+                   if (hasContextFlow && isWarehouseMove) {
+                       MainActivity.onVolDownDouble = { dispatchContextFlowAction("vol_down_double") }
+                       MainActivity.onVolUpSingle = { dispatchContextFlowAction("vol_up_single") }
+                       MainActivity.onVolUpDouble = { dispatchContextFlowAction("vol_up_double") }
+                   } else {
+                       MainActivity.onVolDownDouble = null
+                       MainActivity.onVolUpSingle = null
+                       MainActivity.onVolUpDouble = null
+                   }
             }
+
+        }
 
 
             showWebView -> {

@@ -10,6 +10,7 @@
     </div><!-- End Page Title -->
 
     <section class="section">
+    <div data-page-init="warehouse_move" style="display:none"></div>
       <div class="row">
         <div class="col-lg-6">
           <div class="card table-responsive warehouse-move-wrapper">
@@ -31,6 +32,9 @@
 
               <div class="tab-content pt-3" id="warehouseMoveTabsContent">
                 <div class="tab-pane fade show active" id="warehouse-move-scanner" role="tabpanel" aria-labelledby="warehouse-move-scanner-tab">
+                <button type="button" class="btn btn-sm btn-warning mt-2" onclick="window.openMoveModal && window.openMoveModal()">TEST openMoveModal()</button>
+
+                
                   <p class="text-muted mb-1">Введите или отсканируйте TUID/трек-номер для поиска.</p>
                   <small class="text-muted">Цель: присвоение новых значений <code>warehouse_item_stock.cell_id</code> для товаров на складе.</small>
 
@@ -427,7 +431,7 @@ window.triggerSaveButton = function() {
             "next_on_scan": "wait_for_confirm",
             "on_action": {
               "scan":    [ { "op": "open_scanner", "mode": "barcode" } ],
-              "confirm": [ { "op": "web", "name": "openMoveModal" }, { "op": "set_step", "to": "scan_cell_in_modal" } ],
+              "confirm": [ { "op": "web", "name": "__dbgConfirmScanner" } ],
               "clear":   [ { "op": "web", "name": "clear_search" } ],
               "reset":   [ { "op": "web", "name": "reset_form" }, { "op": "set_step", "to": "scan_parcel" } ]
             }
@@ -437,7 +441,7 @@ window.triggerSaveButton = function() {
             "mode": "none",
             "on_action": {
               "scan":    [ { "op": "noop" } ],
-              "confirm": [ { "op": "web", "name": "openMoveModal" }, { "op": "set_step", "to": "scan_cell_in_modal" } ],
+              "confirm": [ { "op": "web", "name": "__dbgConfirmScanner" } ],
               "clear":   [ { "op": "web", "name": "clear_search" }, { "op": "set_step", "to": "scan_parcel" } ],
               "reset":   [ { "op": "web", "name": "reset_form" }, { "op": "set_step", "to": "scan_parcel" } ]
             }
@@ -452,10 +456,7 @@ window.triggerSaveButton = function() {
             },
             "on_action": {
               "scan":    [ { "op": "open_scanner", "mode": "qr" } ],
-              "confirm": [
-                { "op": "web", "name": "triggerSaveButton" },
-                { "op": "set_step", "to": "scan_parcel" }
-              ],
+              "confirm": [ { "op": "web", "name":  "triggerSaveButton"  } ],
               "clear":   [ { "op": "set_step", "to": "scan_cell_in_modal" } ],
               "reset":   [ { "op": "web", "name": "reset_form" }, { "op": "set_step", "to": "scan_parcel" } ]
             }
@@ -465,10 +466,7 @@ window.triggerSaveButton = function() {
             "mode": "none",
             "on_action": {
               "scan":    [ { "op": "noop" } ],
-              "confirm": [
-                { "op": "web", "name": "triggerSaveButton" },
-                { "op": "set_step", "to": "scan_parcel" }
-              ],
+              "confirm": [ { "op": "web", "name": "triggerSaveButton" } ],
               "clear":   [ { "op": "set_step", "to": "scan_cell_in_modal" } ],
               "reset":   [ { "op": "web", "name": "reset_form" }, { "op": "set_step", "to": "scan_parcel" } ]
             }
@@ -490,7 +488,7 @@ window.triggerSaveButton = function() {
             },
             "on_action": {
               "scan":    [ { "op": "open_scanner", "mode": "qr" } ],
-              "confirm": [ { "op": "web", "name": "triggerSaveButton" } ],
+              "confirm": [ { "op": "web", "name": "__wmOverlayDebugConfirm" } ],
               "clear":   [ { "op": "noop" } ],
               "reset":   [ { "op": "web", "name": "reset_form" } ]
             }
@@ -499,7 +497,7 @@ window.triggerSaveButton = function() {
             "mode": "none",
             "on_action": {
               "scan":    [ { "op": "noop" } ],
-              "confirm": [ { "op": "web", "name": "triggerSaveButton" } ],
+              "confirm": [ { "op": "web", "name": "__wmOverlayDebugConfirm" } ],
               "clear":   [ { "op": "noop" } ],
               "reset":   [ { "op": "web", "name": "reset_form" } ]
             }
@@ -531,7 +529,7 @@ window.triggerSaveButton = function() {
               "scan":    [ { "op": "open_scanner", "mode": "qr" } ],
               "clear":   [ { "op": "noop" } ],
               "reset":   [ { "op": "web", "name": "reset_form" } ],
-              "confirm": [ { "op": "noop" } ]
+              "confirm": [ { "op": "web", "name": "__dbgConfirmScanner" } ]
             }
           },
 
@@ -542,7 +540,8 @@ window.triggerSaveButton = function() {
               "scan":    [ { "op": "open_scanner", "mode": "barcode" } ],
               "clear":   [ { "op": "web", "name": "clear_search" } ],
               "reset":   [ { "op": "web", "name": "reset_form" } ],
-              "confirm": [ { "op": "noop" } ]
+              "confirm": [ { "op": "web", "name": "__dbgConfirmScanner" } ]
+
             }
           },
 
@@ -550,7 +549,7 @@ window.triggerSaveButton = function() {
             "mode": "none",
             "on_action": {
               "scan":    [ { "op": "noop" } ],
-              "confirm": [ { "op": "web", "name": "apply_move" }, { "op": "set_step", "to": "scan_parcel" } ],
+              "confirm": [ { "op": "web", "name": "__dbgConfirmScanner" } ],
               "clear":   [ { "op": "set_step", "to": "scan_parcel" } ],
               "reset":   [ { "op": "web", "name": "reset_form" }, { "op": "set_step", "to": "scan_cell" } ]
             }
