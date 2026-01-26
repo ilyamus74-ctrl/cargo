@@ -406,7 +406,7 @@ window.triggerSaveButton = function() {
             },
             "on_action": {
               "scan":    [ { "op": "open_scanner", "mode": "qr" } ],
-              "confirm": [ { "op": "web", "name":  "triggerSaveButton"  }, { "op": "set_step", "to": "scan_parcel" } ],
+              "confirm": [ { "op": "web", "name":  "triggerSaveButton"  } ],
               "clear":   [ { "op": "set_step", "to": "scan_cell_in_modal" } ],
               "reset":   [ { "op": "web", "name": "reset_form" }, { "op": "set_step", "to": "scan_parcel" } ]
             }
@@ -438,7 +438,7 @@ window.triggerSaveButton = function() {
             },
             "on_action": {
               "scan":    [ { "op": "open_scanner", "mode": "qr" } ],
-              "confirm": [ { "op": "web", "name": "triggerSaveButton" }, { "op": "set_step", "to": "scan_parcel" } ],
+              "confirm": [ { "op": "web", "name": "triggerSaveButton" } ],
               "clear":   [ { "op": "noop" } ],
               "reset":   [ { "op": "web", "name": "reset_form" } ]
             }
