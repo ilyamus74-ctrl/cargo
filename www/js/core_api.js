@@ -549,6 +549,14 @@ const CoreAPI = {
             e.preventDefault();
             const action = link.getAttribute('data-core-action');
             if (!action) return;
+                        if (action === 'warehouse_move_batch_assign') {
+                const cellSelect = document.getElementById('warehouse-move-batch-cell');
+                if (!cellSelect || !cellSelect.value) {
+                    alert('Выберите ячейку склада');
+                    cellSelect?.focus();
+                    return;
+                }
+            }
             if (action === 'delete_permission') {
                 const code = link.getAttribute('data-permission-code') || '';
                 if (!confirm(`Удалить право ${code}?`)) {
@@ -1092,10 +1100,9 @@ const CoreAPI = {
         },
         updateMoveButtons() {
             if (!this.tbody) return;
-            const hasCell = Boolean(this.cellSelect?.value);
             this.tbody.querySelectorAll('.js-warehouse-move-batch-action').forEach((button) => {
                 if (!(button instanceof HTMLButtonElement)) return;
-                button.disabled = !hasCell;
+                button.disabled = false;
             });
         },
         async fetchResults(search) {
@@ -1472,7 +1479,8 @@ window.openMoveModal = async function() {
 
         const cellSelect = document.getElementById('warehouse-move-batch-cell');
         if (!cellSelect || !cellSelect.value) {
-            showDebug('❌ Не выбрана ячейка', true);
+            alert('Выберите ячейку склада');
+            cellSelect?.focus();
             return false;
         }
 
@@ -1672,7 +1680,8 @@ if (!window.__deviceFlowApiInstalled) {
         try {
             const cellSelect = document.getElementById('warehouse-move-batch-cell');
             if (!cellSelect || !cellSelect.value) {
-                fallbackShowDebug('❌ Не выбрана ячейка', true);
+                alert('Выберите ячейку склада');
+                cellSelect?.focus();
                 return false;
             }
 
