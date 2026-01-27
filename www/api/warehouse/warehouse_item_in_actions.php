@@ -7,6 +7,36 @@ declare(strict_types=1);
  */
 // Доступны: $action, $user, $dbcnx, $smarty
 $response = ['status' => 'error', 'message' => 'Unknown warehouse item in action'];
+function findWarehouseDuplicate(mysqli $dbcnx, string $carrierName, string $tuid, string $tracking): array
+{
+    $carrierName = trim($carrierName);
+    $tuid = trim($tuid);
+    $tracking = trim($tracking);
+    if ($carrierName === '' || ($tuid === '' && $tracking === '')) {
+        return ['duplicate' => false, 'source' => null];
+    }
+    $searchTracking = $tracking !== '' ? $tracking : $tuid;
+    $checks = [
+        'warehouse_item_in',
+        'warehouse_item_stock',
+    ];
+    foreach ($checks as $table) {
+        $sql = "SELECT id FROM {$table} WHERE carrier_name = ? AND (tuid = ? OR tracking_no = ?) LIMIT 1";
+        $stmt = $dbcnx->prepare($sql);
+        if (!$stmt) {
+            continue;
+        }
+        $stmt->bind_param("sss", $carrierName, $tuid, $searchTracking);
+        $stmt->execute();
+        $res = $stmt->get_result();
+        $row = $res ? $res->fetch_assoc() : null;
+        $stmt->close();
+        if ($row) {
+            return ['duplicate' => true, 'source' => $table];
+        }
+    }
+    return ['duplicate' => false, 'source' => null];
+}
 switch ($action) {
     case 'warehouse_item_in':
     case 'item_in':
@@ -234,6 +264,14 @@ switch ($action) {
             ];
             break;
         }
+        $duplicateCheck = findWarehouseDuplicate($dbcnx, $carrierName, $tuid, $tracking);
+        if ($duplicateCheck['duplicate']) {
+            $response = [
+                'status'  => 'error',
+                'message' => 'Такая посылка уже есть на складе',
+            ];
+            break;
+        }
         $uidCreated = (int)(microtime(true) * 1000000);
         $deviceId   = 0; // для веба 0, для мобилки можно класть реальный device_id
         $sql = "INSERT INTO warehouse_item_in (
@@ -308,6 +346,17 @@ switch ($action) {
             'batch_uid' => $batchUid,
         ];
         break;
+    case 'check_item_in_duplicate':
+        auth_require_login();
+        $tuid        = trim($_POST['tuid']        ?? '');
+        $tracking    = trim($_POST['tracking_no'] ?? '');
+        $carrierName = trim($_POST['carrier_name'] ?? '');
+        $duplicateCheck = findWarehouseDuplicate($dbcnx, $carrierName, $tuid, $tracking);
+        $response = [
+            'status'    => 'ok',
+            'duplicate' => $duplicateCheck['duplicate'],
+            'source'    => $duplicateCheck['source'],
+        ];
     case 'delete_item_in':
         auth_require_login();
         $current = $user;

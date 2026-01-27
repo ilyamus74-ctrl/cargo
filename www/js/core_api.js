@@ -407,6 +407,9 @@ const CoreAPI = {
             if (typeof initStandDevicePersistence === 'function') {
                 initStandDevicePersistence();
             }
+            if (typeof initItemInDuplicateCheck === 'function') {
+                initItemInDuplicateCheck();
+            }
             CoreAPI.ui.onModalCloseOnce(() => CoreAPI.ui.reloadList('warehouse_item_in'));
         },
         'add_new_item_in': async (data) => {
@@ -424,6 +427,9 @@ const CoreAPI = {
                         if (typeof initStandDevicePersistence === 'function') {
                             initStandDevicePersistence();
                         }
+                        if (typeof initItemInDuplicateCheck === 'function') {
+                            initItemInDuplicateCheck();
+                        }
                     }
                 }
             }
@@ -434,6 +440,12 @@ const CoreAPI = {
                 const modalBody = document.querySelector('#fullscreenModal .modal-body');
                 if (modalBody) {
                     modalBody.innerHTML = data.html;
+                    if (typeof initStandDevicePersistence === 'function') {
+                        initStandDevicePersistence();
+                    }
+                    if (typeof initItemInDuplicateCheck === 'function') {
+                        initItemInDuplicateCheck();
+                    }
                 }
             }
         },
@@ -1189,6 +1201,122 @@ function setFieldValue(id, value) {
     field.dispatchEvent(new Event('input', { bubbles: true }));
     field.dispatchEvent(new Event('change', { bubbles: true }));
 }
+
+function showToast(message, duration) {
+    var timeoutMs = typeof duration === 'number' ? duration : 2000;
+    var containerId = 'core-toast-container';
+    var container = document.getElementById(containerId);
+    if (!container) {
+        container = document.createElement('div');
+        container.id = containerId;
+        container.style.position = 'fixed';
+        container.style.top = '16px';
+        container.style.right = '16px';
+        container.style.zIndex = '1080';
+        container.style.display = 'flex';
+        container.style.flexDirection = 'column';
+        container.style.gap = '8px';
+        document.body.appendChild(container);
+    }
+
+    var toast = document.createElement('div');
+    toast.textContent = String(message || '');
+    toast.style.padding = '10px 14px';
+    toast.style.background = '#ffc107';
+    toast.style.color = '#212529';
+    toast.style.borderRadius = '6px';
+    toast.style.boxShadow = '0 4px 12px rgba(0,0,0,0.15)';
+    toast.style.fontSize = '14px';
+    toast.style.fontWeight = '600';
+    toast.style.maxWidth = '320px';
+    container.appendChild(toast);
+
+    setTimeout(function () {
+        if (toast && toast.parentNode) {
+            toast.parentNode.removeChild(toast);
+        }
+    }, timeoutMs);
+}
+
+function initItemInDuplicateCheck() {
+    var form = document.getElementById('item-in-modal-form');
+    if (!form || form.__duplicateCheckInstalled) return;
+    form.__duplicateCheckInstalled = true;
+
+    var tuidInput = form.querySelector('#tuid');
+    var trackingInput = form.querySelector('#trackingNo');
+    var carrierSelect = form.querySelector('#carrierName');
+    var addButton = form.querySelector('button[data-core-action="add_new_item_in"]');
+
+    if (!tuidInput || !trackingInput || !carrierSelect || !addButton) return;
+
+    var debounceTimer = null;
+    var lastKey = '';
+    var lastToastKey = '';
+    var requestId = 0;
+
+    function setButtonDisabled(disabled) {
+        addButton.disabled = !!disabled;
+        if (disabled) {
+            addButton.classList.add('disabled');
+        } else {
+            addButton.classList.remove('disabled');
+        }
+    }
+
+    async function runCheck() {
+        var tuid = (tuidInput.value || '').trim();
+        var tracking = (trackingInput.value || '').trim();
+        var carrier = (carrierSelect.value || '').trim();
+        var key = [tuid, tracking, carrier].join('|');
+
+        if (!carrier || (!tuid && !tracking)) {
+            setButtonDisabled(false);
+            lastKey = key;
+            return;
+        }
+        if (key === lastKey) return;
+        lastKey = key;
+
+        var currentRequest = ++requestId;
+        var fd = new FormData();
+        fd.append('action', 'check_item_in_duplicate');
+        fd.append('tuid', tuid);
+        fd.append('tracking_no', tracking);
+        fd.append('carrier_name', carrier);
+
+        try {
+            var data = await CoreAPI.client.call(fd);
+            if (currentRequest !== requestId) return;
+            var isDuplicate = data && data.status === 'ok' && data.duplicate;
+            setButtonDisabled(isDuplicate);
+            if (isDuplicate && lastToastKey !== key) {
+                showToast('Такая посылка уже на складе', 2000);
+                lastToastKey = key;
+            }
+            if (!isDuplicate) {
+                lastToastKey = '';
+            }
+        } catch (err) {
+            console.error('duplicate check failed', err);
+            setButtonDisabled(false);
+        }
+    }
+
+    function scheduleCheck() {
+        if (debounceTimer) {
+            clearTimeout(debounceTimer);
+        }
+        debounceTimer = setTimeout(runCheck, 250);
+    }
+
+    tuidInput.addEventListener('input', scheduleCheck);
+    trackingInput.addEventListener('input', scheduleCheck);
+    carrierSelect.addEventListener('change', scheduleCheck);
+    carrierSelect.addEventListener('input', scheduleCheck);
+    scheduleCheck();
+}
+
 
 function getSelectedStandDevice() {
     var select = document.getElementById('standDevice');

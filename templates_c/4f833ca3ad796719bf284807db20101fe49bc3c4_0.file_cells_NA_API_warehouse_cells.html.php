@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-01-18 08:45:58
+/* Smarty version 5.3.1, created on 2026-01-27 08:32:33
   from 'file:cells_NA_API_warehouse_cells.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_696c9dc6227975_48553669',
+  'unifunc' => 'content_69787821828069_41916763',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '4f833ca3ad796719bf284807db20101fe49bc3c4' => 
     array (
       0 => 'cells_NA_API_warehouse_cells.html',
-      1 => 1768680989,
+      1 => 1769462457,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_696c9dc6227975_48553669 (\Smarty\Template $_smarty_tpl) {
+function content_69787821828069_41916763 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>    <div class="pagetitle">
       <h1>Warehouse Cells</h1>
@@ -48,7 +48,7 @@ $_smarty_current_dir = '/home/cells/web/templates';
            class="form-control"
            id="firstCell"
            name="first_code"
-           placeholder="A10"
+           placeholder="A10 / PI10 /DAR11"
            required>
   </div>
 
@@ -58,7 +58,7 @@ $_smarty_current_dir = '/home/cells/web/templates';
            class="form-control"
            id="lastCell"
            name="last_code"
-           placeholder="A99"
+           placeholder="A99 / PI99 /DAR99"
            required>
   </div>
 
