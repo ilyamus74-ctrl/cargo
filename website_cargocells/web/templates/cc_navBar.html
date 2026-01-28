@@ -45,10 +45,10 @@
                   <li><a href="#section-contact" class="nav-link">Contact</a></li>
                 </ul>
                 <div class="language-switcher" aria-label="Language switcher">
-                  <a href="/?lang=ua" class="language-switcher__link">UA</a>
-                  <a href="/?lang=ru" class="language-switcher__link">RU</a>
-                  <a href="/?lang=de" class="language-switcher__link">DE</a>
-                  <a href="/?lang=en" class="language-switcher__link">EN</a>
+                  <a href="/?lang=ua" class="language-switcher__link{if $xlang == 'uk'} is-active{/if}">UA</a>
+                  <a href="/?lang=ru" class="language-switcher__link{if $xlang == 'ru'} is-active{/if}">RU</a>
+                  <a href="/?lang=de" class="language-switcher__link{if $xlang == 'de'} is-active{/if}">DE</a>
+                  <a href="/?lang=en" class="language-switcher__link{if $xlang == 'en'} is-active{/if}">EN</a>
                 </div>
               </div>
             </nav>
