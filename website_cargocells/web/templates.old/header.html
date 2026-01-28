@@ -1,0 +1,41 @@
+    <head>
+        <meta charset="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+        <meta name="description" content="{$header_data['description']|__}" />
+        <title>{$header_data['title']|__}</title>
+        <meta name="keywords" content="{$header_data['keywords']|__}">
+        <meta name="author" content="" />
+        <!-- 🕸️ Canonical URL -->
+        <link rel="canonical" href="{$canonical|escape}">
+        {foreach from=$alternates key=hre item=url}
+        <link rel="alternate" hreflang="{$hre}" href="{$url|escape}">
+        {/foreach}
+        <link rel="alternate" hreflang="x-default" href="https://{$domainName}/">
+        <meta property="og:locale" content="{$og_locale|escape}">
+
+        <!-- 📱 Open Graph (для соцсетей) -->
+        <meta property="og:type" content="website">
+        <meta property="og:title" content="{$header_data['soc_og_title']|__}">
+        <meta property="og:description" content="{$header_data['soc_og_description']|__}">
+        <meta property="og:image" content="https://{$domainName}/img/easytrade/EasyTrade.png">
+        <meta property="og:url" content="{$canonical|escape}">
+        <meta property="og:site_name" content="EasyTrade">
+
+        <!-- 🐦 Twitter Card -->
+        <meta name="twitter:card" content="summary_large_image">
+        <meta name="twitter:title" content="{$header_data['twitter_title']|__}">
+        <meta name="twitter:description" content="{$header_data['twitter_description']|__}">
+        <meta name="twitter:image" content="https://{$domainName}/img/easytrade/EasyTrade.png">
+        <meta name="twitter:site" content="@EasyTrade_AI">
+
+
+        <!-- Favicon-->
+        <link rel="icon" type="image/x-icon" href="https://{$domainName}/assets/favicon.ico" />
+        <!-- Font Awesome icons (free version)-->
+        <script src="https://use.fontawesome.com/releases/v6.3.0/js/all.js" crossorigin="anonymous"></script>
+        <!-- Google fonts-->
+        <link href="https://fonts.googleapis.com/css?family=Montserrat:400,700" rel="stylesheet" type="text/css" />
+        <link href="https://fonts.googleapis.com/css?family=Roboto+Slab:400,100,300,700" rel="stylesheet" type="text/css" />
+        <!-- Core theme CSS (includes Bootstrap)-->
+        <link href="https://{$domainName}/css/styles.css" rel="stylesheet" />
+    </head>

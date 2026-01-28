@@ -1,0 +1,108 @@
+:root{
+  --cc-orange:#ED6717;
+  --cc-blue:#089ADA;
+  --cc-navy:#1D304E;
+  --cc-dark:#203A57;
+  --cc-warm:#B7AFA5;
+  --cc-light:#E4E4E4;
+  --cc-text:#0f172a;
+}
+
+/* header как на референсе: полупрозрачный, мягкий */
+.site-navbar, header, .site-menu {
+  font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+}
+.site-navbar {
+  background: rgba(183,175,165,.55);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-bottom: 1px solid rgba(29,48,78,.10);
+}
+
+/* кнопка справа (Get a Quote / Request demo) */
+.btn.btn-primary{
+  background: var(--cc-navy);
+  border-color: var(--cc-navy);
+  border-radius: 999px;
+  padding: .75rem 1.25rem;
+  box-shadow: 0 10px 25px rgba(29,48,78,.15);
+}
+.btn.btn-primary:hover{
+  background: var(--cc-dark);
+  border-color: var(--cc-dark);
+}
+
+/* вторичная кнопка как “learn more” */
+.btn.btn-white, .btn.btn-outline-white{
+  border-radius: 999px;
+  padding: .75rem 1.25rem;
+}
+.btn.btn-white{
+  background: #fff;
+  color: var(--cc-navy);
+  border: 1px solid rgba(29,48,78,.15);
+}
+
+/* HERO */
+.cc-hero{
+  position: relative;
+  overflow: hidden;
+  background: url("../images/hero_bg_blur.webp") center/cover no-repeat;
+}
+.cc-hero::before{
+  content:"";
+  position:absolute;
+  inset:0;
+  background: linear-gradient(90deg,
+    rgba(29,48,78,.70) 0%,
+    rgba(29,48,78,.35) 45%,
+    rgba(29,48,78,.10) 100%);
+}
+.cc-hero .container, .cc-hero .row{ position: relative; z-index: 1; }
+
+.cc-hero h1{
+  color:#fff;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  font-weight: 800;
+}
+.cc-hero p, .cc-hero .lead{
+  color: rgba(255,255,255,.85);
+}
+
+.cc-hero__chips{
+  display:flex;
+  flex-wrap:wrap;
+  gap:.5rem;
+  margin-top: 1rem;
+}
+.cc-chip{
+  font-size: .85rem;
+  padding: .35rem .65rem;
+  border-radius: 999px;
+  background: rgba(255,255,255,.12);
+  border: 1px solid rgba(255,255,255,.18);
+  color: rgba(255,255,255,.92);
+}
+
+/* правая картинка */
+.cc-hero__media img{
+  width: 100%;
+  max-width: 640px;
+  height: auto;
+  filter: drop-shadow(0 25px 45px rgba(0,0,0,.25));
+}
+
+/* карточки/иконки ниже: подчёркиваем “IT/warehouse software”, а не “logistics company” */
+.cc-card{
+  border-radius: 18px;
+  border: 1px solid rgba(29,48,78,.10);
+  box-shadow: 0 14px 30px rgba(29,48,78,.08);
+}
+.cc-card .cc-card__title{
+  color: var(--cc-navy);
+  font-weight: 700;
+}
+.cc-accent{
+  color: var(--cc-orange);
+}
