@@ -41,14 +41,19 @@ foreach ($languages as $code => $conf) {
 }
 
 // ------------------------------
-// 2) /lang?set=xx — переключение языка (302 на ту же страницу с новым префиксом)
+// 2) /lang?set=xx или ?lang=xx — переключение языка (302 на ту же страницу с новым префиксом)
 // ------------------------------
-if (($parts[0] ?? '') === 'lang' && isset($_GET['set']) && in_array($_GET['set'], $supportedLocales, true)) {
-    $set = $_GET['set'];
+$requestedLang = null;
 
-    $_SESSION['lang'] = $set;
+if (($parts[0] ?? '') === 'lang' && isset($_GET['set']) && in_array($_GET['set'], $supportedLocales, true)) {
+    $requestedLang = $_GET['set'];
+} elseif (isset($_GET['lang']) && in_array($_GET['lang'], $supportedLocales, true)) {
+    $requestedLang = $_GET['lang'];
+}
+if ($requestedLang !== null) {
+    $_SESSION['lang'] = $requestedLang;
     if (!headers_sent()) {
-        setcookie('lang', $set, ['path'=>'/','httponly'=>true,'samesite'=>'Lax']);
+        setcookie('lang', $requestedLang, ['path'=>'/','httponly'=>true,'samesite'=>'Lax']);
     }
 
     // вернёмся на ту же страницу, но с префиксом нового языка
@@ -57,13 +62,13 @@ if (($parts[0] ?? '') === 'lang' && isset($_GET['set']) && in_array($_GET['set']
     $refTrim = trim($ref, '/');
     $first = strtok($refTrim, '/');
 
-    if (in_array($first, $supportedLocales, true)) {
-        // срежем старый префикс
+    if ($first && isset($segmentToLang[$first])) {
+        // срежем старый префикс (включая алиасы вроде /ua/)
         $refTrim = trim(substr($refTrim, strlen($first)), '/');
     }
 
-    $target = '/' . $set . '/' . $refTrim;
-    if ($refTrim === '') $target = '/' . $set . '/';
+    $target = '/' . $requestedLang . '/' . $refTrim;
+    if ($refTrim === '') $target = '/' . $requestedLang . '/';
 
     header('Location: ' . $target, true, 302);
     exit;
