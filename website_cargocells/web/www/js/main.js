@@ -304,10 +304,19 @@ jQuery(document).ready(function($) {
   // navigation
   var OnePageNavigation = function() {
     var navToggler = $('.site-menu-toggle');
-   	$("body").on("click", "#site-navbar .site-menu li a[href^='#'], .smoothscroll[href^='#'], .site-mobile-menu .site-nav-wrap li a", function(e) {
-      e.preventDefault();
+    $("body").on("click", "#site-navbar .site-menu li a, .smoothscroll, .site-mobile-menu .site-nav-wrap li a", function(e) {
+      var href = $(this).attr('href');
       var hash = this.hash;
-      
+
+      if (!href || href.charAt(0) !== '#') {
+        if ( $('body').hasClass('offcanvas-menu') ) {
+          navToggler.trigger('click');
+        }
+        return;
+      }
+
+      e.preventDefault();
+
         $('html, body').animate({
 
           scrollTop: $(hash).offset().top
