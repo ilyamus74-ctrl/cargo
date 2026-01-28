@@ -1,0 +1,7 @@
+User-agent: Googlebot
+Disallow: /ABRA
+Disallow: /NiceAdmin
+Disallow: /admin
+Disallow: /t
+Allow: /
+Sitemap: https://graessler-sicherheitsdienste.de/sitemap.xml
