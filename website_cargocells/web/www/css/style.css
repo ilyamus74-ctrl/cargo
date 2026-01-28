@@ -285,18 +285,24 @@ h1, h2, h3, h4, h5,
     .site-navbar .site-logo .cargo-logo {
       display: inline-flex;
       align-items: center;
-      gap: 0.35rem;
+      gap: 0.25rem;
       font-weight: 700;
       letter-spacing: 0;
-      text-transform: none; }
+      text-transform: none;
+      white-space: nowrap; }
     .site-navbar .site-logo .cargo-logo__mark {
       width: auto;
-      height: clamp(28px, 4vw, 44px);
+      height: clamp(20px, 3vw, 30px);
       flex: 0 0 auto; }
+    .site-navbar .site-logo .cargo-logo__text {
+      display: inline-flex;
+      align-items: center;
+      line-height: 1; }
     .site-navbar .site-logo .cargo-logo__cargo {
       color: #f47b20 !important; }
     .site-navbar .site-logo .cargo-logo__cells {
-      color: #1e6fb6 !important; }
+      color: #1e6fb6 !important;
+      margin-left: 0.2em; }
   .site-navbar .site-menu-toggle {
     color: #fff; }
   .site-navbar .site-navigation.border-bottom {
