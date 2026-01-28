@@ -283,9 +283,16 @@ h1, h2, h3, h4, h5,
     .site-navbar .site-logo a {
       color: #fff; }
     .site-navbar .site-logo .cargo-logo {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35rem;
       font-weight: 700;
       letter-spacing: 0;
       text-transform: none; }
+    .site-navbar .site-logo .cargo-logo__mark {
+      width: auto;
+      height: clamp(28px, 4vw, 44px);
+      flex: 0 0 auto; }
     .site-navbar .site-logo .cargo-logo__cargo {
       color: #f47b20 !important; }
     .site-navbar .site-logo .cargo-logo__cells {

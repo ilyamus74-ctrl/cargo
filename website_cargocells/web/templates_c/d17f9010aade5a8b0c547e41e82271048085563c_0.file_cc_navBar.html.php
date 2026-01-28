@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-01-28 08:52:04
+/* Smarty version 5.3.1, created on 2026-01-28 09:05:33
   from 'file:cc_navBar.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_6979ce34bb6a49_52582950',
+  'unifunc' => 'content_6979d15dc09f70_30606936',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     'd17f9010aade5a8b0c547e41e82271048085563c' => 
     array (
       0 => 'cc_navBar.html',
-      1 => 1769590182,
+      1 => 1769591080,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_6979ce34bb6a49_52582950 (\Smarty\Template $_smarty_tpl) {
+function content_6979d15dc09f70_30606936 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cellscargo/web/templates';
 ?>  <!-- <div class="site-wrap"> -->
 
@@ -42,6 +42,7 @@ $_smarty_current_dir = '/home/cellscargo/web/templates';
 
             <h1 class="mb-0">
               <a href="index.html" class="text-white h2 mb-0 cargo-logo">
+              <img class="cargo-logo__mark" src="images/apple-touch-icon.png" alt="CargoCells logo">
                 <span class="cargo-logo__cargo">Cargo</span><span class="cargo-logo__cells">Cells</span>
               </a>
             </h1>
