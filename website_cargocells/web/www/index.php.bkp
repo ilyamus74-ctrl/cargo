@@ -41,22 +41,14 @@ foreach ($languages as $code => $conf) {
 }
 
 // ------------------------------
-// 2) /lang?set=xx или ?lang=xx — переключение языка (302 на ту же страницу с новым префиксом)
+// 2) /lang?set=xx — переключение языка (302 на ту же страницу с новым префиксом)
 // ------------------------------
-$requestedLang = null;
-
 if (($parts[0] ?? '') === 'lang' && isset($_GET['set']) && in_array($_GET['set'], $supportedLocales, true)) {
-    $requestedLang = $_GET['set'];
-} elseif (isset($_GET['lang']) && in_array($_GET['lang'], $supportedLocales, true)) {
-    $requestedLang = $_GET['set'];
-} elseif (isset($_GET['lang']) && in_array($_GET['lang'], $supportedLocales, true)) {
-    $requestedLang = $_GET['lang'];
-}
+    $set = $_GET['set'];
 
-if ($requestedLang !== null) {
-    $_SESSION['lang'] = $requestedLang;
+    $_SESSION['lang'] = $set;
     if (!headers_sent()) {
-        setcookie('lang', $requestedLang, ['path'=>'/','httponly'=>true,'samesite'=>'Lax']);
+        setcookie('lang', $set, ['path'=>'/','httponly'=>true,'samesite'=>'Lax']);
     }
 
     // вернёмся на ту же страницу, но с префиксом нового языка
@@ -65,13 +57,13 @@ if ($requestedLang !== null) {
     $refTrim = trim($ref, '/');
     $first = strtok($refTrim, '/');
 
-    if ($first && isset($segmentToLang[$first])) {
-        // срежем старый префикс (включая алиасы вроде /ua/)
+    if (in_array($first, $supportedLocales, true)) {
+        // срежем старый префикс
         $refTrim = trim(substr($refTrim, strlen($first)), '/');
     }
 
-    $target = '/' . $requestedLang . '/' . $refTrim;
-    if ($refTrim === '') $target = '/' . $requestedLang . '/';
+    $target = '/' . $set . '/' . $refTrim;
+    if ($refTrim === '') $target = '/' . $set . '/';
 
     header('Location: ' . $target, true, 302);
     exit;

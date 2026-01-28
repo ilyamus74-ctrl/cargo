@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-01-28 14:05:33
+/* Smarty version 5.3.1, created on 2026-01-28 19:00:04
   from 'file:cc_service.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_697a17ad7a0de5_47476168',
+  'unifunc' => 'content_697a5cb45e12d6_31721784',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '6a95ef62bf6bf4366337b6012da7056e13a2e633' => 
     array (
       0 => 'cc_service.html',
-      1 => 1769609132,
+      1 => 1769626791,
       2 => 'file',
     ),
   ),
@@ -20,10 +20,10 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_697a17ad7a0de5_47476168 (\Smarty\Template $_smarty_tpl) {
+function content_697a5cb45e12d6_31721784 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cellscargo/web/templates';
 ?>
-    <div class="site-blocks-cover overlay" style="background-image: url(images/main_bg_sklad.jpg);" data-aos="fade" data-stellar-background-ratio="0.5" id="section-home">
+    <div class="site-blocks-cover overlay" style="background-image: url(/images/main_bg_sklad.jpg);" data-aos="fade" data-stellar-background-ratio="0.5" id="section-home">
       <div class="container">
         <div class="row align-items-center justify-content-center text-center">
 

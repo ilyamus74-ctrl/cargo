@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-01-28 15:45:44
+/* Smarty version 5.3.1, created on 2026-01-28 18:59:58
   from 'file:cc_navBar.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_697a2f2857bf74_32069137',
+  'unifunc' => 'content_697a5cae0163d4_74379263',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     'd17f9010aade5a8b0c547e41e82271048085563c' => 
     array (
       0 => 'cc_navBar.html',
-      1 => 1769615067,
+      1 => 1769626755,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_697a2f2857bf74_32069137 (\Smarty\Template $_smarty_tpl) {
+function content_697a5cae0163d4_74379263 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cellscargo/web/templates';
 ?>  <!-- <div class="site-wrap"> -->
 
@@ -42,7 +42,7 @@ $_smarty_current_dir = '/home/cellscargo/web/templates';
 
             <h1 class="mb-0">
               <a href="index.html" class="text-white h2 mb-0 cargo-logo">
-                <img class="cargo-logo__mark" src="images/apple-touch-icon.png" alt="CargoCells logo">
+                <img class="cargo-logo__mark" src="/images/apple-touch-icon.png" alt="CargoCells logo">
                 <span class="cargo-logo__text">
                   <span class="cargo-logo__cargo">Cargo</span>
                   <span class="cargo-logo__cells">Cells</span>
@@ -53,21 +53,28 @@ $_smarty_current_dir = '/home/cellscargo/web/templates';
           </div>
           <div class="col-12 col-md-10 d-none d-xl-block">
             <nav class="site-navigation position-relative text-right" role="navigation">
-
-              <ul class="site-menu js-clone-nav mx-auto d-none d-lg-block">
-                <li><a href="/" class="nav-link">Home</a></li>
-                <li class="has-children">
-                  <a href="about" class="nav-link">About Us</a>
-                  <ul class="dropdown">
-                    <li><a href="#section-how-it-works" class="nav-link">How It Works</a></li>
-                    <li><a href="ourteam" class="nav-link">Our Team</a></li>
-                  </ul>
-                </li>
-                <li><a href="service" class="nav-link">Services</a></li>
-                <li><a href="#section-industries" class="nav-link">Industries</a></li>
-                <!--<li><a href="#section-blog" class="nav-link">Blog</a></li>-->
-                <li><a href="#section-contact" class="nav-link">Contact</a></li>
-              </ul>
+              <div class="site-nav-group">
+                <ul class="site-menu js-clone-nav mx-auto d-none d-lg-block">
+                  <li<?php if ($_smarty_tpl->getValue('main')) {?> class="active"<?php }?>><a href="/" class="nav-link<?php if ($_smarty_tpl->getValue('main')) {?> active<?php }?>">Home</a></li>
+                  <li class="has-children<?php if ($_smarty_tpl->getValue('about') || $_smarty_tpl->getValue('ourteam')) {?> active<?php }?>">
+                    <a href="about" class="nav-link<?php if ($_smarty_tpl->getValue('about') || $_smarty_tpl->getValue('ourteam')) {?> active<?php }?>">About Us</a>
+                    <ul class="dropdown">
+                      <li><a href="#section-how-it-works" class="nav-link">How It Works</a></li>
+                      <li<?php if ($_smarty_tpl->getValue('ourteam')) {?> class="active"<?php }?>><a href="ourteam" class="nav-link<?php if ($_smarty_tpl->getValue('ourteam')) {?> active<?php }?>">Our Team</a></li>
+                    </ul>
+                  </li>
+                  <li<?php if ($_smarty_tpl->getValue('service')) {?> class="active"<?php }?>><a href="service" class="nav-link<?php if ($_smarty_tpl->getValue('service')) {?> active<?php }?>">Services</a></li>
+                  <li><a href="#section-industries" class="nav-link">Industries</a></li>
+                  <!--<li><a href="#section-blog" class="nav-link">Blog</a></li>-->
+                  <li><a href="#section-contact" class="nav-link">Contact</a></li>
+                </ul>
+                <div class="language-switcher" aria-label="Language switcher">
+                 <a href="/lang?set=uk" class="language-switcher__link<?php if ($_smarty_tpl->getValue('xlang') == 'uk') {?> is-active<?php }?>">UA</a>
+                  <a href="/lang?set=ru" class="language-switcher__link<?php if ($_smarty_tpl->getValue('xlang') == 'ru') {?> is-active<?php }?>">RU</a>
+                  <a href="/lang?set=de" class="language-switcher__link<?php if ($_smarty_tpl->getValue('xlang') == 'de') {?> is-active<?php }?>">DE</a>
+                  <a href="/lang?set=en" class="language-switcher__link<?php if ($_smarty_tpl->getValue('xlang') == 'en') {?> is-active<?php }?>">EN</a>
+                </div>
+              </div>
             </nav>
           </div>
 
