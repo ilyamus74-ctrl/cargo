@@ -31,15 +31,15 @@
             <nav class="site-navigation position-relative text-right" role="navigation">
 
               <ul class="site-menu js-clone-nav mx-auto d-none d-lg-block">
-                <li><a href="/" class="nav-link">Home</a></li>
-                <li class="has-children">
-                  <a href="about" class="nav-link">About Us</a>
+                <li{if $main} class="active"{/if}><a href="/" class="nav-link{if $main} active{/if}">Home</a></li>
+                <li class="has-children{if $about || $ourteam} active{/if}">
+                  <a href="about" class="nav-link{if $about || $ourteam} active{/if}">About Us</a>
                   <ul class="dropdown">
                     <li><a href="#section-how-it-works" class="nav-link">How It Works</a></li>
-                    <li><a href="ourteam" class="nav-link">Our Team</a></li>
+                    <li{if $ourteam} class="active"{/if}><a href="ourteam" class="nav-link{if $ourteam} active{/if}">Our Team</a></li>
                   </ul>
                 </li>
-                <li><a href="service" class="nav-link">Services</a></li>
+                <li{if $service} class="active"{/if}><a href="service" class="nav-link{if $service} active{/if}">Services</a></li>
                 <li><a href="#section-industries" class="nav-link">Industries</a></li>
                 <!--<li><a href="#section-blog" class="nav-link">Blog</a></li>-->
                 <li><a href="#section-contact" class="nav-link">Contact</a></li>
