@@ -220,13 +220,16 @@ $smarty->assign('alternates',  $alternates);
 // ------------------------------
 $ROUTES = [
     ''           => 'main.php',
-    'index.html' => 'main.php',
+    '/' => 'main.php',
     'about.html' => 'about.php',
     'about' => 'about.php',
     'service.html'  => 'service.php',
     'service'  => 'service.php',
     'ourteam.html'  => 'ourteam.php',
     'ourteam'  => 'ourteam.php',
+    'howitwork'  => 'howitwork.php',
+    'industries'  => 'industries.php',
+    'contact'  => 'contact.php',
 //    'contact.html'  => 'contact.php',
 //    'predictions.html'  => 'predictions.php',
 //    'ingest_ohlc.php'  => 'ingest_ohlc.php',

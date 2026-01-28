@@ -14,6 +14,35 @@ msgstr ""
 "X-Poedit-Country: UKRAINE\n"
 "X-Poedit-SourceCharset: utf-8\n"
 
+msgid "btnHome"
+msgstr "Home"
+
+msgid "btnAboutUs"
+msgstr "About Us"
+
+msgid "btnHowitwork"
+msgstr "How it works"
+
+msgid "btnOurTeam"
+msgstr "Our Team"
+
+msgid "btnServices"
+msgstr "Services"
+
+msgid "btnIndustries"
+msgstr "Industries"
+
+msgid "btnContact"
+msgstr "Contacts"
+
+
+msgid "mainTitleH1"
+msgstr "Business Process Automation"
+
+msgid "mainTitle"
+msgstr "Making your business successful"
+
+
 msgid "mainAboutTitleH1"
 msgstr "We help companies"
 

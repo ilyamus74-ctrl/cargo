@@ -16,6 +16,36 @@ msgstr ""
 
 
 
+msgid "btnHome"
+msgstr "Главная"
+
+msgid "btnAboutUs"
+msgstr "О нас"
+
+msgid "btnHowitwork"
+msgstr "Как это работает"
+
+msgid "btnOurTeam"
+msgstr "Наша команда"
+
+msgid "btnServices"
+msgstr "Услуги"
+
+
+msgid "btnIndustries"
+msgstr "Приминения"
+
+msgid "btnContact"
+msgstr "Контакты"
+
+msgid "mainTitleH1"
+msgstr "Автоматизация процессов бизнеса"
+
+msgid "mainTitle"
+msgstr "Делаем ваш бизнес успешным"
+
+
+
 msgid "mainAboutTitleH1"
 msgstr "Мы помогаем компаниям"
 

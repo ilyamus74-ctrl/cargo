@@ -11,25 +11,24 @@ if (!isset($smarty)) {
     require_once __DIR__ . '/patch.php';
 }
 
+// заголовки/мета — по желанию
 $header_data['domainName']=$domainName;
-$header_data['text']="mainFeedBackText";
-$header_data['title']="mainFeedBackTitle";
-$header_data['description']="mainFeedBackDescription";
-$header_data['keywords']="mainFeedBackKeywords";
+$header_data['title']="mainAboutTitle";
+$header_data['description']="mainAboutTitle";
+$header_data['keywords']="mainAboutKeywords";
 $header_data['author']="";
 $header_data['canonical']=$canonical;
 $header_data['siteName']="";
 $header_data['http-equiv']="";
 $header_data['charset']="";
-$header_data['soc_og_title']="mainFeedBackTitleSoc";
-$header_data['soc_og_description']="mainFeedBackDescriptionSoc";
-$header_data['twitter_title']="mainFeedBackTitleTwitter";
-$header_data['twitter_description']="mainFeedBackDescriptionTwitter";
+$header_data['soc_og_title']="mainAboutTitle";
+$header_data['soc_og_description']="mainAboutTitle";
+$header_data['twitter_title']="mainAboutTitle";
+$header_data['twitter_description']="mainAboutTitle";
 $smarty->assign('header_data', $header_data);
 
-// заголовки/мета — по желанию
 $smarty->assign('page_title', _('Home'));
-$smarty->assign('contact','contact');
+$smarty->assign('industries','industries');
 
 $smarty->display('cc_index.html');
 

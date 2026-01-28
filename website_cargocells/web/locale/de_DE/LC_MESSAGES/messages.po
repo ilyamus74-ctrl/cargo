@@ -15,6 +15,34 @@ msgstr ""
 "X-Poedit-SourceCharset: utf-8\n"
 
 
+msgid "btnHome"
+msgstr "Startseite"
+
+msgid "btnAboutUs"
+msgstr "Über uns"
+
+msgid "btnHowitwork"
+msgstr "Wie es funktioniert"
+
+msgid "btnOurTeam"
+msgstr "Unser Team"
+
+msgid "btnServices"
+msgstr "Leistungen"
+
+msgid "btnIndustries"
+msgstr "Lösungen"
+
+msgid "btnContact"
+msgstr "Kontakt"
+
+
+msgid "mainTitleH1"
+msgstr "Automatisierung von Geschäftsprozessen"
+
+msgid "mainTitle"
+msgstr "Wir machen Ihr Unternehmen erfolgreich"
+
 msgid "mainAboutTitleH1"
 msgstr "Wir helfen Unternehmen"
 
