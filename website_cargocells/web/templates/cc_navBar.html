@@ -29,21 +29,28 @@
           </div>
           <div class="col-12 col-md-10 d-none d-xl-block">
             <nav class="site-navigation position-relative text-right" role="navigation">
-
-              <ul class="site-menu js-clone-nav mx-auto d-none d-lg-block">
-                <li{if $main} class="active"{/if}><a href="/" class="nav-link{if $main} active{/if}">Home</a></li>
-                <li class="has-children{if $about || $ourteam} active{/if}">
-                  <a href="about" class="nav-link{if $about || $ourteam} active{/if}">About Us</a>
-                  <ul class="dropdown">
-                    <li><a href="#section-how-it-works" class="nav-link">How It Works</a></li>
-                    <li{if $ourteam} class="active"{/if}><a href="ourteam" class="nav-link{if $ourteam} active{/if}">Our Team</a></li>
-                  </ul>
-                </li>
-                <li{if $service} class="active"{/if}><a href="service" class="nav-link{if $service} active{/if}">Services</a></li>
-                <li><a href="#section-industries" class="nav-link">Industries</a></li>
-                <!--<li><a href="#section-blog" class="nav-link">Blog</a></li>-->
-                <li><a href="#section-contact" class="nav-link">Contact</a></li>
-              </ul>
+              <div class="site-nav-group">
+                <ul class="site-menu js-clone-nav mx-auto d-none d-lg-block">
+                  <li{if $main} class="active"{/if}><a href="/" class="nav-link{if $main} active{/if}">Home</a></li>
+                  <li class="has-children{if $about || $ourteam} active{/if}">
+                    <a href="about" class="nav-link{if $about || $ourteam} active{/if}">About Us</a>
+                    <ul class="dropdown">
+                      <li><a href="#section-how-it-works" class="nav-link">How It Works</a></li>
+                      <li{if $ourteam} class="active"{/if}><a href="ourteam" class="nav-link{if $ourteam} active{/if}">Our Team</a></li>
+                    </ul>
+                  </li>
+                  <li{if $service} class="active"{/if}><a href="service" class="nav-link{if $service} active{/if}">Services</a></li>
+                  <li><a href="#section-industries" class="nav-link">Industries</a></li>
+                  <!--<li><a href="#section-blog" class="nav-link">Blog</a></li>-->
+                  <li><a href="#section-contact" class="nav-link">Contact</a></li>
+                </ul>
+                <div class="language-switcher" aria-label="Language switcher">
+                  <a href="/?lang=ua" class="language-switcher__link">UA</a>
+                  <a href="/?lang=ru" class="language-switcher__link">RU</a>
+                  <a href="/?lang=de" class="language-switcher__link">DE</a>
+                  <a href="/?lang=en" class="language-switcher__link">EN</a>
+                </div>
+              </div>
             </nav>
           </div>
 

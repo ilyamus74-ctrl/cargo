@@ -307,6 +307,11 @@ h1, h2, h3, h4, h5,
     color: #fff; }
   .site-navbar .site-navigation.border-bottom {
     border-bottom: 1px solid #f3f3f4 !important; }
+  .site-navbar .site-navigation .site-nav-group {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 18px; }
   .site-navbar .site-navigation .site-menu {
     margin-bottom: 0; }
     .site-navbar .site-navigation .site-menu .active > a {
@@ -373,11 +378,38 @@ h1, h2, h3, h4, h5,
             width: 0;
             position: absolute;
             pointer-events: none; }
-          .site-navbar .site-navigation .site-menu .has-children .dropdown.arrow-top:before {
-            border-color: rgba(136, 183, 213, 0);
-            border-bottom-color: #fff;
-            border-width: 10px;
-            margin-left: -10px; }
+    .site-navbar .site-navigation .site-menu .has-children .dropdown.arrow-top:before {
+      border-color: rgba(136, 183, 213, 0);
+      border-bottom-color: #fff;
+      border-width: 10px;
+      margin-left: -10px; }
+  .site-navbar .site-navigation .language-switcher {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 0; }
+  .site-navbar .site-navigation .language-switcher__link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 36px;
+    padding: 4px 8px;
+    border: 1px solid rgba(255, 255, 255, 0.55);
+    border-radius: 999px;
+    color: #fff;
+    font-size: 12px;
+    letter-spacing: .18em;
+    text-transform: uppercase;
+    transition: 0.2s ease;
+    text-decoration: none !important; }
+  .site-navbar .site-navigation .language-switcher__link:hover,
+  .site-navbar .site-navigation .language-switcher__link:focus {
+    color: #f16821;
+    border-color: #f16821; }
+  .site-navbar .site-navigation .language-switcher__link.is-active {
+    background: #f16821;
+    border-color: #f16821;
+    color: #fff; }
         .site-navbar .site-navigation .site-menu .has-children .dropdown a {
           text-transform: none;
           letter-spacing: normal;
