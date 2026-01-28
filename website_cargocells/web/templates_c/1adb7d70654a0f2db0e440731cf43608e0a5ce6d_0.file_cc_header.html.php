@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-01-28 08:20:19
+/* Smarty version 5.3.1, created on 2026-01-28 08:52:04
   from 'file:cc_header.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_6979c6c347f687_92570194',
+  'unifunc' => 'content_6979ce34bb2f27_71407531',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '1adb7d70654a0f2db0e440731cf43608e0a5ce6d' => 
     array (
       0 => 'cc_header.html',
-      1 => 1769588119,
+      1 => 1769589761,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_6979c6c347f687_92570194 (\Smarty\Template $_smarty_tpl) {
+function content_6979ce34bb2f27_71407531 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cellscargo/web/templates';
 ?>  <head>
     <title>Logistics &mdash; Colorlib Website Template</title>
@@ -45,7 +45,7 @@ $_smarty_current_dir = '/home/cellscargo/web/templates';
     <link rel="stylesheet" href="css/aos.css">
 
     <link rel="stylesheet" href="css/style.css">
-    
+
   </head>
 <?php }
 }

@@ -282,6 +282,14 @@ h1, h2, h3, h4, h5,
     top: -4px; }
     .site-navbar .site-logo a {
       color: #fff; }
+    .site-navbar .site-logo .cargo-logo {
+      font-weight: 700;
+      letter-spacing: 0;
+      text-transform: none; }
+    .site-navbar .site-logo .cargo-logo__cargo {
+      color: #f47b20 !important; }
+    .site-navbar .site-logo .cargo-logo__cells {
+      color: #1e6fb6 !important; }
   .site-navbar .site-menu-toggle {
     color: #fff; }
   .site-navbar .site-navigation.border-bottom {
@@ -428,6 +436,10 @@ h1, h2, h3, h4, h5,
         color: #f16821; }
     .site-navbar.scrolled .site-logo a {
       color: #000 !important; }
+    .site-navbar.scrolled .site-logo .cargo-logo__cargo {
+      color: #f47b20 !important; }
+    .site-navbar.scrolled .site-logo .cargo-logo__cells {
+      color: #1e6fb6 !important; }
 
 .site-mobile-menu {
   width: 300px;
