@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-01-29 14:01:51
+/* Smarty version 5.3.1, created on 2026-01-29 14:03:35
   from 'file:cells_NA_API_tools_management.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_697b684fef41b4_95252046',
+  'unifunc' => 'content_697b68b77eb922_68253674',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     'd3b2cc55e44ccac55c216a4345cae548aa3ba653' => 
     array (
       0 => 'cells_NA_API_tools_management.html',
-      1 => 1769695286,
+      1 => 1769695381,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_697b684fef41b4_95252046 (\Smarty\Template $_smarty_tpl) {
+function content_697b68b77eb922_68253674 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>    <div class="pagetitle">
       <h1>Управление инструментами</h1>
@@ -93,7 +93,7 @@ $_smarty_current_dir = '/home/cells/web/templates';
                       <input type="text"
                              id="tools-storage-move-search"
                              class="form-control form-control-sm"
-                             placeholder="TUID или трек-номер">
+                             placeholder="QR код / название / серийный номер">
                     </div>
                   </div>
 
