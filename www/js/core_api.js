@@ -2094,6 +2094,9 @@ window.reloadWarehouseItemIn = () => CoreAPI.ui.reloadList('warehouse_item_in');
     el.value = '';
     el.dispatchEvent(new Event('input', { bubbles: true }));
     el.dispatchEvent(new Event('change', { bubbles: true }));
+    if (CoreAPI?.toolsManagement?.fetchResults) {
+      CoreAPI.toolsManagement.fetchResults('');
+    }
     return true;
   };
 
@@ -2114,40 +2117,59 @@ window.reloadWarehouseItemIn = () => CoreAPI.ui.reloadList('warehouse_item_in');
     return setSelectToEmpty('toolStorageCell');
   };
 
+  function extractTokenFromQr(rawValue) {
+    const raw = String(rawValue || '').trim();
+    if (!raw) return '';
+    const normalized = raw.replace(/\s+/g, ' ').trim();
+    const upper = normalized.toUpperCase();
+    if (upper.startsWith('USER:')) return normalized.slice(5).trim();
+    const urlMatch = normalized.match(/[?&]token=([0-9a-fA-F]{16,64})/);
+    if (urlMatch) return urlMatch[1];
+    const hexMatch = normalized.match(/[0-9a-fA-F]{32}/);
+    if (hexMatch) return hexMatch[0];
+    return normalized;
+  }
+
+  function withSelectRetry(selectId, handler, tries = 5, delay = 300) {
+    const select = document.getElementById(selectId);
+    if (select) {
+      return handler(select);
+    }
+    if (tries <= 0) return false;
+    return setTimeout(() => withSelectRetry(selectId, handler, tries - 1, delay), delay);
+  }
+
   window.setToolsUserFromQR = function (qrValue) {
     try {
-      const raw = String(qrValue || '').trim();
-      if (!raw) return false;
-      const token = raw.toUpperCase().startsWith('USER:') ? raw.slice(5).trim() : raw;
+      const token = extractTokenFromQr(qrValue);
       if (!token) return false;
 
-      const select = document.getElementById('toolAssignedUser');
-      if (!select) return false;
-
-      const tokenUpper = token.toUpperCase();
-      let found = null;
-      for (const opt of select.options) {
-        const optToken = (opt.getAttribute('data-qr-token') || '').trim();
-        if (optToken && optToken.toUpperCase() === tokenUpper) {
-          found = opt;
-          break;
-        }
-      }
-
-      if (!found && /^\d+$/.test(token)) {
+      return withSelectRetry('toolAssignedUser', (select) => {
+        const tokenUpper = token.toUpperCase();
+        let found = null;
         for (const opt of select.options) {
-          if (String(opt.value) === token) {
+          const optToken = (opt.getAttribute('data-qr-token') || '').trim();
+          if (optToken && optToken.toUpperCase() === tokenUpper) {
             found = opt;
             break;
           }
         }
-      }
 
-      if (!found) return false;
-      select.value = found.value;
-      select.dispatchEvent(new Event('change', { bubbles: true }));
-      select.dispatchEvent(new Event('input', { bubbles: true }));
-      return true;
+        if (!found && /^\d+$/.test(token)) {
+          for (const opt of select.options) {
+            if (String(opt.value) === token) {
+              found = opt;
+              break;
+            }
+          }
+        }
+
+        if (!found) return false;
+        select.value = found.value;
+        select.dispatchEvent(new Event('change', { bubbles: true }));
+        select.dispatchEvent(new Event('input', { bubbles: true }));
+        return true;
+      });
     } catch (e) {
       console.error('setToolsUserFromQR error:', e);
       return false;
@@ -2158,22 +2180,27 @@ window.reloadWarehouseItemIn = () => CoreAPI.ui.reloadList('warehouse_item_in');
     try {
       let cellCode = String(qrValue || '').trim();
       if (!cellCode) return false;
-      if (cellCode.toUpperCase().startsWith('CELL:')) cellCode = cellCode.slice(5).trim();
+      const normalized = cellCode.replace(/\s+/g, ' ').trim();
+      const upper = normalized.toUpperCase();
+      if (upper.startsWith('CELL:')) cellCode = normalized.slice(5).trim();
+      const codeMatch = cellCode.match(/[A-Za-z0-9_-]+/);
+      if (codeMatch) cellCode = codeMatch[0];
       if (!cellCode) return false;
 
-      const select = document.getElementById('toolStorageCell');
-      if (!select) return false;
-
-      const want = cellCode.toUpperCase();
-      for (const opt of select.options) {
-        if ((opt.text || '').trim().toUpperCase() === want) {
-          select.value = opt.value;
-          select.dispatchEvent(new Event('change', { bubbles: true }));
-          select.dispatchEvent(new Event('input', { bubbles: true }));
-          return true;
+      return withSelectRetry('toolStorageCell', (select) => {
+        const want = cellCode.toUpperCase();
+        for (const opt of select.options) {
+          const text = (opt.text || '').trim().toUpperCase();
+          const value = (opt.value || '').trim().toUpperCase();
+          if (text === want || value === want) {
+            select.value = opt.value;
+            select.dispatchEvent(new Event('change', { bubbles: true }));
+            select.dispatchEvent(new Event('input', { bubbles: true }));
+            return true;
+          }
         }
-      }
-      return false;
+        return false;
+      });
     } catch (e) {
       console.error('setToolsCellFromQR error:', e);
       return false;
