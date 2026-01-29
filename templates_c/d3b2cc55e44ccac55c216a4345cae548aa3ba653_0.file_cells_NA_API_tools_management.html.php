@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-01-29 13:27:21
+/* Smarty version 5.3.1, created on 2026-01-29 14:01:51
   from 'file:cells_NA_API_tools_management.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_697b6039104465_39070657',
+  'unifunc' => 'content_697b684fef41b4_95252046',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     'd3b2cc55e44ccac55c216a4345cae548aa3ba653' => 
     array (
       0 => 'cells_NA_API_tools_management.html',
-      1 => 1769693075,
+      1 => 1769695286,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_697b6039104465_39070657 (\Smarty\Template $_smarty_tpl) {
+function content_697b684fef41b4_95252046 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>    <div class="pagetitle">
       <h1>Управление инструментами</h1>
@@ -82,10 +82,38 @@ $_smarty_current_dir = '/home/cells/web/templates';
                      id="tools-storage-move"
                      role="tabpanel"
                      aria-labelledby="tools-storage-move-tab">
-                  <p class="mb-0">
+                  <p class="text-muted mb-1">
                     Перемещайте инструменты между ячейками хранения, чтобы фиксировать текущее место
                     нахождения и историю перемещений.
                   </p>
+
+                  <div class="row g-2 align-items-end mt-3">
+                    <div class="col-12 col-md-8">
+                      <label class="form-label small mb-1" for="tools-storage-move-search">Поиск</label>
+                      <input type="text"
+                             id="tools-storage-move-search"
+                             class="form-control form-control-sm"
+                             placeholder="TUID или трек-номер">
+                    </div>
+                  </div>
+
+                  <p class="small text-muted mb-2 mt-3">
+                    Найдено: <span id="tools-storage-move-total">0</span>
+                  </p>
+
+                  <div class="table-responsive">
+                    <table class="table table-sm align-middle users-table">
+                      <thead>
+                        <tr>
+                          <th scope="col">Инструмент</th>
+                          <th scope="col">Источник</th>
+                          <th scope="col">Ячейка</th>
+                          <th scope="col">Дата</th>
+                        </tr>
+                      </thead>
+                      <tbody id="tools-storage-move-results-tbody"></tbody>
+                    </table>
+                  </div>
                 </div>
                 <div class="tab-pane fade"
                      id="tools-owner-assignment"
