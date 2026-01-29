@@ -13,7 +13,8 @@ function fetch_users_list(mysqli $dbcnx): array
                    is_active,
                    created_at,
                    last_login_at,
-                   login_count
+                   login_count,
+                   qr_login_token
               FROM users
           ORDER BY id";
     if ($res = $dbcnx->query($sql)) {

@@ -12,7 +12,9 @@
       <option value="">— не выбран —</option>
       {foreach $users as $item}
         {assign var="userLabel" value=$item.full_name|default:$item.username}
-        <option value="{$item.id|escape}" {if $item.id == $tool.assigned_user_id}selected{/if}>{$userLabel|escape}</option>
+        <option value="{$item.id|escape}"
+                data-qr-token="{$item.qr_login_token|default:''|escape}"
+                {if $item.id == $tool.assigned_user_id}selected{/if}>{$userLabel|escape}</option>
       {/foreach}
     </select>
   </div>

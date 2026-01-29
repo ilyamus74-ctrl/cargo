@@ -136,3 +136,123 @@
         </div>
       </div>
     </div><!-- End Full Screen Modal-->
+
+    <script id="device-scan-config" type="application/json">
+    {
+      "task_id": "tools_management",
+      "default_mode": "qr",
+      "modes": ["qr", "barcode"],
+
+      "buttons": {
+        "vol_down_single": "scan",
+        "vol_down_double": "confirm",
+        "vol_up_single":   "clear",
+        "vol_up_double":   "reset"
+      },
+
+      "active_context": "tools_storage_move",
+
+      "context_switch": {
+        "tabs": {
+          "#tools-storage-move-tab": "tools_storage_move"
+        },
+        "modals": {
+          "#fullscreenModal[data-tools-modal=\"user\"]": { "shown": "tools_user_modal", "hidden": "tools_storage_move" },
+          "#fullscreenModal[data-tools-modal=\"cell\"]": { "shown": "tools_cell_modal", "hidden": "tools_storage_move" }
+        }
+      },
+
+      "contexts": {
+        "tools_storage_move": {
+          "active_tab_selector": "#tools-storage-move-tab.nav-link.active",
+
+          "qr": {
+            "action": "fill_field",
+            "field_id": "tools-storage-move-search"
+          },
+          "barcode": {
+            "action": "fill_field",
+            "field_id": "tools-storage-move-search"
+          },
+
+          "flow": {
+            "start": "scan_tool",
+            "steps": {
+              "scan_tool": {
+                "mode": "qr",
+                "next_on_scan": "scan_tool",
+                "on_action": {
+                  "scan":    [ { "op": "open_scanner", "mode": "qr" } ],
+                  "confirm": [ { "op": "noop" } ],
+                  "clear":   [ { "op": "web", "name": "clearToolsStorageMoveSearch" } ],
+                  "reset":   [ { "op": "web", "name": "clearToolsStorageMoveSearch" } ]
+                }
+              }
+            }
+          }
+        },
+
+        "tools_user_modal": {
+          "flow": {
+            "start": "scan_user_qr",
+            "steps": {
+              "scan_user_qr": {
+                "mode": "qr",
+                "next_on_scan": "wait_for_confirm",
+                "qr": {
+                  "action": "web_callback",
+                  "callback": "setToolsUserFromQR"
+                },
+                "on_action": {
+                  "scan":    [ { "op": "open_scanner", "mode": "qr" } ],
+                  "confirm": [ { "op": "web", "name": "triggerToolsManagementSave" } ],
+                  "clear":   [ { "op": "web", "name": "resetToolsUserSelection" } ],
+                  "reset":   [ { "op": "web", "name": "resetToolsUserSelection" } ]
+                }
+              },
+              "wait_for_confirm": {
+                "mode": "none",
+                "on_action": {
+                  "scan":    [ { "op": "noop" } ],
+                  "confirm": [ { "op": "web", "name": "triggerToolsManagementSave" } ],
+                  "clear":   [ { "op": "web", "name": "resetToolsUserSelection" }, { "op": "set_step", "to": "scan_user_qr" } ],
+                  "reset":   [ { "op": "web", "name": "resetToolsUserSelection" }, { "op": "set_step", "to": "scan_user_qr" } ]
+                }
+              }
+            }
+          }
+        },
+
+        "tools_cell_modal": {
+          "flow": {
+            "start": "scan_cell_qr",
+            "steps": {
+              "scan_cell_qr": {
+                "mode": "qr",
+                "next_on_scan": "wait_for_confirm",
+                "qr": {
+                  "action": "web_callback",
+                  "callback": "setToolsCellFromQR"
+                },
+                "on_action": {
+                  "scan":    [ { "op": "open_scanner", "mode": "qr" } ],
+                  "confirm": [ { "op": "web", "name": "triggerToolsManagementSave" } ],
+                  "clear":   [ { "op": "web", "name": "resetToolsCellSelection" } ],
+                  "reset":   [ { "op": "web", "name": "resetToolsCellSelection" } ]
+                }
+              },
+              "wait_for_confirm": {
+                "mode": "none",
+                "on_action": {
+                  "scan":    [ { "op": "noop" } ],
+                  "confirm": [ { "op": "web", "name": "triggerToolsManagementSave" } ],
+                  "clear":   [ { "op": "web", "name": "resetToolsCellSelection" }, { "op": "set_step", "to": "scan_cell_qr" } ],
+                  "reset":   [ { "op": "web", "name": "resetToolsCellSelection" }, { "op": "set_step", "to": "scan_cell_qr" } ]
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    </script>

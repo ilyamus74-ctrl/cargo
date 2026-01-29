@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-01-29 17:19:14
+/* Smarty version 5.3.1, created on 2026-01-29 17:57:54
   from 'file:cells_NA_API_tools_management.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_697b96927ea318_69183458',
+  'unifunc' => 'content_697b9fa290ba33_79683238',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     'd3b2cc55e44ccac55c216a4345cae548aa3ba653' => 
     array (
       0 => 'cells_NA_API_tools_management.html',
-      1 => 1769707149,
+      1 => 1769709141,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_697b96927ea318_69183458 (\Smarty\Template $_smarty_tpl) {
+function content_697b9fa290ba33_79683238 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>    <div class="pagetitle">
       <h1>Управление инструментами</h1>
@@ -159,5 +159,128 @@ $_smarty_current_dir = '/home/cells/web/templates';
           </div>
         </div>
       </div>
-    </div><!-- End Full Screen Modal--><?php }
+    </div><!-- End Full Screen Modal-->
+
+    <?php echo '<script'; ?>
+ id="device-scan-config" type="application/json">
+    {
+      "task_id": "tools_management",
+      "default_mode": "qr",
+      "modes": ["qr", "barcode"],
+
+      "buttons": {
+        "vol_down_single": "scan",
+        "vol_down_double": "confirm",
+        "vol_up_single":   "clear",
+        "vol_up_double":   "reset"
+      },
+
+      "active_context": "tools_storage_move",
+
+      "context_switch": {
+        "tabs": {
+          "#tools-storage-move-tab": "tools_storage_move"
+        },
+        "modals": {
+          "#fullscreenModal[data-tools-modal=\"user\"]": { "shown": "tools_user_modal", "hidden": "tools_storage_move" },
+          "#fullscreenModal[data-tools-modal=\"cell\"]": { "shown": "tools_cell_modal", "hidden": "tools_storage_move" }
+        }
+      },
+
+      "contexts": {
+        "tools_storage_move": {
+          "active_tab_selector": "#tools-storage-move-tab.nav-link.active",
+
+          "qr": {
+            "action": "fill_field",
+            "field_id": "tools-storage-move-search"
+          },
+          "barcode": {
+            "action": "fill_field",
+            "field_id": "tools-storage-move-search"
+          },
+
+          "flow": {
+            "start": "scan_tool",
+            "steps": {
+              "scan_tool": {
+                "mode": "qr",
+                "next_on_scan": "scan_tool",
+                "on_action": {
+                  "scan":    [ { "op": "open_scanner", "mode": "qr" } ],
+                  "confirm": [ { "op": "noop" } ],
+                  "clear":   [ { "op": "web", "name": "clearToolsStorageMoveSearch" } ],
+                  "reset":   [ { "op": "web", "name": "clearToolsStorageMoveSearch" } ]
+                }
+              }
+            }
+          }
+        },
+
+        "tools_user_modal": {
+          "flow": {
+            "start": "scan_user_qr",
+            "steps": {
+              "scan_user_qr": {
+                "mode": "qr",
+                "next_on_scan": "wait_for_confirm",
+                "qr": {
+                  "action": "web_callback",
+                  "callback": "setToolsUserFromQR"
+                },
+                "on_action": {
+                  "scan":    [ { "op": "open_scanner", "mode": "qr" } ],
+                  "confirm": [ { "op": "web", "name": "triggerToolsManagementSave" } ],
+                  "clear":   [ { "op": "web", "name": "resetToolsUserSelection" } ],
+                  "reset":   [ { "op": "web", "name": "resetToolsUserSelection" } ]
+                }
+              },
+              "wait_for_confirm": {
+                "mode": "none",
+                "on_action": {
+                  "scan":    [ { "op": "noop" } ],
+                  "confirm": [ { "op": "web", "name": "triggerToolsManagementSave" } ],
+                  "clear":   [ { "op": "web", "name": "resetToolsUserSelection" }, { "op": "set_step", "to": "scan_user_qr" } ],
+                  "reset":   [ { "op": "web", "name": "resetToolsUserSelection" }, { "op": "set_step", "to": "scan_user_qr" } ]
+                }
+              }
+            }
+          }
+        },
+
+        "tools_cell_modal": {
+          "flow": {
+            "start": "scan_cell_qr",
+            "steps": {
+              "scan_cell_qr": {
+                "mode": "qr",
+                "next_on_scan": "wait_for_confirm",
+                "qr": {
+                  "action": "web_callback",
+                  "callback": "setToolsCellFromQR"
+                },
+                "on_action": {
+                  "scan":    [ { "op": "open_scanner", "mode": "qr" } ],
+                  "confirm": [ { "op": "web", "name": "triggerToolsManagementSave" } ],
+                  "clear":   [ { "op": "web", "name": "resetToolsCellSelection" } ],
+                  "reset":   [ { "op": "web", "name": "resetToolsCellSelection" } ]
+                }
+              },
+              "wait_for_confirm": {
+                "mode": "none",
+                "on_action": {
+                  "scan":    [ { "op": "noop" } ],
+                  "confirm": [ { "op": "web", "name": "triggerToolsManagementSave" } ],
+                  "clear":   [ { "op": "web", "name": "resetToolsCellSelection" }, { "op": "set_step", "to": "scan_cell_qr" } ],
+                  "reset":   [ { "op": "web", "name": "resetToolsCellSelection" }, { "op": "set_step", "to": "scan_cell_qr" } ]
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+    <?php echo '</script'; ?>
+>
+<?php }
 }

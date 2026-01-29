@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-01-29 14:32:15
+/* Smarty version 5.3.1, created on 2026-01-29 18:01:18
   from 'file:cells_NA_API_tools_management_modal.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_697b6f6f191f30_28405001',
+  'unifunc' => 'content_697ba06ef322d2_53753287',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '3d5722ae5d20ec8a25598051052023caffc8662c' => 
     array (
       0 => 'cells_NA_API_tools_management_modal.html',
-      1 => 1769696791,
+      1 => 1769709231,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_697b6f6f191f30_28405001 (\Smarty\Template $_smarty_tpl) {
+function content_697ba06ef322d2_53753287 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?><form id="tool-storage-move-form" class="row g-3">
   <input type="hidden" name="tool_id" value="<?php echo htmlspecialchars((string)$_smarty_tpl->getValue('tool')['id'], ENT_QUOTES, 'UTF-8', true);?>
@@ -69,7 +69,10 @@ $foreach1DoElse = false;
 ?>
         <?php $_smarty_tpl->assign('userLabel', (($tmp = $_smarty_tpl->getValue('item')['full_name'] ?? null)===null||$tmp==='' ? $_smarty_tpl->getValue('item')['username'] ?? null : $tmp), false, NULL);?>
         <option value="<?php echo htmlspecialchars((string)$_smarty_tpl->getValue('item')['id'], ENT_QUOTES, 'UTF-8', true);?>
-" <?php if ($_smarty_tpl->getValue('item')['id'] == $_smarty_tpl->getValue('tool')['assigned_user_id']) {?>selected<?php }?>><?php echo htmlspecialchars((string)$_smarty_tpl->getValue('userLabel'), ENT_QUOTES, 'UTF-8', true);?>
+"
+                data-qr-token="<?php echo htmlspecialchars((string)(($tmp = $_smarty_tpl->getValue('item')['qr_login_token'] ?? null)===null||$tmp==='' ? '' ?? null : $tmp), ENT_QUOTES, 'UTF-8', true);?>
+"
+                <?php if ($_smarty_tpl->getValue('item')['id'] == $_smarty_tpl->getValue('tool')['assigned_user_id']) {?>selected<?php }?>><?php echo htmlspecialchars((string)$_smarty_tpl->getValue('userLabel'), ENT_QUOTES, 'UTF-8', true);?>
 </option>
       <?php
 }
@@ -84,5 +87,6 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
       Сохранить
     </button>
   </div>
-</form><?php }
+</form>
+<?php }
 }
