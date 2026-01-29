@@ -35,6 +35,7 @@ $routes = [
     // ========== TOOLS ==========
     'view_tools_stock'     => 'api/tools/tool_standard_actions.php',
     'tools_stock'          => 'api/tools/tool_standard_actions.php',
+    'tools_management'     => 'api/tools/tools_management_actions.php',
     'form_new_tool_stock'  => 'api/tools/tool_standard_actions.php',
     'form_edit_tool_stock' => 'api/tools/tool_standard_actions.php',
     'save_tool'            => 'api/tools/tool_standard_actions.php',
