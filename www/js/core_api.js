@@ -60,6 +60,7 @@ const CoreAPI = {
                 'form_edit_device': () => this.withAttribute('device_id', link),
                 'form_edit_tool_stock': () => this.withAttribute('tool_id', link),
                 'form_edit_cell': () => this.withAttribute('cell_id', link),
+                'tools_management_open_modal': () => this.withAttribute('tool_id', link),
 
                 'delete_cell': () => this.withAttribute('cell_id', link),
                 'delete_permission': () => this.withAttribute('permission_code', link),
@@ -90,7 +91,8 @@ const CoreAPI = {
                         fd.append('cell_id', cellSelect.value || '');
                     }
                     return fd;
-                }
+                },
+                'tools_management_save_move': () => this.getFormById('tool-storage-move-form')
             };
             const fd = builders[action] ? builders[action]() : new FormData();
             fd.append('action', action);
@@ -467,6 +469,9 @@ const CoreAPI = {
                 initStandDevicePersistence();
             }
         },
+        'tools_management_open_modal': (data) => {
+            CoreAPI.ui.showModal(data.html);
+        },
         'save_item_stock': (data) => {
             alert(data.message || 'Сохранено');
             CoreAPI.ui.onModalCloseOnce(() => {
@@ -497,6 +502,16 @@ const CoreAPI = {
             if (CoreAPI.warehouseMoveBatch?.clearAfterMove) {
                 CoreAPI.warehouseMoveBatch.clearAfterMove();
             }
+        },
+        'tools_management_save_move': (data) => {
+            alert(data.message || 'Сохранено');
+            CoreAPI.ui.onModalCloseOnce(() => {
+                const searchValue = CoreAPI.toolsManagement?.searchInput?.value?.trim() || '';
+                if (CoreAPI.toolsManagement?.fetchResults) {
+                    CoreAPI.toolsManagement.fetchResults(searchValue);
+                }
+            });
+            CoreAPI.ui.closeModal();
         },
         'save_permission': async (data) => {
             alert(data.message || 'Сохранено');
@@ -971,6 +986,77 @@ const CoreAPI = {
     },
     // ====================================
 
+    // WAREHOUSE - Move (scanner search)
+    // ====================================
+    toolsManagement: {
+        root: null,
+        tbody: null,
+        total: null,
+        searchInput: null,
+        searchTimer: null,
+        initialized: false,
+        init() {
+            const root = document.getElementById('tools-storage-move');
+            if (!root) return;
+            if (this.initialized && this.root === root) {
+                return;
+            }
+            this.root = root;
+            this.tbody = root.querySelector('#tools-storage-move-results-tbody');
+            this.total = root.querySelector('#tools-storage-move-total');
+            this.searchInput = root.querySelector('#tools-storage-move-search');
+
+            if (!this.tbody || !this.total || !this.searchInput) {
+                return;
+            }
+
+            this.bindEvents();
+            this.fetchResults('');
+            this.initialized = true;
+        },
+        bindEvents() {
+            this.searchInput.addEventListener('input', () => {
+                if (this.searchTimer) {
+                    clearTimeout(this.searchTimer);
+                }
+                this.searchTimer = setTimeout(() => {
+                    const value = this.searchInput.value.trim();
+                    this.fetchResults(value);
+                }, 300);
+            });
+        },
+        clearResults() {
+            if (this.tbody) {
+                this.tbody.innerHTML = '';
+            }
+            if (this.total) {
+                this.total.textContent = '0';
+            }
+        },
+        async fetchResults(search) {
+            const fd = new FormData();
+            fd.append('action', 'tools_management_search');
+            fd.append('search', search);
+            try {
+                const data = await CoreAPI.client.call(fd);
+                if (!data || data.status !== 'ok') {
+                    console.error('core_api error (tools_management_search):', data);
+                    return;
+                }
+                if (this.tbody) {
+                    this.tbody.innerHTML = data.html || '';
+                }
+                if (this.total) {
+                    this.total.textContent = String(data.total ?? 0);
+                }
+            } catch (err) {
+                console.error('core_api fetch error (tools_management_search):', err);
+                this.clearResults();
+            }
+        }
+    },
+
+    // ====================================
     // WAREHOUSE - Move (scanner search)
     // ====================================
     warehouseMove: {
@@ -1481,6 +1567,12 @@ function renderToolPhotos(photos) {
 
 ///////
 CoreAPI.pageInits = CoreAPI.pageInits || {};
+
+CoreAPI.pageInits.tools_management = function toolsManagementInit() {
+    if (CoreAPI.toolsManagement?.init) {
+        CoreAPI.toolsManagement.init();
+    }
+};
 
 CoreAPI.pageInits.warehouse_move = function warehouseMoveInit() {
     // guard, чтобы не навешивать одно и то же много раз

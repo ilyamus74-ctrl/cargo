@@ -1,0 +1,88 @@
+<?php
+/* Smarty version 5.3.1, created on 2026-01-29 14:32:15
+  from 'file:cells_NA_API_tools_management_modal.html' */
+
+/* @var \Smarty\Template $_smarty_tpl */
+if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
+  'version' => '5.3.1',
+  'unifunc' => 'content_697b6f6f191f30_28405001',
+  'has_nocache_code' => false,
+  'file_dependency' => 
+  array (
+    '3d5722ae5d20ec8a25598051052023caffc8662c' => 
+    array (
+      0 => 'cells_NA_API_tools_management_modal.html',
+      1 => 1769696791,
+      2 => 'file',
+    ),
+  ),
+  'includes' => 
+  array (
+  ),
+))) {
+function content_697b6f6f191f30_28405001 (\Smarty\Template $_smarty_tpl) {
+$_smarty_current_dir = '/home/cells/web/templates';
+?><form id="tool-storage-move-form" class="row g-3">
+  <input type="hidden" name="tool_id" value="<?php echo htmlspecialchars((string)$_smarty_tpl->getValue('tool')['id'], ENT_QUOTES, 'UTF-8', true);?>
+">
+
+  <div class="col-md-6">
+    <label class="form-label" for="toolName">Инструмент</label>
+    <input type="text" class="form-control" id="toolName" value="<?php echo htmlspecialchars((string)$_smarty_tpl->getValue('tool')['name'], ENT_QUOTES, 'UTF-8', true);?>
+" disabled>
+  </div>
+
+  <div class="col-md-6">
+    <label class="form-label" for="toolSerial">Серийный номер</label>
+    <input type="text" class="form-control" id="toolSerial" value="<?php echo htmlspecialchars((string)(($tmp = $_smarty_tpl->getValue('tool')['serial_number'] ?? null)===null||$tmp==='' ? '—' ?? null : $tmp), ENT_QUOTES, 'UTF-8', true);?>
+" disabled>
+  </div>
+
+  <div class="col-md-6">
+    <label class="form-label" for="toolStorageCell">Ячейка хранения</label>
+    <select class="form-select" id="toolStorageCell" name="cell_id">
+      <option value="">— не выбрано —</option>
+      <?php
+$_from = $_smarty_tpl->getSmarty()->getRuntime('Foreach')->init($_smarty_tpl, $_smarty_tpl->getValue('cells'), 'cell');
+$foreach0DoElse = true;
+foreach ($_from ?? [] as $_smarty_tpl->getVariable('cell')->value) {
+$foreach0DoElse = false;
+?>
+        <option value="<?php echo htmlspecialchars((string)$_smarty_tpl->getValue('cell')['id'], ENT_QUOTES, 'UTF-8', true);?>
+" <?php if ($_smarty_tpl->getValue('cell')['code'] == $_smarty_tpl->getValue('tool')['location']) {?>selected<?php }?>><?php echo htmlspecialchars((string)$_smarty_tpl->getValue('cell')['code'], ENT_QUOTES, 'UTF-8', true);?>
+</option>
+      <?php
+}
+$_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
+    </select>
+  </div>
+
+  <div class="col-md-6">
+    <label class="form-label" for="toolAssignedUser">Пользователь</label>
+    <select class="form-select" id="toolAssignedUser" name="user_id">
+      <option value="">— не выбран —</option>
+      <?php
+$_from = $_smarty_tpl->getSmarty()->getRuntime('Foreach')->init($_smarty_tpl, $_smarty_tpl->getValue('users'), 'item');
+$foreach1DoElse = true;
+foreach ($_from ?? [] as $_smarty_tpl->getVariable('item')->value) {
+$foreach1DoElse = false;
+?>
+        <?php $_smarty_tpl->assign('userLabel', (($tmp = $_smarty_tpl->getValue('item')['full_name'] ?? null)===null||$tmp==='' ? $_smarty_tpl->getValue('item')['username'] ?? null : $tmp), false, NULL);?>
+        <option value="<?php echo htmlspecialchars((string)$_smarty_tpl->getValue('item')['id'], ENT_QUOTES, 'UTF-8', true);?>
+" <?php if ($_smarty_tpl->getValue('item')['id'] == $_smarty_tpl->getValue('tool')['assigned_user_id']) {?>selected<?php }?>><?php echo htmlspecialchars((string)$_smarty_tpl->getValue('userLabel'), ENT_QUOTES, 'UTF-8', true);?>
+</option>
+      <?php
+}
+$_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
+    </select>
+  </div>
+
+  <div class="col-12">
+    <button type="button"
+            class="btn btn-primary js-core-link"
+            data-core-action="tools_management_save_move">
+      Сохранить
+    </button>
+  </div>
+</form><?php }
+}

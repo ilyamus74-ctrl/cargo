@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-01-29 14:03:35
+/* Smarty version 5.3.1, created on 2026-01-29 14:31:15
   from 'file:cells_NA_API_tools_management.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_697b68b77eb922_68253674',
+  'unifunc' => 'content_697b6f33cd4806_20095530',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     'd3b2cc55e44ccac55c216a4345cae548aa3ba653' => 
     array (
       0 => 'cells_NA_API_tools_management.html',
-      1 => 1769695381,
+      1 => 1769696771,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_697b68b77eb922_68253674 (\Smarty\Template $_smarty_tpl) {
+function content_697b6f33cd4806_20095530 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>    <div class="pagetitle">
       <h1>Управление инструментами</h1>
@@ -34,6 +34,7 @@ $_smarty_current_dir = '/home/cells/web/templates';
     </div><!-- End Page Title -->
 
     <section class="section">
+    <div data-page-init="tools_management" style="display:none"></div>
       <div class="row">
         <div class="col-12">
           <div class="card">
@@ -106,7 +107,7 @@ $_smarty_current_dir = '/home/cells/web/templates';
                       <thead>
                         <tr>
                           <th scope="col">Инструмент</th>
-                          <th scope="col">Источник</th>
+                          <th scope="col">Пользователь</th>
                           <th scope="col">Ячейка</th>
                           <th scope="col">Дата</th>
                         </tr>

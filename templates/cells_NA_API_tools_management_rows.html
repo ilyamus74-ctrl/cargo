@@ -1,0 +1,23 @@
+{foreach $tools as $tool}
+  <tr>
+    <td>
+      <button type="button"
+              class="btn btn-link p-0 js-core-link"
+              data-core-action="tools_management_open_modal"
+              data-tool-id="{$tool.id}">
+        {$tool.name|escape}
+      </button>
+      <div class="small text-muted">{$tool.serial_number|default:'—'|escape}</div>
+    </td>
+    <td>{$tool.user_name|default:'—'|escape}</td>
+    <td>{$tool.location|default:'—'|escape}</td>
+    <td>{$tool.updated_at|default:'—'|escape}</td>
+  </tr>
+{/foreach}
+{if !$tools && $show_empty}
+  <tr>
+    <td colspan="4" class="text-center text-muted">
+      Совпадений не найдено
+    </td>
+  </tr>
+{/if}
