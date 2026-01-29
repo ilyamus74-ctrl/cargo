@@ -35,7 +35,7 @@ switch ($action) {
                        tr.location,
                        tr.assigned_user_id,
                        tr.updated_at,
-                       u.full_name AS user_name
+                       COALESCE(NULLIF(u.full_name, ''), u.username) AS user_name
                   FROM tool_resources tr
              LEFT JOIN users u ON u.id = tr.assigned_user_id
               ORDER BY tr.registered_at DESC
@@ -56,7 +56,7 @@ switch ($action) {
                        tr.location,
                        tr.assigned_user_id,
                        tr.updated_at,
-                       u.full_name AS user_name
+                       COALESCE(NULLIF(u.full_name, ''), u.username) AS user_name
                   FROM tool_resources tr
              LEFT JOIN users u ON u.id = tr.assigned_user_id
                  WHERE tr.uid LIKE ?
@@ -143,6 +143,120 @@ switch ($action) {
 
         ob_start();
         $smarty->display('cells_NA_API_tools_management_modal.html');
+        $html = ob_get_clean();
+
+
+        $response = [
+            'status' => 'ok',
+            'html'   => $html,
+        ];
+        break;
+    case 'tools_management_open_user_modal':
+        auth_require_login();
+        $toolId = (int)($_POST['tool_id'] ?? 0);
+        if ($toolId <= 0) {
+            $response = [
+                'status' => 'error',
+                'message' => 'Не указан инструмент.',
+            ];
+            break;
+        }
+
+        $tool = null;
+        $stmt = $dbcnx->prepare("
+            SELECT id,
+                   uid,
+                   name,
+                   serial_number,
+                   location,
+                   assigned_user_id
+              FROM tool_resources
+             WHERE id = ?
+             LIMIT 1
+        ");
+        $stmt->bind_param('i', $toolId);
+        $stmt->execute();
+        $res = $stmt->get_result();
+        if ($res) {
+            $tool = $res->fetch_assoc();
+        }
+        $stmt->close();
+
+        if (!$tool) {
+            $response = [
+                'status' => 'error',
+                'message' => 'Инструмент не найден.',
+            ];
+            break;
+        }
+
+        $users = fetch_users_list($dbcnx);
+
+        $smarty->assign('tool', $tool);
+        $smarty->assign('users', $users);
+
+        ob_start();
+        $smarty->display('cells_NA_API_tools_management_user_modal.html');
+        $html = ob_get_clean();
+
+        $response = [
+            'status' => 'ok',
+            'html'   => $html,
+        ];
+        break;
+    case 'tools_management_open_cell_modal':
+        auth_require_login();
+        $toolId = (int)($_POST['tool_id'] ?? 0);
+        if ($toolId <= 0) {
+            $response = [
+                'status' => 'error',
+                'message' => 'Не указан инструмент.',
+            ];
+            break;
+        }
+
+        $tool = null;
+        $stmt = $dbcnx->prepare("
+            SELECT id,
+                   uid,
+                   name,
+                   serial_number,
+                   location,
+                   assigned_user_id
+              FROM tool_resources
+             WHERE id = ?
+             LIMIT 1
+        ");
+        $stmt->bind_param('i', $toolId);
+        $stmt->execute();
+        $res = $stmt->get_result();
+        if ($res) {
+            $tool = $res->fetch_assoc();
+        }
+        $stmt->close();
+
+        if (!$tool) {
+            $response = [
+                'status' => 'error',
+                'message' => 'Инструмент не найден.',
+            ];
+            break;
+        }
+
+        $cells = [];
+        $sql = "SELECT id, code FROM cells ORDER BY code ASC";
+        if ($resCells = $dbcnx->query($sql)) {
+            while ($row = $resCells->fetch_assoc()) {
+                $cells[] = $row;
+            }
+            $resCells->free();
+        }
+
+        $smarty->assign('tool', $tool);
+        $smarty->assign('cells', $cells);
+
+        ob_start();
+        $smarty->display('cells_NA_API_tools_management_cell_modal.html');
         $html = ob_get_clean();
 
         $response = [

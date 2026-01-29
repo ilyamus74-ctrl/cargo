@@ -61,6 +61,8 @@ const CoreAPI = {
                 'form_edit_tool_stock': () => this.withAttribute('tool_id', link),
                 'form_edit_cell': () => this.withAttribute('cell_id', link),
                 'tools_management_open_modal': () => this.withAttribute('tool_id', link),
+                'tools_management_open_user_modal': () => this.withAttribute('tool_id', link),
+                'tools_management_open_cell_modal': () => this.withAttribute('tool_id', link),
 
                 'delete_cell': () => this.withAttribute('cell_id', link),
                 'delete_permission': () => this.withAttribute('permission_code', link),
@@ -470,6 +472,12 @@ const CoreAPI = {
             }
         },
         'tools_management_open_modal': (data) => {
+            CoreAPI.ui.showModal(data.html);
+        },
+        'tools_management_open_user_modal': (data) => {
+            CoreAPI.ui.showModal(data.html);
+        },
+        'tools_management_open_cell_modal': (data) => {
             CoreAPI.ui.showModal(data.html);
         },
         'save_item_stock': (data) => {

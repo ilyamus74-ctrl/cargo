@@ -1,4 +1,7 @@
 {foreach $tools as $tool}
+  {assign var="userLabel" value=$tool.user_name|default:'—'}
+  {assign var="cellLabelRaw" value=$tool.location|default:'—'}
+  {assign var="cellLabel" value=$cellLabelRaw|replace:'CELL:':''}
   <tr>
     <td>
       <button type="button"
@@ -9,8 +12,22 @@
       </button>
       <div class="small text-muted">{$tool.serial_number|default:'—'|escape}</div>
     </td>
-    <td>{$tool.user_name|default:'—'|escape}</td>
-    <td>{$tool.location|default:'—'|escape}</td>
+    <td>
+      <button type="button"
+              class="btn btn-link p-0 js-core-link"
+              data-core-action="tools_management_open_user_modal"
+              data-tool-id="{$tool.id}">
+        {$userLabel|escape}
+      </button>
+    </td>
+    <td>
+      <button type="button"
+              class="btn btn-link p-0 js-core-link"
+              data-core-action="tools_management_open_cell_modal"
+              data-tool-id="{$tool.id}">
+        {$cellLabel|escape}
+      </button>
+    </td>
     <td>{$tool.updated_at|default:'—'|escape}</td>
   </tr>
 {/foreach}
