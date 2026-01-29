@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-01-29 14:31:15
+/* Smarty version 5.3.1, created on 2026-01-29 17:19:14
   from 'file:cells_NA_API_tools_management.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_697b6f33cd4806_20095530',
+  'unifunc' => 'content_697b96927ea318_69183458',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     'd3b2cc55e44ccac55c216a4345cae548aa3ba653' => 
     array (
       0 => 'cells_NA_API_tools_management.html',
-      1 => 1769696771,
+      1 => 1769707149,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_697b6f33cd4806_20095530 (\Smarty\Template $_smarty_tpl) {
+function content_697b96927ea318_69183458 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>    <div class="pagetitle">
       <h1>Управление инструментами</h1>
@@ -140,5 +140,24 @@ $_smarty_current_dir = '/home/cells/web/templates';
         </div>
       </div>
     </section>
-<?php }
+
+
+    <!-- Full Screen Modal -->
+    <div class="modal fade" id="fullscreenModal" tabindex="-1">
+      <div class="modal-dialog modal-fullscreen">
+        <div class="modal-content">
+
+          <div class="modal-header">
+            <h5 class="modal-title">Назначение инструмента</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            Загрузка...
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+          </div>
+        </div>
+      </div>
+    </div><!-- End Full Screen Modal--><?php }
 }

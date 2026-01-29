@@ -554,35 +554,32 @@ const CoreAPI = {
          */
         async handleClick(e) {
 
-            const target = e.target instanceof Element ? e.target : e.target?.parentElement;
-            if (!target) return;
-
-            const editPermission = target.closest('.js-permission-edit');
+            const editPermission = e.target.closest('.js-permission-edit');
             if (editPermission) {
                 e.preventDefault();
                 CoreAPI.permissions.fillForm(editPermission);
                 return;
             }
-            const resetPermission = target.closest('.js-permission-reset');
+            const resetPermission = e.target.closest('.js-permission-reset');
             if (resetPermission) {
                 e.preventDefault();
                 CoreAPI.permissions.resetForm();
                 return;
             }
 
-            const editMenuItem = target.closest('.js-menu-item-edit');
+            const editMenuItem = e.target.closest('.js-menu-item-edit');
             if (editMenuItem) {
                 e.preventDefault();
                 CoreAPI.menuItems.fillForm(editMenuItem);
                 return;
             }
-            const resetMenuItem = target.closest('.js-menu-item-reset');
+            const resetMenuItem = e.target.closest('.js-menu-item-reset');
             if (resetMenuItem) {
                 e.preventDefault();
                 CoreAPI.menuItems.resetForm();
                 return;
             }
-            const link = target.closest('.js-core-link[data-core-action]');
+            const link = e.target.closest('.js-core-link[data-core-action]');
             if (!link) return;
             e.preventDefault();
             const action = link.getAttribute('data-core-action');
