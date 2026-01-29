@@ -258,22 +258,12 @@
 	.site-mobile-menu-header {
 		width: 100%;
 		float: left;
-	display: flex;
-	align-items: center;
-	justify-content: flex-end;
-	gap: 10px;
 		padding-left: 20px;
 		padding-right: 20px;
 		
-	.site-mobile-menu-language {
-	    display: flex;
-	    align-items: center;
-	    gap: 6px;
-	}
-	
 		.site-mobile-menu-close {
-	    float: none;
-	    margin-top: 0;
+			float: right;
+			margin-top: 8px;
 			span {
 				font-size: 30px;
 				display: inline-block;
@@ -421,33 +411,6 @@
 			}
 		}
 	}
-
-    .language-switcher__link {
-	display: inline-flex;
-	align-items: center;
-	justify-content: center;
-	min-width: 32px;
-	padding: 4px 6px;
-	border: 1px solid rgba(0, 0, 0, 0.2);
-	border-radius: 999px;
-	color: $gray-900;
-	font-size: 11px;
-	letter-spacing: .18em;
-	text-transform: uppercase;
-	transition: 0.2s ease;
-	text-decoration: none !important;
-	&:hover,
-	&:focus {
-	    color: $primary;
-	    border-color: $primary;
-	}
-
-	&.is-active {
-	    background: $primary;
-	    border-color: $primary;
-	    color: $white;
-	}
-    }
 
 	}
 

@@ -52,18 +52,19 @@ $canonical = $base . ($pathByLang[$lang] ?? '/');
 //$smarty->assign('page_title', _('Home'));
 
 $header_data['domainName']=$domainName;
-$header_data['title']="mainTitle";
-$header_data['description']="mainDescription";
-$header_data['keywords']="mainKeywords";
+$header_data['title']="ceoTitle";
+$header_data['description']="ceoTitle";
+$header_data['keywords']="ceoKeywords";
 $header_data['author']="";
 $header_data['canonical']=$canonical;
 $header_data['siteName']="";
 $header_data['http-equiv']="";
 $header_data['charset']="";
-$header_data['soc_og_title']="main_soc_og_title";
-$header_data['soc_og_description']="main_soc_og_dscription";
-$header_data['twitter_title']="main_twitter_title";
-$header_data['twitter_description']="main_twitter_description";
+$header_data['soc_og_title']="ceoTitle";
+$header_data['soc_og_description']="ceoTitle";
+$header_data['twitter_title']="ceoTitle";
+$header_data['twitter_description']="ceoTitle";
+$smarty->assign('header_data', $header_data);
 
 
 $smarty->assign('header_data', $header_data);

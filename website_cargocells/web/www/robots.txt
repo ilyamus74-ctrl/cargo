@@ -1,7 +1,14 @@
-User-agent: Googlebot
-Disallow: /ABRA
-Disallow: /NiceAdmin
-Disallow: /admin
-Disallow: /t
+User-agent: *
 Allow: /
-Sitemap: https://graessler-sicherheitsdienste.de/sitemap.xml
+
+# (опционально) служебные/тех. каталоги — если есть
+Disallow: /cgi-bin/
+Disallow: /.git/
+Disallow: /.svn/
+Disallow: /.env
+Disallow: /composer.json
+Disallow: /composer.lock
+Disallow: /package.json
+Disallow: /yarn.lock
+
+Sitemap: https://cargocells.com/sitemap.xml

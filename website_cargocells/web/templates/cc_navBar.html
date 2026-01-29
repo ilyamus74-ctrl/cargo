@@ -2,6 +2,12 @@
 
     <div class="site-mobile-menu site-navbar-target">
       <div class="site-mobile-menu-header">
+        <div class="language-switcher site-mobile-menu-language" aria-label="Language switcher">
+          <a href="/lang?set=uk" class="language-switcher__link{if $xlang == 'uk'} is-active{/if}">UA</a>
+          <a href="/lang?set=ru" class="language-switcher__link{if $xlang == 'ru'} is-active{/if}">RU</a>
+          <a href="/lang?set=de" class="language-switcher__link{if $xlang == 'de'} is-active{/if}">DE</a>
+          <a href="/lang?set=en" class="language-switcher__link{if $xlang == 'en'} is-active{/if}">EN</a>
+        </div>
         <div class="site-mobile-menu-close mt-3">
           <span class="icon-close2 js-menu-toggle"></span>
         </div>
@@ -17,7 +23,7 @@
           <div class="col-11 col-xl-2 site-logo">
 
             <h1 class="mb-0">
-              <a href="/" class="text-white h2 mb-0 cargo-logo">
+              <a href="./" class="text-white h2 mb-0 cargo-logo">
                 <img class="cargo-logo__mark" src="/images/apple-touch-icon.png" alt="CargoCells logo">
                 <span class="cargo-logo__text">
                   <span class="cargo-logo__cargo">Cargo</span>
@@ -31,18 +37,18 @@
             <nav class="site-navigation position-relative text-right" role="navigation">
               <div class="site-nav-group">
                 <ul class="site-menu js-clone-nav mx-auto d-none d-lg-block">
-                  <li{if $main} class="active"{/if}><a href="/" class="nav-link{if $main} active{/if}">{"btnHome"|__}</a></li>
+                  <li{if $main} class="active"{/if}><a href="./" class="nav-link{if $main} active{/if}">{"btnHome"|__}</a></li>
                   <li class="has-children{if $about || $ourteam} active{/if}">
-                    <a href="about" class="nav-link{if $about || $ourteam} active{/if}">{"btnAboutUs"|__}</a>
+                    <a href="./about" class="nav-link{if $about || $ourteam} active{/if}">{"btnAboutUs"|__}</a>
                     <ul class="dropdown">
-                      <li{if $howitwork} class="active"{/if}><a href="howitwork" class="nav-link{if $howitwork} active{/if}">{"btnHowitwork"|__}</a></li>
-                      <li{if $ourteam} class="active"{/if}><a href="ourteam" class="nav-link{if $ourteam} active{/if}">{"btnOurTeam"|__}</a></li>
+                      <li{if $howitwork} class="active"{/if}><a href="./howitwork" class="nav-link{if $howitwork} active{/if}">{"btnHowitwork"|__}</a></li>
+                      <li{if $ourteam} class="active"{/if}><a href="./ourteam" class="nav-link{if $ourteam} active{/if}">{"btnOurTeam"|__}</a></li>
                     </ul>
                   </li>
-                  <li{if $service} class="active"{/if}><a href="service" class="nav-link{if $service} active{/if}">{"btnServices"|__}</a></li>
-                  <li{if $industries} class="active"{/if}><a href="industries" class="nav-link{if $industries} active{/if}">{"btnIndustries"|__}</a></li>
+                  <li{if $service} class="active"{/if}><a href="./service" class="nav-link{if $service} active{/if}">{"btnServices"|__}</a></li>
+                  <li{if $industries} class="active"{/if}><a href="./industries" class="nav-link{if $industries} active{/if}">{"btnIndustries"|__}</a></li>
                   <!--<li><a href="#section-blog" class="nav-link">Blog</a></li>-->
-                  <li{if $contact} class="active"{/if}><a href="contact" class="nav-link{if $contact} active{/if}">{"btnContact"|__}</a></li>
+                  <!--<li{if $contact} class="active"{/if}><a href="contact" class="nav-link{if $contact} active{/if}">{"btnContact"|__}</a></li>-->
                 </ul>
                 <div class="language-switcher" aria-label="Language switcher">
                  <a href="/lang?set=uk" class="language-switcher__link{if $xlang == 'uk'} is-active{/if}">UA</a>

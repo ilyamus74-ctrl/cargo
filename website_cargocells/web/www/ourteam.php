@@ -13,18 +13,19 @@ if (!isset($smarty)) {
 
 // заголовки/мета — по желанию
 $header_data['domainName']=$domainName;
-$header_data['title']="mainAboutTitle";
-$header_data['description']="mainAboutTitle";
-$header_data['keywords']="mainAboutKeywords";
+$header_data['title']="ceoOurteamTitle";
+$header_data['description']="ceoOurteamTitle";
+$header_data['keywords']="ceoOurteamKeywords";
 $header_data['author']="";
 $header_data['canonical']=$canonical;
 $header_data['siteName']="";
 $header_data['http-equiv']="";
 $header_data['charset']="";
-$header_data['soc_og_title']="mainAboutTitle";
-$header_data['soc_og_description']="mainAboutTitle";
-$header_data['twitter_title']="mainAboutTitle";
-$header_data['twitter_description']="mainAboutTitle";
+$header_data['soc_og_title']="ceoOurteamTitle";
+$header_data['soc_og_description']="ceoOurteamTitle";
+$header_data['twitter_title']="ceoOurteamTitle";
+$header_data['twitter_description']="ceoOurteam
+Title";
 $smarty->assign('header_data', $header_data);
 
 $smarty->assign('page_title', _('Home'));

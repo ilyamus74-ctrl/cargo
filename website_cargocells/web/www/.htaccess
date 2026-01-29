@@ -12,6 +12,16 @@ AddDefaultCharset utf-8
   </FilesMatch>
 </IfModule>
 
+RewriteEngine On
+# / -> /de/
+RewriteRule ^$ de/ [R=301,L]
+
+# /about -> /de/about и т.д.
+RewriteRule ^(about|howitwork|ourteam|service|industries|contact)/?$ de/$1 [R=301,L]
+
+# /index.html -> /de/
+RewriteRule ^index\.html$ de/ [R=301,L]
+
 # Скрытые/чувствительные файлы — запрет
 <FilesMatch "^(\.|composer\.(json|lock)|package\.json|yarn\.lock|.*\.(sql|log|bak))$">
   Require all denied
@@ -22,21 +32,25 @@ AddDefaultCharset utf-8
   RewriteEngine On
   RewriteBase /
 
-  # ====== Сначала снимаем языковой префикс для статики ======
-  # /en/img/foo.jpg → /img/foo.jpg, /de/assets/js/app.js → /assets/js/app.js
-  RewriteRule ^(de|en|uk|ru)/(assets|img|css|js|lib|mail|vcard|scss|NiceAdmin)(/?.*)$ /$2$3 [L]
+  # 0) Нормализация корня языка: /de -> /de/
+  RewriteRule ^(de|en|ua|ru)$ $1/ [R=301,L]
 
-  # реальные файлы/директории — отдать как есть
+  # 1) Сначала снимаем языковой префикс для статики
+  # /de/images/x.png -> /images/x.png, /ua/assets/app.js -> /assets/app.js
+  RewriteRule ^(de|en|ua|ru)/(assets|img|images|css|js|lib|mail|vcard|scss|NiceAdmin|fonts)(/?.*)$ /$2$3 [L]
+
+  # 2) Реальные файлы/директории — отдать как есть
   RewriteCond %{REQUEST_FILENAME} -f [OR]
   RewriteCond %{REQUEST_FILENAME} -d
   RewriteRule ^ - [L]
 
-  # скрытые файлы — запрет
+  # 3) скрытые файлы — запрет
   RewriteRule ^\. - [F]
 
-  # всё остальное — в index.php
+  # 4) всё остальное — в index.php
   RewriteRule ^ index.php [L,QSA]
 </IfModule>
+
 
 # кэш/сжатие — по желанию
 <IfModule mod_expires.c>

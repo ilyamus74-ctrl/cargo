@@ -14,6 +14,187 @@ msgstr ""
 "X-Poedit-Country: UKRAINE\n"
 "X-Poedit-SourceCharset: utf-8\n"
 
+
+msgid "ceoIndustriesDescription"
+msgstr "Boost efficiency with Cargo Cells: advanced Warehouse & Inventory management. Seamless API Integration, OCR, Hardware setup, and 24/7 Support. Request a demo!"
+
+msgid "ceoTitle"
+msgstr "Warehouse & Inventory Platform with OCR and API | Cargo Cells"
+
+msgid "ceoAboutTitle"
+msgstr "About Cargo Cells: Warehouse, Accounting & Integrations | Cargo Cells"
+
+msgid "ceoHowitworkTitle"
+msgstr "How It Works: Cargo Cells Implementation Phases | Cargo Cells"
+
+msgid "ceoOurteamTitle"
+msgstr "Cargo Cells Team: Engineers, Product & Integration | Cargo Cells"
+
+msgid "ceoServiceTitle"
+msgstr "Services: Cloud, Security, Integration & Support | Cargo Cells"
+
+msgid "ceoIndustriesTitle"
+msgstr "Industries: 3PL, Retail, Manufacturing, E-commerce | Cargo Cells"
+
+msgid "ceoContactTitle"
+msgstr "Contact Us: Request Demo & Consultation | Cargo Cells"
+
+msgid "contactTitleH1"
+msgstr "Write to us via the contact form"
+
+msgid "contactTitleH2"
+msgstr "Contact Us"
+
+msgid "startTitleH2"
+msgstr "Preliminary Processes"
+
+msgid "startTitleH1"
+msgstr "Automation Launch Process"
+
+# Step 1
+msgid "processStep1Title"
+msgstr "Data Collection & Initial Contact"
+msgid "processStep1Text"
+msgstr "In the first stage, we establish contact with the client to deeply study business specifics and collect primary data on current operational processes."
+msgid "p1Check1"
+msgstr "Understanding real business pains"
+msgid "p1Check2"
+msgstr "Forming the initial project vision"
+msgid "p1Check3"
+msgstr "Saving time at the start"
+
+# Step 2
+msgid "processStep2Title"
+msgstr "Analysis & Personalized Approach"
+msgid "processStep2Text"
+msgstr "We conduct detailed negotiations and system audits to develop a solution architecture that perfectly adapts to your unique tasks and budget."
+msgid "p2Check1"
+msgstr "Architecture for specific goals"
+msgid "p2Check2"
+msgstr "Minimizing implementation risks"
+msgid "p2Check3"
+msgstr "Transparency at every development stage"
+
+# Step 3
+msgid "processStep3Title"
+msgstr "Deployment & Support"
+msgid "processStep3Text"
+msgstr "We launch the IT infrastructure, perform fine-tuning of hardware, and provide continuous support for the stable operation of your business 24/7."
+msgid "p3Check1"
+msgstr "Fast launch without downtime"
+msgid "p3Check2"
+msgstr "Full hardware integration"
+msgid "p3Check3"
+msgstr "Technical support"
+
+msgid "startTitle"
+msgstr "Getting Started is Easy"
+
+msgid "startText"
+msgstr "We have made the onboarding process as simple as possible. You don't need to be a tech expert to integrate modern IT solutions into your business. Just provide a brief description of your operations and use the contact form. We will prepare a personalized proposal to meet your needs and help you scale faster."
+
+msgid "startStep1"
+msgstr "Purpose of inquiry"
+
+msgid "startStep2"
+msgstr "Contact information"
+
+msgid "startStep3"
+msgstr "Desired subdomain name"
+
+msgid "IndustriesTitle"
+msgstr "Fields of Modern Technology Application"
+
+msgid "IndustriesTitleH1"
+msgstr "Boosting Business Productivity"
+
+msgid "IndustriesTitleH2"
+msgstr "Business Automation"
+
+msgid "IndustriesText_1"
+msgstr "<b>Large Distribution Centers and 3PL (Enterprise)</b>\r\n"
+"Automation for vast facilities where throughput is critical. Integrating dimensioning stations and scales into a single network allows processing thousands of shipments per hour without delays."
+
+msgid "IndustriesText_2"
+msgstr "<b>Manufacturing Holdings (Enterprise)</b>\r\n"
+"Implementation of end-to-end control: from raw material accounting on the shop floor to finished product labeling. Custom module adjustments for KPIs allow managing complex value chains."
+
+msgid "IndustriesText_3"
+msgstr "<b>Wholesale Hubs and Distributors (Medium Business)</b>\r\n"
+"Optimizing data migration from legacy systems and Excel to a modern cloud platform. This eliminates stock discrepancies and ensures inventory transparency across multiple warehouses simultaneously."
+
+msgid "IndustriesText_4"
+msgstr "<b>Regional Retail Chains (Medium Business)</b>\r\n"
+"Customization of interfaces and reports for specific store and warehouse operations. Access control (RBAC) helps owners clearly define employee permissions and prevent losses."
+
+msgid "IndustriesText_5"
+msgstr "<b>Growing E-commerce Shops (Small Business)</b>\r\n"
+"Fast onboarding and simple integration with scanners and label printers. The solution allows small warehouses to operate by major marketplace standards with minimal IT staff costs."
+
+msgid "IndustriesText_6"
+msgstr "<b>Warehouse Outsourcers and Delivery Services (Small Business)</b>\r\n"
+"Using an adaptive approach for quick configuration to fit new clients' processes. CargoCells' flexibility allows small companies to scale rapidly while offering high-level service and data security."
+
+msgid "mainAtention"
+msgstr "Key to Understanding"
+
+msgid "pillarStep1Title"
+msgstr "Why are you here?"
+msgid "pillarStep1Text"
+msgstr "Ask yourself: does your current business model deliver the desired return? Or have routine and opaque processes become a ceiling that hinders your scaling and net profit growth?"
+
+msgid "pillarStep2Title"
+msgstr "How to improve processes?"
+msgid "pillarStep2Text"
+msgstr "Consider how many resources are lost due to systemic errors and delays. Modern automation can turn chaos into a clear algorithm, freeing up your time for strategic decision-making."
+
+msgid "pillarStep3Title"
+msgstr "Ready for growth?"
+msgid "pillarStep3Text"
+msgstr "CargoCells will become your technology partner. We will implement solutions that optimize every stage of work, turning your operational challenges into a sustainable long-term competitive advantage."
+
+msgid "checkOption1"
+msgstr "Deep Industry Expertise"
+msgid "checkOption2"
+msgstr "Flexible Customization for your KPIs"
+msgid "checkOption3"
+msgstr "Turnkey Comprehensive Approach"
+
+msgid "mainTextH1"
+msgstr "Perfecting Processes"
+
+msgid "mainText"
+msgstr "CargoCells is a synergy of a young, ambitious company’s energy and deep expertise gained over years in manufacturing, logistics, and trade. We understand the real pain points of business; therefore, we don’t just offer software—we create a digital ecosystem for your success.\r"
+"Our specialization is process automation and the seamless integration of cutting-edge IT solutions. We handle everything: from cloud platform deployment and cybersecurity to the development of unique hardware, such as smart dimensioning stations and labeling systems.\r"
+"CargoCells adapts technology to your KPIs, helping your business become transparent, mobile, and resilient to market challenges. We transform complex operations into simple algorithms, providing support at every stage—from initial consultation to global scaling. Trust us to integrate the future into your business today!"
+
+msgid "mainTextGalka1"
+msgstr "Deep Industry Expertise: Coming from the real sector, we speak the same language as production and logistics, eliminating unnecessary iterations."
+
+msgid "mainTextGalka2"
+msgstr "Flexible Customization: We don’t impose rigid frameworks; instead, we adapt our platform modules to your unique KPIs and specific business operations."
+
+msgid "mainTextGalka3"
+msgstr "Turnkey Comprehensive Approach: We provide a full cycle—from selecting and configuring scanners or scales to staff training and long-term SLA support."
+
+msgid "footerAboutUs"
+msgstr "About Us"
+
+msgid "footerAboutUsText"
+msgstr "Our goal is the success and excellence of your business by integrating modern technologies into its vital operations."
+
+msgid "footerQuickLinks"
+msgstr "Quick Links"
+
+msgid "footerFollowUs"
+msgstr "Follow Us"
+
+msgid "footerSubscribe"
+msgstr "Subscribe to Newsletter"
+
+msgid "footerSubscribeSend"
+msgstr "Send"
+
 msgid "btnHome"
 msgstr "Home"
 

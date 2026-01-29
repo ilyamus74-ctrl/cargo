@@ -14,6 +14,186 @@ msgstr ""
 "X-Poedit-Country: UKRAINE\n"
 "X-Poedit-SourceCharset: utf-8\n"
 
+msgid "ceoIndustriesDescription"
+msgstr "Cargo Cells: Effiziente Warehouse & Inventory Lösungen. Nahtlose API-Integration, OCR-Technik, Hardware-Anbindung und 24/7 Support. Jetzt Demo anfordern!"
+
+msgid "ceoTitle"
+msgstr "Lager- und Inventarplattform mit OCR und API | Cargo Cells"
+
+msgid "ceoAboutTitle"
+msgstr "Über Cargo Cells: Lager, Bestandsführung und Integrationen | Cargo Cells"
+
+msgid "ceoHowitworkTitle"
+msgstr "Wie es funktioniert: Implementierung von Cargo Cells | Cargo Cells"
+
+msgid "ceoOurteamTitle"
+msgstr "Das Team: Ingenieure, Produktentwicklung & Integration | Cargo Cells"
+
+msgid "ceoServiceTitle"
+msgstr "Services: Cloud, Sicherheit, Integration & Support | Cargo Cells"
+
+msgid "ceoIndustriesTitle"
+msgstr "Branchen: 3PL, Einzelhandel, Produktion, E-Commerce | Cargo Cells"
+
+msgid "ceoContactTitle"
+msgstr "Kontakt: Demo anfordern und Beratung | Cargo Cells"
+
+msgid "contactTitleH1"
+msgstr "Kontaktieren Sie uns über das Formular"
+
+msgid "contactTitleH2"
+msgstr "Kontaktieren Sie uns"
+
+msgid "startTitleH2"
+msgstr "Vorläufige Prozesse"
+
+msgid "startTitleH1"
+msgstr "Automatisierungsprozess starten"
+
+# Punkt 1
+msgid "processStep1Title"
+msgstr "Datenerhebung und Erstkontakt"
+msgid "processStep1Text"
+msgstr "In der ersten Phase kontaktieren wir den Kunden, um die Geschäftsspezifikationen tiefgehend zu untersuchen und erste Daten über aktuelle Betriebsprozesse zu sammeln."
+msgid "p1Check1"
+msgstr "Verständnis realer Geschäftsbedürfnisse"
+msgid "p1Check2"
+msgstr "Erstellung der ersten Projektvision"
+msgid "p1Check3"
+msgstr "Zeitersparnis beim Projektstart"
+
+# Punkt 2
+msgid "processStep2Title"
+msgstr "Analyse und individueller Ansatz"
+msgid "processStep2Text"
+msgstr "Wir führen detaillierte Verhandlungen und Systemaudits durch, um eine Lösungsarchitektur zu entwickeln, die perfekt an Ihre individuellen Aufgaben und Ihr Budget angepasst ist."
+msgid "p2Check1"
+msgstr "Architektur für spezifische Ziele"
+msgid "p2Check2"
+msgstr "Risikominimierung bei der Implementierung"
+msgid "p2Check3"
+msgstr "Transparenz in jeder Entwicklungsphase"
+
+# Punkt 3
+msgid "processStep3Title"
+msgstr "Bereitstellung und Support"
+msgid "processStep3Text"
+msgstr "Wir nehmen die IT-Infrastruktur in Betrieb, konfigurieren die Hardware und bieten kontinuierliche Unterstützung für den stabilen Betrieb Ihres Unternehmens rund um die Uhr."
+msgid "p3Check1"
+msgstr "Schneller Start ohne Ausfallzeiten"
+msgid "p3Check2"
+msgstr "Volle Hardware-Integration"
+msgid "p3Check3"
+msgstr "Technischer Support"
+
+msgid "startTitle"
+msgstr "Der Start ist ganz einfach"
+
+msgid "startText"
+msgstr "Wir haben den Startprozess so einfach wie möglich gestaltet. Um moderne IT-Lösungen in Ihr Unternehmen zu integrieren, müssen Sie kein Technikexperte sein. Beschreiben Sie uns einfach Ihre aktuellen Geschäftsprozesse und nutzen Sie unser Kontaktformular. Wir erstellen ein maßgeschneidertes Angebot, das Ihre Anforderungen erfüllt und Ihr Wachstum beschleunigt."
+
+msgid "startStep1"
+msgstr "Zweck der Anfrage"
+
+msgid "startStep2"
+msgstr "Kontaktdaten"
+
+msgid "startStep3"
+msgstr "Gewünschter Subdomain-Name"
+
+msgid "IndustriesTitle"
+msgstr "Anwendungsbereiche moderner Technologien"
+
+msgid "IndustriesTitleH1"
+msgstr "Steigert die Unternehmensproduktivität"
+
+msgid "IndustriesTitleH2"
+msgstr "Automatisierung im Unternehmen"
+
+msgid "IndustriesText_1"
+msgstr "<b>Große Distributionszentren und 3PL (Großunternehmen)</b>\r\n"
+"Automatisierung riesiger Flächen, auf denen der Durchsatz entscheidend ist. Die Integration von Messstationen und Waagen in ein einheitliches Netzwerk ermöglicht die verzögerungsfreie Abwicklung von Tausenden Sendungen pro Stunde."
+
+msgid "IndustriesText_2"
+msgstr "<b>Produktionsholdings (Großunternehmen)</b>\r\n"
+"Einführung einer durchgängigen Kontrolle: von der Rohstofferfassung in den Werkstätten bis zur Kennzeichnung der Fertigprodukte. Individuelle Modulanpassungen an KPIs ermöglichen die Verwaltung komplexer Wertschöpfungsketten."
+
+msgid "IndustriesText_3"
+msgstr "<b>Großhandelslager und Distributoren (Mittelstand)</b>\r\n"
+"Optimierung der Datenmigration aus Altsystemen und Excel auf eine moderne Cloud-Plattform. Dies schließt Sortimentsfehler aus und sorgt für Transparenz der Bestände in mehreren Lagern gleichzeitig."
+
+msgid "IndustriesText_4"
+msgstr "<b>Regionale Einzelhandelsketten (Mittelstand)</b>\r\n"
+"Anpassung von Schnittstellen und Berichten an spezifische Filial- und Lagerabläufe. Die Zugriffskontrolle (RBAC) hilft dem Eigentümer, Befugnisse klar abzugrenzen und Verluste zu vermeiden."
+
+msgid "IndustriesText_5"
+msgstr "<b>Wachsende Online-Shops (Kleinunternehmen)</b>\r\n"
+"Schnelles Onboarding und einfache Integration mit Scannern und Etikettendruckern. Die Lösung ermöglicht es kleinen Lagern, nach den Standards großer Marktplätze mit minimalem IT-Personalaufwand zu arbeiten."
+
+msgid "IndustriesText_6"
+msgstr "<b>Lager-Outsourcer und Lieferdienste (Kleinunternehmen)</b>\r\n"
+"Nutzung eines adaptiven Ansatzes zur schnellen Anpassung an die Prozesse neuer Kunden. Die Flexibilität von CargoCells ermöglicht kleinen Unternehmen eine schnelle Skalierung bei hohem Service- und Datenniveau."
+
+
+msgid "mainAtention"
+msgstr "Das Wichtigste zum Verständnis"
+
+msgid "pillarStep1Title"
+msgstr "Warum sind Sie hier?"
+msgid "pillarStep1Text"
+msgstr "Fragen Sie sich: Liefert Ihr aktuelles Geschäftsmodell die gewünschte Rendite? Oder sind Routine und intransparente Prozesse zu einer Barriere geworden, die Ihre Skalierung und Gewinnmaximierung verhindert?"
+
+msgid "pillarStep2Title"
+msgstr "Prozesse optimieren?"
+msgid "pillarStep2Text"
+msgstr "Überlegen Sie, wie viele Ressourcen durch Systemfehler und Verzögerungen verloren gehen. Moderne Automatisierung verwandelt Chaos in klare Algorithmen und schafft wertvolle Zeit für Ihre strategischen Entscheidungen."
+
+msgid "pillarStep3Title"
+msgstr "Bereit für Wachstum?"
+msgid "pillarStep3Text"
+msgstr "CargoCells wird Ihr Technologiepartner. Wir implementieren Lösungen, die jede Arbeitsphase optimieren und Ihre betrieblichen Herausforderungen in einen nachhaltigen und langfristigen Wettbewerbsvorteil verwandeln."
+
+msgid "checkOption1"
+msgstr "Tiefe Branchenexpertise"
+msgid "checkOption2"
+msgstr "Flexible Anpassung an Ihre KPIs"
+msgid "checkOption3"
+msgstr "Schlüsselfertiger Komplettansatz"
+
+msgid "mainTextH1"
+msgstr "Prozesse perfektionieren"
+
+msgid "mainText"
+msgstr "CargoCells ist die Synergie aus der Energie eines jungen, ambitionierten Unternehmens und tiefgreifender Expertise, die über Jahre in Produktion, Logistik und Handel gesammelt wurde. Wir verstehen die realen Herausforderungen der Wirtschaft, daher bieten wir nicht nur Software an, sondern schaffen ein digitales Ökosystem für Ihren Erfolg.\r"
+"Unsere Spezialisierung liegt in der Prozessautomatisierung und der nahtlosen Integration modernster IT-Lösungen. Wir kümmern uns um alles: von der Bereitstellung von Cloud-Plattformen und Cybersicherheit bis hin zur Entwicklung einzigartiger Hardware – wie intelligente Messstationen und Kennzeichnungssysteme.\r"
+"CargoCells passt Technologien an Ihre KPIs unter Berücksichtigung der Marktpforderungen an. Wir verwandeln komplexe Abläufe in einfache Algorithmen und begleiten Sie in jeder Phase – von der Erstberatung bis zur globalen Skalierung. Vertrauen Sie uns die Integration der Zukunft in Ihren heutigen Geschäftsalltag an!"
+
+msgid "mainTextGalka1"
+msgstr "Tiefe Branchenexpertise: Wir kommen aus dem Realsektor und sprechen die Sprache von Produktion und Logistik, wodurch unnötige Iterationen vermieden werden."
+
+msgid "mainTextGalka2"
+msgstr "Flexible Anpassung: Wir erzwingen keine starren Rahmenbedingungen, sondern passen unsere Plattformmodule an Ihre individuellen KPIs und spezifischen Geschäftsabläufe an."
+
+msgid "mainTextGalka3"
+msgstr "Komplettansatz (Turnkey): Wir bieten den vollen Zyklus – von der Auswahl und Konfiguration von Scannern oder Waagen bis hin zur Personalschulung und langfristigen SLA-Betreuung."
+
+msgid "footerAboutUs"
+msgstr "Über uns"
+
+msgid "footerAboutUsText"
+msgstr "Unser Ziel ist der Erfolg und die Exzellenz Ihres Unternehmens durch die Integration moderner Technologien in Ihre Geschäftsprozesse."
+
+msgid "footerQuickLinks"
+msgstr "Quick-Links"
+
+msgid "footerFollowUs"
+msgstr "Folgen Sie uns"
+
+msgid "footerSubscribe"
+msgstr "Newsletter abonnieren"
+
+msgid "footerSubscribeSend"
+msgstr "Senden"
 
 msgid "btnHome"
 msgstr "Startseite"

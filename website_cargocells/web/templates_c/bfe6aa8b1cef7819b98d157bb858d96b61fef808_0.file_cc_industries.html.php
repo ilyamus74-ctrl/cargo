@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-01-28 19:52:35
+/* Smarty version 5.3.1, created on 2026-01-29 09:45:20
   from 'file:cc_industries.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_697a6903615293_17914062',
+  'unifunc' => 'content_697b2c3059a7c2_76926652',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     'bfe6aa8b1cef7819b98d157bb858d96b61fef808' => 
     array (
       0 => 'cc_industries.html',
-      1 => 1769609132,
+      1 => 1769679918,
       2 => 'file',
     ),
   ),
@@ -20,17 +20,17 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_697a6903615293_17914062 (\Smarty\Template $_smarty_tpl) {
+function content_697b2c3059a7c2_76926652 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cellscargo/web/templates';
 ?>
-    <div class="site-blocks-cover overlay" style="background-image: url(images/main_bg_sklad.jpg);" data-aos="fade" data-stellar-background-ratio="0.5" id="section-home">
+    <div class="site-blocks-cover overlay" style="background-image: url(/images/main_bg_sklad.jpg);" data-aos="fade" data-stellar-background-ratio="0.5" id="section-home">
       <div class="container">
         <div class="row align-items-center justify-content-center text-center">
 
           <div class="col-md-8" data-aos="fade-up" data-aos-delay="400">
             
 
-            <h1 class="text-white font-weight-light text-uppercase font-weight-bold" data-aos="fade-up"><?php echo $_smarty_tpl->getSmarty()->getModifierCallback('__')("mainServiceTitleH1");?>
+            <h1 class="text-white font-weight-light text-uppercase font-weight-bold" data-aos="fade-up"><?php echo $_smarty_tpl->getSmarty()->getModifierCallback('__')("IndustriesTitle");?>
 </h1>
             <!--<p class="mb-5" data-aos="fade-up" data-aos-delay="100">A Logistics Company</p>
             <p data-aos="fade-up" data-aos-delay="200"><a href="#" class="btn btn-primary py-3 px-5 text-white">Get Started!</a></p>
@@ -46,9 +46,9 @@ $_smarty_current_dir = '/home/cellscargo/web/templates';
       <div class="container">
         <div class="row justify-content-center mb-5" data-aos="fade-up">
           <div class="col-md-7 text-center border-primary">
-            <h2 class="mb-0 text-primary"><?php echo $_smarty_tpl->getSmarty()->getModifierCallback('__')("mainServiceTitleH2");?>
+            <h2 class="mb-0 text-primary"><?php echo $_smarty_tpl->getSmarty()->getModifierCallback('__')("IndustriesTitleH1");?>
 </h2>
-            <p class="color-black-opacity-5"><?php echo $_smarty_tpl->getSmarty()->getModifierCallback('__')("mainServiceSubTitleH2");?>
+            <p class="color-black-opacity-5"><?php echo $_smarty_tpl->getSmarty()->getModifierCallback('__')("IndustriesTitleH2");?>
 </p>
           </div>
         </div>
@@ -58,7 +58,7 @@ $_smarty_current_dir = '/home/cellscargo/web/templates';
               <div class="unit-4-icon mr-4"><span class="text-primary flaticon-plane"></span></div>
               <div>
                 <!--<h3>Air Freight</h3>-->
-                <p><?php echo $_smarty_tpl->getSmarty()->getModifierCallback('__')("mainServiceText_1");?>
+                <p><?php echo $_smarty_tpl->getSmarty()->getModifierCallback('__')("IndustriesText_1");?>
 </p>
                 <!--<p><a href="#">Learn More</a></p>-->
               </div>
@@ -69,7 +69,7 @@ $_smarty_current_dir = '/home/cellscargo/web/templates';
               <div class="unit-4-icon mr-4"><span class="text-primary flaticon-boat-ship"></span></div>
               <div>
                 <!--<h3>Ocean Freight</h3>-->
-                <p><?php echo $_smarty_tpl->getSmarty()->getModifierCallback('__')("mainServiceText_2");?>
+                <p><?php echo $_smarty_tpl->getSmarty()->getModifierCallback('__')("IndustriesText_2");?>
 </p>
                 <!--<p><a href="#">Learn More</a></p>-->
               </div>
@@ -80,7 +80,7 @@ $_smarty_current_dir = '/home/cellscargo/web/templates';
               <div class="unit-4-icon mr-4"><span class="text-primary flaticon-truck"></span></div>
               <div>
                 <!--<h3>Land Transportation</h3>-->
-                <p><?php echo $_smarty_tpl->getSmarty()->getModifierCallback('__')("mainServiceText_5");?>
+                <p><?php echo $_smarty_tpl->getSmarty()->getModifierCallback('__')("IndustriesText_5");?>
 </p>
                 <!--<p><a href="#">Learn More</a></p>-->
               </div>
@@ -93,7 +93,7 @@ $_smarty_current_dir = '/home/cellscargo/web/templates';
               <div class="unit-4-icon mr-4"><span class="text-primary flaticon-warehouse"></span></div>
               <div>
                 <!--<h3>Warehousing</h3>-->
-                <p><?php echo $_smarty_tpl->getSmarty()->getModifierCallback('__')("mainServiceText_3");?>
+                <p><?php echo $_smarty_tpl->getSmarty()->getModifierCallback('__')("IndustriesText_3");?>
 </p>
                 <!--<p><a href="#">Learn More</a></p>-->
               </div>
@@ -104,7 +104,7 @@ $_smarty_current_dir = '/home/cellscargo/web/templates';
               <div class="unit-4-icon mr-4"><span class="text-primary flaticon-wooden"></span></div>
               <div>
                 <!--<h3>Storage</h3>-->
-                <p><?php echo $_smarty_tpl->getSmarty()->getModifierCallback('__')("mainServiceText_4");?>
+                <p><?php echo $_smarty_tpl->getSmarty()->getModifierCallback('__')("IndustriesText_4");?>
 </p>
                 <!--<p><a href="#">Learn More</a></p>-->
               </div>
@@ -115,7 +115,7 @@ $_smarty_current_dir = '/home/cellscargo/web/templates';
               <div class="unit-4-icon mr-4"><span class="text-primary flaticon-worldwide"></span></div>
               <div>
                 <!--<h3>Worldwide Delivery</h3>-->
-                <p><?php echo $_smarty_tpl->getSmarty()->getModifierCallback('__')("mainServiceText_6");?>
+                <p><?php echo $_smarty_tpl->getSmarty()->getModifierCallback('__')("IndustriesText_6");?>
 </p>
                 <!--<p><a href="#">Learn More</a></p>-->
               </div>

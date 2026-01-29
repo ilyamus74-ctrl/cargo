@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-01-28 19:56:35
+/* Smarty version 5.3.1, created on 2026-01-29 08:04:14
   from 'file:cc_contact.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_697a69f37d8f83_50248099',
+  'unifunc' => 'content_697b147e84ca18_99059964',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     'eb83af7253e3e761bb30e4bb6de591efc296c5a7' => 
     array (
       0 => 'cc_contact.html',
-      1 => 1769630066,
+      1 => 1769672519,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_697a69f37d8f83_50248099 (\Smarty\Template $_smarty_tpl) {
+function content_697b147e84ca18_99059964 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cellscargo/web/templates';
 ?>
     <div class="site-blocks-cover overlay" style="background-image: url(/images/main_bg_sklad.jpg);" data-aos="fade" data-stellar-background-ratio="0.5" id="section-home">
@@ -30,7 +30,7 @@ $_smarty_current_dir = '/home/cellscargo/web/templates';
           <div class="col-md-8" data-aos="fade-up" data-aos-delay="400">
             
 
-            <h1 class="text-white font-weight-light text-uppercase font-weight-bold" data-aos="fade-up"><?php echo $_smarty_tpl->getSmarty()->getModifierCallback('__')("OurTeamH1");?>
+            <h1 class="text-white font-weight-light text-uppercase font-weight-bold" data-aos="fade-up"><?php echo $_smarty_tpl->getSmarty()->getModifierCallback('__')("contactTitleH1");?>
 </h1>
             <!--<p class="mb-5" data-aos="fade-up" data-aos-delay="100">A Logistics Company</p>
             <p data-aos="fade-up" data-aos-delay="200"><a href="#" class="btn btn-primary py-3 px-5 text-white">Get Started!</a></p>
@@ -46,8 +46,9 @@ $_smarty_current_dir = '/home/cellscargo/web/templates';
       <div class="container">
         <div class="row justify-content-center mb-5">
           <div class="col-md-7 text-center border-primary">
-            <h2 class="font-weight-light text-primary">Contact Us</h2>
-            <p class="color-black-opacity-5">See Our Daily News &amp; Updates</p>
+            <h2 class="font-weight-light text-primary"><?php echo $_smarty_tpl->getSmarty()->getModifierCallback('__')("contactTitleH2");?>
+</h2>
+            <p class="color-black-opacity-5"></p>
           </div>
         </div>
         <div class="row">

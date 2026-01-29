@@ -1,7 +1,15 @@
   <head>
-    <title>Logistics &mdash; Colorlib Website Template</title>
+    <title>{$header_data['title']|__}</title>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <meta name="description" content="{$header_data['description']|__}">
+        <!-- 🕸️ Canonical URL -->
+        <link rel="canonical" href="{$canonical}">
+        <link rel="alternate" hreflang="de" href="{$canonical}">
+        <link rel="alternate" hreflang="uk" href="https://{$domainName}/ua/{$currentPath}">
+        <link rel="alternate" hreflang="en" href="https://{$domainName}/en/{$currentPath}">
+        <link rel="alternate" hreflang="ru" href="https://{$domainName}/ru/{$currentPath}">
+        <link rel="alternate" hreflang="x-default" href="{$canonical}">
 
     <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Poppins:200,300,400,700,900|Display+Playfair:200,300,400,700"> 
     <link rel="stylesheet" href="/fonts/icomoon/style.css">
