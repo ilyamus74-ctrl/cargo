@@ -341,6 +341,7 @@ fun AppRoot() {
     val hasContextFlow = remember(taskConfig) {
         taskConfig?.contexts?.values?.any { it.flow != null } == true
     }
+    val hasContexts = taskConfig?.contexts?.isNotEmpty() == true
     fun fieldSelector(action: ScanAction?): String? {
         val fieldId = action?.fieldId?.trim()?.takeIf { it.isNotEmpty() }
         val fieldName = action?.fieldName?.trim()?.takeIf { it.isNotEmpty() }
@@ -745,7 +746,7 @@ fun AppRoot() {
         }
     }
     fun dispatchContextFlowAction(eventName: String) {
-        if (!isWarehouseMove) return
+        if (!hasContextFlow) return
 
         // DEBUG: confirm that volume event reaches context flow dispatcher
         Handler(Looper.getMainLooper()).post {
@@ -807,9 +808,9 @@ fun AppRoot() {
         taskConfig
     ) {
         when {
-            // IMPORTANT: For warehouse_move prefer context flow over legacy buttonMappings,
+            // IMPORTANT: Prefer context flow over legacy buttonMappings,
             // but keep hardware triggers for scanner overlays (so VolDownSingle can "take scan").
-            showWebView && hasContextFlow && isWarehouseMove -> {
+            showWebView && hasContextFlow -> {
                 MainActivity.onVolDownSingle = {
                     when {
                         showBarcodeScan && barcodeHardwareTrigger != null -> barcodeHardwareTrigger?.invoke()
@@ -840,9 +841,9 @@ fun AppRoot() {
 
                 MainActivity.onVolDownSingle = { barcodeHardwareTrigger?.invoke() }
                 // IMPORTANT:
-                // When scanner overlay is shown for warehouse_move, keep CONFIRM/CLEAR/RESET working via context flow.
+                // When scanner overlay is shown, keep CONFIRM/CLEAR/RESET working via context flow.
                 // VolDownSingle stays as "scan trigger", but VolDownDouble should execute flow "confirm" (save/open modal).
-                    if (hasContextFlow && isWarehouseMove) {
+                    if (hasContextFlow) {
                         MainActivity.onVolDownDouble = { dispatchContextFlowAction("vol_down_double") }
                         MainActivity.onVolUpSingle = { dispatchContextFlowAction("vol_up_single") }
                         MainActivity.onVolUpDouble = { dispatchContextFlowAction("vol_up_double") }
@@ -859,8 +860,8 @@ fun AppRoot() {
                 }
 
                 MainActivity.onVolDownSingle = { ocrHardwareTrigger?.invoke() }
-                // Same logic for OCR overlay (if used in warehouse_move flows)
-                   if (hasContextFlow && isWarehouseMove) {
+                // Same logic for OCR overlay (if used in context flows)
+                   if (hasContextFlow) {
                        MainActivity.onVolDownDouble = { dispatchContextFlowAction("vol_down_double") }
                        MainActivity.onVolUpSingle = { dispatchContextFlowAction("vol_up_single") }
                        MainActivity.onVolUpDouble = { dispatchContextFlowAction("vol_up_double") }
@@ -884,11 +885,11 @@ fun AppRoot() {
                     MainActivity.onVolDownDouble = { dispatchFlowAction("vol_down_double") }
                     MainActivity.onVolUpSingle = { dispatchFlowAction("vol_up_single") }
                     MainActivity.onVolUpDouble = { dispatchFlowAction("vol_up_double") }
-                } else if (hasContextFlow && isWarehouseMove) {
+                } else if (hasContextFlow) {
                     Handler(Looper.getMainLooper()).post {
-                        debugToast(context, "MODE: webview + contextFlow(warehouse_move)")
+                        debugToast(context, "MODE: webview + contextFlow")
                     }
-                    // Используем context flow для warehouse_move
+                    // Используем context flow
                     MainActivity.onVolDownSingle = { dispatchContextFlowAction("vol_down_single") }
                     MainActivity.onVolDownDouble = { dispatchContextFlowAction("vol_down_double") }
                     MainActivity.onVolUpSingle = { dispatchContextFlowAction("vol_up_single") }
@@ -1232,53 +1233,23 @@ fun AppRoot() {
                         modifier = Modifier.fillMaxSize(),
                         onResult = { result ->
                             showBarcodeScan = false
-                            if (isWarehouseMove) {
+                            if (hasContexts) {
                                 resolveActiveWarehouseContext { contextKey, contextConfig ->
                                     // НОВАЯ ЛОГИКА: проверяем, есть ли flow у контекста
                                     val contextFlow = contextConfig.flow
-
-                                    if (contextFlow != null) {
-                                        // Используем flow внутри контекста
-                                        val stepId = currentFlowStep ?: contextFlow.start
-                                        val currentStep = contextFlow.steps[stepId]
-
-                                        // Определяем действие: сначала из шага, потом из контекста (fallback)
-                                        val action = if (result.isQr) {
-                                            currentStep?.qrAction ?: contextConfig.qr
-                                        } else {
-                                            currentStep?.barcodeAction ?: contextConfig.barcode
-                                        }
-
-                                        handleWarehouseMoveScanResult(
-                                            config = config,
-                                            scope = scope,
-                                            webView = webViewRef,
-                                            scanResult = result,
-                                            action = action,
-                                            contextKey = contextKey,
-                                            contextConfig = contextConfig,
-                                            onScannerCellUpdate = { cellId, cellCode ->
-                                                warehouseMoveScannerCellId = cellId
-                                                warehouseMoveScannerCellCode = cellCode
-                                            },
-                                            onBatchCellUpdate = { cellId, cellCode ->
-                                                warehouseMoveBatchCellId = cellId
-                                                warehouseMoveBatchCellCode = cellCode
-                                            }
-                                        )
-
-                                        // Переходим к следующему шагу flow
-                                        currentStep?.nextOnScan?.let { next ->
-                                            setFlowStep(next)
-                                        }
+                                    val stepId = if (contextFlow != null) {
+                                        currentFlowStep ?: contextFlow.start
                                     } else {
-                                        // Старая простая логика (fallback для обратной совместимости)
-                                        val action = if (result.isQr) {
-                                            contextConfig.qr
-                                        } else {
-                                            contextConfig.barcode
-                                        }
-
+                                        null
+                                    }
+                                    val currentStep = stepId?.let { contextFlow?.steps?.get(it) }
+                                    // Определяем действие: сначала из шага, потом из контекста (fallback)
+                                    val action = if (result.isQr) {
+                                        currentStep?.qrAction ?: contextConfig.qr
+                                    } else {
+                                        currentStep?.barcodeAction ?: contextConfig.barcode
+                                    }
+                                    if (isWarehouseMove) {
                                         handleWarehouseMoveScanResult(
                                             config = config,
                                             scope = scope,
@@ -1296,6 +1267,24 @@ fun AppRoot() {
                                                 warehouseMoveBatchCellCode = cellCode
                                             }
                                         )
+
+
+                                    } else {
+                                        val cleanBarcode = sanitizeBarcodeInput(result.rawValue)
+                                        webViewRef?.let { web ->
+                                            fillBarcodeUsingTemplate(
+                                                web = web,
+                                                rawBarcode = cleanBarcode,
+                                                action = action,
+                                                config = config,
+                                                scope = scope,
+                                                isQr = result.isQr
+                                            )
+                                        }
+                                    }
+                                    // Переходим к следующему шагу flow
+                                    currentStep?.nextOnScan?.let { next ->
+                                        setFlowStep(next)
                                     }
                                 }
                             } else {
@@ -3229,34 +3218,33 @@ fun fillParcelFormInWebView(
         append("(function(){")
         append(
             """
-            function setValById(id,v){
-              var e=document.getElementById(id);
+            function findField(id,name){
+              var e = id ? document.getElementById(id) : null;
+              if(!e && name){
+                e = document.querySelector('[name="'+name+'"]');
+              }
+              return e;
+            }
+            function setVal(id,name,v){
+              var e = findField(id,name);
               if(e){
                 e.value=v;
                 e.dispatchEvent(new Event('input',{bubbles:true}));
                 e.dispatchEvent(new Event('change',{bubbles:true}));
               }
             }
-                        function setValIfEmpty(id,v){
-                          var e=document.getElementById(id);
-                          if(e){
-                            var isEmpty = !e.value || e.value.trim()==='';
-                            if(!isEmpty) return;
-                            e.value=v;
-                            e.dispatchEvent(new Event('input',{bubbles:true}));
-                            e.dispatchEvent(new Event('change',{bubbles:true}));
-                          }
-                        }
-            function setValByName(name,v){
-              var e=document.querySelector('[name="'+name+'"]');
+                                    function setValIfEmpty(id,name,v){
+              var e = findField(id,name);
               if(e){
+                var isEmpty = !e.value || e.value.trim()==='';
+                if(!isEmpty) return;
                 e.value=v;
                 e.dispatchEvent(new Event('input',{bubbles:true}));
                 e.dispatchEvent(new Event('change',{bubbles:true}));
               }
             }
-            function setSelectVal(id,v){
-              var e=document.getElementById(id);
+            function setSelectVal(id,name,v){
+              var e = findField(id,name);
               if(e){
                 e.value=v;
                 e.dispatchEvent(new Event('change',{bubbles:true}));
@@ -3275,11 +3263,11 @@ fun fillParcelFormInWebView(
         //    append("setValById('tuid','${esc(it)}');")
         //}
         val tuidForForm = data.tuid?.trim()?.takeIf { it.isNotEmpty() } ?: trackingForForm
-        tuidForForm?.let { append("setValIfEmpty('tuid','${esc(it)}');") }
+        tuidForForm?.let { append("setValIfEmpty('tuid','tuid','${esc(it)}');") }
         // 2) trackingNo — DHL/UPS/etc (если нашли), иначе обычный trackingNo (если похож)
         val trackingFieldValue = trackingForForm ?: tuidForForm
         trackingFieldValue?.let {
-            append("setValIfEmpty('trackingNo','${esc(it)}');")
+            append("setValIfEmpty('trackingNo','tracking_no','${esc(it)}');")
         }
 
         // 2) carrierName (локальный перевозчик: DHL/GLS/HERMES/UPS/AMAZON)
@@ -3287,34 +3275,34 @@ fun fillParcelFormInWebView(
         if (includeCarrierFields) {
             localCarrier?.let {
                 val v = esc(it)
-                append("setSelectVal('carrierName','$v');")
+                append("setSelectVal('carrierName','carrier_name','$v');")
             }
         }
 
         // 3) receiverCountry (по назначению) — строго ISO2 из select
         countryForSelect?.let {
             //append("setSelectVal('receiverCountry','${esc(it)}');")
-            append("setSelectVal('receiverCountry','${esc(it)}');")
+            append("setSelectVal('receiverCountry','receiver_country_code','${esc(it)}');")
         }
 
         // 4) receiverCompany — ТОЛЬКО название компании форварда
         // 5) carrierCode (id=carrierCode) — ТОЛЬКО код форварда + селект форварда
         forwarderCodeForSelect?.let {
             val v = esc(it)
-            append("setSelectVal('receiverCompany','$v');")
-            append("setValById('carrierCode','$v');")
+            append("setSelectVal('receiverCompany','receiver_company','$v');")
+            append("setVal('carrierCode','sender_code','$v');")
         } ?: forwarderCode?.let {
-            append("setValById('carrierCode','${esc(it)}');")
+            append("setVal('carrierCode','sender_code','${esc(it)}');")
         }
 
         // 6) receiverName — ТОЛЬКО получатель
         receiverName?.let {
-            append("setValById('receiverName','${esc(it)}');")
+            append("setVal('receiverName','receiver_name','${esc(it)}');")
         }
 
         // 7) receiverAddress — ТОЛЬКО ячейка
         cellCode?.let {
-            append("setValById('receiverAddress','${esc(it)}');")
+            append("setVal('receiverAddress','receiver_address','${esc(it)}');")
         }
 
         // 8) подпись рядом с TUID
@@ -3325,10 +3313,10 @@ fun fillParcelFormInWebView(
         }
 
         // 9) вес/габариты — НЕ трогаем, если null (и НЕ пишем нули)
-        data.weightKg?.let { append("setValById('weightKg','${it}');") }
-        data.sizeL?.let   { append("setValById('sizeL','${it}');") }
-        data.sizeW?.let   { append("setValById('sizeW','${it}');") }
-        data.sizeH?.let   { append("setValById('sizeH','${it}');") }
+        data.weightKg?.let { append("setVal('weightKg','weight_kg','${it}');") }
+        data.sizeL?.let   { append("setVal('sizeL','size_l_cm','${it}');") }
+        data.sizeW?.let   { append("setVal('sizeW','size_w_cm','${it}');") }
+        data.sizeH?.let   { append("setVal('sizeH','size_h_cm','${it}');") }
 
         append("})();")
     }
