@@ -279,7 +279,7 @@ switch ($action) {
         $userIdRaw = trim((string)($_POST['user_id'] ?? ''));
 
         $tool = null;
-        $stmt = $dbcnx->prepare("SELECT id, location FROM tool_resources WHERE id = ? LIMIT 1");
+        $stmt = $dbcnx->prepare("SELECT id, location, assigned_user_id, assigned_at FROM tool_resources WHERE id = ? LIMIT 1");
         $stmt->bind_param('i', $toolId);
         $stmt->execute();
         $res = $stmt->get_result();
@@ -297,6 +297,9 @@ switch ($action) {
         }
 
         $location = (string)($tool['location'] ?? '');
+        $oldLocation = $location;
+        $oldAssignedUserId = $tool['assigned_user_id'] !== null ? (int)$tool['assigned_user_id'] : null;
+        $oldAssignedAt = $tool['assigned_at'] ?? null;
         if ($cellId !== '') {
             $cellIdInt = (int)$cellId;
             $stmt = $dbcnx->prepare("SELECT code FROM cells WHERE id = ? LIMIT 1");
@@ -326,6 +329,29 @@ switch ($action) {
         $stmt->bind_param('sisi', $location, $assignedUserId, $assignedAt, $toolId);
         $stmt->execute();
         $stmt->close();
+
+
+        $changed = ($oldLocation !== $location) || ($oldAssignedUserId !== $assignedUserId);
+        if ($changed) {
+            audit_log(
+                $user['id'] ?? null,
+                'TOOL_ASSIGNMENT_UPDATE',
+                'TOOL',
+                $toolId,
+                'Обновлены назначения пользователя или ячейки хранения для инструмента',
+                [
+                    'tool_id' => $toolId,
+                    'old_location' => $oldLocation,
+                    'new_location' => $location,
+                    'cell_id' => ($cellId !== '' ? (int)$cellId : null),
+                    'old_assigned_user_id' => $oldAssignedUserId,
+                    'new_assigned_user_id' => $assignedUserId,
+                    'old_assigned_at' => $oldAssignedAt,
+                    'new_assigned_at' => $assignedAt,
+                ]
+            );
+        }
+
 
         $response = [
             'status' => 'ok',
