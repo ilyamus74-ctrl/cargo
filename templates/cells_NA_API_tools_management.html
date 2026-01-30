@@ -232,6 +232,14 @@
               },
               "wait_for_confirm": {
                 "mode": "none",
+                "qr": {
+                  "action": "web_callback",
+                  "callback": "setToolsUserFromQR"
+                },
+                "barcode": {
+                  "action": "web_callback",
+                  "callback": "setToolsUserFromQR"
+                },
                 "on_action": {
                   "scan":    [ { "op": "set_step", "to": "scan_user_qr" }, { "op": "open_scanner", "mode": "qr" } ],
                   "confirm": [ { "op": "web", "name": "triggerToolsManagementSave" } ],
@@ -267,6 +275,14 @@
               },
               "wait_for_confirm": {
                 "mode": "none",
+                "qr": {
+                  "action": "web_callback",
+                  "callback": "setToolsCellFromQR"
+                },
+                "barcode": {
+                  "action": "web_callback",
+                  "callback": "setToolsCellFromQR"
+                },
                 "on_action": {
                   "scan":    [ { "op": "set_step", "to": "scan_cell_qr" }, { "op": "open_scanner", "mode": "qr" } ],
                   "confirm": [ { "op": "web", "name": "triggerToolsManagementSave" } ],
