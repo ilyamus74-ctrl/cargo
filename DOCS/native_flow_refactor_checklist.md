@@ -87,6 +87,7 @@
 - Пункты 2–3: `DOCS/native_flow_refactor_checklist_p2_p3.md`.
 - Пункт 4: `DOCS/native_flow_refactor_checklist_p4.md`.
 - Пункт 5: `DOCS/native_flow_refactor_checklist_p5.md`.
+- Пункт 6: `DOCS/native_flow_refactor_checklist_p6.md`.
 ---
 
 ## Результат
@@ -94,4 +95,3 @@
 - APP использует `device-scan-config` как сценарий и исполняет его нативно.
 - Веб‑клиент продолжает работать как раньше.
 - Рефакторинг можно делать поэтапно с безопасными проверками после каждого шага.
-
