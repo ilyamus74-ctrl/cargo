@@ -1590,6 +1590,18 @@ function renderToolPhotos(photos) {
 CoreAPI.pageInits = CoreAPI.pageInits || {};
 
 CoreAPI.pageInits.tools_management = function toolsManagementInit() {
+    window.clearToolsStorageMoveSearch = window.clearToolsStorageMoveSearch || function () {
+        const el = document.getElementById('tools-storage-move-search');
+        if (!el) return false;
+        el.value = '';
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+        if (CoreAPI?.toolsManagement?.fetchResults) {
+            CoreAPI.toolsManagement.fetchResults('');
+        }
+        return true;
+    };
+
     if (CoreAPI.toolsManagement?.init) {
         CoreAPI.toolsManagement.init();
     }
