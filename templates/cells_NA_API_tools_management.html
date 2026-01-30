@@ -137,6 +137,22 @@
       </div>
     </div><!-- End Full Screen Modal-->
 
+{literal}
+<script>
+  window.clearToolsStorageMoveSearch = window.clearToolsStorageMoveSearch || function () {
+    const el = document.getElementById('tools-storage-move-search');
+    if (!el) return false;
+    el.value = '';
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+    if (window.CoreAPI?.toolsManagement?.fetchResults) {
+      CoreAPI.toolsManagement.fetchResults('');
+    }
+    return true;
+  };
+</script>
+{/literal}
+
     <script id="device-scan-config" type="application/json">
     {
       "task_id": "tools_management",

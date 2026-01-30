@@ -123,10 +123,10 @@ if (root) new MutationObserver(schedule).observe(root, {childList:true, subtree:
 enum class WarehouseScanStep { BARCODE, OCR, MEASURE, SUBMIT }
 
 private const val VOLUME_DOUBLE_TAP_WINDOW_MS = 650L
-private const val DEBUG_TOASTS = false
+private var debugToastsEnabled = false
 
 private fun debugToast(context: Context, message: String, length: Int = Toast.LENGTH_SHORT) {
-    if (!DEBUG_TOASTS) return
+    if (!debugToastsEnabled) return
     Toast.makeText(context, message, length).show()
 }
 
@@ -277,6 +277,9 @@ fun AppRoot() {
     val scope = rememberCoroutineScope()
 
     var config by remember { mutableStateOf(repo.load()) }
+    LaunchedEffect(config.debugToasts) {
+        debugToastsEnabled = config.debugToasts
+    }
 
     var showSettings by remember { mutableStateOf(!config.enrolled || config.serverUrl.isBlank()) }
     var showQrScan by remember { mutableStateOf(false) }
@@ -1430,6 +1433,7 @@ fun SettingsScreen(
     var allowInsecure by remember { mutableStateOf(config.allowInsecureSsl) }
     var useRemoteOcr by remember { mutableStateOf(config.useRemoteOcr) }
     var syncNameDict by remember { mutableStateOf(config.syncNameDict) }
+    var debugToasts by remember { mutableStateOf(config.debugToasts) }
 
     val scrollState = rememberScrollState()
 
@@ -1522,6 +1526,25 @@ fun SettingsScreen(
             )
         }
 
+        Spacer(Modifier.height(8.dp))
+
+        // --- debug ---
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Checkbox(
+                checked = debugToasts,
+                onCheckedChange = { debugToasts = it }
+            )
+            Spacer(Modifier.width(8.dp))
+            Text(
+                "Debug",
+                style = MaterialTheme.typography.bodyMedium
+            )
+        }
+
+
         Spacer(Modifier.height(16.dp))
 
         Text(text = statusText)
@@ -1546,7 +1569,8 @@ fun SettingsScreen(
                             deviceName = deviceName.trim(),
                             allowInsecureSsl = allowInsecure,
                             useRemoteOcr = useRemoteOcr,
-                            syncNameDict = syncNameDict
+                            syncNameDict = syncNameDict,
+                            debugToasts = debugToasts
                         )
 
                         onConfigChanged(updated)

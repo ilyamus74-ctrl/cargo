@@ -12,7 +12,8 @@ data class DeviceConfig(
     val enrolled: Boolean,
     val allowInsecureSsl: Boolean = false,
     val useRemoteOcr: Boolean = false,   // локальный/удалённый парсер
-    val syncNameDict: Boolean = true     // тянуть словарь из WebView
+    val syncNameDict: Boolean = true,    // тянуть словарь из WebView
+    val debugToasts: Boolean = false     // показать debug toasts
 )
 
 class DeviceConfigRepository(private val context: Context) {
@@ -28,6 +29,9 @@ class DeviceConfigRepository(private val context: Context) {
         val deviceToken = prefs.getString("device_token", null)
         val enrolled = prefs.getBoolean("enrolled", false)
         val allowInsecure = prefs.getBoolean("allow_insecure_ssl", false)
+        val useRemoteOcr = prefs.getBoolean("use_remote_ocr", false)
+        val syncNameDict = prefs.getBoolean("sync_name_dict", true)
+        val debugToasts = prefs.getBoolean("debug_toasts", false)
 
         return DeviceConfig(
             serverUrl = serverUrl,
@@ -35,7 +39,10 @@ class DeviceConfigRepository(private val context: Context) {
             deviceName = deviceName,
             deviceToken = deviceToken,
             enrolled = enrolled,
-            allowInsecureSsl = allowInsecure
+            allowInsecureSsl = allowInsecure,
+            useRemoteOcr = useRemoteOcr,
+            syncNameDict = syncNameDict,
+            debugToasts = debugToasts
 
         )
     }
@@ -58,7 +65,9 @@ class DeviceConfigRepository(private val context: Context) {
             .putString("device_name", cfg.deviceName)
             .putString("device_token", cfg.deviceToken)
             .putBoolean("enrolled", cfg.enrolled)
-            .putBoolean("allow_insecure_ssl", cfg.allowInsecureSsl)
+            .putBoolean("use_remote_ocr", cfg.useRemoteOcr)
+            .putBoolean("sync_name_dict", cfg.syncNameDict)
+            .putBoolean("debug_toasts", cfg.debugToasts)
             .apply()
     }
 
