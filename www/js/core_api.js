@@ -2155,7 +2155,16 @@ window.reloadWarehouseItemIn = () => CoreAPI.ui.reloadList('warehouse_item_in');
     }
   }
 
-  function withSelectRetry(selectId, handler, tries = 5, delay = 300) {
+  function debugToolsScan(message) {
+    const text = String(message || '');
+    if (!text) return;
+    console.log(`[tools_scan] ${text}`);
+    if (window.__debugToolsScanToasts) {
+      showToast(text, 2500);
+    }
+  }
+
+  function withSelectRetry(selectId, handler, tries = 15, delay = 300) {
     const select = document.getElementById(selectId);
     if (select) {
       return handler(select);
