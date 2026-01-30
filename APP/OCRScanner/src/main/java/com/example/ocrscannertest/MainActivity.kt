@@ -420,12 +420,23 @@ fun AppRoot() {
                     }
                 }
                 is FlowOp.Web -> {
-                    val web = webViewRef ?: return@forEach
-                    if (handleNativeWebOp(web, op.name, null)) return@forEach
+                    webViewRef?.let { web ->
+                        // ИСПРАВЛЕННЫЙ ВЫЗОВ:
+                        val handled = handleNativeWebOp(
+                            webView = web,
+                            opName = op.name,
+                            contextConfig = null, // Тут контекста нет
+                            scope = scope,
+                            config = config,
+                            taskConfig = taskConfig,
+                            scannerCellId = warehouseMoveScannerCellId,
+                            batchCellId = warehouseMoveBatchCellId
+                        )
+                        if (handled) return@let
 
-                    // Вызываем любую другую JavaScript функцию из window
-                    val escapedFunctionName = escapeJsString(op.name)
-                    executeWebFunctionWithRetry(web, escapedFunctionName, op.name, maxRetries = 3)
+                        val escapedFunctionName = escapeJsString(op.name)
+                        executeWebFunctionWithRetry(web, escapedFunctionName, op.name, maxRetries = 3)
+                    }
                 }
                 is FlowOp.SetStep -> setFlowStep(op.to)
                 FlowOp.Noop -> Unit
@@ -645,7 +656,17 @@ fun AppRoot() {
                 when {
                     isWarehouseMove -> {
                         resolveActiveWarehouseContext { key, ctx ->
-                            handleWarehouseMoveConfirm(key, ctx)
+                            // ИСПРАВЛЕННЫЙ ВЫЗОВ:
+                            handleWarehouseMoveConfirm(
+                                webView = webViewRef,
+                                contextKey = key,
+                                contextConfig = ctx,
+                                scope = scope,
+                                config = config,
+                                taskConfig = taskConfig,
+                                scannerCellId = warehouseMoveScannerCellId,
+                                batchCellId = warehouseMoveBatchCellId
+                            )
                         }
                     }
                     isWarehouseIn -> {
@@ -658,7 +679,10 @@ fun AppRoot() {
                 when {
                     isWarehouseMove -> {
                         resolveActiveWarehouseContext { key, ctx ->
-                            clearWarehouseMoveState(key, ctx)
+                            clearWarehouseMoveState(webViewRef, ctx)
+                            // Эти строки оставьте как были, они сбрасывают переменные Compose
+                            warehouseMoveBatchCellId = null
+                            warehouseMoveScannerCellId = null
                         }
                     }
                     isWarehouseIn -> {
@@ -715,9 +739,19 @@ fun AppRoot() {
                 }
                 is FlowOp.Web -> {
                     webViewRef?.let { web ->
-                        if (handleNativeWebOp(web, op.name, contextConfig)) return@let
+                        // ИСПРАВЛЕННЫЙ ВЫЗОВ:
+                        val handled = handleNativeWebOp(
+                            webView = web,
+                            opName = op.name,
+                            contextConfig = contextConfig, // Тут контекст есть
+                            scope = scope,
+                            config = config,
+                            taskConfig = taskConfig,
+                            scannerCellId = warehouseMoveScannerCellId,
+                            batchCellId = warehouseMoveBatchCellId
+                        )
+                        if (handled) return@let
 
-                        // Вызываем любую другую JavaScript функцию из window
                         val escapedFunctionName = escapeJsString(op.name)
                         executeWebFunctionWithRetry(web, escapedFunctionName, op.name, maxRetries = 3, showToast = true)
                     }
@@ -5689,4 +5723,107 @@ fun parseScanTaskConfig(json: String): ScanTaskConfig? = try {
 } catch (e: Exception) {
     e.printStackTrace()
     null
+}
+
+// ==========================================
+// ВСТАВИТЬ В САМЫЙ КОНЕЦ MainActivity.kt
+// ==========================================
+
+fun fieldSelector(action: ScanAction?): String? {
+    val fieldId = action?.fieldId?.trim()?.takeIf { it.isNotEmpty() }
+    val fieldName = action?.fieldName?.trim()?.takeIf { it.isNotEmpty() }
+    return when {
+        fieldId != null -> "#$fieldId"
+        fieldName != null -> "[name=\"${escapeJsSelector(fieldName)}\"]"
+        else -> null
+    }
+}
+
+fun clearWarehouseMoveState(webView: WebView?, contextConfig: ScanContextConfig) {
+    val field = fieldSelector(contextConfig.barcode)
+    val selectId = contextConfig.qr?.applyToSelectId
+    webView?.let { web ->
+        field?.let { setInputValueBySelector(web, it, "") }
+        selectId?.let { setSelectValueById(web, it, "") }
+    }
+}
+
+fun handleWarehouseMoveConfirm(
+    webView: WebView?,
+    contextKey: String,
+    contextConfig: ScanContextConfig,
+    scope: CoroutineScope,
+    config: DeviceConfig,
+    taskConfig: ScanTaskConfig?,
+    scannerCellId: String?,
+    batchCellId: String?
+) {
+    val moveEndpoint = taskConfig?.api?.get("move_apply") ?: return
+    val trackingField = fieldSelector(contextConfig.barcode) ?: return
+
+    val isBatchContext = contextKey == "batch" || contextConfig.qr?.applyToSelectId != null
+    val cellId = if (isBatchContext) batchCellId else scannerCellId
+    if (cellId.isNullOrBlank()) return
+
+    webView?.let { web ->
+        getInputValueBySelector(web, trackingField) { tracking ->
+            val cleanTracking = tracking?.trim()?.takeIf { it.isNotEmpty() } ?: return@getInputValueBySelector
+            scope.launch {
+                val result = applyWarehouseMoveWithSession(
+                    cfg = config,
+                    endpoint = moveEndpoint,
+                    tracking = cleanTracking,
+                    cellId = cellId,
+                    mode = if (contextKey.isEmpty()) "default" else contextKey
+                )
+                if (result.ok) {
+                    setInputValueBySelector(web, trackingField, "")
+                }
+            }
+        }
+    }
+}
+
+fun handleNativeWebOp(
+    webView: WebView,
+    opName: String,
+    contextConfig: ScanContextConfig?,
+    scope: CoroutineScope,
+    config: DeviceConfig,
+    taskConfig: ScanTaskConfig?,
+    scannerCellId: String?,
+    batchCellId: String?
+): Boolean {
+    return when (opName) {
+        "clear_search" -> {
+            val field = fieldSelector(contextConfig?.barcode) ?: "#warehouse-move-search"
+            setInputValueBySelector(webView, field, "")
+            true
+        }
+        "reset_form" -> {
+            contextConfig?.let { clearWarehouseMoveState(webView, it) }
+            clearWarehouseMoveResultsInWebView(webView)
+            true
+        }
+        "apply_move" -> {
+            contextConfig?.let {
+                handleWarehouseMoveConfirm(
+                    webView = webView,
+                    contextKey = "",
+                    contextConfig = it,
+                    scope = scope,
+                    config = config,
+                    taskConfig = taskConfig,
+                    scannerCellId = scannerCellId,
+                    batchCellId = batchCellId
+                )
+            }
+            true
+        }
+        "add_new_item" -> {
+            prepareFormForNextScanInWebView(webView)
+            true
+        }
+        else -> false
+    }
 }
