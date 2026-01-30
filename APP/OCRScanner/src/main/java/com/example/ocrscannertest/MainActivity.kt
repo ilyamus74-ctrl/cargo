@@ -421,19 +421,11 @@ fun AppRoot() {
                 }
                 is FlowOp.Web -> {
                     val web = webViewRef ?: return@forEach
-                    when (op.name) {
-                        "clear_tracking" -> clearTrackingAndTuidInWebView(web)
-                        "clear_except_track" -> clearParcelFormExceptTrack(web)
-                        "clear_all" -> clearAllInWebView(web)
-                        "clear_measurements" -> clearMeasurementsInWebView(web)
-                        "measure_request" -> requestStandMeasurementInWebView(web)
-                        "add_new_item" -> prepareFormForNextScanInWebView(web)
-                        else -> {
-                            // Вызываем любую другую JavaScript функцию из window
-                            val escapedFunctionName = escapeJsString(op.name)
-                            executeWebFunctionWithRetry(web, escapedFunctionName, op.name, maxRetries = 3)
-                        }
-                    }
+                    if (handleNativeWebOp(web, op.name, null)) return@forEach
+
+                    // Вызываем любую другую JavaScript функцию из window
+                    val escapedFunctionName = escapeJsString(op.name)
+                    executeWebFunctionWithRetry(web, escapedFunctionName, op.name, maxRetries = 3)
                 }
                 is FlowOp.SetStep -> setFlowStep(op.to)
                 FlowOp.Noop -> Unit
@@ -723,32 +715,11 @@ fun AppRoot() {
                 }
                 is FlowOp.Web -> {
                     webViewRef?.let { web ->
-                        when (op.name) {
-                            "clear_search" -> {
-                                // Очищаем поле поиска в контексте
-                                val field = fieldSelector(contextConfig?.barcode)
-                                field?.let { setInputValueBySelector(web, it, "") }
-                            }
-                            "reset_form" -> {
-                                // Сбрасываем форму
-                                contextConfig?.let { clearWarehouseMoveState("", it) }
-                            }
-                            "apply_move" -> {
-                                // Применяем перемещение
-                                contextConfig?.let { handleWarehouseMoveConfirm("", it) }
-                            }
-                            "clear_tracking" -> clearTrackingAndTuidInWebView(web)
-                            "clear_except_track" -> clearParcelFormExceptTrack(web)
-                            "clear_all" -> clearAllInWebView(web)
-                            "clear_measurements" -> clearMeasurementsInWebView(web)
-                            "measure_request" -> requestStandMeasurementInWebView(web)
-                            "add_new_item" -> prepareFormForNextScanInWebView(web)
-                            else -> {
-                                // Вызываем любую другую JavaScript функцию из window
-                                val escapedFunctionName = escapeJsString(op.name)
-                                executeWebFunctionWithRetry(web, escapedFunctionName, op.name, maxRetries = 3, showToast = true)
-                            }
-                        }
+                        if (handleNativeWebOp(web, op.name, contextConfig)) return@let
+
+                        // Вызываем любую другую JavaScript функцию из window
+                        val escapedFunctionName = escapeJsString(op.name)
+                        executeWebFunctionWithRetry(web, escapedFunctionName, op.name, maxRetries = 3, showToast = true)
                     }
                 }
                 is FlowOp.Noop -> { /* do nothing */ }
@@ -764,6 +735,78 @@ fun AppRoot() {
                     }
                 }
             }
+        }
+    }
+
+    fun handleNativeWebOp(webView: WebView, opName: String, contextConfig: ScanContextConfig?): Boolean {
+        return when (opName) {
+            "clear_search" -> {
+                val field = fieldSelector(contextConfig?.barcode) ?: "#warehouse-move-search"
+                setInputValueBySelector(webView, field, "")
+                true
+            }
+            "reset_form" -> {
+                contextConfig?.let { clearWarehouseMoveState("", it) }
+                clearWarehouseMoveResultsInWebView(webView)
+                true
+            }
+            "apply_move" -> {
+                contextConfig?.let { handleWarehouseMoveConfirm("", it) }
+                true
+            }
+            "openMoveModal" -> {
+                openWarehouseMoveModalInWebView(webView)
+                true
+            }
+            "triggerSaveButton" -> {
+                triggerWarehouseMoveSaveInWebView(webView)
+                true
+            }
+            "confirmBatchMove" -> {
+                confirmWarehouseMoveBatchInWebView(webView)
+                true
+            }
+            "clearToolsStorageMoveSearch" -> {
+                setInputValueBySelector(webView, "#tools-storage-move-search", "")
+                true
+            }
+            "resetToolsUserSelection" -> {
+                setSelectValueById(webView, "toolAssignedUser", "")
+                true
+            }
+            "resetToolsCellSelection" -> {
+                setSelectValueById(webView, "toolStorageCell", "")
+                true
+            }
+            "triggerToolsManagementSave" -> {
+                triggerToolsManagementSaveInWebView(webView)
+                true
+            }
+            "clear_tracking" -> {
+                clearTrackingAndTuidInWebView(webView)
+                true
+            }
+            "clear_except_track" -> {
+                clearParcelFormExceptTrack(webView)
+                true
+            }
+            "clear_all" -> {
+                clearAllInWebView(webView)
+                true
+            }
+            "clear_measurements" -> {
+                clearMeasurementsInWebView(webView)
+                true
+            }
+            "measure_request" -> {
+                requestStandMeasurementInWebView(webView)
+                true
+            }
+            "add_new_item" -> {
+                prepareFormForNextScanInWebView(webView)
+                true
+            }
+            else -> false
         }
     }
     fun dispatchContextFlowAction(eventName: String) {
@@ -3024,6 +3067,317 @@ fun setSelectValueById(webView: WebView, selectId: String, value: String) {
     webView.post { webView.evaluateJavascript(js, null) }
 }
 
+fun clickElementBySelector(webView: WebView, selector: String) {
+    val js = """
+        (function(){
+          var el = document.querySelector('${escapeJsString(selector)}');
+          if (el && typeof el.click === 'function') {
+            el.click();
+            return true;
+          }
+          return false;
+        })();
+    """.trimIndent()
+    webView.post { webView.evaluateJavascript(js, null) }
+}
+
+fun clearWarehouseMoveResultsInWebView(webView: WebView) {
+    val js = """
+        (function(){
+          var tbody = document.getElementById('warehouse-move-results-tbody');
+          if (tbody) tbody.innerHTML = '';
+        })();
+    """.trimIndent()
+    webView.post { webView.evaluateJavascript(js, null) }
+}
+
+fun openWarehouseMoveModalInWebView(webView: WebView) {
+    val js = """
+        (function(){
+          try {
+            var tbody = document.getElementById('warehouse-move-results-tbody');
+            if (!tbody) return false;
+            var el = tbody.querySelector('.js-core-link[data-core-action="warehouse_move_open_modal"]');
+            if (!el) return false;
+            var itemId = el.getAttribute('data-item-id') || el.getAttribute('data-item_id');
+            if (!itemId) return false;
+            if (window.CoreAPI && CoreAPI.client && CoreAPI.client.call) {
+              var fd = new FormData();
+              fd.append('action', 'warehouse_move_open_modal');
+              fd.append('item_id', itemId);
+              CoreAPI.client.call(fd)
+                .then(function(data){
+                  try {
+                    if (!data || data.status !== 'ok') {
+                      console.error('openMoveModal: bad response', data);
+                      return;
+                    }
+                    var handler = CoreAPI.handlers && (CoreAPI.handlers['warehouse_move_open_modal'] || CoreAPI.handlers['default']);
+                    if (handler) handler(data, el, fd);
+                  } catch (e) {
+                    console.error('openMoveModal handler failed:', e);
+                  }
+                })
+                .catch(function(e){
+                  console.error('openMoveModal request failed:', e);
+                });
+              return true;
+            }
+            if (typeof el.click === 'function') {
+              el.click();
+              return true;
+            }
+            return false;
+          } catch (e) {
+            console.error('openMoveModal failed:', e);
+            return false;
+          }
+        })();
+    """.trimIndent()
+    webView.post { webView.evaluateJavascript(js, null) }
+}
+
+fun triggerWarehouseMoveSaveInWebView(webView: WebView) {
+    val js = """
+        (function(){
+          try {
+            var saveBtn = document.querySelector('button.js-core-link[data-core-action="warehouse_move_save_cell"]');
+            if (!saveBtn) return false;
+            var action = saveBtn.getAttribute('data-core-action');
+            if (window.CoreAPI && CoreAPI.sendRequest && action) {
+              var form = saveBtn.closest('form');
+              if (form) {
+                var formData = new FormData(form);
+                var params = {};
+                for (var pair of formData.entries()) {
+                  params[pair[0]] = pair[1];
+                }
+                CoreAPI.sendRequest(action, params);
+                return true;
+              }
+            }
+            if (typeof saveBtn.click === 'function') {
+              saveBtn.click();
+              return true;
+            }
+            return false;
+          } catch (e) {
+            console.error('triggerSaveButton failed:', e);
+            return false;
+          }
+        })();
+    """.trimIndent()
+    webView.post { webView.evaluateJavascript(js, null) }
+}
+
+fun confirmWarehouseMoveBatchInWebView(webView: WebView) {
+    val js = """
+        (function(){
+          try {
+            var cellSelect = document.getElementById('warehouse-move-batch-cell');
+            if (!cellSelect || !cellSelect.value) return false;
+            var tbody = document.getElementById('warehouse-move-batch-results-tbody');
+            if (!tbody) return false;
+            var totalEl = document.getElementById('warehouse-move-batch-total');
+            var total = Number((totalEl && totalEl.textContent || '').trim() || 0);
+            if (total !== 1) return false;
+            var row = tbody.querySelector('tr');
+            if (!row) return false;
+            var button = row.querySelector('.js-warehouse-move-batch-action');
+            var itemLink = row.querySelector('[data-item-id]');
+            var itemId = (button && button.getAttribute('data-item-id')) || (itemLink && itemLink.getAttribute('data-item-id'));
+            if (!itemId) return false;
+            if (button && button instanceof HTMLButtonElement && button.disabled) return false;
+            var formData = new FormData();
+            formData.append('action', 'warehouse_move_batch_assign');
+            formData.append('item_id', itemId);
+            formData.append('cell_id', cellSelect.value);
+            if (window.CoreAPI && CoreAPI.client && CoreAPI.client.call) {
+              CoreAPI.client.call(formData)
+                .then(function(data){
+                  if (!data || data.status !== 'ok') {
+                    console.error('core_api error:', data);
+                    return;
+                  }
+                  var handler = CoreAPI.handlers && (CoreAPI.handlers.warehouse_move_batch_assign || CoreAPI.handlers.default);
+                  if (handler) handler(data);
+                })
+                .catch(function(err){
+                  console.error('core_api fetch error:', err);
+                });
+              return true;
+            }
+            if (button && typeof button.click === 'function') {
+              button.click();
+              return true;
+            }
+            return false;
+          } catch (e) {
+            console.error('confirmBatchMove failed:', e);
+            return false;
+          }
+        })();
+    """.trimIndent()
+    webView.post { webView.evaluateJavascript(js, null) }
+}
+
+fun triggerToolsManagementSaveInWebView(webView: WebView) {
+    clickElementBySelector(webView, "button.js-core-link[data-core-action=\"tools_management_save_move\"]")
+}
+
+fun setWarehouseMoveCellFromQrInWebView(webView: WebView, qrValue: String) {
+    val js = """
+        (function(){
+          var cellCode = String('${escapeJsString(qrValue)}' || '').trim();
+          if (!cellCode) return false;
+          if (cellCode.toUpperCase().startsWith('CELL:')) cellCode = cellCode.slice(5).trim();
+          if (!cellCode) return false;
+          function trySet(tries){
+            var cellSelect = document.getElementById('cellId');
+            if (!cellSelect) {
+              if (tries > 0) return setTimeout(function(){ trySet(tries - 1); }, 300);
+              return false;
+            }
+            var want = cellCode.toUpperCase();
+            var found = null;
+            for (var i = 0; i < cellSelect.options.length; i++) {
+              var opt = cellSelect.options[i];
+              if ((opt.text || '').trim().toUpperCase() === want) { found = opt; break; }
+            }
+            if (!found) return false;
+            cellSelect.value = found.value;
+            cellSelect.dispatchEvent(new Event('change', { bubbles: true }));
+            cellSelect.dispatchEvent(new Event('input', { bubbles: true }));
+            return true;
+          }
+          return trySet(5);
+        })();
+    """.trimIndent()
+    webView.post { webView.evaluateJavascript(js, null) }
+}
+
+fun setToolsUserFromQrInWebView(webView: WebView, qrValue: String) {
+    val js = """
+        (function(){
+          try {
+            function extractTokenFromQr(rawValue) {
+              var raw = String(rawValue || '').trim();
+              if (!raw) return '';
+              var normalized = raw.replace(/\s+/g, ' ').trim();
+              var upper = normalized.toUpperCase();
+              if (upper.startsWith('USER:')) return normalized.slice(5).trim();
+              var urlMatch = normalized.match(/[?&]token=([0-9a-fA-F]{16,64})/);
+              if (urlMatch) return urlMatch[1];
+              var hexMatch = normalized.match(/[0-9a-fA-F]{32}/);
+              if (hexMatch) return hexMatch[0];
+              return normalized;
+            }
+            function withSelectRetry(selectId, handler, tries, delay) {
+              var select = document.getElementById(selectId);
+              if (select) return handler(select);
+              if (tries <= 0) return false;
+              return setTimeout(function(){ withSelectRetry(selectId, handler, tries - 1, delay); }, delay);
+            }
+            var token = extractTokenFromQr('${escapeJsString(qrValue)}');
+            if (!token) return false;
+            return withSelectRetry('toolAssignedUser', function(select){
+              var tokenUpper = token.toUpperCase();
+              var found = null;
+              for (var i = 0; i < select.options.length; i++) {
+                var opt = select.options[i];
+                var optToken = (opt.getAttribute('data-qr-token') || '').trim();
+                if (optToken && optToken.toUpperCase() === tokenUpper) { found = opt; break; }
+              }
+              if (!found && /^\d+$/.test(token)) {
+                for (var i = 0; i < select.options.length; i++) {
+                  var opt = select.options[i];
+                  if (String(opt.value) === token) { found = opt; break; }
+                }
+              }
+              if (!found) return false;
+              select.value = found.value;
+              select.dispatchEvent(new Event('change', { bubbles: true }));
+              select.dispatchEvent(new Event('input', { bubbles: true }));
+              return true;
+            }, 15, 300);
+          } catch (e) {
+            console.error('setToolsUserFromQR error:', e);
+            return false;
+          }
+        })();
+    """.trimIndent()
+    webView.post { webView.evaluateJavascript(js, null) }
+}
+
+fun setToolsCellFromQrInWebView(webView: WebView, qrValue: String) {
+    val js = """
+        (function(){
+          try {
+            function extractCellCodeFromQr(rawValue) {
+              var raw = String(rawValue || '').trim();
+              if (!raw) return '';
+              var normalized = raw.replace(/\s+/g, ' ').trim();
+              var upper = normalized.toUpperCase();
+              if (upper.startsWith('CELL:')) return normalized.slice(5).trim();
+              var queryMatch = normalized.match(/[?&]cell(?:_code|_id)?=([^&#]+)/i);
+              if (queryMatch) return decodeURIComponent(queryMatch[1]).trim();
+              var pathMatch = normalized.match(/\/cells?\/([^/?#]+)/i);
+              if (pathMatch) return decodeURIComponent(pathMatch[1]).trim();
+              try {
+                var url = new URL(normalized);
+                var cellParam = url.searchParams.get('cell') || url.searchParams.get('cell_code') || url.searchParams.get('cell_id');
+                if (cellParam) return cellParam.trim();
+                var pathname = url.pathname || '';
+                var segments = pathname.split('/').filter(Boolean);
+                if (segments.length) return decodeURIComponent(segments[segments.length - 1]).trim();
+              } catch (e) {
+                // ignore
+              }
+              var tokens = normalized.match(/[A-Za-z0-9_-]+/g);
+              if (tokens && tokens.length) return tokens[tokens.length - 1];
+              return normalized;
+            }
+            function normalizeCellCode(value) {
+              return String(value || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+            }
+            function withSelectRetry(selectId, handler, tries, delay) {
+              var select = document.getElementById(selectId);
+              if (select) return handler(select);
+              if (tries <= 0) return false;
+              return setTimeout(function(){ withSelectRetry(selectId, handler, tries - 1, delay); }, delay);
+            }
+            var cellCode = extractCellCodeFromQr('${escapeJsString(qrValue)}');
+            if (!cellCode) return false;
+            var normalized = cellCode.replace(/\s+/g, ' ').trim();
+            var upper = normalized.toUpperCase();
+            if (upper.startsWith('CELL:')) cellCode = normalized.slice(5).trim();
+            var codeMatch = cellCode.match(/[A-Za-z0-9_-]+/);
+            if (codeMatch) cellCode = codeMatch[0];
+            if (!cellCode) return false;
+            return withSelectRetry('toolStorageCell', function(select){
+              var want = normalizeCellCode(cellCode);
+              for (var i = 0; i < select.options.length; i++) {
+                var opt = select.options[i];
+                var text = normalizeCellCode(opt.text);
+                var value = normalizeCellCode(opt.value);
+                if (text === want || value === want) {
+                  select.value = opt.value;
+                  select.dispatchEvent(new Event('change', { bubbles: true }));
+                  select.dispatchEvent(new Event('input', { bubbles: true }));
+                  return true;
+                }
+              }
+              return false;
+            }, 15, 300);
+          } catch (e) {
+            console.error('setToolsCellFromQR error:', e);
+            return false;
+          }
+        })();
+    """.trimIndent()
+    webView.post { webView.evaluateJavascript(js, null) }
+}
+
 fun resolveActiveContextId(
     webView: WebView,
     contexts: Map<String, ScanContextConfig>,
@@ -3208,6 +3562,8 @@ fun handleWarehouseMoveScanResult(
  * @param value Значение для передачи в функцию (результат сканирования)
  */
 fun callWebCallback(webView: WebView, functionName: String, value: String) {
+    if (handleNativeWebCallback(webView, functionName, value)) return
+
     val escapedFunctionName = escapeJsString(functionName)
     val escapedValue = escapeJsString(value)
 
@@ -3237,6 +3593,26 @@ fun callWebCallback(webView: WebView, functionName: String, value: String) {
         }
     }
 }
+
+
+fun handleNativeWebCallback(webView: WebView, functionName: String, value: String): Boolean {
+    return when (functionName) {
+        "setCellFromQR" -> {
+            setWarehouseMoveCellFromQrInWebView(webView, value)
+            true
+        }
+        "setToolsUserFromQR" -> {
+            setToolsUserFromQrInWebView(webView, value)
+            true
+        }
+        "setToolsCellFromQR" -> {
+            setToolsCellFromQrInWebView(webView, value)
+            true
+        }
+        else -> false
+    }
+}
+
 /**
  * Вызывает JavaScript callback функцию на веб-странице.
  *
