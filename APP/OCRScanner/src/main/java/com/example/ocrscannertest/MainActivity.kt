@@ -1535,7 +1535,10 @@ fun SettingsScreen(
         ) {
             Checkbox(
                 checked = debugToasts,
-                onCheckedChange = { debugToasts = it }
+                onCheckedChange = { enabled ->
+                    debugToasts = enabled
+                    onConfigChanged(config.copy(debugToasts = enabled))
+                }
             )
             Spacer(Modifier.width(8.dp))
             Text(
