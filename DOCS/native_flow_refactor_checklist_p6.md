@@ -12,12 +12,12 @@
 - Добавлены нативные обработчики `web`/`web_callback` для `warehouse_move` и `tools_management` в APP (WebView операции, модалки, сохранение, QR‑селекторы).
 
 ### Этап 1: Warehouse Move
-- [ ] Перевести flow на native‑движок для `warehouse_move`.
-- [ ] Оставить JS‑код как fallback (для веб‑браузеров).
+- [X] Перевести flow на native‑движок для `warehouse_move`.
+- [X] Оставить JS‑код как fallback (для веб‑браузеров).
 - [ ] Проверить: скан → поиск → открытие модалки → установка ячейки → сохранение.
 
 ### Этап 2: Tools Management
-- [ ] Перевести flow на native‑движок для `tools_management`.
+- [X] Перевести flow на native‑движок для `tools_management`.
 - [ ] Проверить: скан → фильтр → модалки (user/cell) → сохранение.
 
 ### Этап 3: Warehouse Item In
