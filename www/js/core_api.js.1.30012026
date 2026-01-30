@@ -1026,7 +1026,7 @@ const CoreAPI = {
             this.initialized = true;
         },
         bindEvents() {
-            const handleSearch = () => {
+            this.searchInput.addEventListener('input', () => {
                 if (this.searchTimer) {
                     clearTimeout(this.searchTimer);
                 }
@@ -1034,10 +1034,7 @@ const CoreAPI = {
                     const value = this.searchInput.value.trim();
                     this.fetchResults(value);
                 }, 300);
-            };
-            this.searchInput.addEventListener('input', handleSearch);
-            this.searchInput.addEventListener('change', handleSearch);
-            this.searchInput.addEventListener('search', handleSearch);
+            });
         },
         clearResults() {
             if (this.tbody) {
