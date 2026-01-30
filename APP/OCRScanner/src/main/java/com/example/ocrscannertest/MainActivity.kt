@@ -355,6 +355,18 @@ fun AppRoot() {
         }
     }
 
+
+    fun describeScanAction(action: ScanAction?): String {
+        if (action == null) return "null"
+        val base = action.action ?: "unknown"
+        return when (base) {
+            "fill_field" -> "fill_field ids=${action.fieldIds ?: action.fieldId ?: "?"}"
+            "api_check" -> "api_check ${action.endpoint ?: "?"}"
+            "web_callback" -> "web_callback ${action.callback ?: "?"}"
+            else -> base
+        }
+    }
+
     fun openDefaultScanner() {
         when (taskConfig?.defaultMode?.lowercase()) {
             "ocr" -> {
@@ -518,6 +530,9 @@ fun AppRoot() {
             cfg.activeContext?.let { key ->
                 val ctx = contexts[key]
                 if (ctx != null) {
+                    Handler(Looper.getMainLooper()).post {
+                        debugToast(context, "CTX RESOLVE: active_context=$key")
+                    }
                     onResolved(key, ctx)
                     return
                 } else {
@@ -529,6 +544,9 @@ fun AppRoot() {
             val resolvedKey = activeKey ?: contexts.keys.firstOrNull()
             val resolvedContext = resolvedKey?.let { contexts[it] }
             if (resolvedKey != null && resolvedContext != null) {
+                Handler(Looper.getMainLooper()).post {
+                    debugToast(context, "CTX RESOLVE: selector=$resolvedKey")
+                }
                 onResolved(resolvedKey, resolvedContext)
             }
         }
@@ -1253,6 +1271,21 @@ fun AppRoot() {
                                         currentStep?.qrAction ?: contextConfig.qr
                                     } else {
                                         currentStep?.barcodeAction ?: contextConfig.barcode
+                                    }
+                                    if (action?.action == "web_callback") {
+                                        Handler(Looper.getMainLooper()).post {
+                                            debugToast(
+                                                context,
+                                                "SCAN web_callback ctx=$contextKey step=${stepId ?: "none"} fn=${action.callback ?: "?"}"
+                                            )
+                                        }
+                                    } else {
+                                        Handler(Looper.getMainLooper()).post {
+                                            debugToast(
+                                                context,
+                                                "SCAN ctx=$contextKey step=${stepId ?: "none"} type=${if (result.isQr) "qr" else "barcode"} action=${describeScanAction(action)}"
+                                            )
+                                        }
                                     }
                                     if (isWarehouseMove) {
                                         handleWarehouseMoveScanResult(

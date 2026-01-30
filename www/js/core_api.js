@@ -2145,6 +2145,16 @@ window.reloadWarehouseItemIn = () => CoreAPI.ui.reloadList('warehouse_item_in');
     return normalized;
   }
 
+
+  function debugToolsScan(message) {
+    const text = String(message || '');
+    if (!text) return;
+    console.log(`[tools_scan] ${text}`);
+    if (window.__debugToolsScanToasts) {
+      showToast(text, 2500);
+    }
+  }
+
   function withSelectRetry(selectId, handler, tries = 5, delay = 300) {
     const select = document.getElementById(selectId);
     if (select) {
@@ -2157,9 +2167,11 @@ window.reloadWarehouseItemIn = () => CoreAPI.ui.reloadList('warehouse_item_in');
   window.setToolsUserFromQR = function (qrValue) {
     try {
       const token = extractTokenFromQr(qrValue);
+      debugToolsScan(`setToolsUserFromQR value="${qrValue}" token="${token}"`);
       if (!token) return false;
 
       return withSelectRetry('toolAssignedUser', (select) => {
+        debugToolsScan(`toolAssignedUser options=${select.options.length}`);
         const tokenUpper = token.toUpperCase();
         let found = null;
         for (const opt of select.options) {
@@ -2179,10 +2191,14 @@ window.reloadWarehouseItemIn = () => CoreAPI.ui.reloadList('warehouse_item_in');
           }
         }
 
-        if (!found) return false;
+        if (!found) {
+          debugToolsScan(`toolAssignedUser match not found for "${token}"`);
+          return false;
+        }
         select.value = found.value;
         select.dispatchEvent(new Event('change', { bubbles: true }));
         select.dispatchEvent(new Event('input', { bubbles: true }));
+        debugToolsScan(`toolAssignedUser set value=${found.value}`);
         return true;
       });
     } catch (e) {
@@ -2194,6 +2210,7 @@ window.reloadWarehouseItemIn = () => CoreAPI.ui.reloadList('warehouse_item_in');
   window.setToolsCellFromQR = function (qrValue) {
     try {
       let cellCode = String(qrValue || '').trim();
+      debugToolsScan(`setToolsCellFromQR value="${qrValue}"`);
       if (!cellCode) return false;
       const normalized = cellCode.replace(/\s+/g, ' ').trim();
       const upper = normalized.toUpperCase();
@@ -2203,6 +2220,7 @@ window.reloadWarehouseItemIn = () => CoreAPI.ui.reloadList('warehouse_item_in');
       if (!cellCode) return false;
 
       return withSelectRetry('toolStorageCell', (select) => {
+        debugToolsScan(`toolStorageCell code="${cellCode}" options=${select.options.length}`);
         const want = cellCode.toUpperCase();
         for (const opt of select.options) {
           const text = (opt.text || '').trim().toUpperCase();
@@ -2211,9 +2229,11 @@ window.reloadWarehouseItemIn = () => CoreAPI.ui.reloadList('warehouse_item_in');
             select.value = opt.value;
             select.dispatchEvent(new Event('change', { bubbles: true }));
             select.dispatchEvent(new Event('input', { bubbles: true }));
+            debugToolsScan(`toolStorageCell set value=${opt.value} text=${opt.text}`);
             return true;
           }
         }
+        debugToolsScan(`toolStorageCell match not found for "${cellCode}"`);
         return false;
       });
     } catch (e) {
