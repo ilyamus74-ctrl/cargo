@@ -1261,8 +1261,12 @@ fun AppRoot() {
                                     // НОВАЯ ЛОГИКА: проверяем, есть ли flow у контекста
                                     val contextFlow = contextConfig.flow
                                     val stepId = if (contextFlow != null) {
-                                        currentFlowStep ?: contextFlow.start
-                                    } else {
+                                        val candidate = currentFlowStep
+                                        if (candidate != null && contextFlow.steps.containsKey(candidate)) {
+                                            candidate
+                                        } else {
+                                            contextFlow.start
+                                        }                                    } else {
                                         null
                                     }
                                     val currentStep = stepId?.let { contextFlow?.steps?.get(it) }
