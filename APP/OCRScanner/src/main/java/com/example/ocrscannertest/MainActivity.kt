@@ -955,6 +955,8 @@ fun AppRoot() {
                             warehouseScanStep = WarehouseScanStep.BARCODE
                             showOcr = false
                             showBarcodeScan = false
+                        } else {
+                            webViewRef?.let { web -> clearActiveElementValue(web) }
                         }
                     }
                     MainActivity.onVolUpSingle = {
@@ -1274,10 +1276,15 @@ fun AppRoot() {
 
                                     } else {
                                         val cleanBarcode = sanitizeBarcodeInput(result.rawValue)
+                                        val scanValue = if (action?.action == "web_callback") {
+                                            result.rawValue
+                                        } else {
+                                            cleanBarcode
+                                        }
                                         webViewRef?.let { web ->
                                             fillBarcodeUsingTemplate(
                                                 web = web,
-                                                rawBarcode = cleanBarcode,
+                                                rawBarcode = scanValue,
                                                 action = action,
                                                 config = config,
                                                 scope = scope,
@@ -1299,9 +1306,14 @@ fun AppRoot() {
                                     } else {
                                         taskConfig?.barcodeAction
                                     }
+                                    val scanValue = if (action?.action == "web_callback") {
+                                        result.rawValue
+                                    } else {
+                                        cleanBarcode
+                                    }
                                     fillBarcodeUsingTemplate(
                                         web = web,
-                                        rawBarcode = cleanBarcode,
+                                        rawBarcode = scanValue,
                                         action = action,
                                         config = config,
                                         scope = scope,
@@ -2922,6 +2934,31 @@ fun setInputValueBySelector(webView: WebView, selector: String, value: String) {
     webView.post { webView.evaluateJavascript(js, null) }
 }
 
+fun setActiveElementValue(webView: WebView, value: String) {
+    val js = """
+        (function(){
+          var el = document.activeElement;
+          if (!el) return;
+          var tag = (el.tagName || '').toUpperCase();
+          if (el.isContentEditable) {
+            el.innerText = '${escapeJsString(value)}';
+          } else if (tag === 'INPUT' || tag === 'TEXTAREA') {
+            el.value = '${escapeJsString(value)}';
+          } else {
+            return;
+          }
+          el.dispatchEvent(new Event('input',{bubbles:true}));
+          el.dispatchEvent(new Event('change',{bubbles:true}));
+        })();
+    """.trimIndent()
+    webView.post { webView.evaluateJavascript(js, null) }
+}
+
+fun clearActiveElementValue(webView: WebView) {
+    setActiveElementValue(webView, "")
+}
+
+
 fun getInputValueBySelector(webView: WebView, selector: String, onResult: (String?) -> Unit) {
     val js = """
         (function(){
@@ -2998,10 +3035,16 @@ fun fillBarcodeUsingTemplate(
     scope: CoroutineScope,
     isQr: Boolean
 ) {
-    if (action == null) return
+
 
     val cleanBarcode = rawBarcode.trim()
     val parcel = buildParcelFromBarcode(cleanBarcode)
+
+    if (action == null) {
+        setActiveElementValue(web, cleanBarcode)
+        return
+    }
+
 
     fun valueForKey(key: String): String {
         return when (key.lowercase()) {
@@ -3023,6 +3066,11 @@ fun fillBarcodeUsingTemplate(
             }
             val names = (action.fieldNames ?: emptyList()).ifEmpty {
                 action.fieldName?.let { listOf(it) } ?: emptyList()
+            }
+
+            if (ids.isEmpty() && names.isEmpty()) {
+                setActiveElementValue(web, cleanBarcode)
+                return
             }
 
             // ids
