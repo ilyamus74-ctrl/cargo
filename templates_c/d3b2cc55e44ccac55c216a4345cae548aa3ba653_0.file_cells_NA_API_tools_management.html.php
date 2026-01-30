@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-01-30 08:10:56
+/* Smarty version 5.3.1, created on 2026-01-30 11:38:15
   from 'file:cells_NA_API_tools_management.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_697c67903afd10_04425907',
+  'unifunc' => 'content_697c9827963761_06295812',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     'd3b2cc55e44ccac55c216a4345cae548aa3ba653' => 
     array (
       0 => 'cells_NA_API_tools_management.html',
-      1 => 1769760644,
+      1 => 1769773084,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_697c67903afd10_04425907 (\Smarty\Template $_smarty_tpl) {
+function content_697c9827963761_06295812 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>    <div class="pagetitle">
       <h1>Управление инструментами</h1>
@@ -246,6 +246,10 @@ $_smarty_current_dir = '/home/cells/web/templates';
                   "action": "web_callback",
                   "callback": "setToolsUserFromQR"
                 },
+                "barcode": {
+                  "action": "web_callback",
+                  "callback": "setToolsUserFromQR"
+                },
                 "on_action": {
                   "scan":    [ { "op": "open_scanner", "mode": "qr" } ],
                   "confirm": [ { "op": "web", "name": "triggerToolsManagementSave" } ],
@@ -256,7 +260,7 @@ $_smarty_current_dir = '/home/cells/web/templates';
               "wait_for_confirm": {
                 "mode": "none",
                 "on_action": {
-                  "scan":    [ { "op": "noop" } ],
+                  "scan":    [ { "op": "set_step", "to": "scan_user_qr" }, { "op": "open_scanner", "mode": "qr" } ],
                   "confirm": [ { "op": "web", "name": "triggerToolsManagementSave" } ],
                   "clear":   [ { "op": "web", "name": "resetToolsUserSelection" }, { "op": "set_step", "to": "scan_user_qr" } ],
                   "reset":   [ { "op": "web", "name": "resetToolsUserSelection" }, { "op": "set_step", "to": "scan_user_qr" } ]
@@ -277,6 +281,10 @@ $_smarty_current_dir = '/home/cells/web/templates';
                   "action": "web_callback",
                   "callback": "setToolsCellFromQR"
                 },
+                "barcode": {
+                  "action": "web_callback",
+                  "callback": "setToolsCellFromQR"
+                },
                 "on_action": {
                   "scan":    [ { "op": "open_scanner", "mode": "qr" } ],
                   "confirm": [ { "op": "web", "name": "triggerToolsManagementSave" } ],
@@ -287,7 +295,7 @@ $_smarty_current_dir = '/home/cells/web/templates';
               "wait_for_confirm": {
                 "mode": "none",
                 "on_action": {
-                  "scan":    [ { "op": "noop" } ],
+                  "scan":    [ { "op": "set_step", "to": "scan_cell_qr" }, { "op": "open_scanner", "mode": "qr" } ],
                   "confirm": [ { "op": "web", "name": "triggerToolsManagementSave" } ],
                   "clear":   [ { "op": "web", "name": "resetToolsCellSelection" }, { "op": "set_step", "to": "scan_cell_qr" } ],
                   "reset":   [ { "op": "web", "name": "resetToolsCellSelection" }, { "op": "set_step", "to": "scan_cell_qr" } ]

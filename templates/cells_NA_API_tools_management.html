@@ -219,6 +219,10 @@
                   "action": "web_callback",
                   "callback": "setToolsUserFromQR"
                 },
+                "barcode": {
+                  "action": "web_callback",
+                  "callback": "setToolsUserFromQR"
+                },
                 "on_action": {
                   "scan":    [ { "op": "open_scanner", "mode": "qr" } ],
                   "confirm": [ { "op": "web", "name": "triggerToolsManagementSave" } ],
@@ -229,7 +233,7 @@
               "wait_for_confirm": {
                 "mode": "none",
                 "on_action": {
-                  "scan":    [ { "op": "noop" } ],
+                  "scan":    [ { "op": "set_step", "to": "scan_user_qr" }, { "op": "open_scanner", "mode": "qr" } ],
                   "confirm": [ { "op": "web", "name": "triggerToolsManagementSave" } ],
                   "clear":   [ { "op": "web", "name": "resetToolsUserSelection" }, { "op": "set_step", "to": "scan_user_qr" } ],
                   "reset":   [ { "op": "web", "name": "resetToolsUserSelection" }, { "op": "set_step", "to": "scan_user_qr" } ]
@@ -250,6 +254,10 @@
                   "action": "web_callback",
                   "callback": "setToolsCellFromQR"
                 },
+                "barcode": {
+                  "action": "web_callback",
+                  "callback": "setToolsCellFromQR"
+                },
                 "on_action": {
                   "scan":    [ { "op": "open_scanner", "mode": "qr" } ],
                   "confirm": [ { "op": "web", "name": "triggerToolsManagementSave" } ],
@@ -260,7 +268,7 @@
               "wait_for_confirm": {
                 "mode": "none",
                 "on_action": {
-                  "scan":    [ { "op": "noop" } ],
+                  "scan":    [ { "op": "set_step", "to": "scan_cell_qr" }, { "op": "open_scanner", "mode": "qr" } ],
                   "confirm": [ { "op": "web", "name": "triggerToolsManagementSave" } ],
                   "clear":   [ { "op": "web", "name": "resetToolsCellSelection" }, { "op": "set_step", "to": "scan_cell_qr" } ],
                   "reset":   [ { "op": "web", "name": "resetToolsCellSelection" }, { "op": "set_step", "to": "scan_cell_qr" } ]
