@@ -88,6 +88,8 @@
 - Пункт 4: `DOCS/native_flow_refactor_checklist_p4.md`.
 - Пункт 5: `DOCS/native_flow_refactor_checklist_p5.md`.
 - Пункт 6: `DOCS/native_flow_refactor_checklist_p6.md`.
+- Пункт 7: `DOCS/native_flow_refactor_checklist_p7.md`.
+- Пункт 8: `DOCS/native_flow_refactor_checklist_p8.md`.
 ---
 
 ## Результат
