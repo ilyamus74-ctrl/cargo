@@ -15,11 +15,22 @@ const CoreAPI = {
          * @returns {Promise<Object>}
          */
         async call(formData) {
+            const debugRequests = window.__debugCoreApiRequests;
+            if (debugRequests) {
+                const payload = formData instanceof FormData
+                    ? Object.fromEntries(formData.entries())
+                    : {};
+                console.log('[core_api][request]', payload.action || 'unknown', payload);
+            }
             const response = await fetch('/core_api.php', {
                 method: 'POST',
                 body: formData
             });
-            return this.parseJSON(response);
+            const data = await this.parseJSON(response);
+            if (debugRequests) {
+                console.log('[core_api][response]', data);
+            }
+            return data;
         },
         /**
          * Безопасный парсинг JSON с логированием ошибок
@@ -2145,6 +2156,40 @@ window.reloadWarehouseItemIn = () => CoreAPI.ui.reloadList('warehouse_item_in');
     return normalized;
   }
 
+  function extractCellCodeFromQr(rawValue) {
+    const raw = String(rawValue || '').trim();
+    if (!raw) return '';
+    const normalized = raw.replace(/\s+/g, ' ').trim();
+    const upper = normalized.toUpperCase();
+    if (upper.startsWith('CELL:')) return normalized.slice(5).trim();
+
+    const queryMatch = normalized.match(/[?&]cell(?:_code|_id)?=([^&#]+)/i);
+    if (queryMatch) return decodeURIComponent(queryMatch[1]).trim();
+
+    const pathMatch = normalized.match(/\/cells?\/([^/?#]+)/i);
+    if (pathMatch) return decodeURIComponent(pathMatch[1]).trim();
+
+    try {
+      const url = new URL(normalized);
+      const cellParam = url.searchParams.get('cell') || url.searchParams.get('cell_code') || url.searchParams.get('cell_id');
+      if (cellParam) return cellParam.trim();
+      const pathname = url.pathname || '';
+      const segments = pathname.split('/').filter(Boolean);
+      if (segments.length) return decodeURIComponent(segments[segments.length - 1]).trim();
+    } catch (e) {
+      // not a valid URL, continue with fallback parsing
+    }
+
+    const tokens = normalized.match(/[A-Za-z0-9_-]+/g);
+    if (tokens && tokens.length) return tokens[tokens.length - 1];
+    return normalized;
+  }
+
+  function normalizeCellCode(value) {
+    return String(value || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  }
+
+
 
   function debugToolsScan(message) {
     const text = String(message || '');
@@ -2218,7 +2263,7 @@ window.reloadWarehouseItemIn = () => CoreAPI.ui.reloadList('warehouse_item_in');
 
   window.setToolsCellFromQR = function (qrValue) {
     try {
-      let cellCode = String(qrValue || '').trim();
+      let cellCode = extractCellCodeFromQr(qrValue);
       debugToolsScan(`setToolsCellFromQR value="${qrValue}"`);
       if (!cellCode) return false;
       const normalized = cellCode.replace(/\s+/g, ' ').trim();
@@ -2229,11 +2274,11 @@ window.reloadWarehouseItemIn = () => CoreAPI.ui.reloadList('warehouse_item_in');
       if (!cellCode) return false;
 
       return withSelectRetry('toolStorageCell', (select) => {
-        debugToolsScan(`toolStorageCell code="${cellCode}" options=${select.options.length}`);
-        const want = cellCode.toUpperCase();
+        const want = normalizeCellCode(cellCode);
+        debugToolsScan(`toolStorageCell code="${cellCode}" normalized="${want}" options=${select.options.length}`);
         for (const opt of select.options) {
-          const text = (opt.text || '').trim().toUpperCase();
-          const value = (opt.value || '').trim().toUpperCase();
+          const text = normalizeCellCode(opt.text);
+          const value = normalizeCellCode(opt.value);
           if (text === want || value === want) {
             select.value = opt.value;
             select.dispatchEvent(new Event('change', { bubbles: true }));
