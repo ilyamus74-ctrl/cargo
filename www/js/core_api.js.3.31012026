@@ -2018,3 +2018,44 @@ window.DeviceScanConfig = window.DeviceScanConfig || (function () {
   });
 })();
 
+function showOverlayDebug(message, isError = false) {
+  console.log(message);
+
+  let box = document.getElementById('__wm_overlay_debug');
+  if (!box) {
+    box = document.createElement('div');
+    box.id = '__wm_overlay_debug';
+    box.style.position = 'fixed';
+    box.style.left = '10px';
+    box.style.right = '10px';
+    box.style.bottom = '10px';
+    box.style.zIndex = '999999';
+    box.style.padding = '10px 12px';
+    box.style.borderRadius = '8px';
+    box.style.fontSize = '14px';
+    box.style.border = '1px solid';
+    box.style.boxShadow = '0 6px 18px rgba(0,0,0,.2)';
+    document.body.appendChild(box);
+  }
+
+  box.style.background = isError ? '#fff3cd' : '#d1ecf1';
+  box.style.borderColor = isError ? '#ffc107' : '#0dcaf0';
+  box.textContent = String(message);
+
+  // можно автоскрывать, но для отладки лучше оставить
+}
+window.__wmOverlayDebug = showOverlayDebug;
+
+window.__dbgConfirmScanner = function() {
+  window.__wmOverlayDebug('CONFIRM fired: scanner', true);
+  return true;
+};
+window.__dbgConfirmModal = function() {
+  window.__wmOverlayDebug('CONFIRM fired: scanner_modal', true);
+  return true;
+};
+
+window.__wmOverlayDebugConfirm = function() {
+  alert('CONFIRM FIRED');
+  return true;
+}
