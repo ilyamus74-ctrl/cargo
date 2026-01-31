@@ -10,7 +10,7 @@ session_start();
 $data['main_text']="<p><span lang='de' dir='ltr'>Entschuldigung. Diese Seite existiert nicht.</span></p> ";
 $data['main_text_h1']="Fehler 404";
 $data['description']="Fehler 404";
-$data['title']="Fehler 404 - Gräßler Sicherheitsdienste";
+$data['title']="Fehler 404 - CargoCells";
 $data['keywords']="Fehler,Fehler 404";
 
 $smarty->assign("data",$data);
