@@ -117,6 +117,287 @@
     </section>
 {literal}
 
+<script>
+// ============================================================================
+// JavaScript функции для работы с перемещением через сканер
+// ============================================================================
+// Вспомогательная функция для отображения отладочных сообщений на устройстве
+function showDebug(message, isError = false) {
+  console.log(message);
+  const debugDiv = document.getElementById('scanner-debug-status');
+  const debugText = document.getElementById('scanner-debug-text');
+  if (debugDiv && debugText) {
+    debugDiv.style.display = 'block';
+    debugDiv.style.background = isError ? '#fff3cd' : '#d1ecf1';
+    debugDiv.style.borderColor = isError ? '#ffc107' : '#0dcaf0';
+    debugText.textContent = message;
+    
+    // Автоматически скрываем через 5 секунд для неошибочных сообщений
+    if (!isError) {
+      setTimeout(() => {
+        debugDiv.style.display = 'none';
+      }, 5000);
+    }
+  }
+}
+
+
+/**
+ * Устанавливает значение ячейки из отсканированного QR кода
+ * Вызывается из приложения при сканировании QR в модалке
+ * 
+ * @param {string} qrValue - Значение QR кода (формат: "CELL:D1" или просто "D1")
+ * @returns {boolean} true если ячейка найдена и установлена, иначе false
+ */
+window.setCellFromQR = function(qrValue) {
+  showDebug('📱 setCellFromQR: ' + qrValue);
+    
+  // Парсим QR: ожидаем формат "CELL:D1" или просто "D1"
+  let cellCode = null;
+  
+  if (qrValue.toUpperCase().startsWith('CELL:')) {
+    cellCode = qrValue.substring(5).trim();
+    console.log('✓ Извлечён код ячейки из формата CELL:', cellCode);
+  } else {
+    cellCode = qrValue.trim();
+    showDebug('✓ Код ячейки: ' + cellCode);
+  }
+  
+  if (!cellCode) {
+    showDebug('❌ Не удалось извлечь код ячейки', true);
+    return false;
+  }
+  
+  // Функция для попытки установки значения
+  const trySetCell = (retryCount = 0) => {
+    showDebug('🔄 Попытка ' + (retryCount + 1) + ' установить ячейку');
+
+    // Ищем select в модалке
+    const cellSelect = document.getElementById('cellId');
+    if (!cellSelect) {
+      showDebug('❌ Select #cellId не найден', true);
+            
+      // Если модалка ещё не загружена, повторяем через 300ms (максимум 5 попыток)
+      if (retryCount < 5) {
+        setTimeout(() => trySetCell(retryCount + 1), 300);
+        return false;
+      }
+      showDebug('❌ Превышено кол-во попыток', true);
+      return false;
+    }
+    
+    showDebug('🔍 Ищем ячейку: ' + cellCode);
+        
+    // Ищем option с нужным кодом ячейки (case-insensitive)
+    let foundOption = null;
+    const upperCellCode = cellCode.toUpperCase();
+    
+    for (let option of cellSelect.options) {
+      const optionText = option.text.trim().toUpperCase();
+      if (optionText === upperCellCode) {
+        foundOption = option;
+        showDebug('✓ Найдена: ' + option.text);
+        break;
+      }
+    }
+    
+    if (!foundOption) {
+      showDebug('❌ Ячейка ' + cellCode + ' не найдена', true);
+      return false;
+    }
+
+    
+    // Устанавливаем значение
+    cellSelect.value = foundOption.value;
+    cellSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    cellSelect.dispatchEvent(new Event('input', { bubbles: true }));
+      
+    showDebug('✅ Ячейка установлена: ' + foundOption.text);
+  return true;
+    // Запускаем попытку установки
+  return trySetCell();
+};
+/**
+ * Сохраняет перемещение и закрывает модальное окно
+ * Вызывается при двойном нажатии Vol Down после выбора ячейки
+ */
+window.saveMoveAndClose = function() {
+  showDebug('💾 saveMoveAndClose: начало');
+    
+  // Ищем кнопку сохранения в модалке
+  const saveBtn = document.querySelector('button.js-core-link[data-core-action="warehouse_move_save_cell"]');
+  
+  if (!saveBtn) {
+    showDebug('❌ Кнопка сохранения не найдена', true);
+    return false;
+  }
+  
+  console.log('✓ Найдена кнопка сохранения, проверяем состояние');
+  console.log('Кнопка disabled:', saveBtn.disabled);
+  console.log('Кнопка видна:', saveBtn.offsetParent !== null);
+  
+  console.log('✓ Нажимаем кнопку сохранения');
+  showDebug('✓ Нажимаем кнопку сохранения');
+  saveBtn.click();
+  
+  // Закрываем модалку через небольшую задержку (чтобы сохранение успело выполниться)
+  setTimeout(() => {
+    console.log('🚪 Закрываем модалку');
+    showDebug('🚪 Закрываем модалку');
+    const modal = document.querySelector('.modal.show');
+    if (modal) {
+      const closeBtn = modal.querySelector('.btn-close, [data-bs-dismiss="modal"]');
+      if (closeBtn) {
+        closeBtn.click();
+        console.log('✓ Модалка закрыта');
+      } else {
+        console.log('❌ Не найдена кнопка закрытия модалки');
+      }
+    } else {
+      console.log('⚠️ Модалка уже закрыта или не найдена');
+    }
+  }, 500);
+  
+  return true;
+};
+// Вспомогательная функция: очистка поля поиска
+window.clear_search = function() {
+  const searchInput = document.getElementById('warehouse-move-search');
+  if (searchInput) {
+    searchInput.value = '';
+    searchInput.dispatchEvent(new Event('input', { bubbles: true }));
+    console.log('✓ Поле поиска очищено');
+  }
+};
+// Вспомогательная функция: сброс формы
+window.reset_form = function() {
+  window.clear_search();
+  const tbody = document.getElementById('warehouse-move-results-tbody');
+  if (tbody) tbody.innerHTML = '';
+  console.log('✓ Форма сброшена');
+};
+console.log('✓ Функции для warehouse move загружены');
+
+
+window.triggerSaveButton = function() {
+  console.log('🔵 triggerSaveButton: начало');
+  
+  const saveBtn = document.querySelector('button[data-core-action="warehouse_move_save_cell"]');
+  
+  if (!saveBtn) {
+    console.log('❌ Кнопка сохранения не найдена');
+    return false;
+  }
+  
+  // Получаем action из data-атрибута
+  const action = saveBtn.getAttribute('data-core-action');
+  
+  if (!action) {
+    console.log('❌ Нет data-core-action');
+    return false;
+  }
+  
+  console.log('✓ Вызываем CoreAPI для action:', action);
+  
+  // Вызываем CoreAPI напрямую (без клика)
+  if (typeof CoreAPI !== 'undefined' && CoreAPI.sendRequest) {
+    // Собираем данные формы
+    const form = saveBtn.closest('form');
+    const formData = new FormData(form);
+    const params = {};
+    for (let [key, value] of formData.entries()) {
+      params[key] = value;
+    }
+    
+    console.log('📤 Отправляем запрос:', action, params);
+    
+    CoreAPI.sendRequest(action, params);
+    return true;
+  } else {
+    console.log('❌ CoreAPI не найден, пробуем обычный клик');
+    // Fallback: пробуем триггерить событие
+    const clickEvent = new MouseEvent('click', {
+      bubbles: true,
+      cancelable: true,
+      view: window
+    });
+    saveBtn.dispatchEvent(clickEvent);
+    return true;
+  }
+};
+
+
+
+window.confirmBatchMove = function() {
+  showDebug('📦 confirmBatchMove: проверка', true);
+
+  const cellSelect = document.getElementById('warehouse-move-batch-cell');
+  if (!cellSelect || !cellSelect.value) {
+    showDebug('❌ Не выбрана ячейка', true);
+    return false;
+  }
+
+  const tbody = document.getElementById('warehouse-move-batch-results-tbody');
+  if (!tbody) {
+    showDebug('❌ Таблица результатов не найдена', true);
+    return false;
+  }
+
+  const totalEl = document.getElementById('warehouse-move-batch-total');
+  const total = Number((totalEl?.textContent || '').trim() || 0);
+  if (total !== 1) {
+    showDebug('⚠️ Нужно ровно одно совпадение', true);
+    return false;
+  }
+
+  const row = tbody.querySelector('tr');
+  if (!row) {
+    showDebug('⚠️ Строка результата не найдена', true);
+    return false;
+  }
+
+  const button = row.querySelector('.js-warehouse-move-batch-action');
+  const itemLink = row.querySelector('[data-item-id]');
+  const itemId = button?.getAttribute('data-item-id') || itemLink?.getAttribute('data-item-id');
+
+  if (!itemId) {
+    showDebug('❌ Не найден data-item-id', true);
+    return false;
+  }
+
+  if (button && button instanceof HTMLButtonElement && button.disabled) {
+    showDebug('❌ Кнопка перемещения недоступна', true);
+    return false;
+  }
+
+  showDebug('✅ Перемещаем посылку', false);
+
+  const formData = new FormData();
+  formData.append('action', 'warehouse_move_batch_assign');
+  formData.append('item_id', itemId);
+  formData.append('cell_id', cellSelect.value);
+
+  CoreAPI.client.call(formData)
+    .then((data) => {
+      if (!data || data.status !== 'ok') {
+        console.error('core_api error:', data);
+        alert(data?.message || 'Ошибка при выполнении запроса');
+        return;
+      }
+      const handler = CoreAPI.handlers?.warehouse_move_batch_assign || CoreAPI.handlers?.default;
+      if (handler) {
+        handler(data);
+      }
+    })
+    .catch((err) => {
+      console.error('core_api fetch error:', err);
+      alert('Ошибка связи с сервером');
+    });
+
+  return true;
+};
+</script>
+
 
 <script id="device-scan-config" type="application/json">
 {
