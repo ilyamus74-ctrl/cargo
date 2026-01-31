@@ -2200,6 +2200,15 @@ window.reloadWarehouseItemIn = () => CoreAPI.ui.reloadList('warehouse_item_in');
     }
   }
 
+  function debugToolsScan(message) {
+    const text = String(message || '');
+    if (!text) return;
+    console.log(`[tools_scan] ${text}`);
+    if (window.__debugToolsScanToasts) {
+      showToast(text, 2500);
+    }
+  }
+
   function withSelectRetry(selectId, handler, tries = 15, delay = 300) {
     const select = document.getElementById(selectId);
     if (select) {
@@ -2472,3 +2481,9 @@ window.__wmOverlayDebugConfirm = function() {
   alert('CONFIRM FIRED');
   return true;
 }
+
+//window.openMoveModal = function() {
+//  alert('FORCE openMoveModal called');
+//  console.log('FORCE openMoveModal called');
+//  return true;
+//};
