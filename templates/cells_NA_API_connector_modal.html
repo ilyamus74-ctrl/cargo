@@ -1,0 +1,155 @@
+<section class="section">
+  <div class="row">
+    <div class="col-lg-8">
+      <div class="card">
+        <div class="card-body pt-3">
+          <h5 class="card-title">Коннектор форварда</h5>
+          <form id="connector-form" autocomplete="off">
+            <input type="hidden" name="connector_id" value="{$connector.id|default:0}">
+
+            <div class="row mb-3">
+              <label for="connector_name" class="col-md-4 col-lg-3 col-form-label">Название</label>
+              <div class="col-md-8 col-lg-9">
+                <input type="text"
+                       class="form-control"
+                       id="connector_name"
+                       name="name"
+                       value="{$connector.name|escape}"
+                       placeholder="Forwarder Ltd">
+              </div>
+            </div>
+
+            <div class="row mb-3">
+              <label for="connector_countries" class="col-md-4 col-lg-3 col-form-label">Страны</label>
+              <div class="col-md-8 col-lg-9">
+                <input type="text"
+                       class="form-control"
+                       id="connector_countries"
+                       name="countries"
+                       value="{$connector.countries|escape}"
+                       placeholder="US, CA, MX">
+                <div class="form-text">Коды стран через запятую.</div>
+              </div>
+            </div>
+
+            <div class="row mb-3">
+              <label for="connector_base_url" class="col-md-4 col-lg-3 col-form-label">Base URL</label>
+              <div class="col-md-8 col-lg-9">
+                <input type="text"
+                       class="form-control"
+                       id="connector_base_url"
+                       name="base_url"
+                       value="{$connector.base_url|escape}"
+                       placeholder="https://portal.forwarder.com/api">
+              </div>
+            </div>
+
+            <div class="row mb-3">
+              <label for="connector_auth_type" class="col-md-4 col-lg-3 col-form-label">Тип доступа</label>
+              <div class="col-md-8 col-lg-9">
+                <select class="form-select" id="connector_auth_type" name="auth_type">
+                  <option value="login" {if $connector.auth_type == 'login'}selected{/if}>Логин / пароль</option>
+                  <option value="token" {if $connector.auth_type == 'token'}selected{/if}>API токен</option>
+                </select>
+              </div>
+            </div>
+
+            <div data-connector-auth="login">
+              <div class="row mb-3">
+                <label for="connector_username" class="col-md-4 col-lg-3 col-form-label">Логин</label>
+                <div class="col-md-8 col-lg-9">
+                  <input type="text"
+                         class="form-control"
+                         id="connector_username"
+                         name="auth_username"
+                         value="{$connector.auth_username|escape}"
+                         placeholder="login@example.com">
+                </div>
+              </div>
+
+              <div class="row mb-3">
+                <label for="connector_password" class="col-md-4 col-lg-3 col-form-label">Пароль</label>
+                <div class="col-md-8 col-lg-9">
+                  <input type="password"
+                         class="form-control"
+                         id="connector_password"
+                         name="auth_password"
+                         value=""
+                         placeholder="••••••••">
+                  {if $connector.id}
+                    <div class="form-text">Оставьте пустым, чтобы не менять пароль.</div>
+                  {/if}
+                </div>
+              </div>
+            </div>
+
+            <div data-connector-auth="token">
+              <div class="row mb-3">
+                <label for="connector_token" class="col-md-4 col-lg-3 col-form-label">API токен</label>
+                <div class="col-md-8 col-lg-9">
+                  <input type="password"
+                         class="form-control"
+                         id="connector_token"
+                         name="api_token"
+                         value=""
+                         placeholder="token">
+                  {if $connector.id}
+                    <div class="form-text">Оставьте пустым, чтобы не менять токен.</div>
+                  {/if}
+                </div>
+              </div>
+            </div>
+
+            <div class="row mb-3">
+              <label for="connector_notes" class="col-md-4 col-lg-3 col-form-label">Комментарий</label>
+              <div class="col-md-8 col-lg-9">
+                <textarea class="form-control"
+                          id="connector_notes"
+                          name="notes"
+                          rows="3">{$connector.notes|escape}</textarea>
+              </div>
+            </div>
+
+            <div class="row mb-3">
+              <label class="col-md-4 col-lg-3 col-form-label">Активен</label>
+              <div class="col-md-8 col-lg-9">
+                <div class="form-check">
+                  <input class="form-check-input"
+                         type="checkbox"
+                         id="connector_is_active"
+                         name="is_active"
+                         value="1"
+                         {if $connector.is_active == 1}checked{/if}>
+                  <label class="form-check-label" for="connector_is_active">Использовать для синхронизации</label>
+                </div>
+              </div>
+            </div>
+
+            <div class="row mb-3">
+              <label class="col-md-4 col-lg-3 col-form-label">Состояние</label>
+              <div class="col-md-8 col-lg-9">
+                <div class="small text-muted">Последний обмен: {$connector.last_sync_at|default:'—'}</div>
+                <div class="small text-muted">Успешное обновление: {$connector.last_success_at|default:'—'}</div>
+                <div class="small text-danger">{$connector.last_error|default:''|escape}</div>
+              </div>
+            </div>
+
+            <div class="d-flex gap-2">
+              <button type="button" class="btn btn-primary js-core-link" data-core-action="save_connector">
+                Сохранить
+              </button>
+              {if $connector.id}
+                <button type="button"
+                        class="btn btn-outline-danger js-core-link"
+                        data-core-action="save_connector"
+                        data-delete="1">
+                  Удалить
+                </button>
+              {/if}
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
