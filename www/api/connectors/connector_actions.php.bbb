@@ -1,0 +1,256 @@
+<?php
+declare(strict_types=1);
+
+// Доступны: $action, $user, $dbcnx, $smarty
+
+$storagePath = __DIR__ . '/../_tmp/connectors.json';
+
+function connectors_load(string $path): array
+{
+    if (!is_file($path)) {
+        return [];
+    }
+
+    $raw = file_get_contents($path);
+    if ($raw === false) {
+        return [];
+    }
+
+    $decoded = json_decode($raw, true);
+    if (!is_array($decoded)) {
+        return [];
+    }
+
+    return $decoded;
+}
+
+function connectors_save(string $path, array $connectors): void
+{
+    $dir = dirname($path);
+    if (!is_dir($dir)) {
+        mkdir($dir, 0775, true);
+    }
+
+    $json = json_encode(array_values($connectors), JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+    if ($json === false || file_put_contents($path, $json, LOCK_EX) === false) {
+        throw new RuntimeException('Failed to store connectors');
+    }
+}
+
+function connectors_status(array $connector): array
+{
+    $isActive = (int)($connector['is_active'] ?? 0) === 1;
+    $lastError = trim((string)($connector['last_error'] ?? ''));
+
+    if (!$isActive) {
+        return ['label' => 'Отключен', 'class' => 'secondary'];
+    }
+
+    if ($lastError !== '') {
+        return ['label' => 'Ошибка', 'class' => 'danger'];
+    }
+
+    return ['label' => 'Активен', 'class' => 'success'];
+}
+
+function connectors_find_index(array $connectors, int $id): int
+{
+    foreach ($connectors as $index => $connector) {
+        if ((int)($connector['id'] ?? 0) === $id) {
+            return (int)$index;
+        }
+    }
+
+    return -1;
+}
+
+$response = ['status' => 'error', 'message' => 'Unknown connectors action'];
+
+switch ($action) {
+    case 'view_connectors':
+        $connectors = connectors_load($storagePath);
+        $viewConnectors = [];
+
+        foreach ($connectors as $connector) {
+            $status = connectors_status($connector);
+            $viewConnectors[] = array_merge($connector, [
+                'status_label' => $status['label'],
+                'status_class' => $status['class'],
+                'auth_type'    => $connector['auth_type'] ?? 'login',
+            ]);
+        }
+
+        $smarty->assign('connectors', $viewConnectors);
+
+        ob_start();
+        $smarty->display('cells_NA_API_connectors.html');
+        $html = ob_get_clean();
+
+        $response = [
+            'status' => 'ok',
+            'html'   => $html,
+        ];
+        break;
+
+    case 'form_new_connector':
+        $connector = [
+            'id'          => 0,
+            'name'        => '',
+            'countries'   => '',
+            'base_url'    => '',
+            'auth_type'   => 'login',
+            'auth_username' => '',
+            'notes'       => '',
+            'is_active'   => 1,
+            'last_sync_at' => null,
+            'last_success_at' => null,
+            'last_error'  => '',
+        ];
+
+        $smarty->assign('connector', $connector);
+
+        ob_start();
+        $smarty->display('cells_NA_API_connector_modal.html');
+        $html = ob_get_clean();
+
+        $response = [
+            'status' => 'ok',
+            'html'   => $html,
+        ];
+        break;
+
+    case 'form_edit_connector':
+        $connectorId = (int)($_POST['connector_id'] ?? 0);
+        $connectors = connectors_load($storagePath);
+        $index = connectors_find_index($connectors, $connectorId);
+
+        if ($connectorId <= 0 || $index < 0) {
+            $response = [
+                'status'  => 'error',
+                'message' => 'Коннектор не найден',
+            ];
+            break;
+        }
+
+        $connector = $connectors[$index];
+        $connector['auth_type'] = $connector['auth_type'] ?? 'login';
+        $connector['auth_username'] = $connector['auth_username'] ?? '';
+        $connector['notes'] = $connector['notes'] ?? '';
+        $connector['is_active'] = (int)($connector['is_active'] ?? 0);
+
+        $smarty->assign('connector', $connector);
+
+        ob_start();
+        $smarty->display('cells_NA_API_connector_modal.html');
+        $html = ob_get_clean();
+
+        $response = [
+            'status' => 'ok',
+            'html'   => $html,
+        ];
+        break;
+
+    case 'save_connector':
+        $connectorId = (int)($_POST['connector_id'] ?? 0);
+        $deleteFlag = !empty($_POST['delete']);
+        $connectors = connectors_load($storagePath);
+
+        if ($deleteFlag) {
+            if ($connectorId > 0) {
+                $index = connectors_find_index($connectors, $connectorId);
+                if ($index >= 0) {
+                    unset($connectors[$index]);
+                    connectors_save($storagePath, $connectors);
+                }
+            }
+
+            $response = [
+                'status'  => 'ok',
+                'message' => 'Коннектор удалён',
+                'deleted' => true,
+            ];
+            break;
+        }
+
+        $name = trim($_POST['name'] ?? '');
+        if ($name === '') {
+            $response = [
+                'status'  => 'error',
+                'message' => 'Название обязательно',
+            ];
+            break;
+        }
+
+        $countries = trim($_POST['countries'] ?? '');
+        $baseUrl = trim($_POST['base_url'] ?? '');
+        $authType = trim($_POST['auth_type'] ?? 'login');
+        $authType = in_array($authType, ['login', 'token'], true) ? $authType : 'login';
+        $authUsername = trim($_POST['auth_username'] ?? '');
+        $authPassword = trim($_POST['auth_password'] ?? '');
+        $apiToken = trim($_POST['api_token'] ?? '');
+        $notes = trim($_POST['notes'] ?? '');
+        $isActive = !empty($_POST['is_active']) ? 1 : 0;
+
+        $index = $connectorId > 0 ? connectors_find_index($connectors, $connectorId) : -1;
+        $existing = $index >= 0 ? $connectors[$index] : [];
+
+        $connector = array_merge(
+            [
+                'id'            => $connectorId,
+                'last_sync_at'  => $existing['last_sync_at'] ?? null,
+                'last_success_at' => $existing['last_success_at'] ?? null,
+                'last_error'    => $existing['last_error'] ?? '',
+                'auth_password' => $existing['auth_password'] ?? '',
+                'api_token'     => $existing['api_token'] ?? '',
+            ],
+            $existing,
+            [
+                'name'        => $name,
+                'countries'   => $countries,
+                'base_url'    => $baseUrl,
+                'auth_type'   => $authType,
+                'notes'       => $notes,
+                'is_active'   => $isActive,
+            ]
+        );
+
+        if ($authType === 'login') {
+            $connector['auth_username'] = $authUsername;
+            if ($authPassword !== '') {
+                $connector['auth_password'] = $authPassword;
+            }
+            $connector['api_token'] = '';
+        } else {
+            if ($apiToken !== '') {
+                $connector['api_token'] = $apiToken;
+            }
+            $connector['auth_username'] = '';
+            $connector['auth_password'] = '';
+        }
+
+        if ($index >= 0) {
+            $connectors[$index] = $connector;
+            connectors_save($storagePath, $connectors);
+            $response = [
+                'status'  => 'ok',
+                'message' => 'Коннектор обновлён',
+                'connector_id' => $connector['id'],
+            ];
+            break;
+        }
+
+        $maxId = 0;
+        foreach ($connectors as $item) {
+            $maxId = max($maxId, (int)($item['id'] ?? 0));
+        }
+        $connector['id'] = $maxId + 1;
+        $connectors[] = $connector;
+        connectors_save($storagePath, $connectors);
+
+        $response = [
+            'status'  => 'ok',
+            'message' => 'Коннектор создан',
+            'connector_id' => $connector['id'],
+        ];
+        break;
+}
