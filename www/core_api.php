@@ -32,6 +32,12 @@ $routes = [
     'save_menu_item'        => 'api/users/roles_permissions_actions.php',
     'delete_menu_item'      => 'api/users/roles_permissions_actions.php',
 
+    // ========== CONNECTORS ==========
+    'view_connectors'       => 'api/connectors/connector_actions.php',
+    'form_new_connector'    => 'api/connectors/connector_actions.php',
+    'form_edit_connector'   => 'api/connectors/connector_actions.php',
+    'save_connector'        => 'api/connectors/connector_actions.php',
+
     // ========== TOOLS ==========
     'view_tools_stock'     => 'api/tools/tool_standard_actions.php',
     'tools_stock'          => 'api/tools/tool_standard_actions.php',

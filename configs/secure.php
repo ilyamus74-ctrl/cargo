@@ -302,6 +302,44 @@ function auth_require_action(string $action): void {
 }
 
 /**
+ * Гарантирует наличие пункта меню "Connectors" в группе Settings.
+ 
+function auth_add_connectors_menu(array &$menuTree, array &$allowedActions): void {
+    $groupCode = 'settings';
+    $actionCode = 'view_connectors';
+    $menuKey = 'settings.connectors';
+
+    if (!isset($menuTree[$groupCode])) {
+        $menuTree[$groupCode] = [
+            'code'  => $groupCode,
+            'title' => 'Setting',
+            'icon'  => 'bi bi-gear-wide',
+            'items' => [],
+        ];
+    }
+
+    $exists = false;
+    foreach ($menuTree[$groupCode]['items'] as $item) {
+        if (($item['menu_key'] ?? '') === $menuKey || ($item['action'] ?? '') === $actionCode) {
+            $exists = true;
+            break;
+        }
+    }
+
+    if (!$exists) {
+        $menuTree[$groupCode]['items'][] = [
+            'menu_key' => $menuKey,
+            'title'    => 'Connectors',
+            'icon'     => 'bi bi-plug',
+            'action'   => $actionCode,
+        ];
+    }
+
+    $allowedActions[$actionCode] = true;
+}
+*/
+
+/**
  * Логин: проверка username/password, загрузка меню/прав, обновление статистики, запись в сессию и аудит.
  */
 function auth_login(string $username, string $password): bool {
@@ -425,6 +463,8 @@ function auth_login(string $username, string $password): bool {
     }
 
     $permissions = auth_load_permissions_for_roles([$roleCode]);
+
+//    auth_add_connectors_menu($menuTree, $allowedActions);
 
     // Пишем всё в сессию
     $_SESSION['user'] = [
@@ -638,6 +678,8 @@ function auth_login_by_qr_token(string $qrToken): ?array {
 
         $stmtM->close();
     }
+
+//    auth_add_connectors_menu($menuTree, $allowedActions);
 
     // Пишем в сессию то же самое, что и auth_login
     $_SESSION['user'] = [

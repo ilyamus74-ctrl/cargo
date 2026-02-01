@@ -66,11 +66,20 @@ const CoreAPI = {
                 'save_item_stock': () => this.getFormById('item-stock-modal-form'),
                 'save_permission': () => this.getFormById('permission-form'),
                 'save_menu_item': () => this.getFormById('menu-item-form'),
+                'save_connector': (currentLink) => {
+                    const fd = this.getFormById('connector-form');
+                    if (currentLink && currentLink.getAttribute('data-delete') === '1') {
+                        fd.append('delete', '1');
+                    }
+                    return fd;
+                },
+
 
                 'form_edit_user': () => this.withAttribute('user_id', link),
                 'form_edit_device': () => this.withAttribute('device_id', link),
                 'form_edit_tool_stock': () => this.withAttribute('tool_id', link),
                 'form_edit_cell': () => this.withAttribute('cell_id', link),
+                'form_edit_connector': () => this.withAttribute('connector_id', link),
                 'tools_management_open_modal': () => this.withAttribute('tool_id', link),
                 'tools_management_open_user_modal': () => this.withAttribute('tool_id', link),
                 'tools_management_open_cell_modal': () => this.withAttribute('tool_id', link),
@@ -107,7 +116,7 @@ const CoreAPI = {
                 },
                 'tools_management_save_move': () => this.getFormById('tool-storage-move-form')
             };
-            const fd = builders[action] ? builders[action]() : new FormData();
+            const fd = builders[action] ? builders[action](link) : new FormData();
             fd.append('action', action);
             return fd;
         },
@@ -398,6 +407,30 @@ const CoreAPI = {
         'form_edit_cell': (data) => {
             CoreAPI.ui.showModal(data.html);
         },
+        // === CONNECTORS ===
+        'form_new_connector': (data) => {
+            CoreAPI.ui.showModal(data.html);
+            if (CoreAPI.connectors?.initForm) {
+                CoreAPI.connectors.initForm();
+            }
+        },
+        'form_edit_connector': (data) => {
+            CoreAPI.ui.showModal(data.html);
+            if (CoreAPI.connectors?.initForm) {
+                CoreAPI.connectors.initForm();
+            }
+        },
+        'save_connector': async (data) => {
+            if (data.deleted) {
+                alert(data.message || 'Коннектор удалён');
+                CoreAPI.ui.onModalCloseOnce(() => CoreAPI.ui.reloadList('view_connectors'));
+                CoreAPI.ui.closeModal();
+                return;
+            }
+            alert(data.message || 'Сохранено');
+            CoreAPI.ui.closeModal();
+            await CoreAPI.ui.reloadList('view_connectors');
+        },
         'add_new_cells': (data) => {
             alert(data.message || 'Ячейки добавлены');
             if (data.html) {
@@ -615,6 +648,11 @@ const CoreAPI = {
             if (action === 'delete_menu_item') {
                 const menuKey = link.getAttribute('data-menu-item-key') || '';
                 if (!confirm(`Удалить пункт меню ${menuKey || 'выбранный'}?`)) {
+                    return;
+                }
+            }
+            if (action === 'save_connector' && link.getAttribute('data-delete') === '1') {
+                if (!confirm('Удалить коннектор?')) {
                     return;
                 }
             }
@@ -2017,4 +2055,3 @@ window.DeviceScanConfig = window.DeviceScanConfig || (function () {
     }
   });
 })();
-

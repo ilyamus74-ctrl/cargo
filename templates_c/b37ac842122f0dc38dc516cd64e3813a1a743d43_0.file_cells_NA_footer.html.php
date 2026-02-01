@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-01-17 20:40:32
+/* Smarty version 5.3.1, created on 2026-02-01 13:06:07
   from 'file:cells_NA_footer.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_696bf3c07ea478_21848294',
+  'unifunc' => 'content_697f4fbf954ca6_63277454',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     'b37ac842122f0dc38dc516cd64e3813a1a743d43' => 
     array (
       0 => 'cells_NA_footer.html',
-      1 => 1768682425,
+      1 => 1769950841,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_696bf3c07ea478_21848294 (\Smarty\Template $_smarty_tpl) {
+function content_697f4fbf954ca6_63277454 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>
   <!-- ======= Footer ======= -->
@@ -71,6 +71,9 @@ $_smarty_current_dir = '/home/cells/web/templates';
 >
   <?php echo '<script'; ?>
  src="js/core_api.js"><?php echo '</script'; ?>
+>
+  <?php echo '<script'; ?>
+ src="js/connectors/connector_api.js"><?php echo '</script'; ?>
 >
 <?php echo '<script'; ?>
 >

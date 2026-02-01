@@ -1,0 +1,106 @@
+    <div class="pagetitle">
+      <h1>Settings connectors</h1>
+      <nav>
+        <ol class="breadcrumb">
+          <li class="breadcrumb-item"><a href="index.html">Main</a></li>
+          <li class="breadcrumb-item">Settings</li>
+          <li class="breadcrumb-item active">Connectors</li>
+        </ol>
+      </nav>
+    </div><!-- End Page Title -->
+
+    <section class="section" data-page-init="connectors">
+      <div class="row">
+        <div class="col-xl-12">
+          <div class="card">
+            <div class="card-body">
+              <div class="d-flex flex-wrap align-items-center justify-content-between">
+                <h5 class="card-title mb-0">Коннекторы форвардов</h5>
+                <button type="button"
+                        class="btn btn-primary js-core-link"
+                        data-core-action="form_new_connector">
+                  Добавить коннектор
+                </button>
+              </div>
+              <div class="table-responsive mt-3">
+                <table class="table table-sm align-middle">
+                  <thead>
+                    <tr>
+                      <th scope="col">Название</th>
+                      <th scope="col">Страны</th>
+                      <th scope="col">Тип доступа</th>
+                      <th scope="col">Статус</th>
+                      <th scope="col">Последний обмен</th>
+                      <th scope="col">Успешное обновление</th>
+                      <th scope="col">Ошибка</th>
+                      <th scope="col" class="text-end">Действия</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {if $connectors|@count > 0}
+                      {foreach $connectors as $connector}
+                        <tr>
+                          <td>
+                            <div class="fw-semibold">{$connector.name|escape}</div>
+                            {if $connector.base_url}
+                              <div class="text-muted small">{$connector.base_url|escape}</div>
+                            {/if}
+                          </td>
+                          <td>{$connector.countries|default:'—'|escape}</td>
+                          <td>
+                            {if $connector.auth_type == 'token'}
+                              API Token
+                            {else}
+                              Логин/пароль
+                            {/if}
+                          </td>
+                          <td>
+                            <span class="badge bg-{$connector.status_class|default:'secondary'}">
+                              {$connector.status_label|default:'—'}
+                            </span>
+                          </td>
+                          <td>{$connector.last_sync_at|default:'—'}</td>
+                          <td>{$connector.last_success_at|default:'—'}</td>
+                          <td class="text-truncate" style="max-width: 160px;">
+                            {$connector.last_error|default:'—'|escape}
+                          </td>
+                          <td class="text-end">
+                            <button type="button"
+                                    class="btn btn-sm btn-outline-primary js-core-link"
+                                    data-core-action="form_edit_connector"
+                                    data-connector-id="{$connector.id}">
+                              Редактировать
+                            </button>
+                          </td>
+                        </tr>
+                      {/foreach}
+                    {else}
+                      <tr>
+                        <td colspan="8" class="text-muted text-center">Коннекторы не настроены</td>
+                      </tr>
+                    {/if}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+          <div class="modal fade" id="fullscreenModal" tabindex="-1">
+            <div class="modal-dialog modal-fullscreen">
+              <div class="modal-content">
+                <div class="modal-header">
+                  <h5 class="modal-title">Коннектор</h5>
+                  <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                  Контент коннектора загрузится сюда после выбора.
+                </div>
+                <div class="modal-footer">
+                  <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Закрыть</button>
+                </div>
+              </div>
+            </div>
+          </div><!-- End Full Screen Modal -->
+        </div>
+      </div>
+    </section>
