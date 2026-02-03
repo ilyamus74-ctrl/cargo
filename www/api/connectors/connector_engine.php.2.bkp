@@ -45,22 +45,6 @@ function connector_engine_fill_fields(array $fields, array $connector): array
     return $result;
 }
 
-function connector_engine_resolve_url(string $url, array $connector): string
-{
-    $url = trim($url);
-    if ($url === '') {
-        return $url;
-    }
-    if (preg_match('#^https?://#i', $url)) {
-        return $url;
-    }
-    $baseUrl = trim((string)($connector['base_url'] ?? ''));
-    if ($baseUrl === '') {
-        return $url;
-    }
-    return rtrim($baseUrl, '/') . '/' . ltrim($url, '/');
-}
-
 function connector_engine_css_to_xpath(string $selector): string
 {
     $selector = trim($selector);
@@ -168,95 +152,6 @@ function connector_engine_match_success(string $html, string $selector, string $
     ];
 }
 
-function connector_engine_extract_json_path(array $data, string $path)
-{
-    if ($path === '') {
-        return null;
-    }
-    $segments = explode('.', $path);
-    $current = $data;
-    foreach ($segments as $segment) {
-        if (is_array($current) && array_key_exists($segment, $current)) {
-            $current = $current[$segment];
-            continue;
-        }
-        return null;
-    }
-    return $current;
-}
-
-function connector_engine_expect_match(array $response, array $expect): array
-{
-    $statusExpected = $expect['status_code'] ?? null;
-    if ($statusExpected !== null && (int)$response['status'] !== (int)$statusExpected) {
-        return [
-            'ok' => false,
-            'message' => 'Код ответа не совпадает',
-        ];
-    }
-
-    $jsonPath = (string)($expect['json_path'] ?? '');
-    if ($jsonPath !== '') {
-        $json = json_decode((string)$response['body'], true);
-        if (!is_array($json)) {
-            return [
-                'ok' => false,
-                'message' => 'Ответ не является JSON',
-            ];
-        }
-        $actual = connector_engine_extract_json_path($json, $jsonPath);
-        $operator = (string)($expect['operator'] ?? '=');
-        $expectedValue = $expect['value'] ?? null;
-
-        $compareOk = false;
-        switch ($operator) {
-            case '=':
-            case '==':
-                $compareOk = $actual == $expectedValue;
-                break;
-            case '!=':
-                $compareOk = $actual != $expectedValue;
-                break;
-            case '>':
-                $compareOk = $actual > $expectedValue;
-                break;
-            case '<':
-                $compareOk = $actual < $expectedValue;
-                break;
-            case '>=':
-                $compareOk = $actual >= $expectedValue;
-                break;
-            case '<=':
-                $compareOk = $actual <= $expectedValue;
-                break;
-            case 'contains':
-                if (is_array($actual)) {
-                    $compareOk = in_array($expectedValue, $actual, true);
-                } else {
-                    $compareOk = mb_stripos((string)$actual, (string)$expectedValue) !== false;
-                }
-                break;
-            default:
-                return [
-                    'ok' => false,
-                    'message' => 'Неизвестный оператор сравнения',
-                ];
-        }
-
-        if (!$compareOk) {
-            return [
-                'ok' => false,
-                'message' => 'Проверка JSON не прошла',
-            ];
-        }
-    }
-
-    return [
-        'ok' => true,
-        'message' => 'Проверка ответа прошла',
-    ];
-}
-
 function connector_engine_request(
     string $url,
     string $method,
@@ -309,13 +204,7 @@ function connector_engine_request(
     ];
 }
 
-function connector_engine_update_status(
-    mysqli $dbcnx,
-    int $connectorId,
-    bool $ok,
-    string $message,
-    int $userId = 0
-): void
+function connector_engine_update_status(mysqli $dbcnx, int $connectorId, bool $ok, string $message): void
 {
     if ($ok) {
         $sql = "UPDATE connectors
@@ -329,9 +218,6 @@ function connector_engine_update_status(
             $stmt->execute();
             $stmt->close();
         }
-        if (function_exists('audit_log')) {
-            audit_log($userId, 'CONNECTOR_STATUS_OK', 'connector', $connectorId, $message);
-        }
         return;
     }
 
@@ -344,9 +230,6 @@ function connector_engine_update_status(
         $stmt->bind_param('si', $message, $connectorId);
         $stmt->execute();
         $stmt->close();
-    }
-    if (function_exists('audit_log')) {
-        audit_log($userId, 'CONNECTOR_STATUS_FAIL', 'connector', $connectorId, $message);
     }
 }
 
@@ -363,7 +246,7 @@ function connector_engine_run(mysqli $dbcnx, array $connector): array
 
     $scenario = $parsed['scenario'];
     $login = $scenario['login'] ?? [];
-    $loginUrl = connector_engine_resolve_url((string)($login['url'] ?? ''), $connector);
+    $loginUrl = (string)($login['url'] ?? '');
     if ($loginUrl === '') {
         return [
             'ok' => false,
@@ -384,60 +267,8 @@ function connector_engine_run(mysqli $dbcnx, array $connector): array
         ];
     }
 
-    $steps = $scenario['steps'] ?? [];
-    if (is_array($steps) && count($steps) > 0) {
-        foreach ($steps as $index => $step) {
-            if (!is_array($step)) {
-                continue;
-            }
-            $stepUrl = connector_engine_resolve_url((string)($step['url'] ?? ''), $connector);
-            $stepMethod = (string)($step['method'] ?? 'GET');
-            $stepFields = connector_engine_fill_fields((array)($step['fields'] ?? []), $connector);
-            $stepResponse = connector_engine_request($stepUrl, $stepMethod, $stepFields, $cookieFile);
-            if (!$stepResponse['ok']) {
-                @unlink($cookieFile);
-                return [
-                    'ok' => false,
-                    'message' => 'Шаг ' . ($index + 1) . ': ' . $stepResponse['message'],
-                ];
-            }
-
-            $expect = $step['expect'] ?? [];
-            if (is_array($expect) && count($expect) > 0) {
-                $check = connector_engine_expect_match($stepResponse, $expect);
-                if (!$check['ok']) {
-                    @unlink($cookieFile);
-                    return [
-                        'ok' => false,
-                        'message' => 'Шаг ' . ($index + 1) . ': ' . $check['message'],
-                    ];
-                }
-            }
-
-            $success = $step['success'] ?? [];
-            if (is_array($success) && count($success) > 0) {
-                $successSelector = (string)($success['selector'] ?? '');
-                $successText = (string)($success['text'] ?? '');
-                $match = connector_engine_match_success($stepResponse['body'], $successSelector, $successText);
-                if (!$match['ok']) {
-                    @unlink($cookieFile);
-                    return [
-                        'ok' => false,
-                        'message' => 'Шаг ' . ($index + 1) . ': ' . $match['message'],
-                    ];
-                }
-            }
-        }
-
-        @unlink($cookieFile);
-        return [
-            'ok' => true,
-            'message' => 'Все шаги выполнены успешно',
-        ];
-    }
-
     $success = $scenario['success'] ?? [];
-    $successUrl = connector_engine_resolve_url((string)($success['url'] ?? ''), $connector);
+    $successUrl = (string)($success['url'] ?? '');
     $successSelector = (string)($success['selector'] ?? '');
     $successText = (string)($success['text'] ?? '');
     $successBody = $loginResponse['body'];
@@ -463,7 +294,7 @@ function connector_engine_run(mysqli $dbcnx, array $connector): array
     ];
 }
 
-function connector_engine_run_by_id(mysqli $dbcnx, int $connectorId, int $userId = 0): array
+function connector_engine_run_by_id(mysqli $dbcnx, int $connectorId): array
 {
     $sql = "SELECT
                 id,
@@ -498,7 +329,7 @@ function connector_engine_run_by_id(mysqli $dbcnx, int $connectorId, int $userId
     }
 
     $result = connector_engine_run($dbcnx, $connector);
-    connector_engine_update_status($dbcnx, $connectorId, $result['ok'], $result['message'], $userId);
+    connector_engine_update_status($dbcnx, $connectorId, $result['ok'], $result['message']);
     return $result + ['connector_id' => $connectorId];
 }
 

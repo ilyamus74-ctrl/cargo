@@ -164,12 +164,11 @@ const CoreAPI = {
          * Показать HTML в модальном окне
          */
         showModal(html) {
-            this.cleanupModalBackdrops();
             const modalBody = document.querySelector('#fullscreenModal .modal-body');
             if (modalBody) {
                 modalBody.innerHTML = html;
             }
-
+            
             const modalEl = document.getElementById('fullscreenModal');
             if (modalEl && window.bootstrap?.Modal) {
                 const modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
@@ -219,21 +218,7 @@ const CoreAPI = {
             if (modalEl && window.bootstrap?.Modal) {
                 const modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
                 modal.hide();
-                setTimeout(() => this.cleanupModalBackdrops(), 300);
-                return;
             }
-                        this.cleanupModalBackdrops();
-        },
-        /**
-         * Очистить зависшие затемнения/классы модалки
-         */
-        cleanupModalBackdrops() {
-            const openModal = document.querySelector('.modal.show');
-            if (openModal) return;
-            document.querySelectorAll('.modal-backdrop').forEach((backdrop) => backdrop.remove());
-            document.body.classList.remove('modal-open');
-            document.body.style.removeProperty('padding-right');
-            document.body.style.removeProperty('overflow');
         },
         /**
          * Установить callback на закрытие модалки (один раз)

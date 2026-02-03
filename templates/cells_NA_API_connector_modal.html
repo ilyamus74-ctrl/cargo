@@ -119,12 +119,11 @@
                           rows="10"
                           placeholder="JSON сценарий входа">{$connector.scenario_json|escape}</textarea>
                 <div class="form-text">
-                  Укажите URL входа, параметры формы и критерий успеха (селектор/текст).
+                  Укажите URL входа, параметры формы и критерий успеха (селектор/текст). Для API шагов используйте steps с expect.
                 </div>
-                <pre class="form-text mb-0">{literal}{"login":{"url":"https://portal.example.com/login","method":"POST","fields":{"username":"${login}","password":"${password}"}},"success":{"selector":".user-profile","text":"Личный кабинет"}}{/literal}</pre>
+                <pre class="form-text mb-0">{literal}{"login":{"url":"https://portal.example.com/login","method":"POST","fields":{"username":"${login}","password":"${password}"}},"success":{"selector":"a[href*=\"logout\"]","text":"Log out"},"steps":[{"name":"Dashboard","url":"https://portal.example.com/dashboard","method":"GET","success":{"selector":".user-profile"}},{"name":"Balance API","url":"https://portal.example.com/api/balance","method":"GET","expect":{"json_path":"data.balance","operator":">","value":0}}]}{/literal}</pre>
               </div>
             </div>
-
 
             <div class="row mb-3">
               <label class="col-md-4 col-lg-3 col-form-label">Активен</label>

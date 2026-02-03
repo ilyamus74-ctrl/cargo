@@ -226,7 +226,15 @@ switch ($action) {
             break;
         }
 
-        $result = connector_engine_run_by_id($dbcnx, $connectorId);
+        $userId = (int)($user['id'] ?? 0);
+        $result = connector_engine_run_by_id($dbcnx, $connectorId, $userId);
+        audit_log(
+            $userId,
+            $result['ok'] ? 'CONNECTOR_TEST_OK' : 'CONNECTOR_TEST_FAIL',
+            'connector',
+            $connectorId,
+            $result['message'] ?? 'Проверка коннектора'
+        );
         $response = [
             'status' => 'ok',
             'ok' => $result['ok'],
@@ -246,6 +254,9 @@ switch ($action) {
                 $stmt->execute();
                 $stmt->close();
             }
+
+            $userId = (int)($user['id'] ?? 0);
+            audit_log($userId, 'CONNECTOR_DELETE', 'connector', $connectorId, 'Коннектор удалён');
 
             $response = [
                 'status' => 'ok',
@@ -274,6 +285,7 @@ switch ($action) {
         $notes = trim($_POST['notes'] ?? '');
         $isActive = !empty($_POST['is_active']) ? 1 : 0;
 
+        $isNew = $connectorId <= 0;
         if ($connectorId > 0) {
             $existing = connectors_fetch_one($dbcnx, $connectorId);
             if (!$existing) {
@@ -355,6 +367,14 @@ switch ($action) {
             $stmt->execute();
             $connectorId = (int)$stmt->insert_id;
             $stmt->close();
+        }
+
+
+        $userId = (int)($user['id'] ?? 0);
+        if ($isNew) {
+            audit_log($userId, 'CONNECTOR_CREATE', 'connector', $connectorId, 'Коннектор создан');
+        } else {
+            audit_log($userId, 'CONNECTOR_UPDATE', 'connector', $connectorId, 'Коннектор обновлён');
         }
 
         $response = [

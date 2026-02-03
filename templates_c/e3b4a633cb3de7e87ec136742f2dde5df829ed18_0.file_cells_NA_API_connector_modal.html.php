@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-02-03 08:41:13
+/* Smarty version 5.3.1, created on 2026-02-03 11:39:44
   from 'file:cells_NA_API_connector_modal.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_6981b4a9e3c744_84290314',
+  'unifunc' => 'content_6981de80e96744_33646857',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     'e3b4a633cb3de7e87ec136742f2dde5df829ed18' => 
     array (
       0 => 'cells_NA_API_connector_modal.html',
-      1 => 1770107797,
+      1 => 1770118384,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_6981b4a9e3c744_84290314 (\Smarty\Template $_smarty_tpl) {
+function content_6981de80e96744_33646857 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?><section class="section">
   <div class="row">
@@ -150,12 +150,11 @@ $_smarty_current_dir = '/home/cells/web/templates';
                           placeholder="JSON сценарий входа"><?php echo htmlspecialchars((string)$_smarty_tpl->getValue('connector')['scenario_json'], ENT_QUOTES, 'UTF-8', true);?>
 </textarea>
                 <div class="form-text">
-                  Укажите URL входа, параметры формы и критерий успеха (селектор/текст).
+                  Укажите URL входа, параметры формы и критерий успеха (селектор/текст). Для API шагов используйте steps с expect.
                 </div>
-                <pre class="form-text mb-0">{"login":{"url":"https://portal.example.com/login","method":"POST","fields":{"username":"${login}","password":"${password}"}},"success":{"selector":".user-profile","text":"Личный кабинет"}}</pre>
+                <pre class="form-text mb-0">{"login":{"url":"https://portal.example.com/login","method":"POST","fields":{"username":"${login}","password":"${password}"}},"success":{"selector":"a[href*=\"logout\"]","text":"Log out"},"steps":[{"name":"Dashboard","url":"https://portal.example.com/dashboard","method":"GET","success":{"selector":".user-profile"}},{"name":"Balance API","url":"https://portal.example.com/api/balance","method":"GET","expect":{"json_path":"data.balance","operator":">","value":0}}]}</pre>
               </div>
             </div>
-
 
             <div class="row mb-3">
               <label class="col-md-4 col-lg-3 col-form-label">Активен</label>
