@@ -262,7 +262,8 @@ function connector_engine_request(
     string $method,
     array $fields,
     string $cookieFile,
-    string $cookieValue = ''
+    string $cookieValue = '',
+    bool $sslIgnore = false
 ): array {
     $ch = curl_init();
     $method = strtoupper($method);
@@ -288,6 +289,12 @@ function connector_engine_request(
     }
 
     curl_setopt_array($ch, $options);
+
+
+    if ($sslIgnore) {
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
+    }
 
     if ($method === 'POST') {
         curl_setopt($ch, CURLOPT_POST, true);
@@ -375,6 +382,7 @@ function connector_engine_run(mysqli $dbcnx, array $connector): array
     $skipLogin = (bool)($manualConfirm['skip_login'] ?? false);
     $authCookies = (string)($connector['auth_cookies'] ?? '');
     $authToken = (string)($connector['auth_token'] ?? '');
+    $sslIgnore = (bool)($connector['ssl_ignore'] ?? false);
     $cookieFile = tempnam(sys_get_temp_dir(), 'connector_cookie_');
 
     if ($manualRequired && $authCookies === '' && $authToken === '') {
@@ -391,7 +399,7 @@ function connector_engine_run(mysqli $dbcnx, array $connector): array
     if ($loginUrl !== '') {
         $method = (string)($login['method'] ?? 'POST');
         $fields = connector_engine_fill_fields((array)($login['fields'] ?? []), $connector);
-        $loginResponse = connector_engine_request($loginUrl, $method, $fields, $cookieFile, $authCookies);
+        $loginResponse = connector_engine_request($loginUrl, $method, $fields, $cookieFile, $authCookies, $sslIgnore);
         if (!$loginResponse['ok']) {
             @unlink($cookieFile);
             return [
@@ -410,7 +418,7 @@ function connector_engine_run(mysqli $dbcnx, array $connector): array
             $stepUrl = connector_engine_resolve_url((string)($step['url'] ?? ''), $connector);
             $stepMethod = (string)($step['method'] ?? 'GET');
             $stepFields = connector_engine_fill_fields((array)($step['fields'] ?? []), $connector);
-            $stepResponse = connector_engine_request($stepUrl, $stepMethod, $stepFields, $cookieFile, $authCookies);
+            $stepResponse = connector_engine_request($stepUrl, $stepMethod, $stepFields, $cookieFile, $authCookies, $sslIgnore);
             if (!$stepResponse['ok']) {
                 @unlink($cookieFile);
                 return [
@@ -460,7 +468,7 @@ function connector_engine_run(mysqli $dbcnx, array $connector): array
     $successBody = $loginResponse['body'];
 
     if ($successUrl !== '') {
-        $successResponse = connector_engine_request($successUrl, 'GET', [], $cookieFile, $authCookies);
+        $successResponse = connector_engine_request($successUrl, 'GET', [], $cookieFile, $authCookies, $sslIgnore);
         if (!$successResponse['ok']) {
             @unlink($cookieFile);
             return [
@@ -490,6 +498,7 @@ function connector_engine_run_by_id(mysqli $dbcnx, int $connectorId, int $userId
                 auth_username,
                 auth_password,
                 api_token,
+                ssl_ignore,
                 scenario_json
             FROM connectors
             WHERE id = ?
@@ -555,4 +564,3 @@ if (PHP_SAPI === 'cli' && basename(__FILE__) === basename($_SERVER['SCRIPT_FILEN
     echo json_encode($result, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT) . PHP_EOL;
     exit($result['ok'] ? 0 : 2);
 }
-
