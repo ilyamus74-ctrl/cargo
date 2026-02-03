@@ -1,0 +1,19 @@
+{
+  "manifest_version": 3,
+  "name": "Connector Auth Sender",
+  "version": "1.0.0",
+  "description": "Send auth cookies/token to the Cargo connector system.",
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Connector Auth Sender"
+  },
+  "permissions": [
+    "cookies",
+    "storage",
+    "tabs",
+    "scripting"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ]
+}

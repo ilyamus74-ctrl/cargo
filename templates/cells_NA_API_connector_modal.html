@@ -117,6 +117,11 @@
                 <div class="alert alert-light border small mb-2">
                   {$connector.manual_instruction|default:'При необходимости вручную пройдите капчу и вставьте токен/куки.'|escape}
                 </div>
+                <div class="alert alert-info small mb-2">
+                  Для операторов без DevTools можно использовать расширение браузера:
+                  откройте сайт поставщика, нажмите кнопку расширения и отправьте токен/куки в систему.
+                  <a href="/extension/connector_auth_sender/README.md" target="_blank">Инструкция</a>
+                </div>
                 <div class="mb-2">
                   <label for="connector_auth_token" class="form-label small">Токен</label>
                   <textarea class="form-control"
@@ -142,6 +147,7 @@
                             placeholder="cookie1=value1; cookie2=value2">{$connector.auth_cookies|escape}</textarea>
                 </div>
                 <div class="small text-muted">
+                  ID коннектора: {$connector.id|default:'—'}<br>
                   Последнее подтверждение: {$connector.last_manual_confirm_at|default:'—'}
                 </div>
                 {if $connector.id}
@@ -150,6 +156,12 @@
                           data-core-action="manual_confirm_connector"
                           data-connector-id="{$connector.id}">
                     Обновить токен
+                  </button>
+                  <button type="button"
+                          class="btn btn-outline-primary btn-sm mt-2 js-core-link"
+                          data-core-action="manual_confirm_puppeteer"
+                          data-connector-id="{$connector.id}">
+                    Открыть браузер
                   </button>
                 {/if}
               </div>
