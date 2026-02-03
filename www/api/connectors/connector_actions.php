@@ -587,17 +587,17 @@ switch ($action) {
                 break;
             }
             $stmt->bind_param(
-                'ssssssssssissi',
+                'ssssssssssiissi',
                 $name,
                 $countries,
                 $baseUrl,
                 $authType,
                 $authUsername,
                 $authPassword,
+                $apiToken,
                 $authToken,
                 $authCookies,
                 $authTokenExpiresAt,
-                $apiToken,
                 $isActive,
                 $sslIgnore,
                 $scenarioJson,
@@ -608,8 +608,8 @@ switch ($action) {
             $stmt->close();
         } else {
             $sql = "INSERT INTO connectors
-                        (name, countries, base_url, auth_type, auth_username, auth_password, api_token, auth_token, auth_cookies, auth_token_expires_at, is_active, scenario_json, notes)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                        (name, countries, base_url, auth_type, auth_username, auth_password, api_token, auth_token, auth_cookies, auth_token_expires_at, is_active, ssl_ignore, scenario_json, notes)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
             $stmt = $dbcnx->prepare($sql);
             if (!$stmt) {
                 $response = [
@@ -619,7 +619,7 @@ switch ($action) {
                 break;
             }
             $stmt->bind_param(
-                'ssssssssssiss',
+                'ssssssssssiiss',
                 $name,
                 $countries,
                 $baseUrl,
