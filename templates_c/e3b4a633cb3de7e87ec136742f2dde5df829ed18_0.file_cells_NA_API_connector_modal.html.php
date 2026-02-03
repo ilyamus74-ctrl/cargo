@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-02-03 13:57:24
+/* Smarty version 5.3.1, created on 2026-02-03 18:08:28
   from 'file:cells_NA_API_connector_modal.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_6981fec4afd484_55320249',
+  'unifunc' => 'content_6982399cac4d96_72183377',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     'e3b4a633cb3de7e87ec136742f2dde5df829ed18' => 
     array (
       0 => 'cells_NA_API_connector_modal.html',
-      1 => 1770126069,
+      1 => 1770133764,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_6981fec4afd484_55320249 (\Smarty\Template $_smarty_tpl) {
+function content_6982399cac4d96_72183377 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?><section class="section">
   <div class="row">
@@ -148,6 +148,11 @@ $_smarty_current_dir = '/home/cells/web/templates';
                   <?php echo htmlspecialchars((string)(($tmp = $_smarty_tpl->getValue('connector')['manual_instruction'] ?? null)===null||$tmp==='' ? 'При необходимости вручную пройдите капчу и вставьте токен/куки.' ?? null : $tmp), ENT_QUOTES, 'UTF-8', true);?>
 
                 </div>
+                <div class="alert alert-info small mb-2">
+                  Для операторов без DevTools можно использовать расширение браузера:
+                  откройте сайт поставщика, нажмите кнопку расширения и отправьте токен/куки в систему.
+                  <a href="/extension/connector_auth_sender/README.md" target="_blank">Инструкция</a>
+                </div>
                 <div class="mb-2">
                   <label for="connector_auth_token" class="form-label small">Токен</label>
                   <textarea class="form-control"
@@ -176,6 +181,8 @@ $_smarty_current_dir = '/home/cells/web/templates';
 </textarea>
                 </div>
                 <div class="small text-muted">
+                  ID коннектора: <?php echo (($tmp = $_smarty_tpl->getValue('connector')['id'] ?? null)===null||$tmp==='' ? '—' ?? null : $tmp);?>
+<br>
                   Последнее подтверждение: <?php echo (($tmp = $_smarty_tpl->getValue('connector')['last_manual_confirm_at'] ?? null)===null||$tmp==='' ? '—' ?? null : $tmp);?>
 
                 </div>
@@ -186,6 +193,13 @@ $_smarty_current_dir = '/home/cells/web/templates';
                           data-connector-id="<?php echo $_smarty_tpl->getValue('connector')['id'];?>
 ">
                     Обновить токен
+                  </button>
+                  <button type="button"
+                          class="btn btn-outline-primary btn-sm mt-2 js-core-link"
+                          data-core-action="manual_confirm_puppeteer"
+                          data-connector-id="<?php echo $_smarty_tpl->getValue('connector')['id'];?>
+">
+                    Открыть браузер
                   </button>
                 <?php }?>
               </div>

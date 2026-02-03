@@ -67,7 +67,7 @@ async function sendAuthData(systemUrl, connectorId, authToken, authCookies) {
     formData.append('auth_cookies', authCookies);
     formData.append('auth_token_expires_at', '');
 
-    const response = await fetch(`${systemUrl.replace(/\\/$/, '')}/core_api.php`, {
+    const response = await fetch(`${systemUrl.replace(/\/$/, '')}/core_api.php`, {
         method: 'POST',
         body: formData,
         credentials: 'include',
@@ -116,3 +116,4 @@ sendBtn.addEventListener('click', async () => {
 });
 
 loadSettings();
+
