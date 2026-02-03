@@ -297,6 +297,7 @@ switch ($action) {
         $authToken = trim($_POST['auth_token'] ?? '');
         $authCookies = trim($_POST['auth_cookies'] ?? '');
         $authTokenExpiresAt = trim($_POST['auth_token_expires_at'] ?? '');
+        $authTokenExpiresAt = $authTokenExpiresAt !== '' ? $authTokenExpiresAt : null;
         $expiresAt = $authTokenExpiresAt !== '' ? $authTokenExpiresAt : null;
 
         $sql = "UPDATE connectors
@@ -459,6 +460,7 @@ switch ($action) {
         $authToken = trim($_POST['auth_token'] ?? '');
         $authCookies = trim($_POST['auth_cookies'] ?? '');
         $authTokenExpiresAt = trim($_POST['auth_token_expires_at'] ?? '');
+        $authTokenExpiresAt = $authTokenExpiresAt !== '' ? $authTokenExpiresAt : null;
         $expiresAt = $authTokenExpiresAt !== '' ? $authTokenExpiresAt : null;
 
         if ($authToken === '' && $authCookies === '') {
@@ -539,6 +541,7 @@ switch ($action) {
         $authToken = trim($_POST['auth_token'] ?? '');
         $authCookies = trim($_POST['auth_cookies'] ?? '');
         $authTokenExpiresAt = trim($_POST['auth_token_expires_at'] ?? '');
+        $authTokenExpiresAt = $authTokenExpiresAt !== '' ? $authTokenExpiresAt : null;
         $scenarioJson = trim($_POST['scenario_json'] ?? '');
         $notes = trim($_POST['notes'] ?? '');
         $isActive = !empty($_POST['is_active']) ? 1 : 0;
@@ -605,6 +608,14 @@ switch ($action) {
                 $connectorId
             );
             $stmt->execute();
+            if (!$stmt->execute()) {
+                $response = [
+                    'status' => 'error',
+                    'message' => 'DB error (update connector): ' . $stmt->error,
+                ];
+                $stmt->close();
+                break;
+            }
             $stmt->close();
         } else {
             $sql = "INSERT INTO connectors
@@ -636,6 +647,14 @@ switch ($action) {
                 $notes
             );
             $stmt->execute();
+            if (!$stmt->execute()) {
+                $response = [
+                    'status' => 'error',
+                    'message' => 'DB error (insert connector): ' . $stmt->error,
+                ];
+                $stmt->close();
+                break;
+            }
             $connectorId = (int)$stmt->insert_id;
             $stmt->close();
         }
