@@ -34,14 +34,16 @@ function connectors_ensure_schema(mysqli $dbcnx): void
     }
 
     $columnCheck = $dbcnx->query("SHOW COLUMNS FROM connectors LIKE 'scenario_json'");
-    if ($columnCheck && $columnCheck->num_rows === 0) {
-        $alterSql = "ALTER TABLE connectors ADD COLUMN scenario_json TEXT NULL AFTER last_error";
-        if (!$dbcnx->query($alterSql)) {
-            error_log('connectors schema alter error: ' . $dbcnx->error);
+    if ($columnCheck instanceof mysqli_result) {
+        if ($columnCheck->num_rows === 0) {
+            $alterSql = "ALTER TABLE connectors ADD COLUMN scenario_json TEXT NULL AFTER last_error";
+            if (!$dbcnx->query($alterSql)) {
+                error_log('connectors schema alter error: ' . $dbcnx->error);
+            }
         }
-    }
-    if ($columnCheck) {
         $columnCheck->free();
+    } elseif ($columnCheck === false) {
+        error_log('connectors schema check error: ' . $dbcnx->error);
     }
 }
 
@@ -289,7 +291,7 @@ switch ($action) {
                 break;
             }
             $stmt->bind_param(
-                'sssssssisisi',
+                'sssssssissi',
                 $name,
                 $countries,
                 $baseUrl,
@@ -317,7 +319,7 @@ switch ($action) {
                 break;
             }
             $stmt->bind_param(
-                'ssssssssss',
+                'sssssssiss',
                 $name,
                 $countries,
                 $baseUrl,
