@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-02-03 12:26:11
+/* Smarty version 5.3.1, created on 2026-02-03 13:57:24
   from 'file:cells_NA_API_connector_modal.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_6981e9635fd920_62572342',
+  'unifunc' => 'content_6981fec4afd484_55320249',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     'e3b4a633cb3de7e87ec136742f2dde5df829ed18' => 
     array (
       0 => 'cells_NA_API_connector_modal.html',
-      1 => 1770121184,
+      1 => 1770126069,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_6981e9635fd920_62572342 (\Smarty\Template $_smarty_tpl) {
+function content_6981fec4afd484_55320249 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?><section class="section">
   <div class="row">
@@ -140,6 +140,57 @@ $_smarty_current_dir = '/home/cells/web/templates';
               </div>
             </div>
 
+
+            <div class="row mb-3">
+              <label class="col-md-4 col-lg-3 col-form-label">Ручное подтверждение</label>
+              <div class="col-md-8 col-lg-9">
+                <div class="alert alert-light border small mb-2">
+                  <?php echo htmlspecialchars((string)(($tmp = $_smarty_tpl->getValue('connector')['manual_instruction'] ?? null)===null||$tmp==='' ? 'При необходимости вручную пройдите капчу и вставьте токен/куки.' ?? null : $tmp), ENT_QUOTES, 'UTF-8', true);?>
+
+                </div>
+                <div class="mb-2">
+                  <label for="connector_auth_token" class="form-label small">Токен</label>
+                  <textarea class="form-control"
+                            id="connector_auth_token"
+                            name="auth_token"
+                            rows="2"
+                            placeholder="Bearer token..."><?php echo htmlspecialchars((string)$_smarty_tpl->getValue('connector')['auth_token'], ENT_QUOTES, 'UTF-8', true);?>
+</textarea>
+                </div>
+                <div class="mb-2">
+                  <label for="connector_auth_token_expires" class="form-label small">Срок токена (YYYY-MM-DD HH:MM:SS)</label>
+                  <input type="text"
+                         class="form-control"
+                         id="connector_auth_token_expires"
+                         name="auth_token_expires_at"
+                         value="<?php echo htmlspecialchars((string)(($tmp = $_smarty_tpl->getValue('connector')['auth_token_expires_at'] ?? null)===null||$tmp==='' ? '' ?? null : $tmp), ENT_QUOTES, 'UTF-8', true);?>
+">
+                </div>
+                <div class="mb-2">
+                  <label for="connector_auth_cookies" class="form-label small">Cookies</label>
+                  <textarea class="form-control"
+                            id="connector_auth_cookies"
+                            name="auth_cookies"
+                            rows="3"
+                            placeholder="cookie1=value1; cookie2=value2"><?php echo htmlspecialchars((string)$_smarty_tpl->getValue('connector')['auth_cookies'], ENT_QUOTES, 'UTF-8', true);?>
+</textarea>
+                </div>
+                <div class="small text-muted">
+                  Последнее подтверждение: <?php echo (($tmp = $_smarty_tpl->getValue('connector')['last_manual_confirm_at'] ?? null)===null||$tmp==='' ? '—' ?? null : $tmp);?>
+
+                </div>
+                <?php if ($_smarty_tpl->getValue('connector')['id']) {?>
+                  <button type="button"
+                          class="btn btn-outline-secondary btn-sm mt-2 js-core-link"
+                          data-core-action="manual_confirm_connector"
+                          data-connector-id="<?php echo $_smarty_tpl->getValue('connector')['id'];?>
+">
+                    Обновить токен
+                  </button>
+                <?php }?>
+              </div>
+            </div>
+
             <div class="row mb-3">
               <label for="connector_scenario" class="col-md-4 col-lg-3 col-form-label">Сценарий входа</label>
               <div class="col-md-8 col-lg-9">
@@ -152,7 +203,7 @@ $_smarty_current_dir = '/home/cells/web/templates';
                 <div class="form-text">
                   Укажите URL входа, параметры формы и критерий успеха (селектор/текст). Для API шагов используйте steps с expect.
                 </div>
-                <pre class="form-text mb-0">{"login":{"url":"https://portal.example.com/login","method":"POST","fields":{"username":"${login}","password":"${password}"}},"success":{"selector":"a[href*=\"logout\"]","text":"Log out"},"steps":[{"name":"Dashboard","url":"https://portal.example.com/dashboard","method":"GET","success":{"selector":".user-profile"}},{"name":"Balance API","url":"https://portal.example.com/api/balance","method":"GET","expect":{"json_path":"data.balance","operator":">","value":0}}]}</pre>
+                <pre class="form-text mb-0">{"manual_confirm":{"required":true,"instruction":"Оператор проходит капчу и нажимает \"Обновить токен\""},"login":{"url":"https://portal.example.com/login","method":"POST","fields":{"username":"${login}","password":"${password}"}},"success":{"selector":"a[href*=\"logout\"]","text":"Log out"},"steps":[{"name":"Dashboard","url":"https://portal.example.com/dashboard","method":"GET","success":{"selector":".user-profile"}},{"name":"Balance API","url":"https://portal.example.com/api/balance","method":"GET","expect":{"json_path":"data.balance","operator":">","value":0}}]}</pre>
               </div>
             </div>
 

@@ -110,51 +110,6 @@
               </div>
             </div>
 
-
-            <div class="row mb-3">
-              <label class="col-md-4 col-lg-3 col-form-label">Ручное подтверждение</label>
-              <div class="col-md-8 col-lg-9">
-                <div class="alert alert-light border small mb-2">
-                  {$connector.manual_instruction|default:'При необходимости вручную пройдите капчу и вставьте токен/куки.'|escape}
-                </div>
-                <div class="mb-2">
-                  <label for="connector_auth_token" class="form-label small">Токен</label>
-                  <textarea class="form-control"
-                            id="connector_auth_token"
-                            name="auth_token"
-                            rows="2"
-                            placeholder="Bearer token...">{$connector.auth_token|escape}</textarea>
-                </div>
-                <div class="mb-2">
-                  <label for="connector_auth_token_expires" class="form-label small">Срок токена (YYYY-MM-DD HH:MM:SS)</label>
-                  <input type="text"
-                         class="form-control"
-                         id="connector_auth_token_expires"
-                         name="auth_token_expires_at"
-                         value="{$connector.auth_token_expires_at|default:''|escape}">
-                </div>
-                <div class="mb-2">
-                  <label for="connector_auth_cookies" class="form-label small">Cookies</label>
-                  <textarea class="form-control"
-                            id="connector_auth_cookies"
-                            name="auth_cookies"
-                            rows="3"
-                            placeholder="cookie1=value1; cookie2=value2">{$connector.auth_cookies|escape}</textarea>
-                </div>
-                <div class="small text-muted">
-                  Последнее подтверждение: {$connector.last_manual_confirm_at|default:'—'}
-                </div>
-                {if $connector.id}
-                  <button type="button"
-                          class="btn btn-outline-secondary btn-sm mt-2 js-core-link"
-                          data-core-action="manual_confirm_connector"
-                          data-connector-id="{$connector.id}">
-                    Обновить токен
-                  </button>
-                {/if}
-              </div>
-            </div>
-
             <div class="row mb-3">
               <label for="connector_scenario" class="col-md-4 col-lg-3 col-form-label">Сценарий входа</label>
               <div class="col-md-8 col-lg-9">
@@ -166,7 +121,7 @@
                 <div class="form-text">
                   Укажите URL входа, параметры формы и критерий успеха (селектор/текст). Для API шагов используйте steps с expect.
                 </div>
-                <pre class="form-text mb-0">{literal}{"manual_confirm":{"required":true,"instruction":"Оператор проходит капчу и нажимает \"Обновить токен\""},"login":{"url":"https://portal.example.com/login","method":"POST","fields":{"username":"${login}","password":"${password}"}},"success":{"selector":"a[href*=\"logout\"]","text":"Log out"},"steps":[{"name":"Dashboard","url":"https://portal.example.com/dashboard","method":"GET","success":{"selector":".user-profile"}},{"name":"Balance API","url":"https://portal.example.com/api/balance","method":"GET","expect":{"json_path":"data.balance","operator":">","value":0}}]}{/literal}</pre>
+                <pre class="form-text mb-0">{literal}{"login":{"url":"https://portal.example.com/login","method":"POST","fields":{"username":"${login}","password":"${password}"}},"success":{"selector":"a[href*=\"logout\"]","text":"Log out"},"steps":[{"name":"Dashboard","url":"https://portal.example.com/dashboard","method":"GET","success":{"selector":".user-profile"}},{"name":"Balance API","url":"https://portal.example.com/api/balance","method":"GET","expect":{"json_path":"data.balance","operator":">","value":0}}]}{/literal}</pre>
               </div>
             </div>
 

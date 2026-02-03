@@ -81,6 +81,7 @@ const CoreAPI = {
                 'form_edit_cell': () => this.withAttribute('cell_id', link),
                 'form_edit_connector': () => this.withAttribute('connector_id', link),
                 'test_connector': () => this.withAttribute('connector_id', link),
+                'manual_confirm_connector': () => this.getFormById('connector-form'),
 
                 'tools_management_open_modal': () => this.withAttribute('tool_id', link),
                 'tools_management_open_user_modal': () => this.withAttribute('tool_id', link),
@@ -454,6 +455,23 @@ const CoreAPI = {
             } else {
                 alert(data.message || 'Проверка завершилась ошибкой');
             }
+            await CoreAPI.ui.reloadList('view_connectors');
+            const connectorId = data.connector_id;
+            if (connectorId) {
+                const fd = new FormData();
+                fd.append('action', 'form_edit_connector');
+                fd.append('connector_id', connectorId);
+                const d2 = await CoreAPI.client.call(fd);
+                if (d2?.status === 'ok') {
+                    CoreAPI.ui.showModal(d2.html);
+                    if (CoreAPI.connectors?.initForm) {
+                        CoreAPI.connectors.initForm();
+                    }
+                }
+            }
+        },
+        'manual_confirm_connector': async (data) => {
+            alert(data.message || 'Токен обновлён');
             await CoreAPI.ui.reloadList('view_connectors');
             const connectorId = data.connector_id;
             if (connectorId) {

@@ -38,6 +38,7 @@ $routes = [
     'form_edit_connector'   => 'api/connectors/connector_actions.php',
     'save_connector'        => 'api/connectors/connector_actions.php',
     'test_connector'        => 'api/connectors/connector_actions.php',
+    'manual_confirm_connector' => 'api/connectors/connector_actions.php',
 
     // ========== TOOLS ==========
     'view_tools_stock'     => 'api/tools/tool_standard_actions.php',
