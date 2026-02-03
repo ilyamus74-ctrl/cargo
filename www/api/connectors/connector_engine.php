@@ -45,6 +45,43 @@ function connector_engine_fill_fields(array $fields, array $connector): array
     return $result;
 }
 
+function connector_engine_prepare_auth(array $auth, array $connector): array
+{
+    if (empty($auth)) {
+        return [];
+    }
+
+    $auth = connector_engine_fill_fields($auth, $connector);
+    $type = strtolower((string)($auth['type'] ?? ''));
+
+    if ($type === 'basic') {
+        return [
+            'type' => 'basic',
+            'username' => (string)($auth['username'] ?? ''),
+            'password' => (string)($auth['password'] ?? ''),
+        ];
+    }
+
+    return [];
+}
+
+function connector_engine_prepare_request_options(array $options, array $connector): array
+{
+    if (empty($options)) {
+        return [];
+    }
+
+    $options = connector_engine_fill_fields($options, $connector);
+    $prepared = [];
+
+    if (array_key_exists('ssl_verify', $options)) {
+        $prepared['ssl_verify'] = filter_var($options['ssl_verify'], FILTER_VALIDATE_BOOL, FILTER_NULL_ON_FAILURE);
+    }
+
+    return $prepared;
+}
+
+
 function connector_engine_resolve_url(string $url, array $connector): string
 {
     $url = trim($url);
@@ -261,7 +298,8 @@ function connector_engine_request(
     string $url,
     string $method,
     array $fields,
-    string $cookieFile
+    string $cookieFile,
+    array $options = []
 ): array {
     $ch = curl_init();
     $method = strtoupper($method);
@@ -281,6 +319,21 @@ function connector_engine_request(
         CURLOPT_COOKIEFILE => $cookieFile,
         CURLOPT_USERAGENT => 'CargoConnector/1.0',
     ]);
+
+    $auth = $options['auth'] ?? [];
+    if (is_array($auth) && ($auth['type'] ?? '') === 'basic') {
+        $username = (string)($auth['username'] ?? '');
+        $password = (string)($auth['password'] ?? '');
+        if ($username !== '' || $password !== '') {
+            curl_setopt($ch, CURLOPT_HTTPAUTH, CURLAUTH_BASIC);
+            curl_setopt($ch, CURLOPT_USERPWD, $username . ':' . $password);
+        }
+    }
+
+    if (array_key_exists('ssl_verify', $options) && $options['ssl_verify'] === false) {
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
+    }
 
     if ($method === 'POST') {
         curl_setopt($ch, CURLOPT_POST, true);
@@ -362,6 +415,11 @@ function connector_engine_run(mysqli $dbcnx, array $connector): array
     }
 
     $scenario = $parsed['scenario'];
+    $scenarioAuth = connector_engine_prepare_auth((array)($scenario['auth'] ?? []), $connector);
+    $scenarioOptions = connector_engine_prepare_request_options((array)($scenario['options'] ?? []), $connector);
+    if ((int)($connector['ssl_ignore'] ?? 0) === 1) {
+        $scenarioOptions['ssl_verify'] = false;
+    }
     $login = $scenario['login'] ?? [];
     $loginUrl = connector_engine_resolve_url((string)($login['url'] ?? ''), $connector);
     if ($loginUrl === '') {
@@ -374,8 +432,17 @@ function connector_engine_run(mysqli $dbcnx, array $connector): array
     $method = (string)($login['method'] ?? 'POST');
     $fields = connector_engine_fill_fields((array)($login['fields'] ?? []), $connector);
     $cookieFile = tempnam(sys_get_temp_dir(), 'connector_cookie_');
+    $loginAuth = connector_engine_prepare_auth((array)($login['auth'] ?? []), $connector);
+    if (empty($loginAuth)) {
+        $loginAuth = $scenarioAuth;
+    }
+    $loginOptions = connector_engine_prepare_request_options((array)($login['options'] ?? []), $connector);
+    if (!array_key_exists('ssl_verify', $loginOptions) && array_key_exists('ssl_verify', $scenarioOptions)) {
+        $loginOptions['ssl_verify'] = $scenarioOptions['ssl_verify'];
+    }
+    $loginOptions['auth'] = $loginAuth;
 
-    $loginResponse = connector_engine_request($loginUrl, $method, $fields, $cookieFile);
+    $loginResponse = connector_engine_request($loginUrl, $method, $fields, $cookieFile, $loginOptions);
     if (!$loginResponse['ok']) {
         @unlink($cookieFile);
         return [
@@ -393,7 +460,16 @@ function connector_engine_run(mysqli $dbcnx, array $connector): array
             $stepUrl = connector_engine_resolve_url((string)($step['url'] ?? ''), $connector);
             $stepMethod = (string)($step['method'] ?? 'GET');
             $stepFields = connector_engine_fill_fields((array)($step['fields'] ?? []), $connector);
-            $stepResponse = connector_engine_request($stepUrl, $stepMethod, $stepFields, $cookieFile);
+            $stepAuth = connector_engine_prepare_auth((array)($step['auth'] ?? []), $connector);
+            if (empty($stepAuth)) {
+                $stepAuth = $scenarioAuth;
+            }
+            $stepOptions = connector_engine_prepare_request_options((array)($step['options'] ?? []), $connector);
+            if (!array_key_exists('ssl_verify', $stepOptions) && array_key_exists('ssl_verify', $scenarioOptions)) {
+                $stepOptions['ssl_verify'] = $scenarioOptions['ssl_verify'];
+            }
+            $stepOptions['auth'] = $stepAuth;
+            $stepResponse = connector_engine_request($stepUrl, $stepMethod, $stepFields, $cookieFile, $stepOptions);
             if (!$stepResponse['ok']) {
                 @unlink($cookieFile);
                 return [
@@ -443,7 +519,9 @@ function connector_engine_run(mysqli $dbcnx, array $connector): array
     $successBody = $loginResponse['body'];
 
     if ($successUrl !== '') {
-        $successResponse = connector_engine_request($successUrl, 'GET', [], $cookieFile);
+        $successOptions = $scenarioOptions;
+        $successOptions['auth'] = $scenarioAuth;
+        $successResponse = connector_engine_request($successUrl, 'GET', [], $cookieFile, $successOptions);
         if (!$successResponse['ok']) {
             @unlink($cookieFile);
             return [
@@ -473,6 +551,7 @@ function connector_engine_run_by_id(mysqli $dbcnx, int $connectorId, int $userId
                 auth_username,
                 auth_password,
                 api_token,
+                ssl_ignore,
                 scenario_json
             FROM connectors
             WHERE id = ?

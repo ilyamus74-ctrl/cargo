@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-02-03 11:39:44
+/* Smarty version 5.3.1, created on 2026-02-03 12:26:11
   from 'file:cells_NA_API_connector_modal.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_6981de80e96744_33646857',
+  'unifunc' => 'content_6981e9635fd920_62572342',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     'e3b4a633cb3de7e87ec136742f2dde5df829ed18' => 
     array (
       0 => 'cells_NA_API_connector_modal.html',
-      1 => 1770118384,
+      1 => 1770121184,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_6981de80e96744_33646857 (\Smarty\Template $_smarty_tpl) {
+function content_6981e9635fd920_62572342 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?><section class="section">
   <div class="row">
@@ -168,6 +168,22 @@ $_smarty_current_dir = '/home/cells/web/templates';
                          <?php if ($_smarty_tpl->getValue('connector')['is_active'] == 1) {?>checked<?php }?>>
                   <label class="form-check-label" for="connector_is_active">Использовать для синхронизации</label>
                 </div>
+              </div>
+            </div>
+
+            <div class="row mb-3">
+              <label class="col-md-4 col-lg-3 col-form-label">SSL ignored</label>
+              <div class="col-md-8 col-lg-9">
+                <div class="form-check">
+                  <input class="form-check-input"
+                         type="checkbox"
+                         id="connector_ssl_ignore"
+                         name="ssl_ignore"
+                         value="1"
+                         <?php if ($_smarty_tpl->getValue('connector')['ssl_ignore'] == 1) {?>checked<?php }?>>
+                  <label class="form-check-label" for="connector_ssl_ignore">Игнорировать проверку SSL</label>
+                </div>
+                <div class="form-text">Используйте для самоподписных сертификатов. Опасно для продакшна.</div>
               </div>
             </div>
 

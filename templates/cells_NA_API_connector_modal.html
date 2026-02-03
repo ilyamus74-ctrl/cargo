@@ -141,6 +141,22 @@
             </div>
 
             <div class="row mb-3">
+              <label class="col-md-4 col-lg-3 col-form-label">SSL ignored</label>
+              <div class="col-md-8 col-lg-9">
+                <div class="form-check">
+                  <input class="form-check-input"
+                         type="checkbox"
+                         id="connector_ssl_ignore"
+                         name="ssl_ignore"
+                         value="1"
+                         {if $connector.ssl_ignore == 1}checked{/if}>
+                  <label class="form-check-label" for="connector_ssl_ignore">Игнорировать проверку SSL</label>
+                </div>
+                <div class="form-text">Используйте для самоподписных сертификатов. Опасно для продакшна.</div>
+              </div>
+            </div>
+
+            <div class="row mb-3">
               <label class="col-md-4 col-lg-3 col-form-label">Состояние</label>
               <div class="col-md-8 col-lg-9">
                 <div class="small text-muted">Последний обмен: {$connector.last_sync_at|default:'—'}</div>

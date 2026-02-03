@@ -23,6 +23,7 @@ function connectors_ensure_schema(mysqli $dbcnx): void
             last_sync_at DATETIME NULL,
             last_success_at DATETIME NULL,
             last_error TEXT NULL,
+            ssl_ignore TINYINT(1) NOT NULL DEFAULT 0,
             scenario_json TEXT NULL,
             notes TEXT NULL,
             created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -39,6 +40,20 @@ function connectors_ensure_schema(mysqli $dbcnx): void
     if ($columnCheck instanceof mysqli_result) {
         if ($columnCheck->num_rows === 0) {
             $alterSql = "ALTER TABLE connectors ADD COLUMN scenario_json TEXT NULL AFTER last_error";
+            if (!$dbcnx->query($alterSql)) {
+                error_log('connectors schema alter error: ' . $dbcnx->error);
+            }
+        }
+        $columnCheck->free();
+    } elseif ($columnCheck === false) {
+        error_log('connectors schema check error: ' . $dbcnx->error);
+    }
+
+
+    $columnCheck = $dbcnx->query("SHOW COLUMNS FROM connectors LIKE 'ssl_ignore'");
+    if ($columnCheck instanceof mysqli_result) {
+        if ($columnCheck->num_rows === 0) {
+            $alterSql = "ALTER TABLE connectors ADD COLUMN ssl_ignore TINYINT(1) NOT NULL DEFAULT 0 AFTER last_error";
             if (!$dbcnx->query($alterSql)) {
                 error_log('connectors schema alter error: ' . $dbcnx->error);
             }
@@ -92,6 +107,7 @@ function connectors_fetch_one(mysqli $dbcnx, int $connectorId): ?array
                 last_sync_at,
                 last_success_at,
                 last_error,
+                ssl_ignore,
                 scenario_json,
                 notes,
                 created_at,
@@ -128,6 +144,7 @@ switch ($action) {
                     last_sync_at,
                     last_success_at,
                     last_error,
+                    ssl_ignore,
                     scenario_json,
                     created_at,
                     updated_at
@@ -167,6 +184,7 @@ switch ($action) {
             'last_sync_at' => null,
             'last_success_at' => null,
             'last_error' => '',
+            'ssl_ignore' => 0,
             'scenario_json' => '',
             'notes' => '',
             'created_at' => null,
@@ -284,6 +302,7 @@ switch ($action) {
         $scenarioJson = trim($_POST['scenario_json'] ?? '');
         $notes = trim($_POST['notes'] ?? '');
         $isActive = !empty($_POST['is_active']) ? 1 : 0;
+        $sslIgnore = !empty($_POST['ssl_ignore']) ? 1 : 0;
 
         $isNew = $connectorId <= 0;
         if ($connectorId > 0) {
@@ -312,6 +331,7 @@ switch ($action) {
                            auth_password = ?,
                            api_token = ?,
                            is_active = ?,
+                           ssl_ignore = ?,
                            scenario_json = ?,
                            notes = ?
                      WHERE id = ?";
@@ -324,7 +344,7 @@ switch ($action) {
                 break;
             }
             $stmt->bind_param(
-                'sssssssissi',
+                'sssssssiissi',
                 $name,
                 $countries,
                 $baseUrl,
@@ -333,6 +353,7 @@ switch ($action) {
                 $authPassword,
                 $apiToken,
                 $isActive,
+                $sslIgnore,
                 $scenarioJson,
                 $notes,
                 $connectorId
@@ -341,8 +362,8 @@ switch ($action) {
             $stmt->close();
         } else {
             $sql = "INSERT INTO connectors
-                        (name, countries, base_url, auth_type, auth_username, auth_password, api_token, is_active, scenario_json, notes)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                        (name, countries, base_url, auth_type, auth_username, auth_password, api_token, is_active, ssl_ignore, scenario_json, notes)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
             $stmt = $dbcnx->prepare($sql);
             if (!$stmt) {
                 $response = [
@@ -352,7 +373,7 @@ switch ($action) {
                 break;
             }
             $stmt->bind_param(
-                'sssssssiss',
+                'sssssssiiss',
                 $name,
                 $countries,
                 $baseUrl,
@@ -361,6 +382,7 @@ switch ($action) {
                 $authPassword,
                 $apiToken,
                 $isActive,
+                $sslIgnore,
                 $scenarioJson,
                 $notes
             );
