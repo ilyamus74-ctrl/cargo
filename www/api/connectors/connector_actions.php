@@ -5,6 +5,8 @@ declare(strict_types=1);
 // Доступны: $action, $user, $dbcnx, $smarty
 $response = ['status' => 'error', 'message' => 'Unknown connector action'];
 
+require_once __DIR__ . '/connector_engine.php';
+
 function connectors_ensure_schema(mysqli $dbcnx): void
 {
     $sql = "
@@ -211,6 +213,25 @@ switch ($action) {
         $response = [
             'status' => 'ok',
             'html'   => $html,
+        ];
+        break;
+
+    case 'test_connector':
+        $connectorId = (int)($_POST['connector_id'] ?? 0);
+        if ($connectorId <= 0) {
+            $response = [
+                'status' => 'error',
+                'message' => 'connector_id required',
+            ];
+            break;
+        }
+
+        $result = connector_engine_run_by_id($dbcnx, $connectorId);
+        $response = [
+            'status' => 'ok',
+            'ok' => $result['ok'],
+            'message' => $result['message'],
+            'connector_id' => $connectorId,
         ];
         break;
 

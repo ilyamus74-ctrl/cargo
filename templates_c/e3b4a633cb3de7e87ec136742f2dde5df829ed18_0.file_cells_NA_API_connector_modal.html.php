@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-02-03 07:59:13
+/* Smarty version 5.3.1, created on 2026-02-03 08:41:13
   from 'file:cells_NA_API_connector_modal.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_6981aad18a85f4_82215855',
+  'unifunc' => 'content_6981b4a9e3c744_84290314',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     'e3b4a633cb3de7e87ec136742f2dde5df829ed18' => 
     array (
       0 => 'cells_NA_API_connector_modal.html',
-      1 => 1770105549,
+      1 => 1770107797,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_6981aad18a85f4_82215855 (\Smarty\Template $_smarty_tpl) {
+function content_6981b4a9e3c744_84290314 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?><section class="section">
   <div class="row">
@@ -188,6 +188,17 @@ $_smarty_current_dir = '/home/cells/web/templates';
               <button type="button" class="btn btn-primary js-core-link" data-core-action="save_connector">
                 Сохранить
               </button>
+
+              <?php if ($_smarty_tpl->getValue('connector')['id']) {?>
+                <button type="button"
+                        class="btn btn-outline-secondary js-core-link"
+                        data-core-action="test_connector"
+                        data-connector-id="<?php echo $_smarty_tpl->getValue('connector')['id'];?>
+">
+                  Проверить
+                </button>
+              <?php }?>
+
               <?php if ($_smarty_tpl->getValue('connector')['id']) {?>
                 <button type="button"
                         class="btn btn-outline-danger js-core-link"

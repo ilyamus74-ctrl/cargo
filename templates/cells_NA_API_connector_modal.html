@@ -154,6 +154,16 @@
               <button type="button" class="btn btn-primary js-core-link" data-core-action="save_connector">
                 Сохранить
               </button>
+
+              {if $connector.id}
+                <button type="button"
+                        class="btn btn-outline-secondary js-core-link"
+                        data-core-action="test_connector"
+                        data-connector-id="{$connector.id}">
+                  Проверить
+                </button>
+              {/if}
+
               {if $connector.id}
                 <button type="button"
                         class="btn btn-outline-danger js-core-link"
