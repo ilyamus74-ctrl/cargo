@@ -111,6 +111,18 @@
             </div>
 
             <div class="row mb-3">
+              <label for="connector_scenario" class="col-md-4 col-lg-3 col-form-label">Сценарий входа</label>
+              <div class="col-md-8 col-lg-9">
+                <textarea class="form-control"
+                          id="connector_scenario"
+                          name="scenario_json"
+                          rows="10"
+                          placeholder='{"login":{"url":"https://portal.example.com/login","method":"POST","fields":{"username":"${login}","password":"${password}"}},"success":{"selector":".user-profile","text":"Личный кабинет"}}'>{$connector.scenario_json|escape}</textarea>
+                <div class="form-text">Укажите URL входа, параметры формы и критерий успеха (селектор/текст).</div>
+              </div>
+            </div>
+
+            <div class="row mb-3">
               <label class="col-md-4 col-lg-3 col-form-label">Активен</label>
               <div class="col-md-8 col-lg-9">
                 <div class="form-check">

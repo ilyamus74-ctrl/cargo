@@ -21,6 +21,7 @@ function connectors_ensure_schema(mysqli $dbcnx): void
             last_sync_at DATETIME NULL,
             last_success_at DATETIME NULL,
             last_error TEXT NULL,
+            scenario_json TEXT NULL,
             notes TEXT NULL,
             created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
             updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -30,6 +31,17 @@ function connectors_ensure_schema(mysqli $dbcnx): void
 
     if (!$dbcnx->query($sql)) {
         error_log('connectors schema create error: ' . $dbcnx->error);
+    }
+
+    $columnCheck = $dbcnx->query("SHOW COLUMNS FROM connectors LIKE 'scenario_json'");
+    if ($columnCheck && $columnCheck->num_rows === 0) {
+        $alterSql = "ALTER TABLE connectors ADD COLUMN scenario_json TEXT NULL AFTER last_error";
+        if (!$dbcnx->query($alterSql)) {
+            error_log('connectors schema alter error: ' . $dbcnx->error);
+        }
+    }
+    if ($columnCheck) {
+        $columnCheck->free();
     }
 }
 
@@ -76,6 +88,7 @@ function connectors_fetch_one(mysqli $dbcnx, int $connectorId): ?array
                 last_sync_at,
                 last_success_at,
                 last_error,
+                scenario_json,
                 notes,
                 created_at,
                 updated_at
@@ -111,6 +124,7 @@ switch ($action) {
                     last_sync_at,
                     last_success_at,
                     last_error,
+                    scenario_json,
                     created_at,
                     updated_at
                 FROM connectors
@@ -149,6 +163,7 @@ switch ($action) {
             'last_sync_at' => null,
             'last_success_at' => null,
             'last_error' => '',
+            'scenario_json' => '',
             'notes' => '',
             'created_at' => null,
             'updated_at' => null,
@@ -232,6 +247,7 @@ switch ($action) {
         $authUsername = trim($_POST['auth_username'] ?? '');
         $authPassword = trim($_POST['auth_password'] ?? '');
         $apiToken = trim($_POST['api_token'] ?? '');
+        $scenarioJson = trim($_POST['scenario_json'] ?? '');
         $notes = trim($_POST['notes'] ?? '');
         $isActive = !empty($_POST['is_active']) ? 1 : 0;
 
@@ -261,6 +277,7 @@ switch ($action) {
                            auth_password = ?,
                            api_token = ?,
                            is_active = ?,
+                           scenario_json = ?,
                            notes = ?
                      WHERE id = ?";
             $stmt = $dbcnx->prepare($sql);
@@ -272,7 +289,7 @@ switch ($action) {
                 break;
             }
             $stmt->bind_param(
-                'sssssssisi',
+                'sssssssisisi',
                 $name,
                 $countries,
                 $baseUrl,
@@ -281,6 +298,7 @@ switch ($action) {
                 $authPassword,
                 $apiToken,
                 $isActive,
+                $scenarioJson,
                 $notes,
                 $connectorId
             );
@@ -288,8 +306,8 @@ switch ($action) {
             $stmt->close();
         } else {
             $sql = "INSERT INTO connectors
-                        (name, countries, base_url, auth_type, auth_username, auth_password, api_token, is_active, notes)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                        (name, countries, base_url, auth_type, auth_username, auth_password, api_token, is_active, scenario_json, notes)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
             $stmt = $dbcnx->prepare($sql);
             if (!$stmt) {
                 $response = [
@@ -299,7 +317,7 @@ switch ($action) {
                 break;
             }
             $stmt->bind_param(
-                'sssssssis',
+                'ssssssssss',
                 $name,
                 $countries,
                 $baseUrl,
@@ -308,6 +326,7 @@ switch ($action) {
                 $authPassword,
                 $apiToken,
                 $isActive,
+                $scenarioJson,
                 $notes
             );
             $stmt->execute();
