@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-02-03 18:08:28
+/* Smarty version 5.3.1, created on 2026-02-03 19:53:38
   from 'file:cells_NA_API_connector_modal.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_6982399cac4d96_72183377',
+  'unifunc' => 'content_6982524268eb53_17833431',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     'e3b4a633cb3de7e87ec136742f2dde5df829ed18' => 
     array (
       0 => 'cells_NA_API_connector_modal.html',
-      1 => 1770133764,
+      1 => 1770148305,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_6982399cac4d96_72183377 (\Smarty\Template $_smarty_tpl) {
+function content_6982524268eb53_17833431 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?><section class="section">
   <div class="row">
@@ -179,6 +179,9 @@ $_smarty_current_dir = '/home/cells/web/templates';
                             rows="3"
                             placeholder="cookie1=value1; cookie2=value2"><?php echo htmlspecialchars((string)$_smarty_tpl->getValue('connector')['auth_cookies'], ENT_QUOTES, 'UTF-8', true);?>
 </textarea>
+                  <div class="form-text">
+                    Сохраните cookies после успешного логина (например, identity-backend, csrf-backend, advanced-backend).
+                  </div>
                 </div>
                 <div class="small text-muted">
                   ID коннектора: <?php echo (($tmp = $_smarty_tpl->getValue('connector')['id'] ?? null)===null||$tmp==='' ? '—' ?? null : $tmp);?>

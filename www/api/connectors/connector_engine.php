@@ -498,6 +498,9 @@ function connector_engine_run_by_id(mysqli $dbcnx, int $connectorId, int $userId
                 auth_username,
                 auth_password,
                 api_token,
+                auth_token,
+                auth_token_expires_at,
+                auth_cookies,
                 ssl_ignore,
                 scenario_json
             FROM connectors

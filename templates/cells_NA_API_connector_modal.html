@@ -145,6 +145,9 @@
                             name="auth_cookies"
                             rows="3"
                             placeholder="cookie1=value1; cookie2=value2">{$connector.auth_cookies|escape}</textarea>
+                  <div class="form-text">
+                    Сохраните cookies после успешного логина (например, identity-backend, csrf-backend, advanced-backend).
+                  </div>
                 </div>
                 <div class="small text-muted">
                   ID коннектора: {$connector.id|default:'—'}<br>

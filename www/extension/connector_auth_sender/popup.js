@@ -3,6 +3,14 @@ const connectorIdInput = document.getElementById('connector-id');
 const tokenKeysInput = document.getElementById('token-keys');
 const statusEl = document.getElementById('status');
 const sendBtn = document.getElementById('send-btn');
+const saveBtn = document.getElementById('save-btn');
+const profileSelect = document.getElementById('profile-select');
+const profileNameInput = document.getElementById('profile-name');
+const profileSaveBtn = document.getElementById('profile-save-btn');
+const profileDeleteBtn = document.getElementById('profile-delete-btn');
+
+const DEFAULT_PROFILE = 'default';
+
 
 function setStatus(message, isError = false) {
     statusEl.textContent = message;
@@ -16,19 +24,75 @@ function parseTokenKeys(value) {
         .filter(Boolean);
 }
 
-async function loadSettings() {
-    const data = await chrome.storage.sync.get(['systemUrl', 'connectorId', 'tokenKeys']);
-    if (data.systemUrl) systemUrlInput.value = data.systemUrl;
-    if (data.connectorId) connectorIdInput.value = data.connectorId;
-    tokenKeysInput.value = data.tokenKeys || 'auth_token, token';
-}
 
-async function saveSettings() {
-    await chrome.storage.sync.set({
+function getProfilePayload() {
+    return {
         systemUrl: systemUrlInput.value.trim(),
         connectorId: connectorIdInput.value.trim(),
-        tokenKeys: tokenKeysInput.value.trim(),
+        tokenKeys: tokenKeysInput.value.trim() || 'auth_token, token',
+    };
+}
+
+function applyProfile(profile) {
+    systemUrlInput.value = profile.systemUrl || '';
+    connectorIdInput.value = profile.connectorId || '';
+    tokenKeysInput.value = profile.tokenKeys || 'auth_token, token';
+}
+
+function renderProfiles(profiles, activeProfile) {
+    profileSelect.innerHTML = '';
+    const profileNames = Object.keys(profiles).sort();
+    profileNames.forEach((name) => {
+        const option = document.createElement('option');
+        option.value = name;
+        option.textContent = name;
+        profileSelect.appendChild(option);
     });
+    profileSelect.value = activeProfile;
+}
+
+async function loadSettings() {
+    const data = await chrome.storage.sync.get([
+        'profiles',
+        'activeProfile',
+        'systemUrl',
+        'connectorId',
+        'tokenKeys',
+    ]);
+    let profiles = data.profiles || {};
+    let activeProfile = data.activeProfile || DEFAULT_PROFILE;
+
+    if (Object.keys(profiles).length === 0) {
+        profiles = {
+            [DEFAULT_PROFILE]: {
+                systemUrl: data.systemUrl || '',
+                connectorId: data.connectorId || '',
+                tokenKeys: data.tokenKeys || 'auth_token, token',
+            },
+        };
+        activeProfile = DEFAULT_PROFILE;
+    }
+
+    renderProfiles(profiles, activeProfile);
+    applyProfile(profiles[activeProfile] || profiles[DEFAULT_PROFILE]);
+    await chrome.storage.sync.set({ profiles, activeProfile });
+}
+
+async function saveSettingsToProfile(profileName) {
+    const data = await chrome.storage.sync.get(['profiles', 'activeProfile']);
+    const profiles = data.profiles || {};
+    const updatedName = profileName || data.activeProfile || DEFAULT_PROFILE;
+
+    profiles[updatedName] = getProfilePayload();
+    await chrome.storage.sync.set({
+        profiles,
+        activeProfile: updatedName,
+        systemUrl: profiles[updatedName].systemUrl,
+        connectorId: profiles[updatedName].connectorId,
+        tokenKeys: profiles[updatedName].tokenKeys,
+    });
+    renderProfiles(profiles, updatedName);
+    profileSelect.value = updatedName;
 }
 
 async function getActiveTab() {
@@ -87,7 +151,7 @@ sendBtn.addEventListener('click', async () => {
     }
 
     try {
-        await saveSettings();
+        await saveSettingsToProfile(profileSelect.value);
         const tab = await getActiveTab();
         if (!tab?.id || !tab.url) {
             setStatus('Не удалось получить активную вкладку.', true);
@@ -112,6 +176,64 @@ sendBtn.addEventListener('click', async () => {
         }
     } catch (error) {
         setStatus(`Ошибка: ${error.message}`, true);
+    }
+});
+
+
+saveBtn.addEventListener('click', async () => {
+    await saveSettingsToProfile(profileSelect.value);
+    setStatus('Настройки сохранены.');
+});
+
+profileSaveBtn.addEventListener('click', async () => {
+    const name = profileNameInput.value.trim();
+    if (!name) {
+        setStatus('Укажите имя профиля.', true);
+        return;
+    }
+    await saveSettingsToProfile(name);
+    profileNameInput.value = '';
+    setStatus(`Профиль "${name}" сохранён.`);
+});
+
+profileDeleteBtn.addEventListener('click', async () => {
+    const data = await chrome.storage.sync.get(['profiles', 'activeProfile']);
+    const profiles = data.profiles || {};
+    const activeProfile = data.activeProfile || DEFAULT_PROFILE;
+
+    if (activeProfile === DEFAULT_PROFILE) {
+        setStatus('Нельзя удалить профиль по умолчанию.', true);
+        return;
+    }
+
+    delete profiles[activeProfile];
+    const remainingProfiles = Object.keys(profiles);
+    const nextProfile = remainingProfiles[0] || DEFAULT_PROFILE;
+    if (!profiles[nextProfile]) {
+        profiles[nextProfile] = getProfilePayload();
+    }
+
+    await chrome.storage.sync.set({
+        profiles,
+        activeProfile: nextProfile,
+        systemUrl: profiles[nextProfile].systemUrl,
+        connectorId: profiles[nextProfile].connectorId,
+        tokenKeys: profiles[nextProfile].tokenKeys,
+    });
+
+    renderProfiles(profiles, nextProfile);
+    applyProfile(profiles[nextProfile]);
+    setStatus('Профиль удалён.');
+});
+
+profileSelect.addEventListener('change', async (event) => {
+    const name = event.target.value;
+    const data = await chrome.storage.sync.get(['profiles']);
+    const profiles = data.profiles || {};
+    const profile = profiles[name];
+    if (profile) {
+        applyProfile(profile);
+        await chrome.storage.sync.set({ activeProfile: name });
     }
 });
 
