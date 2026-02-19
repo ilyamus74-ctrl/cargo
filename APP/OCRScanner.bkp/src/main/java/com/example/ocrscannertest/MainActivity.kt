@@ -1876,20 +1876,6 @@ fun QrScanScreen(
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
-    val prefs = remember {
-        context.getSharedPreferences("scanner_camera_prefs", Context.MODE_PRIVATE)
-    }
-    val zoomPresets = remember { qrZoomPresets() }
-
-    var selectedPresetId by remember {
-        mutableStateOf(
-            prefs.getString(QR_CAMERA_ZOOM_PRESET_KEY, zoomPresets[0].id) ?: zoomPresets[0].id
-        )
-    }
-
-    val selectedPreset = remember(selectedPresetId, zoomPresets) {
-        zoomPresets.firstOrNull { it.id == selectedPresetId } ?: zoomPresets[0]
-    }
 
     var hasCameraPermission by remember {
         mutableStateOf(
@@ -1935,42 +1921,8 @@ fun QrScanScreen(
             QrCameraPreview(
                 lifecycleOwner = lifecycleOwner,
                 modifier = Modifier.fillMaxSize(),
-                selectedPreset = selectedPreset,
                 onCodeScanned = onCodeScanned
             )
-
-            Row(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(horizontal = 12.dp)
-                    .padding(bottom = 76.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                zoomPresets.forEach { preset ->
-                    val isSelected = preset.id == selectedPreset.id
-                    FilledTonalButton(
-                        onClick = {
-                            selectedPresetId = preset.id
-                            prefs.edit().putString(QR_CAMERA_ZOOM_PRESET_KEY, preset.id).apply()
-                        },
-                        colors = ButtonDefaults.filledTonalButtonColors(
-                            containerColor = if (isSelected) {
-                                MaterialTheme.colorScheme.primary
-                            } else {
-                                MaterialTheme.colorScheme.surfaceVariant
-                            },
-                            contentColor = if (isSelected) {
-                                MaterialTheme.colorScheme.onPrimary
-                            } else {
-                                MaterialTheme.colorScheme.onSurfaceVariant
-                            }
-                        ),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
-                    ) {
-                        Text(text = preset.label)
-                    }
-                }
-            }
 
             OutlinedButton(
                 onClick = { onCancel() },
@@ -1992,12 +1944,10 @@ fun QrScanScreen(
 @Composable
 fun QrCameraPreview(
     lifecycleOwner: LifecycleOwner,
-    selectedPreset: CameraZoomPreset,
     onCodeScanned: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    var camera by remember { mutableStateOf<Camera?>(null) }
 
     // PreviewView для CameraX
     val previewView = remember {
@@ -2072,7 +2022,7 @@ fun QrCameraPreview(
 
         try {
             cameraProvider.unbindAll()
-            camera = cameraProvider.bindToLifecycle(
+            cameraProvider.bindToLifecycle(
                 lifecycleOwner,
                 selector,
                 preview,
@@ -2087,29 +2037,7 @@ fun QrCameraPreview(
         factory = { previewView },
         modifier = modifier
     )
-
-    LaunchedEffect(camera, selectedPreset.zoomRatio) {
-        val activeCamera = camera ?: return@LaunchedEffect
-        val zoomState = activeCamera.cameraInfo.zoomState.value ?: return@LaunchedEffect
-        val targetZoom = selectedPreset.zoomRatio.coerceIn(zoomState.minZoomRatio, zoomState.maxZoomRatio)
-        activeCamera.cameraControl.setZoomRatio(targetZoom)
-    }
 }
-
-private const val QR_CAMERA_ZOOM_PRESET_KEY = "qr_camera_zoom_preset"
-
-data class CameraZoomPreset(
-    val id: String,
-    val label: String,
-    val zoomRatio: Float
-)
-
-fun qrZoomPresets(): List<CameraZoomPreset> = listOf(
-    CameraZoomPreset(id = "macro", label = "Макро", zoomRatio = 2.0f),
-    CameraZoomPreset(id = "zoom", label = "2x", zoomRatio = 2.5f),
-    CameraZoomPreset(id = "wide", label = "Широкий", zoomRatio = 0.7f),
-    CameraZoomPreset(id = "normal", label = "1x", zoomRatio = 1.0f)
-)
 
 data class RemoteOcrResult(
     val ok: Boolean,
@@ -4397,20 +4325,6 @@ fun BarcodeScanScreen(
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
-    val prefs = remember {
-        context.getSharedPreferences("scanner_camera_prefs", Context.MODE_PRIVATE)
-    }
-    val zoomPresets = remember { qrZoomPresets() }
-
-    var selectedPresetId by remember {
-        mutableStateOf(
-            prefs.getString(QR_CAMERA_ZOOM_PRESET_KEY, zoomPresets[0].id) ?: zoomPresets[0].id
-        )
-    }
-
-    val selectedPreset = remember(selectedPresetId, zoomPresets) {
-        zoomPresets.firstOrNull { it.id == selectedPresetId } ?: zoomPresets[0]
-    }
 
     var hasCameraPermission by remember {
         mutableStateOf(
@@ -4447,7 +4361,6 @@ fun BarcodeScanScreen(
 
     var errorText by remember { mutableStateOf<String?>(null) }
     var isProcessing by remember { mutableStateOf(false) }
-    var camera by remember { mutableStateOf<Camera?>(null) }
 
     var liveDetectedRaw by remember { mutableStateOf<String?>(null) }
     var liveDetectedFormat by remember { mutableStateOf<Int?>(null) }
@@ -4663,7 +4576,7 @@ fun BarcodeScanScreen(
                 }
                 cameraProvider.bindToLifecycle(lifecycleOwner, selector, preview, imageCapture, analysis)
             } else {
-                camera = cameraProvider.bindToLifecycle(
+                cameraProvider.bindToLifecycle(
                     lifecycleOwner,
                     selector,
                     preview,
@@ -4673,16 +4586,6 @@ fun BarcodeScanScreen(
         } catch (e: Exception) {
             errorText = "Не удалось открыть камеру"
         }
-    }
-
-    LaunchedEffect(camera, selectedPreset.zoomRatio) {
-        val activeCamera = camera ?: return@LaunchedEffect
-        val zoomState = activeCamera.cameraInfo.zoomState.value ?: return@LaunchedEffect
-        val targetZoom = selectedPreset.zoomRatio.coerceIn(
-            zoomState.minZoomRatio,
-            zoomState.maxZoomRatio
-        )
-        activeCamera.cameraControl.setZoomRatio(targetZoom)
     }
 
     Box(modifier = modifier.fillMaxSize()) {
@@ -4836,7 +4739,6 @@ fun OcrScanScreen(
 
     var isProcessing by remember { mutableStateOf(false) }
     var errorText by remember { mutableStateOf<String?>(null) }
-    var camera by remember { mutableStateOf<Camera?>(null) }
 
     var liveOcrText by remember { mutableStateOf<String?>(null) }
     var liveOcrBusy by remember { mutableStateOf(false) }
@@ -4926,7 +4828,7 @@ fun OcrScanScreen(
                 }
                 cameraProvider.bindToLifecycle(lifecycleOwner, selector, preview, imageCapture, analysis)
             } else {
-                camera = cameraProvider.bindToLifecycle(
+                cameraProvider.bindToLifecycle(
                     lifecycleOwner,
                     selector,
                     preview,
