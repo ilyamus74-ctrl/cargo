@@ -151,6 +151,7 @@ fun StandApp() {
 
                 val normalizedWeight = applyWeightAdjustments(
                     weightGrams = raw.weightGrams,
+                    weightToleranceG = config.weightTolG,
                     minAllowedWeightG = config.minAllowedWeightG,
                     roundWeightToHundreds = config.roundWeightToHundreds
                 )
@@ -703,11 +704,14 @@ fun formatFactor(value: Double?): String = value?.let { "%.4f".format(it) } ?: "
 
 fun applyWeightAdjustments(
     weightGrams: Int?,
+    weightToleranceG: Int,
     minAllowedWeightG: Int?,
     roundWeightToHundreds: Boolean
 ): Int? {
     if (weightGrams == null) return null
 
+    if (abs(weightGrams) <= weightToleranceG) return 0
+    
     val roundedWeight = if (roundWeightToHundreds) {
         ((weightGrams + 50) / 100) * 100
     } else {
