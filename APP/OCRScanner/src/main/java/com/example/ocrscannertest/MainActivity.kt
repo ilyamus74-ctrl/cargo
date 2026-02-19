@@ -63,6 +63,7 @@ import android.webkit.WebStorage
 import android.net.http.SslError
 import android.webkit.CookieManager
 import android.view.KeyEvent
+import android.graphics.Rect
 import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import androidx.compose.foundation.rememberScrollState
@@ -1333,6 +1334,7 @@ fun AppRoot() {
                         modifier = Modifier.fillMaxSize(),
                         onResult = { result ->
                             showBarcodeScan = false
+                            val resolvedResult = normalizeTrackingScanResult(result)
                             if (hasContexts) {
                                 resolveActiveWarehouseContext { contextKey, contextConfig ->
                                     // НОВАЯ ЛОГИКА: проверяем, есть ли flow у контекста
@@ -1348,8 +1350,11 @@ fun AppRoot() {
                                     }
                                     val currentStep = stepId?.let { contextFlow?.steps?.get(it) }
                                     // Определяем действие: сначала из шага, потом из контекста (fallback)
-                                    val action = if (result.isQr) {
-                                        currentStep?.qrAction ?: contextConfig.qr
+                                    val action = if (resolvedResult.isQr) {
+                                        currentStep?.qrAction
+                                            ?: currentStep?.barcodeAction
+                                            ?: contextConfig.qr
+                                            ?: contextConfig.barcode
                                     } else {
                                         currentStep?.barcodeAction ?: contextConfig.barcode
                                     }
@@ -1364,7 +1369,7 @@ fun AppRoot() {
                                         Handler(Looper.getMainLooper()).post {
                                             debugToast(
                                                 context,
-                                                "SCAN ctx=$contextKey step=${stepId ?: "none"} type=${if (result.isQr) "qr" else "barcode"} action=${describeScanAction(action)}"
+                                                "SCAN ctx=$contextKey step=${stepId ?: "none"} type=${if (resolvedResult.isQr) "qr" else "barcode"} action=${describeScanAction(action)}"
                                             )
                                         }
                                     }
@@ -1373,7 +1378,7 @@ fun AppRoot() {
                                             config = config,
                                             scope = scope,
                                             webView = webViewRef,
-                                            scanResult = result,
+                                            scanResult = resolvedResult,
                                             action = action,
                                             contextKey = contextKey,
                                             contextConfig = contextConfig,
@@ -1389,9 +1394,9 @@ fun AppRoot() {
 
 
                                     } else {
-                                        val cleanBarcode = sanitizeBarcodeInput(result.rawValue)
+                                        val cleanBarcode = sanitizeBarcodeInput(resolvedResult.rawValue)
                                         val scanValue = if (action?.action == "web_callback") {
-                                            result.rawValue
+                                            resolvedResult.rawValue
                                         } else {
                                             cleanBarcode
                                         }
@@ -1402,7 +1407,7 @@ fun AppRoot() {
                                                 action = action,
                                                 config = config,
                                                 scope = scope,
-                                                isQr = result.isQr
+                                                isQr = resolvedResult.isQr
                                             )
                                         }
                                     }
@@ -1412,17 +1417,17 @@ fun AppRoot() {
                                     }
                                 }
                             } else {
-                                val cleanBarcode = sanitizeBarcodeInput(result.rawValue)
+                                val cleanBarcode = sanitizeBarcodeInput(resolvedResult.rawValue)
                                 val data = buildParcelFromBarcode(cleanBarcode, sanitizeInput = false)
                                 webViewRef?.let { web ->
-                                    val action = if (result.isQr) {
-                                        taskConfig?.qrAction
+                                    val action = if (resolvedResult.isQr) {
+                                        taskConfig?.qrAction ?: taskConfig?.barcodeAction
+
                                     } else {
                                         taskConfig?.barcodeAction
                                     }
                                     val scanValue = if (action?.action == "web_callback") {
-                                        result.rawValue
-                                    } else {
+                                        resolvedResult.rawValue                                    } else {
                                         cleanBarcode
                                     }
                                     fillBarcodeUsingTemplate(
@@ -1431,7 +1436,7 @@ fun AppRoot() {
                                         action = action,
                                         config = config,
                                         scope = scope,
-                                        isQr = result.isQr
+                                        isQr = resolvedResult.isQr
                                     )
                                     if (!isWarehouseIn) {
                                         fillParcelFormInWebView(web, data, taskConfig)
@@ -3858,6 +3863,45 @@ fun buildParcelFromBarcode(raw: String, sanitizeInput: Boolean = true): OcrParce
 }
 
 
+fun normalizeTrackingScanResult(scanResult: BarcodeScanResult): BarcodeScanResult {
+    if (!scanResult.isQr) return scanResult
+
+    val trackingCandidate = extractTrackingFromQrPayload(scanResult.rawValue) ?: return scanResult
+    return scanResult.copy(
+        rawValue = trackingCandidate,
+        isQr = false
+    )
+}
+
+fun extractTrackingFromQrPayload(raw: String): String? {
+    val trimmed = raw.trim()
+    if (trimmed.isEmpty()) return null
+
+    val queryCandidate = runCatching {
+        val uri = Uri.parse(trimmed)
+        val keys = listOf("tracking", "tracking_no", "trackingno", "track", "tuid", "barcode", "awb")
+        keys.asSequence()
+            .mapNotNull { key -> uri.getQueryParameter(key)?.trim() }
+            .firstOrNull { it.isNotEmpty() }
+    }.getOrNull()
+
+    val tokens = buildList {
+        queryCandidate?.let { add(it) }
+        add(trimmed)
+        addAll(trimmed.split(Regex("""[\s\n\r\t;|,]+""")))
+        addAll(trimmed.split(Regex("[?&=:/]+")))
+    }
+
+    val best = tokens
+        .asSequence()
+        .map { sanitizeBarcodeInput(it) }
+        .filter { it.length >= 8 }
+        .maxByOrNull { it.length }
+
+    return best?.takeIf { it.any(Char::isDigit) }
+}
+
+
 fun sanitizeBarcodeInput(raw: String): String {
     var s = raw.trim()
 
@@ -4309,6 +4353,8 @@ fun BarcodeScanScreen(
                     val mediaImage = image.image
                     if (mediaImage == null) {
                         errorText = "Нет данных изображения"
+                        isProcessing = false
+                        image.close()
                         return
                     }
 
@@ -4341,33 +4387,87 @@ fun BarcodeScanScreen(
                         )
                         .build()
 
+                    val dataMatrixOnlyOptions = BarcodeScannerOptions.Builder()
+                        .setBarcodeFormats(Barcode.FORMAT_DATA_MATRIX)
+                        .build()
+
                     val scanner = BarcodeScanning.getClient(options)
+                    val dataMatrixScanner = BarcodeScanning.getClient(dataMatrixOnlyOptions)
+                    var fallbackStarted = false
+
+                    fun emitResult(first: Barcode) {
+                        val raw = first.rawValue
+                        if (raw.isNullOrBlank()) {
+                            errorText = "Код не найден"
+                            return
+                        }
+
+                        val is2D =
+                            first.format == Barcode.FORMAT_QR_CODE ||
+                                    first.format == Barcode.FORMAT_DATA_MATRIX ||
+                                    first.format == Barcode.FORMAT_PDF417 ||
+                                    first.format == Barcode.FORMAT_AZTEC
+
+                        onResult(
+                            BarcodeScanResult(
+                                rawValue = raw,
+                                format = first.format,
+                                isQr = is2D
+                            )
+                        )
+                    }
+
+                    fun tryDataMatrixCenterCropFallback() {
+                        if (fallbackStarted) return
+                        fallbackStarted = true
+                        val width = mediaImage.width
+                        val height = mediaImage.height
+                        val cropW = (width * 0.72f).toInt()
+                        val cropH = (height * 0.72f).toInt()
+                        val left = ((width - cropW) / 2).coerceAtLeast(0)
+                        val top = ((height - cropH) / 2).coerceAtLeast(0)
+                        val right = (left + cropW).coerceAtMost(width)
+                        val bottom = (top + cropH).coerceAtMost(height)
+
+                        image.setCropRect(Rect(left, top, right, bottom))
+                        val croppedImage = InputImage.fromMediaImage(
+                            mediaImage,
+                            image.imageInfo.rotationDegrees
+                        )
+
+                        dataMatrixScanner.process(croppedImage)
+                            .addOnSuccessListener { dmCodes ->
+                                val firstDm = dmCodes.firstOrNull()
+                                if (firstDm?.rawValue.isNullOrBlank()) {
+                                    errorText = "Data Matrix не найден"
+                                } else {
+                                    emitResult(firstDm!!)
+                                }
+                            }
+                            .addOnFailureListener { e ->
+                                errorText = "Ошибка Data Matrix: ${e.message}"
+                            }
+                            .addOnCompleteListener {
+                                isProcessing = false
+                                image.close()
+                            }
+                    }
+
                     scanner.process(inputImage)
                         .addOnSuccessListener { codes ->
                             val first = codes.firstOrNull()
-                            val raw = first?.rawValue
-                            if (raw.isNullOrBlank()) {
-                                errorText = "Штрихкод не найден"
+                            if (first?.rawValue.isNullOrBlank()) {
+                                tryDataMatrixCenterCropFallback()
                             } else {
-                                val is2D =
-                                    first.format == Barcode.FORMAT_QR_CODE ||
-                                            first.format == Barcode.FORMAT_DATA_MATRIX ||
-                                            first.format == Barcode.FORMAT_PDF417 ||
-                                            first.format == Barcode.FORMAT_AZTEC
-
-                                onResult(
-                                    BarcodeScanResult(
-                                        rawValue = raw,
-                                        format = first.format,
-                                        isQr = is2D
-                                    )
-                                )
+                                emitResult(first!!)
                             }
                         }
                         .addOnFailureListener { e ->
                             errorText = "Ошибка сканера: ${e.message}"
+                            tryDataMatrixCenterCropFallback()
                         }
                         .addOnCompleteListener {
+                            if (fallbackStarted || !isProcessing) return@addOnCompleteListener
                             isProcessing = false
                             image.close()
                         }
