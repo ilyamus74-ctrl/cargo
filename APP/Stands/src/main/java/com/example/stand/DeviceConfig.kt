@@ -13,7 +13,8 @@ data class DeviceConfig(
     val allowInsecureSsl: Boolean = false,
     val stableCount: Int = 5,          // NEW
     val dimTolMm: Int = 5,             // NEW (опц.)
-    val weightTolG: Int = 30           // NEW (опц.)
+    val weightTolG: Int = 30,          // NEW (опц.)
+    val minAllowedWeightG: Int? = null
 )
 
 class DeviceConfigRepository(private val context: Context) {
@@ -34,6 +35,9 @@ class DeviceConfigRepository(private val context: Context) {
         val stableCount = (prefs.getInt("stable_count", 5)).coerceIn(1, 20)     // NEW
         val dimTolMm = (prefs.getInt("dim_tol_mm", 5)).coerceIn(0, 50)          // NEW
         val weightTolG = (prefs.getInt("weight_tol_g", 30)).coerceIn(0, 500)    // NEW
+        val minAllowedWeightG = prefs.getString("min_allowed_weight_g", null)
+            ?.toIntOrNull()
+            ?.coerceIn(1, 100_000)
 
         return DeviceConfig(
             serverUrl = serverUrl,
@@ -45,7 +49,8 @@ class DeviceConfigRepository(private val context: Context) {
 
             stableCount = stableCount,     // NEW
             dimTolMm = dimTolMm,           // NEW
-            weightTolG = weightTolG        // NEW
+            weightTolG = weightTolG,       // NEW
+            minAllowedWeightG = minAllowedWeightG
 
         )
     }
@@ -72,6 +77,7 @@ class DeviceConfigRepository(private val context: Context) {
             .putInt("stable_count", cfg.stableCount.coerceIn(1, 20))     // NEW
             .putInt("dim_tol_mm", cfg.dimTolMm.coerceIn(0, 50))          // NEW
             .putInt("weight_tol_g", cfg.weightTolG.coerceIn(0, 500))     // NEW
+            .putString("min_allowed_weight_g", cfg.minAllowedWeightG?.toString())
             .apply()
     }
 

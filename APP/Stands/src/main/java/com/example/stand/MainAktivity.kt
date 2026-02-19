@@ -149,12 +149,13 @@ fun StandApp() {
                     scaleFactor = obj.optDouble("scale_factor", Double.NaN).takeIf { obj.has("scale_factor") && !it.isNaN() }
                 )
 
+                val normalizedWeight = applyMinAllowedWeight(raw.weightGrams, config.minAllowedWeightG)
                 val prev = usbUiState.calibrated
                 val merged = prev.copy(
                     widthMm = mergeWithTolerance(prev.widthMm, raw.widthMm, SIZE_TOLERANCE_MM),
                     depthMm = mergeWithTolerance(prev.depthMm, raw.depthMm, SIZE_TOLERANCE_MM),
                     heightMm = mergeWithTolerance(prev.heightMm, raw.heightMm, SIZE_TOLERANCE_MM),
-                    weightGrams = mergeIntWithTolerance(prev.weightGrams, raw.weightGrams, 30),
+                    weightGrams = mergeIntWithTolerance(prev.weightGrams, normalizedWeight, 30),
                     scannerToWallMm = raw.scannerToWallMm ?: prev.scannerToWallMm,
                     scaleCalibration = ScaleCalibration(
                         zeroOffsetG = raw.scaleZeroOffsetG ?: prev.scaleCalibration.zeroOffsetG,
@@ -696,6 +697,12 @@ fun formatGrams(value: Int?): String = value?.let { "$it г" } ?: "—"
 fun formatKgFromGrams(value: Int?): String = value?.let { "%.3f кг".format(it / 1000.0) } ?: "—"
 fun formatFactor(value: Double?): String = value?.let { "%.4f".format(it) } ?: "—"
 
+fun applyMinAllowedWeight(weightGrams: Int?, minAllowedWeightG: Int?): Int? {
+    if (weightGrams == null) return null
+    if (minAllowedWeightG == null) return weightGrams
+    return maxOf(weightGrams, minAllowedWeightG)
+}
+
 private fun quantize(value: Double, step: Double): Long = kotlin.math.round(value / step).toLong()
 private fun quantize(value: Int, step: Int): Int = ((value + step / 2) / step) * step
 
@@ -1202,6 +1209,7 @@ fun SettingsScreen(
     var stableCountText by remember { mutableStateOf(config.stableCount.toString()) }
     var dimTolText by remember { mutableStateOf(config.dimTolMm.toString()) }
     var weightTolText by remember { mutableStateOf(config.weightTolG.toString()) }
+    var minAllowedWeightText by remember { mutableStateOf(config.minAllowedWeightG?.toString() ?: "") }
     var statusText by remember { mutableStateOf("") }
     var isBusy by remember { mutableStateOf(false) }
 
@@ -1252,11 +1260,19 @@ fun SettingsScreen(
             modifier = Modifier.fillMaxWidth()
         )
 
+        OutlinedTextField(
+            value = minAllowedWeightText,
+            onValueChange = { minAllowedWeightText = it.filter { ch -> ch.isDigit() } },
+            label = { Text("Минимально допустимый вес, г") },
+            modifier = Modifier.fillMaxWidth()
+        )
+
         Button(
             onClick = {
                 val stable = (stableCountText.toIntOrNull() ?: config.stableCount).coerceIn(1, 20)
                 val dim = (dimTolText.toIntOrNull() ?: config.dimTolMm).coerceIn(0, 50)
                 val weight = (weightTolText.toIntOrNull() ?: config.weightTolG).coerceIn(0, 500)
+                val minAllowedWeight = minAllowedWeightText.toIntOrNull()?.coerceIn(1, 100_000)
 
                 val updated = config.copy(
                     serverUrl = serverUrl.trim(),
@@ -1264,7 +1280,8 @@ fun SettingsScreen(
                     allowInsecureSsl = allowInsecure,
                     stableCount = stable,
                     dimTolMm = dim,
-                    weightTolG = weight
+                    weightTolG = weight,
+                    minAllowedWeightG = minAllowedWeight
                 )
                 onConfigChanged(updated)
                 statusText = "Сохранено"
