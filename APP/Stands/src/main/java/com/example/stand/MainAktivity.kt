@@ -149,7 +149,11 @@ fun StandApp() {
                     scaleFactor = obj.optDouble("scale_factor", Double.NaN).takeIf { obj.has("scale_factor") && !it.isNaN() }
                 )
 
-                val normalizedWeight = applyMinAllowedWeight(raw.weightGrams, config.minAllowedWeightG)
+                val normalizedWeight = applyWeightAdjustments(
+                    weightGrams = raw.weightGrams,
+                    minAllowedWeightG = config.minAllowedWeightG,
+                    roundWeightToHundreds = config.roundWeightToHundreds
+                )
                 val prev = usbUiState.calibrated
                 val merged = prev.copy(
                     widthMm = mergeWithTolerance(prev.widthMm, raw.widthMm, SIZE_TOLERANCE_MM),
@@ -697,10 +701,21 @@ fun formatGrams(value: Int?): String = value?.let { "$it г" } ?: "—"
 fun formatKgFromGrams(value: Int?): String = value?.let { "%.3f кг".format(it / 1000.0) } ?: "—"
 fun formatFactor(value: Double?): String = value?.let { "%.4f".format(it) } ?: "—"
 
-fun applyMinAllowedWeight(weightGrams: Int?, minAllowedWeightG: Int?): Int? {
+fun applyWeightAdjustments(
+    weightGrams: Int?,
+    minAllowedWeightG: Int?,
+    roundWeightToHundreds: Boolean
+): Int? {
     if (weightGrams == null) return null
-    if (minAllowedWeightG == null) return weightGrams
-    return maxOf(weightGrams, minAllowedWeightG)
+
+    val roundedWeight = if (roundWeightToHundreds) {
+        ((weightGrams + 50) / 100) * 100
+    } else {
+        weightGrams
+    }
+
+    if (minAllowedWeightG == null) return roundedWeight
+    return maxOf(roundedWeight, minAllowedWeightG)
 }
 
 private fun quantize(value: Double, step: Double): Long = kotlin.math.round(value / step).toLong()
@@ -1210,6 +1225,7 @@ fun SettingsScreen(
     var dimTolText by remember { mutableStateOf(config.dimTolMm.toString()) }
     var weightTolText by remember { mutableStateOf(config.weightTolG.toString()) }
     var minAllowedWeightText by remember { mutableStateOf(config.minAllowedWeightG?.toString() ?: "") }
+    var roundWeightToHundreds by remember { mutableStateOf(config.roundWeightToHundreds) }
     var statusText by remember { mutableStateOf("") }
     var isBusy by remember { mutableStateOf(false) }
 
@@ -1267,6 +1283,14 @@ fun SettingsScreen(
             modifier = Modifier.fillMaxWidth()
         )
 
+
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Switch(checked = roundWeightToHundreds, onCheckedChange = { roundWeightToHundreds = it })
+            Spacer(Modifier.width(8.dp))
+            Text("Округление веса")
+        }
+
+
         Button(
             onClick = {
                 val stable = (stableCountText.toIntOrNull() ?: config.stableCount).coerceIn(1, 20)
@@ -1281,7 +1305,8 @@ fun SettingsScreen(
                     stableCount = stable,
                     dimTolMm = dim,
                     weightTolG = weight,
-                    minAllowedWeightG = minAllowedWeight
+                    minAllowedWeightG = minAllowedWeight,
+                    roundWeightToHundreds = roundWeightToHundreds
                 )
                 onConfigChanged(updated)
                 statusText = "Сохранено"

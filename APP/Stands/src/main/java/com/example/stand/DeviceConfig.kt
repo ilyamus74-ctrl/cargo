@@ -14,7 +14,8 @@ data class DeviceConfig(
     val stableCount: Int = 5,          // NEW
     val dimTolMm: Int = 5,             // NEW (опц.)
     val weightTolG: Int = 30,          // NEW (опц.)
-    val minAllowedWeightG: Int? = null
+    val minAllowedWeightG: Int? = null,
+    val roundWeightToHundreds: Boolean = false
 )
 
 class DeviceConfigRepository(private val context: Context) {
@@ -38,6 +39,7 @@ class DeviceConfigRepository(private val context: Context) {
         val minAllowedWeightG = prefs.getString("min_allowed_weight_g", null)
             ?.toIntOrNull()
             ?.coerceIn(1, 100_000)
+        val roundWeightToHundreds = prefs.getBoolean("round_weight_to_hundreds", false)
 
         return DeviceConfig(
             serverUrl = serverUrl,
@@ -50,8 +52,8 @@ class DeviceConfigRepository(private val context: Context) {
             stableCount = stableCount,     // NEW
             dimTolMm = dimTolMm,           // NEW
             weightTolG = weightTolG,       // NEW
-            minAllowedWeightG = minAllowedWeightG
-
+            minAllowedWeightG = minAllowedWeightG,
+            roundWeightToHundreds = roundWeightToHundreds
         )
     }
 
@@ -78,6 +80,7 @@ class DeviceConfigRepository(private val context: Context) {
             .putInt("dim_tol_mm", cfg.dimTolMm.coerceIn(0, 50))          // NEW
             .putInt("weight_tol_g", cfg.weightTolG.coerceIn(0, 500))     // NEW
             .putString("min_allowed_weight_g", cfg.minAllowedWeightG?.toString())
+            .putBoolean("round_weight_to_hundreds", cfg.roundWeightToHundreds)
             .apply()
     }
 
