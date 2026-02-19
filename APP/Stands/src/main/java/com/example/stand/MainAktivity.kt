@@ -711,7 +711,7 @@ fun applyWeightAdjustments(
     if (weightGrams == null) return null
 
     if (abs(weightGrams) <= weightToleranceG) return 0
-    
+
     val roundedWeight = if (roundWeightToHundreds) {
         ((weightGrams + 50) / 100) * 100
     } else {

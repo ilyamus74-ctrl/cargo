@@ -12,6 +12,7 @@ data class DeviceConfig(
     val enrolled: Boolean,
     val allowInsecureSsl: Boolean = false,
     val useRemoteOcr: Boolean = false,   // локальный/удалённый парсер
+    val liveScanEnabled: Boolean = false, // live распознавание в превью
     val syncNameDict: Boolean = true,    // тянуть словарь из WebView
     val debugToasts: Boolean = false     // показать debug toasts
 )
@@ -30,6 +31,7 @@ class DeviceConfigRepository(private val context: Context) {
         val enrolled = prefs.getBoolean("enrolled", false)
         val allowInsecure = prefs.getBoolean("allow_insecure_ssl", false)
         val useRemoteOcr = prefs.getBoolean("use_remote_ocr", false)
+        val liveScanEnabled = prefs.getBoolean("live_scan_enabled", false)
         val syncNameDict = prefs.getBoolean("sync_name_dict", true)
         val debugToasts = prefs.getBoolean("debug_toasts", false)
 
@@ -40,6 +42,7 @@ class DeviceConfigRepository(private val context: Context) {
             deviceToken = deviceToken,
             enrolled = enrolled,
             allowInsecureSsl = allowInsecure,
+            liveScanEnabled = liveScanEnabled,
             useRemoteOcr = useRemoteOcr,
             syncNameDict = syncNameDict,
             debugToasts = debugToasts
@@ -66,6 +69,7 @@ class DeviceConfigRepository(private val context: Context) {
             .putString("device_token", cfg.deviceToken)
             .putBoolean("enrolled", cfg.enrolled)
             .putBoolean("use_remote_ocr", cfg.useRemoteOcr)
+            .putBoolean("live_scan_enabled", cfg.liveScanEnabled)
             .putBoolean("sync_name_dict", cfg.syncNameDict)
             .putBoolean("debug_toasts", cfg.debugToasts)
             .apply()

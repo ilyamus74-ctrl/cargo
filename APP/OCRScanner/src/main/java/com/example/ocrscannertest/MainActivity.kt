@@ -1332,6 +1332,7 @@ fun AppRoot() {
                     val isWarehouseIn = taskConfig?.taskId == "warehouse_in"
                     BarcodeScanScreen(
                         modifier = Modifier.fillMaxSize(),
+                        config = config,
                         onResult = { result ->
                             showBarcodeScan = false
                             val resolvedResult = normalizeTrackingScanResult(result)
@@ -1563,6 +1564,7 @@ fun SettingsScreen(
     var isBusy by remember { mutableStateOf(false) }
     var allowInsecure by remember { mutableStateOf(config.allowInsecureSsl) }
     var useRemoteOcr by remember { mutableStateOf(config.useRemoteOcr) }
+    var liveScanEnabled by remember { mutableStateOf(config.liveScanEnabled) }
     var syncNameDict by remember { mutableStateOf(config.syncNameDict) }
     var debugToasts by remember { mutableStateOf(config.debugToasts) }
 
@@ -1641,6 +1643,24 @@ fun SettingsScreen(
 
         Spacer(Modifier.height(8.dp))
 
+        // --- live scan ---
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Checkbox(
+                checked = liveScanEnabled,
+                onCheckedChange = { liveScanEnabled = it }
+            )
+            Spacer(Modifier.width(8.dp))
+            Text(
+                "Live Scan (предпросмотр распознавания)",
+                style = MaterialTheme.typography.bodyMedium
+            )
+        }
+
+        Spacer(Modifier.height(8.dp))
+
         // --- словарь имён ---
         Row(
             verticalAlignment = Alignment.CenterVertically,
@@ -1703,6 +1723,7 @@ fun SettingsScreen(
                             deviceName = deviceName.trim(),
                             allowInsecureSsl = allowInsecure,
                             useRemoteOcr = useRemoteOcr,
+                            liveScanEnabled = liveScanEnabled,
                             syncNameDict = syncNameDict,
                             debugToasts = debugToasts
                         )
@@ -4295,6 +4316,7 @@ data class BarcodeScanResult(
 @Composable
 fun BarcodeScanScreen(
     modifier: Modifier = Modifier,
+    config: DeviceConfig,
     onResult: (BarcodeScanResult) -> Unit,
     onCancel: () -> Unit,
     onBindHardwareTrigger: ( (()->Unit)? ) -> Unit,
@@ -4340,6 +4362,29 @@ fun BarcodeScanScreen(
     var errorText by remember { mutableStateOf<String?>(null) }
     var isProcessing by remember { mutableStateOf(false) }
 
+    var liveDetectedRaw by remember { mutableStateOf<String?>(null) }
+    var liveDetectedFormat by remember { mutableStateOf<Int?>(null) }
+    var liveAnalyzerBusy by remember { mutableStateOf(false) }
+
+    val barcodeOptions = remember {
+        BarcodeScannerOptions.Builder()
+            .setBarcodeFormats(
+                Barcode.FORMAT_CODE_128,
+                Barcode.FORMAT_CODE_39,
+                Barcode.FORMAT_CODE_93,
+                Barcode.FORMAT_CODABAR,
+                Barcode.FORMAT_EAN_8,
+                Barcode.FORMAT_EAN_13,
+                Barcode.FORMAT_UPC_A,
+                Barcode.FORMAT_UPC_E,
+                Barcode.FORMAT_QR_CODE,
+                Barcode.FORMAT_DATA_MATRIX,
+                Barcode.FORMAT_PDF417,
+                Barcode.FORMAT_AZTEC
+            )
+            .build()
+    }
+
     fun captureAndScan() {
         if (isProcessing) return
 
@@ -4363,35 +4408,11 @@ fun BarcodeScanScreen(
                         image.imageInfo.rotationDegrees
                     )
 
-                    val options = BarcodeScannerOptions.Builder()
-                        .setBarcodeFormats(
-                            Barcode.FORMAT_CODE_128,
-                            Barcode.FORMAT_CODE_39,
-                            Barcode.FORMAT_CODE_93,
-                            Barcode.FORMAT_CODABAR,
-                            Barcode.FORMAT_EAN_8,
-                            Barcode.FORMAT_EAN_13,
-                            Barcode.FORMAT_UPC_A,
-                            Barcode.FORMAT_UPC_E,
-                            Barcode.FORMAT_QR_CODE,
-                            //Barcode.FORMAT_EAN_8,
-                            //Barcode.FORMAT_EAN_13,
-                            //Barcode.FORMAT_UPC_A,
-                            //Barcode.FORMAT_UPC_E,
-
-                            // 2D:
-                            //Barcode.FORMAT_QR_CODE,
-                            Barcode.FORMAT_DATA_MATRIX,
-                            Barcode.FORMAT_PDF417,
-                            Barcode.FORMAT_AZTEC
-                        )
-                        .build()
-
                     val dataMatrixOnlyOptions = BarcodeScannerOptions.Builder()
                         .setBarcodeFormats(Barcode.FORMAT_DATA_MATRIX)
                         .build()
 
-                    val scanner = BarcodeScanning.getClient(options)
+                    val scanner = BarcodeScanning.getClient(barcodeOptions)
                     val dataMatrixScanner = BarcodeScanning.getClient(dataMatrixOnlyOptions)
                     var fallbackStarted = false
 
@@ -4489,9 +4510,21 @@ fun BarcodeScanScreen(
         })
     }
 
-    DisposableEffect(hasCameraPermission) {
+    DisposableEffect(hasCameraPermission, config.liveScanEnabled, liveDetectedRaw, liveDetectedFormat) {
         if (hasCameraPermission) {
-            onBindHardwareTrigger { captureAndScan() }
+            onBindHardwareTrigger {
+                if (config.liveScanEnabled && !liveDetectedRaw.isNullOrBlank()) {
+                    val format = liveDetectedFormat ?: Barcode.FORMAT_UNKNOWN
+                    val is2D =
+                        format == Barcode.FORMAT_QR_CODE ||
+                                format == Barcode.FORMAT_DATA_MATRIX ||
+                                format == Barcode.FORMAT_PDF417 ||
+                                format == Barcode.FORMAT_AZTEC
+                    onResult(BarcodeScanResult(liveDetectedRaw!!, format, is2D))
+                } else {
+                    captureAndScan()
+                }
+            }
         } else {
             onBindHardwareTrigger(null)
         }
@@ -4515,12 +4548,41 @@ fun BarcodeScanScreen(
 
         try {
             cameraProvider.unbindAll()
-            cameraProvider.bindToLifecycle(
-                lifecycleOwner,
-                selector,
-                preview,
-                imageCapture
-            )
+
+            if (config.liveScanEnabled) {
+                val analysis = ImageAnalysis.Builder()
+                    .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                    .build()
+                val scanner = BarcodeScanning.getClient(barcodeOptions)
+                analysis.setAnalyzer(ContextCompat.getMainExecutor(context)) { imageProxy ->
+                    val mediaImage = imageProxy.image
+                    if (mediaImage == null || liveAnalyzerBusy) {
+                        imageProxy.close(); return@setAnalyzer
+                    }
+                    liveAnalyzerBusy = true
+                    val input = InputImage.fromMediaImage(mediaImage, imageProxy.imageInfo.rotationDegrees)
+                    scanner.process(input)
+                        .addOnSuccessListener { codes ->
+                            val first = codes.firstOrNull { !it.rawValue.isNullOrBlank() }
+                            if (first != null) {
+                                liveDetectedRaw = first.rawValue
+                                liveDetectedFormat = first.format
+                            }
+                        }
+                        .addOnCompleteListener {
+                            liveAnalyzerBusy = false
+                            imageProxy.close()
+                        }
+                }
+                cameraProvider.bindToLifecycle(lifecycleOwner, selector, preview, imageCapture, analysis)
+            } else {
+                cameraProvider.bindToLifecycle(
+                    lifecycleOwner,
+                    selector,
+                    preview,
+                    imageCapture
+                )
+            }
         } catch (e: Exception) {
             errorText = "Не удалось открыть камеру"
         }
@@ -4590,6 +4652,13 @@ fun BarcodeScanScreen(
 
                 if (isProcessing) {
                     Text("Сканирование…")
+
+                } else if (config.liveScanEnabled) {
+                    Text(liveDetectedRaw?.let { "Live: $it" } ?:
+                    "Live: наведи камеру на код",
+                        color = androidx.compose.ui.graphics.Color.Yellow,
+                        style = MaterialTheme.typography.titleLarge
+                    )
                 }
 
                 Row(
@@ -4671,6 +4740,57 @@ fun OcrScanScreen(
     var isProcessing by remember { mutableStateOf(false) }
     var errorText by remember { mutableStateOf<String?>(null) }
 
+    var liveOcrText by remember { mutableStateOf<String?>(null) }
+    var liveOcrBusy by remember { mutableStateOf(false) }
+
+    fun processRecognizedText(fullText: String) {
+        scope.launch {
+            try {
+                if (config.useRemoteOcr) {
+                    val remote = callRemoteOcrParse(context, config, fullText)
+                    if (remote.ok && remote.data != null) {
+                        val base = remote.data
+                        val lc = detectLocalCarrierName(fullText)
+                        val lt = detectLocalTrackingNo(fullText, lc)
+                        val tuid = lt ?: base.trackingNo
+                        onResult(base.copy(tuid = tuid, localCarrierName = lc, localTrackingNo = lt))
+                    } else {
+                        val basic = parseOcrText(fullText)
+                        val advanced = buildOcrParcelDataFromText(fullText = fullText, trackingNo = basic.trackingNo, destConfig = destConfig, nameDict = nameDict)
+                        val merged = basic.copy(
+                            receiverCountryCode    = advanced.receiverCountryCode    ?: basic.receiverCountryCode,
+                            receiverCompany        = advanced.receiverCompany        ?: basic.receiverCompany,
+                            receiverForwarderCode  = advanced.receiverForwarderCode  ?: basic.receiverForwarderCode,
+                            receiverCellCode       = advanced.receiverCellCode       ?: basic.receiverCellCode,
+                            receiverName           = advanced.receiverName           ?: basic.receiverName
+                        )
+                        val lc = detectLocalCarrierName(fullText)
+                        val lt = detectLocalTrackingNo(fullText, lc)
+                        val tuid = detectTuid(fullText)
+                        onResult(merged.copy(tuid = tuid, localCarrierName = lc, localTrackingNo = lt))
+                        errorText = remote.errorMessage?.let { "Удалённый парсер не сработал: $it (использован локальный)" }
+                    }
+                } else {
+                    val basic = parseOcrText(fullText)
+                    val advanced = buildOcrParcelDataFromText(fullText = fullText, trackingNo = basic.trackingNo, destConfig = destConfig, nameDict = nameDict)
+                    val merged = basic.copy(
+                        receiverCountryCode    = advanced.receiverCountryCode    ?: basic.receiverCountryCode,
+                        receiverCompany        = advanced.receiverCompany        ?: basic.receiverCompany,
+                        receiverForwarderCode  = advanced.receiverForwarderCode  ?: basic.receiverForwarderCode,
+                        receiverCellCode       = advanced.receiverCellCode       ?: basic.receiverCellCode,
+                        receiverName           = advanced.receiverName           ?: basic.receiverName
+                    )
+                    val lc = detectLocalCarrierName(fullText)
+                    val lt = detectLocalTrackingNo(fullText, lc)
+                    val tuid = detectTuid(fullText)
+                    onResult(merged.copy(tuid = tuid, localCarrierName = lc, localTrackingNo = lt))
+                }
+            } finally {
+                isProcessing = false
+            }
+        }
+    }
+
     fun startCamera() {
         val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
         val cameraProvider = cameraProviderFuture.get()
@@ -4683,12 +4803,38 @@ fun OcrScanScreen(
 
         try {
             cameraProvider.unbindAll()
-            cameraProvider.bindToLifecycle(
-                lifecycleOwner,
-                selector,
-                preview,
-                imageCapture
-            )
+            if (config.liveScanEnabled) {
+                val analysis = ImageAnalysis.Builder()
+                    .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                    .build()
+                analysis.setAnalyzer(executor) { imageProxy ->
+                    val mediaImage = imageProxy.image
+                    if (mediaImage == null || liveOcrBusy || isProcessing) {
+                        imageProxy.close(); return@setAnalyzer
+                    }
+                    liveOcrBusy = true
+                    val input = InputImage.fromMediaImage(mediaImage, imageProxy.imageInfo.rotationDegrees)
+                    recognizer.process(input)
+                        .addOnSuccessListener { result ->
+                            val txt = result.text?.trim().orEmpty()
+                            if (txt.isNotEmpty()) {
+                                liveOcrText = txt.take(120)
+                            }
+                        }
+                        .addOnCompleteListener {
+                            liveOcrBusy = false
+                            imageProxy.close()
+                        }
+                }
+                cameraProvider.bindToLifecycle(lifecycleOwner, selector, preview, imageCapture, analysis)
+            } else {
+                cameraProvider.bindToLifecycle(
+                    lifecycleOwner,
+                    selector,
+                    preview,
+                    imageCapture
+                )
+            }
         } catch (e: Exception) {
             e.printStackTrace()
             errorText = "Ошибка запуска камеры: ${e.message}"
@@ -4728,96 +4874,7 @@ fun OcrScanScreen(
                         .addOnSuccessListener { result ->
                             val fullText = result.text ?: ""
 
-                            scope.launch {
-                                try {
-                                    if (config.useRemoteOcr) {
-                                        val remote = callRemoteOcrParse(context, config, fullText)
-                                        if (remote.ok && remote.data != null) {
-                                            val base = remote.data
-                                            val lc = detectLocalCarrierName(fullText)
-                                            val lt = detectLocalTrackingNo(fullText, lc)
-                                            //val tuid = detectTuid(fullText)
-                                            val tuid = lt ?: base.trackingNo
-
-                                            //onResult(
-                                            //    remote.data.copy(
-                                            //        tuid = tuid,
-                                            //        localCarrierName = lc,
-                                            //        localTrackingNo = lt
-                                            //    )
-                                            //)
-                                            onResult(
-                                                base.copy(
-                                                    tuid = tuid,
-                                                    localCarrierName = lc,
-                                                    localTrackingNo = lt
-                                                )
-                                            )
-                                        } else {
-                                            // fallback: локальный парсер
-                                            val basic = parseOcrText(fullText)
-                                            val advanced = buildOcrParcelDataFromText(
-                                                fullText = fullText,
-                                                trackingNo = basic.trackingNo,
-                                                destConfig = destConfig,
-                                                nameDict = nameDict
-                                            )
-                                            val merged = basic.copy(
-                                                receiverCountryCode    = advanced.receiverCountryCode    ?: basic.receiverCountryCode,
-                                                receiverCompany        = advanced.receiverCompany        ?: basic.receiverCompany,
-                                                receiverForwarderCode  = advanced.receiverForwarderCode  ?: basic.receiverForwarderCode,
-                                                receiverCellCode       = advanced.receiverCellCode       ?: basic.receiverCellCode,
-                                                receiverName           = advanced.receiverName           ?: basic.receiverName
-                                            )
-
-                                            val lc = detectLocalCarrierName(fullText)
-                                            val lt = detectLocalTrackingNo(fullText, lc)
-                                            val tuid = detectTuid(fullText)
-
-                                            onResult(
-                                                merged.copy(
-                                                    tuid = tuid,
-                                                    localCarrierName = lc,
-                                                    localTrackingNo = lt
-                                                )
-                                            )
-
-                                            errorText = remote.errorMessage?.let {
-                                                "Удалённый парсер не сработал: $it (использован локальный)"
-                                            }
-                                        }
-
-                                    } else {
-                                        val basic = parseOcrText(fullText)
-                                        val advanced = buildOcrParcelDataFromText(
-                                            fullText = fullText,
-                                            trackingNo = basic.trackingNo,
-                                            destConfig = destConfig,
-                                            nameDict = nameDict
-                                        )
-                                        val merged = basic.copy(
-                                            receiverCountryCode    = advanced.receiverCountryCode    ?: basic.receiverCountryCode,
-                                            receiverCompany        = advanced.receiverCompany        ?: basic.receiverCompany,
-                                            receiverForwarderCode  = advanced.receiverForwarderCode  ?: basic.receiverForwarderCode,
-                                            receiverCellCode       = advanced.receiverCellCode       ?: basic.receiverCellCode,
-                                            receiverName           = advanced.receiverName           ?: basic.receiverName
-                                        )
-                                        val lc = detectLocalCarrierName(fullText)
-                                        val lt = detectLocalTrackingNo(fullText, lc)
-                                        val tuid = detectTuid(fullText)
-
-                                        onResult(
-                                            merged.copy(
-                                                tuid = tuid,
-                                                localCarrierName = lc,
-                                                localTrackingNo = lt
-                                            )
-                                        )
-                                    }
-                                } finally {
-                                    isProcessing = false
-                                }
-                            }
+                            processRecognizedText(fullText)
                         }
                         .addOnFailureListener { e ->
                             errorText = "Не удалось распознать: ${e.message}"
@@ -4839,9 +4896,16 @@ fun OcrScanScreen(
 
 
     // ===== Привязка VOL_DOWN к captureAndRecognize =====
-    DisposableEffect(hasCameraPermission) {
+    DisposableEffect(hasCameraPermission, config.liveScanEnabled, liveOcrText) {
         if (hasCameraPermission) {
-            onBindHardwareTrigger { captureAndRecognize() }
+            onBindHardwareTrigger {
+                if (config.liveScanEnabled && !liveOcrText.isNullOrBlank() && !isProcessing) {
+                    isProcessing = true
+                    processRecognizedText(liveOcrText!!)
+                } else {
+                    captureAndRecognize()
+                }
+            }
         } else {
             onBindHardwareTrigger(null)
         }
@@ -4923,7 +4987,15 @@ fun OcrScanScreen(
                     Text("Обработка снимка…")
                     Spacer(Modifier.height(8.dp))
                 } else {
-                    Text("Нажми громкость вниз или кнопку ниже для скана")
+                    if (config.liveScanEnabled) {
+                        Text(liveOcrText?.let { "Live OCR: ${it.take(64)}" } ?:
+                        "Live OCR: наведи камеру на текст",
+                            color = androidx.compose.ui.graphics.Color.Yellow,
+                            style = MaterialTheme.typography.titleLarge
+                        )
+                    } else {
+                        Text("Нажми громкость вниз или кнопку ниже для скана")
+                    }
                     Spacer(Modifier.height(8.dp))
                 }
 
