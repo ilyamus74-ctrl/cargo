@@ -30,7 +30,8 @@ if (!$auth['ok']) {
 }
 
 $safeStandId = preg_replace('/[^a-zA-Z0-9_-]/', '_', $standId);
-$path = "/tmp/stand_measurement_{$safeStandId}.json";
+///$path = "/tmp/stand_measurement_{$safeStandId}.json";
+$path = __DIR__ . "/_tmp/stand_measurement_{$safeStandId}.json";
 
 if (!is_file($path)) {
     http_response_code(404);
