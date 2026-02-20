@@ -1,24 +1,17 @@
 {
     "stand_id": "dev-ad78e084-ee76-47ba-aa2c-b459b75deca1-e68619dc98f9a75d",
     "device_id": 26,
-    "timestamp": 1771406114,
+    "timestamp": 1771594473,
     "debug_payload": {
-        "raw_json": "{\"h_cm\":0.0,\"w_cm\":0.0,\"d_cm\":0.0,\"sonar_cur_mm\":[703,842,854],\"s\":28462,\"calibrated\":true,\"hx711_ready\":false,\"scale_cal\":-21000.000}",
-        "stable_count": 0,
-        "raw_metrics": {
-            "width_mm": 0,
-            "depth_mm": 0,
-            "height_mm": 0,
-            "scanner_to_wall_mm": 703
-        },
+        "raw_json": "{\"status\":\"heartbeat\",\"ms\":88909773,\"calibrated\":true,\"hx711_ready\":false,\"scale_cal\":-21000.000}",
+        "stable_count": 14,
+        "raw_metrics": [],
         "calibrated": {
-            "weight_g": -5,
-            "width_mm": 0,
-            "depth_mm": 0,
-            "height_mm": 0
+            "weight_g": 5900,
+            "width_mm": 229,
+            "depth_mm": 333,
+            "height_mm": 313
         },
-        "deviation": {
-            "size_delta_mm": 0
-        }
+        "deviation": []
     }
 }
