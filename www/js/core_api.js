@@ -539,6 +539,9 @@ const CoreAPI = {
             if (typeof initReceiverAddressQuickCells === 'function') {
                 initReceiverAddressQuickCells();
             }
+            if (typeof emitDeviceContext === 'function') {
+                emitDeviceContext();
+            }
             CoreAPI.ui.onModalCloseOnce(() => CoreAPI.ui.reloadList('warehouse_item_in'));
         },
         'add_new_item_in': async (data) => {
@@ -562,6 +565,9 @@ const CoreAPI = {
                         if (typeof initReceiverAddressQuickCells === 'function') {
                             initReceiverAddressQuickCells();
                         }
+                        if (typeof emitDeviceContext === 'function') {
+                            emitDeviceContext();
+                        }
                     }
                 }
             }
@@ -580,6 +586,9 @@ const CoreAPI = {
                     }
                     if (typeof initReceiverAddressQuickCells === 'function') {
                         initReceiverAddressQuickCells();
+                    }
+                    if (typeof emitDeviceContext === 'function') {
+                        emitDeviceContext();
                     }
                 }
             }
