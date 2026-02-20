@@ -4937,6 +4937,7 @@ fun OcrScanScreen(
     var camera by remember { mutableStateOf<Camera?>(null) }
 
     var liveOcrText by remember { mutableStateOf<String?>(null) }
+    var liveOcrPreview by remember { mutableStateOf<String?>(null) }
     var liveOcrBusy by remember { mutableStateOf(false) }
 
     fun processRecognizedText(fullText: String) {
@@ -5014,7 +5015,15 @@ fun OcrScanScreen(
                         .addOnSuccessListener { result ->
                             val txt = result.text?.trim().orEmpty()
                             if (txt.isNotEmpty()) {
-                                liveOcrText = txt.take(120)
+                                liveOcrText = txt
+                                liveOcrPreview = buildLiveOcrPreview(
+                                    fullText = txt,
+                                    destConfig = destConfig,
+                                    nameDict = nameDict
+                                )
+                            } else {
+                                liveOcrText = null
+                                liveOcrPreview = null
                             }
                         }
                         .addOnCompleteListener {
@@ -5194,8 +5203,8 @@ fun OcrScanScreen(
                     Spacer(Modifier.height(8.dp))
                 } else {
                     if (config.liveScanEnabled) {
-                        Text(liveOcrText?.let { "Live OCR: ${it.take(64)}" } ?:
-                        "Live OCR: наведи камеру на текст",
+                        Text(liveOcrPreview?.let { "Live OCR поля:\n$it" }
+                            ?: "Live OCR: наведи камеру на текст",
                             color = androidx.compose.ui.graphics.Color.Yellow,
                             style = MaterialTheme.typography.titleLarge
                         )
@@ -5729,6 +5738,62 @@ fun detectForwarderByText(textRaw: String): String? {
         else -> null
     }
 }
+
+
+
+fun buildLiveOcrPreview(
+    fullText: String,
+    destConfig: List<DestCountryCfg>,
+    nameDict: NameDict?
+): String {
+    val basic = parseOcrText(fullText)
+    val advanced = buildOcrParcelDataFromText(
+        fullText = fullText,
+        trackingNo = basic.trackingNo,
+        destConfig = destConfig,
+        nameDict = nameDict
+    )
+    val merged = basic.copy(
+        receiverCountryCode = advanced.receiverCountryCode ?: basic.receiverCountryCode,
+        receiverCompany = advanced.receiverCompany ?: basic.receiverCompany,
+        receiverForwarderCode = advanced.receiverForwarderCode ?: basic.receiverForwarderCode,
+        receiverCellCode = advanced.receiverCellCode ?: basic.receiverCellCode,
+        receiverName = advanced.receiverName ?: basic.receiverName
+    )
+
+    val localCarrier = detectLocalCarrierName(fullText)
+    val localTracking = detectLocalTrackingNo(fullText, localCarrier)
+    val tuid = detectTuid(fullText)
+
+    val items = mutableListOf<String>()
+    fun add(label: String, value: String?) {
+        val clean = value?.trim()?.takeIf { it.isNotEmpty() } ?: return
+        items += "$label: $clean"
+    }
+
+    add("Tracking", merged.trackingNo)
+    add("TUID", tuid)
+    add("Country", merged.receiverCountryCode)
+    add("Forwarder", merged.receiverForwarderCode)
+    add("Company", merged.receiverCompany)
+    add("Cell", merged.receiverCellCode)
+    add("Name", merged.receiverName)
+    add("Local carrier", localCarrier)
+    add("Local tracking", localTracking)
+
+    if (items.isEmpty()) {
+        return fullText.lines()
+            .map { it.trim() }
+            .firstOrNull { it.isNotEmpty() }
+            ?.take(64)
+            ?: "данные не распознаны"
+    }
+
+    return items
+        .take(5)
+        .joinToString("\n")
+}
+
 
 
 data class ScanAction(
