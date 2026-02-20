@@ -14,7 +14,9 @@ data class DeviceConfig(
     val useRemoteOcr: Boolean = false,   // локальный/удалённый парсер
     val liveScanEnabled: Boolean = false, // live распознавание в превью
     val syncNameDict: Boolean = true,    // тянуть словарь из WebView
-    val debugToasts: Boolean = false     // показать debug toasts
+    val debugToasts: Boolean = false,    // показать debug toasts
+    val cameraModeEnabled: Boolean = false // показывать пресеты зума на экране сканера
+    //
 )
 
 class DeviceConfigRepository(private val context: Context) {
@@ -34,6 +36,7 @@ class DeviceConfigRepository(private val context: Context) {
         val liveScanEnabled = prefs.getBoolean("live_scan_enabled", false)
         val syncNameDict = prefs.getBoolean("sync_name_dict", true)
         val debugToasts = prefs.getBoolean("debug_toasts", false)
+        val cameraModeEnabled = prefs.getBoolean("camera_mode_enabled", false)
 
         return DeviceConfig(
             serverUrl = serverUrl,
@@ -45,7 +48,8 @@ class DeviceConfigRepository(private val context: Context) {
             liveScanEnabled = liveScanEnabled,
             useRemoteOcr = useRemoteOcr,
             syncNameDict = syncNameDict,
-            debugToasts = debugToasts
+            debugToasts = debugToasts,
+            cameraModeEnabled = cameraModeEnabled
 
         )
     }
@@ -72,6 +76,7 @@ class DeviceConfigRepository(private val context: Context) {
             .putBoolean("live_scan_enabled", cfg.liveScanEnabled)
             .putBoolean("sync_name_dict", cfg.syncNameDict)
             .putBoolean("debug_toasts", cfg.debugToasts)
+            .putBoolean("camera_mode_enabled", cfg.cameraModeEnabled)
             .apply()
     }
 

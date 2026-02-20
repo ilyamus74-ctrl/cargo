@@ -333,7 +333,6 @@ fun AppRoot() {
     // колбэк, который будет вызываться при VOL_DOWN, когда открыт OCR
     var ocrHardwareTrigger by remember { mutableStateOf<(() -> Unit)?>(null) }
     var barcodeHardwareTrigger by remember { mutableStateOf<(() -> Unit)?>(null) }
-
     val buttonMappings = taskConfig?.buttons ?: emptyMap()
     val hasButtonMappings = buttonMappings.isNotEmpty()
     val taskIdNorm = taskConfig?.taskId?.trim()?.lowercase()
@@ -371,15 +370,12 @@ fun AppRoot() {
     fun openDefaultScanner() {
         when (taskConfig?.defaultMode?.lowercase()) {
             "ocr" -> {
-
                 showOcr = true
             }
             "barcode", "qr" -> {
-                // QR тоже пусть идет через BarcodeScanScreen, он у тебя умеет QR
                 showBarcodeScan = true
             }
             else -> {
-                // безопасный дефолт
                 showBarcodeScan = true
             }
         }
@@ -1461,7 +1457,8 @@ fun AppRoot() {
                             barcodeHardwareTrigger = action
                         },
                         taskConfig = taskConfig,
-                        scanMode = "barcode"
+                        scanMode = "barcode",
+                        showCameraModeControls = config.cameraModeEnabled
                     )
                 }
             }
@@ -1531,7 +1528,8 @@ fun AppRoot() {
                             webViewRef?.let { web ->
                                 requestStandMeasurementInWebView(web)
                             }
-                        }
+                        },
+                        showCameraModeControls = config.cameraModeEnabled
                     )
                 }
             }
@@ -1567,6 +1565,7 @@ fun SettingsScreen(
     var liveScanEnabled by remember { mutableStateOf(config.liveScanEnabled) }
     var syncNameDict by remember { mutableStateOf(config.syncNameDict) }
     var debugToasts by remember { mutableStateOf(config.debugToasts) }
+    var cameraModeEnabled by remember { mutableStateOf(config.cameraModeEnabled) }
 
     val scrollState = rememberScrollState()
 
@@ -1699,6 +1698,26 @@ fun SettingsScreen(
         }
 
 
+        Spacer(Modifier.height(8.dp))
+
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Checkbox(
+                checked = cameraModeEnabled,
+                onCheckedChange = { enabled ->
+                    cameraModeEnabled = enabled
+                    onConfigChanged(config.copy(cameraModeEnabled = enabled))
+                }
+            )
+            Spacer(Modifier.width(8.dp))
+            Text(
+                "Camera mode",
+                style = MaterialTheme.typography.bodyMedium
+            )
+        }
+
         Spacer(Modifier.height(16.dp))
 
         Text(text = statusText)
@@ -1725,7 +1744,8 @@ fun SettingsScreen(
                             useRemoteOcr = useRemoteOcr,
                             liveScanEnabled = liveScanEnabled,
                             syncNameDict = syncNameDict,
-                            debugToasts = debugToasts
+                            debugToasts = debugToasts,
+                            cameraModeEnabled = cameraModeEnabled
                         )
 
                         onConfigChanged(updated)
@@ -1883,12 +1903,12 @@ fun QrScanScreen(
 
     var selectedPresetId by remember {
         mutableStateOf(
-            prefs.getString(QR_CAMERA_ZOOM_PRESET_KEY, zoomPresets[0].id) ?: zoomPresets[0].id
+            prefs.getString(QR_CAMERA_ZOOM_PRESET_KEY, defaultZoomPresetId(zoomPresets)) ?: defaultZoomPresetId(zoomPresets)
         )
     }
 
     val selectedPreset = remember(selectedPresetId, zoomPresets) {
-        zoomPresets.firstOrNull { it.id == selectedPresetId } ?: zoomPresets[0]
+        zoomPresets.firstOrNull { it.id == selectedPresetId } ?: zoomPresets.first { it.id == defaultZoomPresetId(zoomPresets) }
     }
 
     var hasCameraPermission by remember {
@@ -2110,6 +2130,37 @@ fun qrZoomPresets(): List<CameraZoomPreset> = listOf(
     CameraZoomPreset(id = "wide", label = "Широкий", zoomRatio = 0.7f),
     CameraZoomPreset(id = "normal", label = "1x", zoomRatio = 1.0f)
 )
+
+fun defaultZoomPresetId(presets: List<CameraZoomPreset>): String {
+    return presets.firstOrNull { it.id == "normal" }?.id ?: presets.first().id
+}
+
+@Composable
+fun CameraZoomButtonsVertical(
+    modifier: Modifier = Modifier,
+    zoomPresets: List<CameraZoomPreset>,
+    selectedPresetId: String,
+    onSelectPreset: (CameraZoomPreset) -> Unit
+) {
+    Column(
+        modifier = modifier,
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        zoomPresets.forEach { preset ->
+            val isSelected = preset.id == selectedPresetId
+            FilledTonalButton(
+                onClick = { onSelectPreset(preset) },
+                colors = ButtonDefaults.filledTonalButtonColors(
+                    containerColor = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
+                    contentColor = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+                ),
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)
+            ) {
+                Text(text = preset.label)
+            }
+        }
+    }
+}
 
 data class RemoteOcrResult(
     val ok: Boolean,
@@ -4393,7 +4444,8 @@ fun BarcodeScanScreen(
     onCancel: () -> Unit,
     onBindHardwareTrigger: ( (()->Unit)? ) -> Unit,
     taskConfig: ScanTaskConfig?,
-    scanMode: String
+    scanMode: String,
+    showCameraModeControls: Boolean
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -4404,12 +4456,12 @@ fun BarcodeScanScreen(
 
     var selectedPresetId by remember {
         mutableStateOf(
-            prefs.getString(QR_CAMERA_ZOOM_PRESET_KEY, zoomPresets[0].id) ?: zoomPresets[0].id
+            prefs.getString(QR_CAMERA_ZOOM_PRESET_KEY, defaultZoomPresetId(zoomPresets)) ?: defaultZoomPresetId(zoomPresets)
         )
     }
 
     val selectedPreset = remember(selectedPresetId, zoomPresets) {
-        zoomPresets.firstOrNull { it.id == selectedPresetId } ?: zoomPresets[0]
+        zoomPresets.firstOrNull { it.id == selectedPresetId } ?: zoomPresets.first { it.id == defaultZoomPresetId(zoomPresets) }
     }
 
     var hasCameraPermission by remember {
@@ -4661,7 +4713,7 @@ fun BarcodeScanScreen(
                             imageProxy.close()
                         }
                 }
-                cameraProvider.bindToLifecycle(lifecycleOwner, selector, preview, imageCapture, analysis)
+                camera = cameraProvider.bindToLifecycle(lifecycleOwner, selector, preview, imageCapture, analysis)
             } else {
                 camera = cameraProvider.bindToLifecycle(
                     lifecycleOwner,
@@ -4771,6 +4823,20 @@ fun BarcodeScanScreen(
                     }
                 }
             }
+
+            if (showCameraModeControls) {
+                CameraZoomButtonsVertical(
+                    modifier = Modifier
+                        .align(Alignment.CenterStart)
+                        .padding(start = 12.dp),
+                    zoomPresets = zoomPresets,
+                    selectedPresetId = selectedPreset.id,
+                    onSelectPreset = { preset ->
+                        selectedPresetId = preset.id
+                        prefs.edit().putString(QR_CAMERA_ZOOM_PRESET_KEY, preset.id).apply()
+                    }
+                )
+            }
         }
     }
 }
@@ -4788,10 +4854,27 @@ fun OcrScanScreen(
     onBindHardwareTrigger: ((() -> Unit)?) -> Unit,
     onBarcodeClick: (() -> Unit)? = null,
     onBpClick: (() -> Unit)? = null,
+    showCameraModeControls: Boolean
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val scope = rememberCoroutineScope()
+    val prefs = remember {
+        context.getSharedPreferences("scanner_camera_prefs", Context.MODE_PRIVATE)
+    }
+    val zoomPresets = remember { qrZoomPresets() }
+
+    var selectedPresetId by remember {
+        mutableStateOf(
+            prefs.getString(QR_CAMERA_ZOOM_PRESET_KEY, defaultZoomPresetId(zoomPresets))
+                ?: defaultZoomPresetId(zoomPresets)
+        )
+    }
+
+    val selectedPreset = remember(selectedPresetId, zoomPresets) {
+        zoomPresets.firstOrNull { it.id == selectedPresetId }
+            ?: zoomPresets.first { it.id == defaultZoomPresetId(zoomPresets) }
+    }
 
     // ===== Разрешение камеры =====
     var hasCameraPermission by remember {
@@ -4924,7 +5007,7 @@ fun OcrScanScreen(
                             imageProxy.close()
                         }
                 }
-                cameraProvider.bindToLifecycle(lifecycleOwner, selector, preview, imageCapture, analysis)
+                camera = cameraProvider.bindToLifecycle(lifecycleOwner, selector, preview, imageCapture, analysis)
             } else {
                 camera = cameraProvider.bindToLifecycle(
                     lifecycleOwner,
@@ -4943,6 +5026,16 @@ fun OcrScanScreen(
         if (hasCameraPermission) {
             startCamera()
         }
+    }
+
+    LaunchedEffect(camera, selectedPreset.zoomRatio) {
+        val activeCamera = camera ?: return@LaunchedEffect
+        val zoomState = activeCamera.cameraInfo.zoomState.value ?: return@LaunchedEffect
+        val targetZoom = selectedPreset.zoomRatio.coerceIn(
+            zoomState.minZoomRatio,
+            zoomState.maxZoomRatio
+        )
+        activeCamera.cameraControl.setZoomRatio(targetZoom)
     }
 
     fun captureAndRecognize() {
@@ -5109,33 +5202,26 @@ fun OcrScanScreen(
                     }
 
                     Button(
-                        onClick = { onBarcodeClick?.invoke() },
-                        enabled = !isProcessing
-                    ) {
-                        Text("BarScann")
-                    }
-
-                    Button(
                         onClick = { captureAndRecognize() },
                         enabled = !isProcessing
                     ) {
                         Text("OcrScann")
                     }
-
-                    Button(
-                        onClick = { onBpClick?.invoke() },
-                        enabled = !isProcessing
-                    ) {
-                        Text("BP")
-                    }
-
-                    OutlinedButton(
-                        onClick = onCancel,
-                        enabled = !isProcessing
-                    ) {
-                        Text("Отмена")
-                    }
                 }
+            }
+            if (showCameraModeControls) {
+                CameraZoomButtonsVertical(
+                    modifier = Modifier
+                        .align(Alignment.CenterStart)
+                        .padding(start = 12.dp),
+                    zoomPresets = zoomPresets,
+                    selectedPresetId = selectedPreset.id,
+                    onSelectPreset = { preset ->
+                        selectedPresetId = preset.id
+                        prefs.edit().putString(QR_CAMERA_ZOOM_PRESET_KEY, preset.id).apply()
+
+                    }
+                )
             }
         }
     }

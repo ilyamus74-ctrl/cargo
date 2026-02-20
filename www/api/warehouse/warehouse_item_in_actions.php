@@ -513,6 +513,18 @@ switch ($action) {
             }
         $stmt->close();
         $smarty->assign('dest_country', $dest_country);
+        $stand_devices = [];
+        $sql = "SELECT device_uid, name, device_token
+                  FROM devices
+                 WHERE name LIKE 'stand\\_%'
+                 ORDER BY name ASC, device_uid ASC";
+        if ($resStand = $dbcnx->query($sql)) {
+            while ($row = $resStand->fetch_assoc()) {
+                $stand_devices[] = $row;
+            }
+            $resStand->free();
+        }
+        $smarty->assign('stand_devices', $stand_devices);
         require_once __DIR__ . '/../../ocr_templates.php';
         require_once __DIR__ . '/../../ocr_dicts.php';
         ob_start();
