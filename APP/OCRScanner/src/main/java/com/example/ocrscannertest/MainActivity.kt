@@ -3704,7 +3704,8 @@ fun handleWarehouseMoveScanResult(
             val selector = resolvedAction.fieldId?.let { "#$it" }
                 ?: resolvedAction.fieldName?.let { "[name=\"${escapeJsSelector(it)}\"]" }
                 ?: return
-            setInputValueBySelector(targetWebView, selector, scanResult.rawValue)
+            val cleanValue = sanitizeBarcodeInput(scanResult.rawValue)
+            setInputValueBySelector(targetWebView, selector, cleanValue)
         }
         "api_check" -> {
             val endpoint = resolvedAction.endpoint ?: return
@@ -4049,8 +4050,8 @@ fun extractTrackingFromQrPayload(raw: String): String? {
 fun sanitizeBarcodeInput(raw: String): String {
     var s = raw.trim()
 
-    // Отбрасываем префиксы вида "]C1" / "]E0" (символика штрихкода)
-    val prefix = Regex("^\\][A-Za-z]\\d")
+    // Отбрасываем префиксы вида "]C1" / "[C1" / "]E0" (символика штрихкода)
+    val prefix = Regex("""^[\]\[][A-Za-z]\d""")
     prefix.find(s)?.let { match ->
         s = s.removePrefix(match.value)
     }
@@ -4064,6 +4065,20 @@ fun sanitizeBarcodeInput(raw: String): String {
     return (best ?: s).trim()
 }
 
+
+fun normalizeScanRawValue(raw: String): String {
+    val trimmed = raw.trim()
+    if (trimmed.isEmpty()) return trimmed
+
+    val hasSymbologyPrefix = Regex("""^[\]\[][A-Za-z]\d""").containsMatchIn(trimmed)
+    val hasGs1Ai = trimmed.contains("(00)")
+
+    return if (hasSymbologyPrefix || hasGs1Ai) {
+        sanitizeBarcodeInput(trimmed)
+    } else {
+        trimmed
+    }
+}
 
 fun detectForwarderByCellCode(cellRaw: String): String? {
     val cell = cellRaw.trim().uppercase()
@@ -4570,7 +4585,7 @@ fun BarcodeScanScreen(
 
                         onResult(
                             BarcodeScanResult(
-                                rawValue = raw,
+                                rawValue = normalizeScanRawValue(raw),
                                 format = first.format,
                                 isQr = is2D
                             )
@@ -4659,7 +4674,7 @@ fun BarcodeScanScreen(
                                 format == Barcode.FORMAT_DATA_MATRIX ||
                                 format == Barcode.FORMAT_PDF417 ||
                                 format == Barcode.FORMAT_AZTEC
-                    onResult(BarcodeScanResult(liveDetectedRaw!!, format, is2D))
+                    onResult(BarcodeScanResult(normalizeScanRawValue(liveDetectedRaw!!), format, is2D))
                 } else {
                     captureAndScan()
                 }
@@ -4704,7 +4719,7 @@ fun BarcodeScanScreen(
                         .addOnSuccessListener { codes ->
                             val first = codes.firstOrNull { !it.rawValue.isNullOrBlank() }
                             if (first != null) {
-                                liveDetectedRaw = first.rawValue
+                                liveDetectedRaw = first.rawValue?.let(::normalizeScanRawValue)
                                 liveDetectedFormat = first.format
                             }
                         }
