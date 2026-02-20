@@ -5445,14 +5445,63 @@ fun sanitizeCellCode(raw: String): String {
     return upper
 }
 
+private fun cellPrefixByForwarderCode(code: String?): String? {
+    return when (code?.uppercase()) {
+        "COLIBRI" -> "C"
+        "KOLLI" -> "KL"
+        "ASER" -> "AS"
+        "CAMEX" -> "A"
+        "KARGOFLEX" -> "FX"
+        "POSTLINK" -> "PL"
+        "CAMARATC" -> "B"
+        else -> null
+    }
+}
+
 /**
  * Пытаемся вытащить код ячейки вида A66050 / AS228905 / C163361.
- * Пока максимально простой вариант: первая подходящая комбинация буквы+цифры.
- */
+ * Дополнительно поддерживаем формат с #, например: "Colibri #185978" -> "C185978".
+ **/
 fun detectCellCode(text: String): String? {
-    // Ищем что-то вроде A12345, AS228905, C163361
-    val regex = Regex("\\b[A-Z]{1,3}\\d{3,8}\\b")
-    return regex.find(text.replace("\n", " "))?.value?.let(::sanitizeCellCode)}
+
+    val normalized = text.replace("\n", " ")
+
+    // 1) Прямой формат: буквы+цифры
+    Regex("\\b[A-Z]{1,3}\\d{3,8}\\b").find(normalized)?.value?.let {
+        return sanitizeCellCode(it)
+    }
+
+    // 2) Формат с '#': пробуем восстановить префикс по форвардеру в строке
+    val hashDigits = Regex("#\\s*(\\d{3,8})")
+    val forwarderByAlias = listOf(
+        Regex("\\bcolibri\\b", RegexOption.IGNORE_CASE) to "COLIBRI",
+        Regex("\\b(koli|koliexp|koliexpress|koli\\s*express)\\b", RegexOption.IGNORE_CASE) to "KOLLI",
+        Regex("\\baser\\b", RegexOption.IGNORE_CASE) to "ASER",
+        Regex("\\bcamex\\b", RegexOption.IGNORE_CASE) to "CAMEX",
+        Regex("\\bkargoflex\\b", RegexOption.IGNORE_CASE) to "KARGOFLEX",
+        Regex("\\bpostlink\\b", RegexOption.IGNORE_CASE) to "POSTLINK",
+        Regex("\\bcamaratc\\b", RegexOption.IGNORE_CASE) to "CAMARATC"
+    )
+
+    text.lines().forEach { line ->
+        val digits = hashDigits.find(line)?.groupValues?.getOrNull(1) ?: return@forEach
+        val forwarderCode = forwarderByAlias.firstOrNull { (re, _) -> re.containsMatchIn(line) }?.second
+        val prefix = cellPrefixByForwarderCode(forwarderCode) ?: return@forEach
+        return sanitizeCellCode(prefix + digits)
+    }
+
+    // 3) Если форвардер встречается где-то в тексте — fallback для '#123456'
+    val digits = hashDigits.find(normalized)?.groupValues?.getOrNull(1)
+    if (digits != null) {
+        val code = detectForwarderByText(text)
+        val prefix = cellPrefixByForwarderCode(code)
+        if (prefix != null) {
+            return sanitizeCellCode(prefix + digits)
+        }
+    }
+
+    return null
+}
 
 /**
  * Пытаемся вытащить ФИО конечного клиента.
@@ -5793,7 +5842,6 @@ fun buildLiveOcrPreview(
         .take(5)
         .joinToString("\n")
 }
-
 
 
 data class ScanAction(
