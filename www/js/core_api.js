@@ -536,6 +536,9 @@ const CoreAPI = {
             if (typeof initItemInDuplicateCheck === 'function') {
                 initItemInDuplicateCheck();
             }
+            if (typeof initReceiverAddressQuickCells === 'function') {
+                initReceiverAddressQuickCells();
+            }
             CoreAPI.ui.onModalCloseOnce(() => CoreAPI.ui.reloadList('warehouse_item_in'));
         },
         'add_new_item_in': async (data) => {
@@ -556,6 +559,9 @@ const CoreAPI = {
                         if (typeof initItemInDuplicateCheck === 'function') {
                             initItemInDuplicateCheck();
                         }
+                        if (typeof initReceiverAddressQuickCells === 'function') {
+                            initReceiverAddressQuickCells();
+                        }
                     }
                 }
             }
@@ -571,6 +577,9 @@ const CoreAPI = {
                     }
                     if (typeof initItemInDuplicateCheck === 'function') {
                         initItemInDuplicateCheck();
+                    }
+                    if (typeof initReceiverAddressQuickCells === 'function') {
+                        initReceiverAddressQuickCells();
                     }
                 }
             }
@@ -1474,6 +1483,95 @@ function showToast(message, duration) {
         }
     }, timeoutMs);
 }
+
+
+function initReceiverAddressQuickCells() {
+    var form = document.getElementById('item-in-modal-form');
+    if (!form || form.__receiverQuickCellsInstalled) return;
+    form.__receiverQuickCellsInstalled = true;
+
+    var countrySelect = form.querySelector('#receiverCountry');
+    var companySelect = form.querySelector('#receiverCompany');
+    var addressInput = form.querySelector('#receiverAddress');
+    var buttonsWrap = form.querySelector('#receiverAddressQuickCells');
+    var configNode = document.getElementById('device-scan-config');
+
+    if (!countrySelect || !companySelect || !addressInput || !buttonsWrap || !configNode) return;
+
+    var config = null;
+    try {
+        config = JSON.parse((configNode.textContent || '').trim());
+    } catch (e) {
+        config = null;
+    }
+
+    var map = config && typeof config === 'object' ? config.cell_null_default_forwrad : null;
+    if (!map || typeof map !== 'object') {
+        buttonsWrap.innerHTML = '';
+        return;
+    }
+
+    function normalizeCountry(raw) {
+        var code = String(raw || '').trim().toUpperCase();
+        if (code === 'AZ' || code === 'AZE' || code === 'AZB') return 'AZB';
+        if (code === 'KG' || code === 'KGZ' || code === 'KGY' || code === 'KGYSTAN') return 'KG';
+        if (code === 'GE' || code === 'GEO' || code === 'TBS') return 'TBS';
+        return code;
+    }
+
+    function findCellCodes(company, country) {
+        var companyCode = String(company || '').trim().toUpperCase();
+        var countryCode = normalizeCountry(country);
+        var directKey = companyCode + '_' + countryCode;
+        var values = [];
+
+        if (Object.prototype.hasOwnProperty.call(map, directKey)) {
+            values.push(String(map[directKey] || '').trim());
+        } else {
+            Object.keys(map).forEach(function (key) {
+                var upperKey = String(key || '').toUpperCase();
+                if (!upperKey.startsWith(companyCode + '_')) return;
+                var suffix = upperKey.slice(companyCode.length + 1);
+                if (suffix === countryCode) {
+                    values.push(String(map[key] || '').trim());
+                }
+            });
+        }
+
+        return values.filter(Boolean);
+    }
+
+    function renderButtons() {
+        var company = companySelect.value;
+        var country = countrySelect.value;
+        var cellCodes = findCellCodes(company, country);
+
+        buttonsWrap.innerHTML = '';
+        if (!cellCodes.length) return;
+
+        cellCodes.forEach(function (code) {
+            var btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'btn btn-outline-primary btn-sm';
+            btn.textContent = code;
+            btn.addEventListener('click', function () {
+                addressInput.value = '';
+                addressInput.value = code;
+                addressInput.dispatchEvent(new Event('input', { bubbles: true }));
+                addressInput.dispatchEvent(new Event('change', { bubbles: true }));
+            });
+            buttonsWrap.appendChild(btn);
+        });
+    }
+
+    countrySelect.addEventListener('change', renderButtons);
+    countrySelect.addEventListener('input', renderButtons);
+    companySelect.addEventListener('change', renderButtons);
+    companySelect.addEventListener('input', renderButtons);
+
+    renderButtons();
+}
+
 
 function initItemInDuplicateCheck() {
     var form = document.getElementById('item-in-modal-form');
