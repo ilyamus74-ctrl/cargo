@@ -1,0 +1,152 @@
+#!/usr/bin/env node
+const fs = require('fs');
+const path = require('path');
+const os = require('os');
+const puppeteer = require('puppeteer');
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function applyVars(value, vars) {
+  if (typeof value !== 'string') return value;
+  return value.replace(/\$\{([a-zA-Z0-9_]+)\}/g, (_, key) => (vars[key] ?? ''));
+}
+
+async function waitForDownloadedFile(dir, ext, timeoutMs) {
+  const started = Date.now();
+  while (Date.now() - started < timeoutMs) {
+    const files = fs.readdirSync(dir)
+      .filter((name) => !name.endsWith('.crdownload'))
+      .filter((name) => name.toLowerCase().endsWith(`.${ext.toLowerCase()}`));
+    if (files.length > 0) {
+      files.sort((a, b) => {
+        const aM = fs.statSync(path.join(dir, a)).mtimeMs;
+        const bM = fs.statSync(path.join(dir, b)).mtimeMs;
+        return bM - aM;
+      });
+      const fullPath = path.join(dir, files[0]);
+      const size = fs.statSync(fullPath).size;
+      return { fullPath, size };
+    }
+    await sleep(500);
+  }
+  return null;
+}
+
+(async () => {
+  const args = process.argv.slice(2);
+  const payloadRaw = args[0] || '{}';
+  let payload;
+  try {
+    payload = JSON.parse(payloadRaw);
+  } catch (e) {
+    process.stdout.write(JSON.stringify({ ok: false, message: 'Invalid JSON payload' }) + '\n');
+    process.exit(1);
+  }
+
+  const vars = payload.vars || {};
+  const steps = Array.isArray(payload.steps) ? payload.steps : [];
+  const fileExtension = (payload.file_extension || 'xlsx').toLowerCase();
+  const sslIgnore = !!payload.ssl_ignore;
+
+  if (steps.length === 0) {
+    process.stdout.write(JSON.stringify({ ok: false, message: 'No steps provided' }) + '\n');
+    process.exit(1);
+  }
+
+  const downloadDir = fs.mkdtempSync(path.join(os.tmpdir(), 'connector-op-'));
+
+  let browser;
+  try {
+    browser = await puppeteer.launch({
+      headless: true,
+      args: ['--no-sandbox', '--disable-setuid-sandbox'],
+      ignoreHTTPSErrors: sslIgnore,
+    });
+    const page = await browser.newPage();
+
+    if (payload.cookies && typeof payload.cookies === 'string' && payload.cookies.trim() !== '') {
+      await page.setExtraHTTPHeaders({ Cookie: payload.cookies.trim() });
+    }
+    if (payload.auth_token && typeof payload.auth_token === 'string' && payload.auth_token.trim() !== '') {
+      await page.setExtraHTTPHeaders({ Authorization: `Bearer ${payload.auth_token.trim()}` });
+    }
+
+    const client = await page.target().createCDPSession();
+    await client.send('Page.setDownloadBehavior', {
+      behavior: 'allow',
+      downloadPath: downloadDir,
+    });
+
+    for (const step of steps) {
+      const action = String(step.action || '').trim();
+      if (!action) continue;
+
+      if (action === 'goto') {
+        const url = applyVars(step.url || '', vars);
+        if (!url) throw new Error('goto.url is required');
+        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 60000 });
+      } else if (action === 'fill') {
+        const selector = applyVars(step.selector || '', vars);
+        const value = applyVars(step.value || '', vars);
+        if (!selector) throw new Error('fill.selector is required');
+        await page.waitForSelector(selector, { timeout: 30000 });
+        await page.click(selector, { clickCount: 3 });
+        await page.type(selector, String(value));
+      } else if (action === 'click') {
+        const selector = applyVars(step.selector || '', vars);
+        if (!selector) throw new Error('click.selector is required');
+        await page.waitForSelector(selector, { timeout: 30000 });
+        await page.click(selector);
+      } else if (action === 'wait_for') {
+        const selector = applyVars(step.selector || '', vars);
+        const timeout = Number(step.timeout_ms || 10000);
+        if (selector) {
+          await page.waitForSelector(selector, { timeout });
+        } else {
+          await page.waitForTimeout(timeout);
+        }
+      } else if (action === 'download') {
+        const timeoutMs = Number(step.timeout_ms || 30000);
+        const downloaded = await waitForDownloadedFile(downloadDir, fileExtension, timeoutMs);
+        if (!downloaded) {
+          throw new Error(`Download not found with .${fileExtension} within ${timeoutMs}ms`);
+        }
+
+        process.stdout.write(JSON.stringify({
+          ok: true,
+          message: 'Файл успешно скачан через browser steps',
+          file_path: downloaded.fullPath,
+          file_size: downloaded.size,
+          file_extension: fileExtension,
+        }) + '\n');
+        await browser.close();
+        process.exit(0);
+      } else {
+        throw new Error(`Unsupported action: ${action}`);
+      }
+    }
+
+    const downloaded = await waitForDownloadedFile(downloadDir, fileExtension, 30000);
+    if (!downloaded) {
+      throw new Error(`Download step missing or file not found (.${fileExtension})`);
+    }
+
+    process.stdout.write(JSON.stringify({
+      ok: true,
+      message: 'Файл успешно скачан через browser steps',
+      file_path: downloaded.fullPath,
+      file_size: downloaded.size,
+      file_extension: fileExtension,
+    }) + '\n');
+    await browser.close();
+    process.exit(0);
+  } catch (err) {
+    if (browser) {
+      try { await browser.close(); } catch (_) {}
+    }
+    process.stdout.write(JSON.stringify({ ok: false, message: err.message || 'Browser test failed' }) + '\n');
+    process.exit(1);
+  }
+})();

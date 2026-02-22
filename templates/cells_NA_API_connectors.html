@@ -35,6 +35,7 @@
                       <th scope="col">Последний обмен</th>
                       <th scope="col">Успешное обновление</th>
                       <th scope="col">Ошибка</th>
+                      <th scope="col" class="text-end">Операции</th>
                       <th scope="col" class="text-end">Действия</th>
                     </tr>
                   </thead>
@@ -68,6 +69,14 @@
                           </td>
                           <td class="text-end">
                             <button type="button"
+                                    class="btn btn-sm btn-outline-secondary js-core-link"
+                                    data-core-action="form_connector_operations"
+                                    data-connector-id="{$connector.id}">
+                              Операции
+                            </button>
+                          </td>
+                          <td class="text-end">
+                            <button type="button"
                                     class="btn btn-sm btn-outline-primary js-core-link"
                                     data-core-action="form_edit_connector"
                                     data-connector-id="{$connector.id}">
@@ -78,7 +87,7 @@
                       {/foreach}
                     {else}
                       <tr>
-                        <td colspan="8" class="text-muted text-center">Коннекторы не настроены</td>
+                        <td colspan="9" class="text-muted text-center">Коннекторы не настроены</td>
                       </tr>
                     {/if}
                   </tbody>

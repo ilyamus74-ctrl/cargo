@@ -83,7 +83,10 @@ const CoreAPI = {
                 'test_connector': () => this.withAttribute('connector_id', link),
                 'manual_confirm_connector': () => this.getFormById('connector-form'),
                 'manual_confirm_puppeteer': () => this.getFormById('connector-form'),
-
+                'form_connector_operations': () => this.withAttribute('connector_id', link),
+                'save_connector_operations': () => this.getFormById('connector-operations-form'),
+                'test_connector_operations': () => this.getFormById('connector-operations-form'),
+             
                 'tools_management_open_modal': () => this.withAttribute('tool_id', link),
                 'tools_management_open_user_modal': () => this.withAttribute('tool_id', link),
                 'tools_management_open_cell_modal': () => this.withAttribute('tool_id', link),
@@ -437,6 +440,55 @@ const CoreAPI = {
             CoreAPI.ui.showModal(data.html);
             if (CoreAPI.connectors?.initForm) {
                 CoreAPI.connectors.initForm();
+            }
+        },
+
+        'form_connector_operations': (data) => {
+            CoreAPI.ui.showModal(data.html);
+        },
+        'save_connector_operations': async (data) => {
+            alert(data.message || 'Операции сохранены');
+            await CoreAPI.ui.reloadList('view_connectors');
+            const connectorId = data.connector_id;
+            if (connectorId) {
+                const fd = new FormData();
+                fd.append('action', 'form_connector_operations');
+                fd.append('connector_id', connectorId);
+                const d2 = await CoreAPI.client.call(fd);
+                if (d2?.status === 'ok') {
+                    CoreAPI.ui.showModal(d2.html);
+                }
+            }
+        },
+
+        'test_connector_operations': async (data) => {
+            alert(data.message || 'Тест операции выполнен');
+            const connectorId = data.connector_id;
+            if (connectorId) {
+                const fd = new FormData();
+                fd.append('action', 'form_connector_operations');
+                fd.append('connector_id', connectorId);
+                const d2 = await CoreAPI.client.call(fd);
+                if (d2?.status === 'ok') {
+                    CoreAPI.ui.showModal(d2.html);
+                }
+            }
+        },
+        'form_connector_operations': (data) => {
+            CoreAPI.ui.showModal(data.html);
+        },
+        'save_connector_operations': async (data) => {
+            alert(data.message || 'Операции сохранены');
+            await CoreAPI.ui.reloadList('view_connectors');
+            const connectorId = data.connector_id;
+            if (connectorId) {
+                const fd = new FormData();
+                fd.append('action', 'form_connector_operations');
+                fd.append('connector_id', connectorId);
+                const d2 = await CoreAPI.client.call(fd);
+                if (d2?.status === 'ok') {
+                    CoreAPI.ui.showModal(d2.html);
+                }
             }
         },
         'save_connector': async (data) => {

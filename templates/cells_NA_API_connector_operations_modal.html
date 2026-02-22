@@ -1,0 +1,121 @@
+
+<section class="section">
+  <div class="row">
+    <div class="col-lg-10">
+      <div class="card">
+        <div class="card-body pt-3">
+          <h5 class="card-title">Операции коннектора: {$connector.name|escape}</h5>
+
+          <form id="connector-operations-form" autocomplete="off">
+            <input type="hidden" name="connector_id" value="{$connector.id|default:0}">
+
+            <div class="row mb-3">
+              <label class="col-md-4 col-lg-3 col-form-label">Операция #1</label>
+              <div class="col-md-8 col-lg-9">
+                <div class="form-text mt-2">Получение отчета с сайта форварда (XLSX).</div>
+              </div>
+            </div>
+
+            <div class="row mb-3">
+              <label for="report_enabled" class="col-md-4 col-lg-3 col-form-label">Включено</label>
+              <div class="col-md-8 col-lg-9">
+                <div class="form-check">
+                  <input class="form-check-input"
+                         type="checkbox"
+                         id="report_enabled"
+                         name="report_enabled"
+                         value="1"
+                         {if $operations.report.enabled == 1}checked{/if}>
+                  <label class="form-check-label" for="report_enabled">Использовать операцию отчета</label>
+                </div>
+              </div>
+            </div>
+
+            <div class="row mb-3">
+              <label for="report_page_url" class="col-md-4 col-lg-3 col-form-label">Страница отчета</label>
+              <div class="col-md-8 col-lg-9">
+                <input type="text"
+                       class="form-control"
+                       id="report_page_url"
+                       name="report_page_url"
+                       value="{$operations.report.page_url|escape}"
+                       placeholder="https://portal.forwarder.com/reports">
+              </div>
+            </div>
+
+            <div class="row mb-3">
+              <label for="report_file_extension" class="col-md-4 col-lg-3 col-form-label">Расширение файла</label>
+              <div class="col-md-8 col-lg-9">
+                <input type="text"
+                       class="form-control"
+                       id="report_file_extension"
+                       name="report_file_extension"
+                       value="{$operations.report.file_extension|default:'xlsx'|escape}"
+                       placeholder="xlsx">
+                <div class="form-text">Сейчас основной формат: xlsx.</div>
+              </div>
+            </div>
+
+            <div class="row mb-3">
+              <label for="report_download_mode" class="col-md-4 col-lg-3 col-form-label">Режим загрузки</label>
+              <div class="col-md-8 col-lg-9">
+                <select class="form-select" id="report_download_mode" name="report_download_mode">
+                  <option value="browser" {if $operations.report.download_mode == 'browser'}selected{/if}>Через браузерные шаги</option>
+                  <option value="curl" {if $operations.report.download_mode == 'curl'}selected{/if}>Через PHP cURL</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="row mb-3">
+              <label for="report_steps_json" class="col-md-4 col-lg-3 col-form-label">Шаги формы/кнопок</label>
+              <div class="col-md-8 col-lg-9">
+                <textarea class="form-control"
+                          id="report_steps_json"
+                          name="report_steps_json"
+                          rows="9"
+                          placeholder="JSON шагов browser-автоматизации">{$operations.report.steps_json|escape}</textarea>
+                <div class="form-text">JSON-массив шагов: goto/fill/click/wait_for/download.</div>
+                <pre class="form-text mb-0">{literal}[{"action":"goto","url":"https://portal.example.com/reports"},{"action":"click","selector":"#period_today"},{"action":"click","selector":"button.export-xlsx"}]{/literal}</pre>
+              </div>
+            </div>
+
+            <div class="row mb-3">
+              <label for="report_curl_config_json" class="col-md-4 col-lg-3 col-form-label">PHP cURL конфиг</label>
+              <div class="col-md-8 col-lg-9">
+                <textarea class="form-control"
+                          id="report_curl_config_json"
+                          name="report_curl_config_json"
+                          rows="8"
+                          placeholder="JSON конфиг для PHP cURL режима">{$operations.report.curl_config_json|escape}</textarea>
+                <div class="form-text">Используется, если выбран режим "Через PHP cURL".</div>
+                <pre class="form-text mb-0">{literal}{"url":"https://portal.example.com/export","method":"POST","headers":{"Accept":"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"},"body":{"date_from":"${date_from}","date_to":"${date_to}"}}{/literal}</pre>
+              </div>
+            </div>
+
+            <div class="row mb-3">
+              <label for="report_target_table" class="col-md-4 col-lg-3 col-form-label">Целевая таблица</label>
+              <div class="col-md-8 col-lg-9">
+                <input type="text"
+                       class="form-control"
+                       id="report_target_table"
+                       name="report_target_table"
+                       value="connector_report_{$operations.report.target_table|escape}"
+                       placeholder="forward_company_us">
+                <div class="form-text">Например: forward_name_country (латиница, цифры, underscore).</div>
+              </div>
+            </div>
+
+            <div class="d-flex gap-2">
+              <button type="button" class="btn btn-primary js-core-link" data-core-action="save_connector_operations">
+                Сохранить операции
+              </button>
+              <button type="button" class="btn btn-outline-secondary js-core-link" data-core-action="test_connector_operations" data-connector-id="{$connector.id}">
+                Тест операции
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>

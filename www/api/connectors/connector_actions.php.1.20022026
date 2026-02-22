@@ -3,10 +3,7 @@
 declare(strict_types=1);
 
 // Доступны: $action, $user, $dbcnx, $smarty
-//$response = ['status' => 'error', 'message' => 'Unknown connector action'];
-
-$normalizedAction = trim((string)$action);
-$response = ['status' => 'error', 'message' => 'Unknown connector action: ' . $normalizedAction];
+$response = ['status' => 'error', 'message' => 'Unknown connector action'];
 
 require_once __DIR__ . '/connector_engine.php';
 
@@ -51,7 +48,6 @@ function connectors_ensure_schema(mysqli $dbcnx): void
         'auth_cookies' => "ALTER TABLE connectors ADD COLUMN auth_cookies TEXT NULL AFTER auth_token_expires_at",
         'last_manual_confirm_at' => "ALTER TABLE connectors ADD COLUMN last_manual_confirm_at DATETIME NULL AFTER scenario_json",
         'last_manual_confirm_by' => "ALTER TABLE connectors ADD COLUMN last_manual_confirm_by INT NULL AFTER last_manual_confirm_at",
-        'operations_json' => "ALTER TABLE connectors ADD COLUMN operations_json LONGTEXT NULL AFTER scenario_json",
     ];
 
     foreach ($columnsToEnsure as $column => $alterSql) {
@@ -117,7 +113,6 @@ function connectors_fetch_one(mysqli $dbcnx, int $connectorId): ?array
                 last_error,
                 ssl_ignore,
                 scenario_json,
-                operations_json,
                 last_manual_confirm_at,
                 last_manual_confirm_by,
                 notes,
@@ -139,126 +134,9 @@ function connectors_fetch_one(mysqli $dbcnx, int $connectorId): ?array
     return $row ?: null;
 }
 
-
-function connectors_default_operations(array $connector): array
-{
-    $defaultTarget = '';
-    $name = strtolower(trim((string)($connector['name'] ?? '')));
-    $countries = strtolower(trim((string)($connector['countries'] ?? '')));
-
-    if ($name !== '' && $countries !== '') {
-        $country = trim(explode(',', $countries)[0]);
-        $country = preg_replace('/[^a-z0-9_]+/', '_', $country ?? '');
-        $name = preg_replace('/[^a-z0-9_]+/', '_', $name);
-        $defaultTarget = trim($name . '_' . $country, '_');
-    }
-
-    return [
-        'report' => [
-            'enabled' => 0,
-            'page_url' => '',
-            'file_extension' => 'xlsx',
-            'download_mode' => 'browser',
-            'steps_json' => '',
-            'curl_config_json' => '',
-            'target_table' => $defaultTarget,
-        ],
-    ];
-}
-
-function connectors_decode_operations(array $connector): array
-{
-    $operations = connectors_default_operations($connector);
-    $raw = (string)($connector['operations_json'] ?? '');
-    if ($raw === '') {
-        return $operations;
-    }
-
-    $decoded = json_decode($raw, true);
-    if (!is_array($decoded)) {
-        return $operations;
-    }
-
-    if (isset($decoded['report']) && is_array($decoded['report'])) {
-        $report = $decoded['report'];
-        $operations['report']['enabled'] = !empty($report['enabled']) ? 1 : 0;
-        $operations['report']['page_url'] = trim((string)($report['page_url'] ?? ''));
-        $operations['report']['file_extension'] = trim((string)($report['file_extension'] ?? 'xlsx')) ?: 'xlsx';
-        $operations['report']['download_mode'] = in_array(($report['download_mode'] ?? 'browser'), ['browser', 'curl'], true)
-            ? (string)$report['download_mode']
-            : 'browser';
-
-        if (isset($report['steps'])) {
-            $operations['report']['steps_json'] = json_encode($report['steps'], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT) ?: '';
-        }
-        if (isset($report['curl_config'])) {
-            $operations['report']['curl_config_json'] = json_encode($report['curl_config'], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT) ?: '';
-        }
-
-        $operations['report']['target_table'] = trim((string)($report['target_table'] ?? $operations['report']['target_table']));
-    }
-
-    return $operations;
-}
-
-function connectors_build_operations_payload_from_post(): array
-{
-    $enabled = !empty($_POST['report_enabled']) ? 1 : 0;
-    $pageUrl = trim((string)($_POST['report_page_url'] ?? ''));
-    $fileExtension = strtolower(trim((string)($_POST['report_file_extension'] ?? 'xlsx')));
-    $downloadMode = trim((string)($_POST['report_download_mode'] ?? 'browser'));
-    $stepsJson = trim((string)($_POST['report_steps_json'] ?? ''));
-    $curlConfigJson = trim((string)($_POST['report_curl_config_json'] ?? ''));
-    $targetTable = strtolower(trim((string)($_POST['report_target_table'] ?? '')));
-
-    $targetTable = preg_replace('/[^a-z0-9_]+/', '_', $targetTable ?? '');
-    if ($targetTable !== '') {
-        $targetTable = trim($targetTable, '_');
-    }
-
-    $steps = [];
-    if ($stepsJson !== '') {
-        $decoded = json_decode($stepsJson, true);
-        if (!is_array($decoded)) {
-            throw new InvalidArgumentException('Некорректный JSON в "Шаги формы/кнопок"');
-        }
-        $steps = $decoded;
-    }
-
-    $curlConfig = [];
-    if ($curlConfigJson !== '') {
-        $decoded = json_decode($curlConfigJson, true);
-        if (!is_array($decoded)) {
-            throw new InvalidArgumentException('Некорректный JSON в "PHP cURL конфиг"');
-        }
-        $curlConfig = $decoded;
-    }
-
-    if (!in_array($downloadMode, ['browser', 'curl'], true)) {
-        $downloadMode = 'browser';
-    }
-
-    if ($fileExtension === '') {
-        $fileExtension = 'xlsx';
-    }
-
-    return [
-        'report' => [
-            'enabled' => $enabled,
-            'page_url' => $pageUrl,
-            'file_extension' => $fileExtension,
-            'download_mode' => $downloadMode,
-            'steps' => $steps,
-            'curl_config' => $curlConfig,
-            'target_table' => $targetTable,
-        ],
-    ];
-}
-
-
 connectors_ensure_schema($dbcnx);
 
-switch ($normalizedAction) {
+switch ($action) {
     case 'view_connectors':
         $connectors = [];
         $sql = "SELECT
@@ -319,7 +197,6 @@ switch ($normalizedAction) {
             'last_error' => '',
             'ssl_ignore' => 0,
             'scenario_json' => '',
-            'operations_json' => '',
             'last_manual_confirm_at' => null,
             'last_manual_confirm_by' => null,
             'manual_instruction' => '',
@@ -623,108 +500,6 @@ switch ($normalizedAction) {
         ];
         break;
 
-
-    case 'form_connector_operations':
-        $connectorId = (int)($_POST['connector_id'] ?? 0);
-        if ($connectorId <= 0) {
-            $response = [
-                'status' => 'error',
-                'message' => 'connector_id required',
-            ];
-            break;
-        }
-
-        $connector = connectors_fetch_one($dbcnx, $connectorId);
-        if (!$connector) {
-            $response = [
-                'status' => 'error',
-                'message' => 'Коннектор не найден',
-            ];
-            break;
-        }
-
-        $operations = connectors_decode_operations($connector);
-        $smarty->assign('connector', $connector);
-        $smarty->assign('operations', $operations);
-
-        ob_start();
-        $smarty->display('cells_NA_API_connector_operations_modal.html');
-        $html = ob_get_clean();
-
-        $response = [
-            'status' => 'ok',
-            'html' => $html,
-        ];
-        break;
-
-    case 'save_connector_operations':
-        $connectorId = (int)($_POST['connector_id'] ?? 0);
-        if ($connectorId <= 0) {
-            $response = [
-                'status' => 'error',
-                'message' => 'connector_id required',
-            ];
-            break;
-        }
-
-        $connector = connectors_fetch_one($dbcnx, $connectorId);
-        if (!$connector) {
-            $response = [
-                'status' => 'error',
-                'message' => 'Коннектор не найден',
-            ];
-            break;
-        }
-
-        try {
-            $operationsPayload = connectors_build_operations_payload_from_post();
-        } catch (InvalidArgumentException $e) {
-            $response = [
-                'status' => 'error',
-                'message' => $e->getMessage(),
-            ];
-            break;
-        }
-
-        $operationsJson = json_encode($operationsPayload, JSON_UNESCAPED_UNICODE);
-        if ($operationsJson === false) {
-            $response = [
-                'status' => 'error',
-                'message' => 'Не удалось сериализовать операции',
-            ];
-            break;
-        }
-
-        $stmt = $dbcnx->prepare('UPDATE connectors SET operations_json = ? WHERE id = ?');
-        if (!$stmt) {
-            $response = [
-                'status' => 'error',
-                'message' => 'DB error (save operations)',
-            ];
-            break;
-        }
-        $stmt->bind_param('si', $operationsJson, $connectorId);
-        if (!$stmt->execute()) {
-            $response = [
-                'status' => 'error',
-                'message' => 'DB error (save operations): ' . $stmt->error,
-            ];
-            $stmt->close();
-            break;
-        }
-        $stmt->close();
-
-        $userId = (int)($user['id'] ?? 0);
-        audit_log($userId, 'CONNECTOR_OPERATIONS_UPDATE', 'connector', $connectorId, 'Операции коннектора обновлены');
-
-        $response = [
-            'status' => 'ok',
-            'message' => 'Операции сохранены',
-            'connector_id' => $connectorId,
-        ];
-        break;
-
-
     case 'save_connector':
         $connectorId = (int)($_POST['connector_id'] ?? 0);
         $deleteFlag = !empty($_POST['delete']);
@@ -804,7 +579,6 @@ switch ($normalizedAction) {
                            is_active = ?,
                            ssl_ignore = ?,
                            scenario_json = ?,
-                           operations_json = ?,
                            notes = ?
                      WHERE id = ?";
             $stmt = $dbcnx->prepare($sql);
@@ -816,7 +590,7 @@ switch ($normalizedAction) {
                 break;
             }
             $stmt->bind_param(
-                'ssssssssssiisssi',
+                'ssssssssssiissi',
                 $name,
                 $countries,
                 $baseUrl,
@@ -845,8 +619,8 @@ switch ($normalizedAction) {
             $stmt->close();
         } else {
             $sql = "INSERT INTO connectors
-                        (name, countries, base_url, auth_type, auth_username, auth_password, api_token, auth_token, auth_cookies, auth_token_expires_at, is_active, ssl_ignore, scenario_json, operations_json, notes)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                        (name, countries, base_url, auth_type, auth_username, auth_password, api_token, auth_token, auth_cookies, auth_token_expires_at, is_active, ssl_ignore, scenario_json, notes)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
             $stmt = $dbcnx->prepare($sql);
             if (!$stmt) {
                 $response = [
@@ -856,7 +630,7 @@ switch ($normalizedAction) {
                 break;
             }
             $stmt->bind_param(
-                'ssssssssssiisss',
+                'ssssssssssiiss',
                 $name,
                 $countries,
                 $baseUrl,
@@ -870,7 +644,6 @@ switch ($normalizedAction) {
                 $isActive,
                 $sslIgnore,
                 $scenarioJson,
-                '',
                 $notes
             );
             $stmt->execute();
@@ -900,12 +673,4 @@ switch ($normalizedAction) {
             'connector_id' => $connectorId,
         ];
         break;
-
-    default:
-        $response = [
-            'status' => 'error',
-            'message' => 'Unknown connector action: ' . $normalizedAction,
-        ];
-        break;
 }
-
