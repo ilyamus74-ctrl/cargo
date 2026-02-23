@@ -1,0 +1,3 @@
+Screenshot was not captured.
+Reason: Requesting main frame too early!
+Time: 2026-02-23T21:34:00.780Z
