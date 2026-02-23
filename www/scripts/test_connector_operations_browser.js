@@ -134,7 +134,6 @@ async function safeRm(dir) {
     fs.rmSync(dir, { recursive: true, force: true });
   } catch (_) {}
 }
-
 function safeFilePart(value) {
   return String(value || '')
     .toLowerCase()
@@ -153,6 +152,28 @@ async function saveStepScreenshot(page, dir, stepNo, action) {
   } catch (_) {
     return null;
   }
+}
+
+
+function ensureDirExists(dir) {
+  if (!dir) return false;
+  try {
+    fs.mkdirSync(dir, { recursive: true });
+    return true;
+  } catch (_) {
+    return false;
+  }
+}
+
+function mkTempDir(preferredBaseDir, prefix) {
+  const normalizedBase = (preferredBaseDir || '').trim();
+  if (normalizedBase !== '' && ensureDirExists(normalizedBase)) {
+    try {
+      return fs.mkdtempSync(path.join(normalizedBase, prefix));
+    } catch (_) {}
+  }
+
+  return fs.mkdtempSync(path.join(os.tmpdir(), prefix));
 }
 
 async function configureDownloadBehavior(page, downloadDir) {
@@ -243,14 +264,15 @@ async function waitForDownloadedFileInDirs(dirs, ext, timeoutMs) {
   const fileExtension = String(payload.file_extension || 'xlsx').toLowerCase();
   const sslIgnore = !!payload.ssl_ignore;
   const forceCdpDownloadBehavior = !!payload.force_cdp_download_behavior;
-  
+  const tempDirBase = typeof payload.temp_dir === 'string' ? payload.temp_dir.trim() : '';
+
   if (steps.length === 0) {
     process.stdout.write(JSON.stringify({ ok: false, message: 'No steps provided' }) + '\n');
     process.exit(1);
   }
 
-  const downloadDir = fs.mkdtempSync(path.join(os.tmpdir(), 'connector-op-'));
-  const artifactsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'connector-op-artifacts-'));
+  const downloadDir = mkTempDir(tempDirBase, 'connector-op-');
+  const artifactsDir = mkTempDir(tempDirBase, 'connector-op-artifacts-');
   const captureScreenshots = payload.capture_screenshots !== false;
   const stepLog = [];
   let browser;
@@ -261,8 +283,8 @@ async function waitForDownloadedFileInDirs(dirs, ext, timeoutMs) {
   const executablePath = executableCandidates[0] || null;
 
   try {
-    userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'connector-browser-profile-'));
-    runtimeHomeDir = fs.mkdtempSync(path.join(os.tmpdir(), 'connector-browser-home-'));
+    userDataDir = mkTempDir(tempDirBase, 'connector-browser-profile-');
+    runtimeHomeDir = mkTempDir(tempDirBase, 'connector-browser-home-');
     fs.mkdirSync(path.join(runtimeHomeDir, '.config'), { recursive: true });
     fs.mkdirSync(path.join(runtimeHomeDir, '.cache'), { recursive: true });
 

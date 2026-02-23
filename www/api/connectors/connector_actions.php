@@ -14,11 +14,13 @@ final class ConnectorStepLogException extends RuntimeException
 {
     /** @var array<int,array<string,mixed>> */
     private array $stepLog;
+    private string $artifactsDir;
 
-    public function __construct(string $message, array $stepLog = [], int $code = 0, ?Throwable $previous = null)
+    public function __construct(string $message, array $stepLog = [], int $code = 0, ?Throwable $previous = null, string $artifactsDir = '')
     {
         parent::__construct($message, $code, $previous);
         $this->stepLog = $stepLog;
+        $this->artifactsDir = trim($artifactsDir);
     }
 
     /** @return array<int,array<string,mixed>> */
@@ -26,8 +28,12 @@ final class ConnectorStepLogException extends RuntimeException
     {
         return $this->stepLog;
     }
-}
 
+    public function getArtifactsDir(): string
+    {
+        return $this->artifactsDir;
+    }
+}
 
 function connectors_ensure_schema(mysqli $dbcnx): void
 {
@@ -484,6 +490,13 @@ function connectors_download_report_file(array $connector, array $reportCfg, ?st
             throw new RuntimeException('Не найден browser script для теста скачивания');
         }
 
+
+        $tempDir = __DIR__ . '/../../scripts/_tmp';
+        if (!is_dir($tempDir)) {
+            @mkdir($tempDir, 0775, true);
+        }
+
+
         $payload = [
             'steps' => $steps,
             'vars' => $vars,
@@ -491,6 +504,7 @@ function connectors_download_report_file(array $connector, array $reportCfg, ?st
             'ssl_ignore' => !empty($connector['ssl_ignore']),
             'cookies' => (string)($connector['auth_cookies'] ?? ''),
             'auth_token' => (string)($connector['auth_token'] ?? ''),
+            'temp_dir' => realpath($tempDir) ?: $tempDir,
         ];
 
         $cmd = 'node ' . escapeshellarg($scriptPath) . ' ' . escapeshellarg((string)json_encode($payload, JSON_UNESCAPED_UNICODE));
@@ -500,10 +514,11 @@ function connectors_download_report_file(array $connector, array $reportCfg, ?st
             throw new RuntimeException('Не удалось выполнить browser-тест скачивания: ' . trim((string)$output));
         }
         if (empty($decoded['ok'])) {
-            $browserStepLog = isset($decoded['step_log']) && is_array($decoded['step_log']) ? $decoded['step_log'] : [];
-            if (!empty($browserStepLog)) {
-                throw new ConnectorStepLogException((string)($decoded['message'] ?? 'Browser test failed'), $browserStepLog);
-            }
+           $browserStepLog = isset($decoded['step_log']) && is_array($decoded['step_log']) ? $decoded['step_log'] : [];
+           $browserArtifactsDir = trim((string)($decoded['artifacts_dir'] ?? ''));
+           if (!empty($browserStepLog)) {
+              throw new ConnectorStepLogException((string)($decoded['message'] ?? 'Browser test failed'), $browserStepLog, 0, null, $browserArtifactsDir);
+              }
             throw new RuntimeException((string)($decoded['message'] ?? 'Browser test failed'));
         }
 
@@ -1386,6 +1401,7 @@ switch ($normalizedAction) {
                 'connector_id' => $connectorId,
                 'target_table' => $targetTable,
                 'step_log' => $e->getStepLog(),
+                'artifacts_dir' => $e->getArtifactsDir(),
             ];
         } catch (RuntimeException $e) {
             $response = [
