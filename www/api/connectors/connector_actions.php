@@ -10,6 +10,25 @@ $response = ['status' => 'error', 'message' => 'Unknown connector action: ' . $n
 
 require_once __DIR__ . '/connector_engine.php';
 
+
+final class ConnectorStepLogException extends RuntimeException
+{
+    /** @var array<int,array<string,mixed>> */
+    private array $stepLog;
+
+    public function __construct(string $message, array $stepLog = [], int $code = 0, ?Throwable $previous = null)
+    {
+        parent::__construct($message, $code, $previous);
+        $this->stepLog = $stepLog;
+    }
+
+    /** @return array<int,array<string,mixed>> */
+    public function getStepLog(): array
+    {
+        return $this->stepLog;
+    }
+}
+
 function connectors_ensure_schema(mysqli $dbcnx): void
 {
     $sql = "
@@ -551,7 +570,32 @@ function connectors_download_report_file(array $connector, array $reportCfg, ?st
         $loginHttp = (int)($loginResponse['http_code'] ?? 0);
         $appendStepLog('login', 'Login-запрос выполнен', ['http_code' => $loginHttp]);
         if ($loginHttp >= 400) {
-            throw new RuntimeException('Ошибка логина через cURL: HTTP ' . $loginHttp);
+            throw new ConnectorStepLogException('Ошибка логина через cURL: HTTP ' . $loginHttp, $stepLog);
+        }
+
+        $successCfg = isset($curlCfg['login']['success']) && is_array($curlCfg['login']['success'])
+            ? $curlCfg['login']['success']
+            : [];
+        $successSelector = trim((string)($successCfg['selector'] ?? ''));
+        if ($successSelector !== '') {
+            $loginBody = (string)($loginResponse['body'] ?? '');
+            $parts = array_values(array_filter(array_map('trim', explode('*', $successSelector)), static fn($part) => $part !== ''));
+            $found = true;
+            foreach ($parts as $part) {
+                if (stripos($loginBody, $part) === false) {
+                    $found = false;
+                    break;
+                }
+            }
+
+            $appendStepLog('login', 'Проверка login.success.selector', [
+                'selector' => $successSelector,
+                'matched' => $found,
+            ]);
+
+            if (!$found) {
+                throw new ConnectorStepLogException('Логин через cURL не прошёл проверку success.selector', $stepLog);
+            }
         }
         $loginCookies = trim((string)($loginResponse['cookies'] ?? ''));
         if ($loginCookies !== '') {
@@ -609,14 +653,14 @@ function connectors_download_report_file(array $connector, array $reportCfg, ?st
     if (!$ok || $httpCode >= 400) {
         @unlink($filePath);
         $appendStepLog('download', 'Скачивание завершилось ошибкой', ['http_code' => $httpCode]);
-        throw new RuntimeException('Ошибка скачивания через cURL: HTTP ' . $httpCode . ' ' . $curlErr);
+        throw new ConnectorStepLogException('Ошибка скачивания через cURL: HTTP ' . $httpCode . ' ' . $curlErr, $stepLog);
     }
 
     $size = (int)filesize($filePath);
     if ($size <= 0) {
         @unlink($filePath);
         $appendStepLog('download', 'Скачивание завершилось пустым файлом', ['http_code' => $httpCode]);
-        throw new RuntimeException('Скачанный файл пустой');
+        throw new ConnectorStepLogException('Скачанный файл пустой', $stepLog);
     }
 
     $appendStepLog('download', 'Файл успешно скачан', [
@@ -1328,6 +1372,14 @@ switch ($normalizedAction) {
                 'message' => $e->getMessage(),
                 'connector_id' => $connectorId,
                 'target_table' => $targetTable,
+            ];
+        } catch (ConnectorStepLogException $e) {
+            $response = [
+                'status' => 'error',
+                'message' => $e->getMessage(),
+                'connector_id' => $connectorId,
+                'target_table' => $targetTable,
+                'step_log' => $e->getStepLog(),
             ];
         } catch (RuntimeException $e) {
             $response = [

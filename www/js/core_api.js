@@ -838,7 +838,23 @@ const CoreAPI = {
                 const data = await CoreAPI.client.call(formData);
                 if (!data || data.status !== 'ok') {
                     console.error('core_api error:', data);
-                    alert(data?.message || 'Ошибка при выполнении запроса');
+
+                    const stepLog = Array.isArray(data?.step_log) ? data.step_log : [];
+                    if (stepLog.length > 0) {
+                        console.group('connector step log');
+                        stepLog.forEach((entry, idx) => {
+                            const ts = entry?.time || '';
+                            const step = entry?.step || 'step';
+                            const msg = entry?.message || '';
+                            console.log(`#${idx + 1} [${ts}] ${step}: ${msg}`, entry?.meta || {});
+                        });
+                        console.groupEnd();
+                    }
+
+                    const logHint = stepLog.length > 0
+                        ? '\n\nПошаговый лог выведен в консоль браузера (connector step log).'
+                        : '';
+                    alert((data?.message || 'Ошибка при выполнении запроса') + logHint);
                     return;
                 }
                 // Вызываем обработчик
