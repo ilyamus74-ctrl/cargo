@@ -74,7 +74,7 @@
                           name="report_steps_json"
                           rows="9"
                           placeholder="JSON шагов browser-автоматизации">{$operations.report.steps_json|escape}</textarea>
-                <div class="form-text">JSON-массив шагов: goto/fill/click/wait_for/download.</div>
+                <div class="form-text">JSON-массив шагов: goto/fill/click/wait_for/download. Перед ними автоматически выполнятся login.browser_steps (или browser_login_steps) из scenario_json коннектора.</div>
                 <pre class="form-text mb-0">{literal}[{"action":"goto","url":"https://portal.example.com/reports"},{"action":"click","selector":"#period_today"},{"action":"click","selector":"button.export-xlsx"}]{/literal}</pre>
               </div>
             </div>

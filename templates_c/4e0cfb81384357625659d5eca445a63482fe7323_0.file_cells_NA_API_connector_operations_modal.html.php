@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-02-23 12:29:52
+/* Smarty version 5.3.1, created on 2026-02-23 15:44:48
   from 'file:cells_NA_API_connector_operations_modal.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_699c4840cb8121_37783665',
+  'unifunc' => 'content_699c75f0c16a91_39834266',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '4e0cfb81384357625659d5eca445a63482fe7323' => 
     array (
       0 => 'cells_NA_API_connector_operations_modal.html',
-      1 => 1771849355,
+      1 => 1771861141,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_699c4840cb8121_37783665 (\Smarty\Template $_smarty_tpl) {
+function content_699c75f0c16a91_39834266 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>
 <section class="section">
@@ -103,7 +103,7 @@ $_smarty_current_dir = '/home/cells/web/templates';
                           rows="9"
                           placeholder="JSON шагов browser-автоматизации"><?php echo htmlspecialchars((string)$_smarty_tpl->getValue('operations')['report']['steps_json'], ENT_QUOTES, 'UTF-8', true);?>
 </textarea>
-                <div class="form-text">JSON-массив шагов: goto/fill/click/wait_for/download.</div>
+                <div class="form-text">JSON-массив шагов: goto/fill/click/wait_for/download. Перед ними автоматически выполнятся login.browser_steps (или browser_login_steps) из scenario_json коннектора.</div>
                 <pre class="form-text mb-0">[{"action":"goto","url":"https://portal.example.com/reports"},{"action":"click","selector":"#period_today"},{"action":"click","selector":"button.export-xlsx"}]</pre>
               </div>
             </div>

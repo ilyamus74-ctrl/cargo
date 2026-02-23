@@ -291,6 +291,128 @@ function connectors_apply_vars($value, array $vars)
     }, $value) ?? $value;
 }
 
+
+function connectors_extract_browser_login_steps(array $connector): array
+{
+    $scenarioRaw = trim((string)($connector['scenario_json'] ?? ''));
+    if ($scenarioRaw === '') {
+        return [];
+    }
+
+    $scenario = json_decode($scenarioRaw, true);
+    if (!is_array($scenario)) {
+        return [];
+    }
+
+    if (isset($scenario['browser_login_steps']) && is_array($scenario['browser_login_steps'])) {
+        return $scenario['browser_login_steps'];
+    }
+
+    if (isset($scenario['login']['browser_steps']) && is_array($scenario['login']['browser_steps'])) {
+        return $scenario['login']['browser_steps'];
+    }
+
+    return [];
+}
+
+
+function connectors_parse_set_cookie_header(array $headers): string
+{
+    $cookies = [];
+    foreach ($headers as $headerLine) {
+        if (stripos((string)$headerLine, 'Set-Cookie:') !== 0) {
+            continue;
+        }
+        $raw = trim(substr((string)$headerLine, strlen('Set-Cookie:')));
+        if ($raw === '') {
+            continue;
+        }
+        $firstPart = trim(explode(';', $raw, 2)[0] ?? '');
+        if ($firstPart === '' || strpos($firstPart, '=') === false) {
+            continue;
+        }
+        [$k, $v] = array_map('trim', explode('=', $firstPart, 2));
+        if ($k === '') {
+            continue;
+        }
+        $cookies[$k] = $v;
+    }
+
+    $pairs = [];
+    foreach ($cookies as $k => $v) {
+        $pairs[] = $k . '=' . $v;
+    }
+    return implode('; ', $pairs);
+}
+
+function connectors_curl_request(array $cfg, array $vars, bool $sslIgnore): array
+{
+    $url = trim((string)connectors_apply_vars((string)($cfg['url'] ?? ''), $vars));
+    if ($url === '') {
+        throw new InvalidArgumentException('В cURL-запросе отсутствует url');
+    }
+
+    $method = strtoupper(trim((string)($cfg['method'] ?? 'GET')));
+    if ($method === '') {
+        $method = 'GET';
+    }
+
+    $headers = [];
+    if (isset($cfg['headers']) && is_array($cfg['headers'])) {
+        foreach ($cfg['headers'] as $k => $v) {
+            $headers[] = $k . ': ' . (string)connectors_apply_vars((string)$v, $vars);
+        }
+    }
+
+    $bodyData = [];
+    if (isset($cfg['body']) && is_array($cfg['body'])) {
+        foreach ($cfg['body'] as $k => $v) {
+            $bodyData[$k] = connectors_apply_vars($v, $vars);
+        }
+    }
+
+    $responseHeaders = [];
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, $url);
+    curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 120);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_HEADERFUNCTION, static function ($ch, $line) use (&$responseHeaders) {
+        $responseHeaders[] = trim((string)$line);
+        return strlen($line);
+    });
+    if ($sslIgnore) {
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
+    }
+    if (!empty($headers)) {
+        curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+    }
+    if ($method !== 'GET') {
+        curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $method);
+        if (!empty($bodyData)) {
+            curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($bodyData));
+        }
+    }
+
+    $body = curl_exec($ch);
+    $httpCode = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+    $curlErr = curl_error($ch);
+    curl_close($ch);
+
+    if ($body === false) {
+        throw new RuntimeException('Ошибка cURL: ' . $curlErr);
+    }
+
+    return [
+        'http_code' => $httpCode,
+        'body' => (string)$body,
+        'headers' => $responseHeaders,
+        'cookies' => connectors_parse_set_cookie_header($responseHeaders),
+    ];
+}
+
+
 function connectors_download_report_file(array $connector, array $reportCfg, ?string $periodFrom, ?string $periodTo): array
 {
     $ext = strtolower(trim((string)($reportCfg['file_extension'] ?? 'xlsx')));
@@ -298,16 +420,22 @@ function connectors_download_report_file(array $connector, array $reportCfg, ?st
         $ext = 'xlsx';
     }
 
+    $today = date('Y-m-d');
     $vars = [
         'date_from' => $periodFrom ?? '',
         'date_to' => $periodTo ?? '',
+        'today' => $today,
         'base_url' => trim((string)($connector['base_url'] ?? '')),
+        'login' => trim((string)($connector['auth_username'] ?? '')),
+        'password' => trim((string)($connector['auth_password'] ?? '')),
     ];
 
     if (($reportCfg['download_mode'] ?? 'browser') === 'browser') {
-        $steps = isset($reportCfg['steps']) && is_array($reportCfg['steps']) ? $reportCfg['steps'] : [];
+        $reportSteps = isset($reportCfg['steps']) && is_array($reportCfg['steps']) ? $reportCfg['steps'] : [];
+        $loginSteps = connectors_extract_browser_login_steps($connector);
+        $steps = array_merge($loginSteps, $reportSteps);
         if (empty($steps)) {
-            throw new InvalidArgumentException('Для режима browser нужно заполнить шаги (report_steps_json)');
+            throw new InvalidArgumentException('Для режима browser заполните report_steps_json или browser_login_steps в scenario_json');
         }
 
         $scriptPath = realpath(__DIR__ . '/../../scripts/test_connector_operations_browser.js');
@@ -350,7 +478,7 @@ function connectors_download_report_file(array $connector, array $reportCfg, ?st
     $curlCfg = isset($reportCfg['curl_config']) && is_array($reportCfg['curl_config']) ? $reportCfg['curl_config'] : [];
     $url = trim((string)($curlCfg['url'] ?? ''));
     if ($url === '') {
-        throw new InvalidArgumentException('Для режима cURL нужен url в report_curl_config_json');
+        throw new InvalidArgumentException('Для режима cURL нужен JSON-объект в report_curl_config_json с полем url (например {"url":"https://.../export","method":"POST"}).');
     }
 
     $url = (string)connectors_apply_vars($url, $vars);
@@ -360,9 +488,18 @@ function connectors_download_report_file(array $connector, array $reportCfg, ?st
     }
 
     $headers = [];
+    $hasAuthorizationHeader = false;
+    $hasCookieHeader = false;
     if (isset($curlCfg['headers']) && is_array($curlCfg['headers'])) {
         foreach ($curlCfg['headers'] as $k => $v) {
-            $headers[] = $k . ': ' . (string)connectors_apply_vars((string)$v, $vars);
+            $headerName = trim((string)$k);
+            if (strcasecmp($headerName, 'Authorization') === 0) {
+                $hasAuthorizationHeader = true;
+            }
+            if (strcasecmp($headerName, 'Cookie') === 0) {
+                $hasCookieHeader = true;
+            }
+            $headers[] = $headerName . ': ' . (string)connectors_apply_vars((string)$v, $vars);
         }
     }
 
@@ -372,6 +509,33 @@ function connectors_download_report_file(array $connector, array $reportCfg, ?st
             $bodyData[$k] = connectors_apply_vars($v, $vars);
         }
     }
+
+
+    if (!$hasAuthorizationHeader && !empty($connector['auth_token'])) {
+        $headers[] = 'Authorization: Bearer ' . trim((string)$connector['auth_token']);
+    }
+
+    $cookieParts = [];
+    if (!empty($connector['auth_cookies'])) {
+        $cookieParts[] = trim((string)$connector['auth_cookies']);
+    }
+
+    if (isset($curlCfg['login']) && is_array($curlCfg['login'])) {
+        $loginResponse = connectors_curl_request($curlCfg['login'], $vars, !empty($connector['ssl_ignore']));
+        $loginHttp = (int)($loginResponse['http_code'] ?? 0);
+        if ($loginHttp >= 400) {
+            throw new RuntimeException('Ошибка логина через cURL: HTTP ' . $loginHttp);
+        }
+        $loginCookies = trim((string)($loginResponse['cookies'] ?? ''));
+        if ($loginCookies !== '') {
+            $cookieParts[] = $loginCookies;
+        }
+    }
+
+    if (!$hasCookieHeader && !empty($cookieParts)) {
+        $headers[] = 'Cookie: ' . implode('; ', $cookieParts);
+    }
+
 
     $tmpFile = tempnam(sys_get_temp_dir(), 'connector-report-');
     if ($tmpFile === false) {
@@ -521,6 +685,10 @@ function connectors_build_operations_payload_from_post(): array
         $decoded = json_decode($curlConfigJson, true);
         if (!is_array($decoded)) {
             throw new InvalidArgumentException('Некорректный JSON в "PHP cURL конфиг"');
+        }
+        $isList = array_keys($decoded) === range(0, count($decoded) - 1);
+        if ($isList) {
+            throw new InvalidArgumentException('"PHP cURL конфиг" должен быть JSON-объектом вида {"url":"...","method":"GET|POST",...}, а не массивом browser-шагов. Шаги нужно указывать в "Шаги формы/кнопок".');
         }
         $curlConfig = $decoded;
     }

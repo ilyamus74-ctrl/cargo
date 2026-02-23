@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-02-03 19:53:38
+/* Smarty version 5.3.1, created on 2026-02-23 15:45:45
   from 'file:cells_NA_API_connector_modal.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_6982524268eb53_17833431',
+  'unifunc' => 'content_699c7629947c46_51601071',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     'e3b4a633cb3de7e87ec136742f2dde5df829ed18' => 
     array (
       0 => 'cells_NA_API_connector_modal.html',
-      1 => 1770148305,
+      1 => 1771861105,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_6982524268eb53_17833431 (\Smarty\Template $_smarty_tpl) {
+function content_699c7629947c46_51601071 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?><section class="section">
   <div class="row">
@@ -220,7 +220,7 @@ $_smarty_current_dir = '/home/cells/web/templates';
                 <div class="form-text">
                   Укажите URL входа, параметры формы и критерий успеха (селектор/текст). Для API шагов используйте steps с expect.
                 </div>
-                <pre class="form-text mb-0">{"manual_confirm":{"required":true,"instruction":"Оператор проходит капчу и нажимает \"Обновить токен\""},"login":{"url":"https://portal.example.com/login","method":"POST","fields":{"username":"${login}","password":"${password}"}},"success":{"selector":"a[href*=\"logout\"]","text":"Log out"},"steps":[{"name":"Dashboard","url":"https://portal.example.com/dashboard","method":"GET","success":{"selector":".user-profile"}},{"name":"Balance API","url":"https://portal.example.com/api/balance","method":"GET","expect":{"json_path":"data.balance","operator":">","value":0}}]}</pre>
+                <pre class="form-text mb-0">{"manual_confirm":{"required":true,"instruction":"Оператор проходит капчу и нажимает \"Обновить токен\""},"login":{"url":"https://portal.example.com/login","method":"POST","fields":{"username":"${login}","password":"${password}"},"browser_steps":[{"action":"goto","url":"https://portal.example.com/login"},{"action":"fill","selector":"input[name=\"email\"]","value":"${login}"},{"action":"fill","selector":"input[name=\"password\"]","value":"${password}"},{"action":"click","selector":"button[type=\"submit\"]"}]},"success":{"selector":"a[href*=\"logout\"]","text":"Log out"},"steps":[{"name":"Dashboard","url":"https://portal.example.com/dashboard","method":"GET","success":{"selector":".user-profile"}},{"name":"Balance API","url":"https://portal.example.com/api/balance","method":"GET","expect":{"json_path":"data.balance","operator":">","value":0}}]}</pre>
               </div>
             </div>
 

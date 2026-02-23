@@ -158,41 +158,6 @@ async function configureDownloadBehavior(page, downloadDir) {
   };
 }
 
-
-
-function isTransientFrameError(err) {
-  const msg = err?.message ? String(err.message) : String(err || '');
-  return (
-    msg.includes('Requesting main frame too early') ||
-    msg.includes('Navigating frame was detached') ||
-    msg.includes('Execution context was destroyed')
-  );
-}
-
-async function runWithTransientRetry(fn, opts = {}) {
-  const maxAttempts = Number(opts.maxAttempts || 5);
-  const baseDelayMs = Number(opts.baseDelayMs || 400);
-  let lastErr = null;
-
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    try {
-      return await fn();
-    } catch (err) {
-      lastErr = err;
-      if (!isTransientFrameError(err) || attempt === maxAttempts) {
-        throw err;
-      }
-      await sleep(baseDelayMs * attempt);
-    }
-  }
-
-  throw lastErr || new Error('Transient retry failed');
-}
-
-async function safeGoto(page, url, options) {
-  await runWithTransientRetry(() => page.goto(url, options), { maxAttempts: 6, baseDelayMs: 450 });
-}
-
 async function waitForDownloadedFileInDirs(dirs, ext, timeoutMs) {
   const started = Date.now();
   while (Date.now() - started < timeoutMs) {
@@ -223,7 +188,7 @@ async function waitForDownloadedFileInDirs(dirs, ext, timeoutMs) {
   const fileExtension = String(payload.file_extension || 'xlsx').toLowerCase();
   const sslIgnore = !!payload.ssl_ignore;
   const forceCdpDownloadBehavior = !!payload.force_cdp_download_behavior;
-  
+
   if (steps.length === 0) {
     process.stdout.write(JSON.stringify({ ok: false, message: 'No steps provided' }) + '\n');
     process.exit(1);
@@ -248,9 +213,6 @@ async function waitForDownloadedFileInDirs(dirs, ext, timeoutMs) {
     const page = await browser.newPage();
     page.setDefaultTimeout(30000);
     page.setDefaultNavigationTimeout(60000);
-
-    // warmup to avoid transient "main frame too early" errors on first action
-    await runWithTransientRetry(() => page.goto('about:blank', { waitUntil: 'domcontentloaded' }), { maxAttempts: 4, baseDelayMs: 300 });
 
     // headers
     const extraHeaders = {};
@@ -284,7 +246,7 @@ async function waitForDownloadedFileInDirs(dirs, ext, timeoutMs) {
         warning: 'CDP download behavior skipped (force_cdp_download_behavior=false). Using browser default Downloads folder.',
       };
     }
-
+    
     for (const step of steps) {
       const action = String(step.action || '').trim();
       if (!action) continue;
@@ -292,17 +254,15 @@ async function waitForDownloadedFileInDirs(dirs, ext, timeoutMs) {
       if (action === 'goto') {
         const url = applyVars(step.url || '', vars);
         if (!url) throw new Error('goto.url is required');
-        await safeGoto(page, url, { waitUntil: step.wait_until || 'domcontentloaded' });
+        await page.goto(url, { waitUntil: step.wait_until || 'domcontentloaded' });
         continue;
       }
 
       if (action === 'click') {
         const selector = applyVars(step.selector || '', vars);
         if (!selector) throw new Error('click.selector is required');
-        await runWithTransientRetry(async () => {
-          await page.waitForSelector(selector, { visible: !!step.visible });
-          await page.click(selector);
-        });
+        await page.waitForSelector(selector, { visible: !!step.visible });
+        await page.click(selector);
         continue;
       }
 
@@ -318,18 +278,16 @@ async function waitForDownloadedFileInDirs(dirs, ext, timeoutMs) {
         else if (typeof step.var === 'string') text = String(vars[step.var] ?? '');
         text = applyVars(text, vars);
 
-        await runWithTransientRetry(async () => {
-          await page.waitForSelector(selector, { visible: !!step.visible });
-          await page.focus(selector);
+        await page.waitForSelector(selector, { visible: !!step.visible });
+        await page.focus(selector);
 
-          if (step.clear !== false) {
-            // чистим поле
-            await page.click(selector, { clickCount: 3 });
-            await page.keyboard.press('Backspace');
-          }
+        if (step.clear !== false) {
+          // чистим поле
+          await page.click(selector, { clickCount: 3 });
+          await page.keyboard.press('Backspace');
+        }
 
-          await page.type(selector, text, { delay: Number(step.delay_ms || 0) });
-        });
+        await page.type(selector, text, { delay: Number(step.delay_ms || 0) });
         continue;
       }
 
@@ -338,9 +296,9 @@ async function waitForDownloadedFileInDirs(dirs, ext, timeoutMs) {
         const timeout = Number(step.timeout_ms || 10000);
 
         if (selector) {
-          await runWithTransientRetry(() => page.waitForSelector(selector, { timeout, visible: !!step.visible }));
+          await page.waitForSelector(selector, { timeout, visible: !!step.visible });
         } else {
-          await runWithTransientRetry(() => page.waitForTimeout(timeout));
+          await page.waitForTimeout(timeout);
         }
         continue;
       }
