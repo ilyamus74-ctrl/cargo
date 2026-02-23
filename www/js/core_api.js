@@ -840,6 +840,7 @@ const CoreAPI = {
                     console.error('core_api error:', data);
 
                     const stepLog = Array.isArray(data?.step_log) ? data.step_log : [];
+                    const artifactsDir = typeof data?.artifacts_dir === 'string' ? data.artifacts_dir.trim() : '';
                     if (stepLog.length > 0) {
                         console.group('connector step log');
                         stepLog.forEach((entry, idx) => {
@@ -848,11 +849,14 @@ const CoreAPI = {
                             const msg = entry?.message || '';
                             console.log(`#${idx + 1} [${ts}] ${step}: ${msg}`, entry?.meta || {});
                         });
+                        if (artifactsDir) {
+                            console.log('artifacts_dir:', artifactsDir);
+                        }
                         console.groupEnd();
                     }
 
                     const logHint = stepLog.length > 0
-                        ? '\n\nПошаговый лог выведен в консоль браузера (connector step log).'
+                        ? '\n\nПошаговый лог выведен в консоль браузера (connector step log).' + (artifactsDir ? `\nСкриншоты: ${artifactsDir}` : '')
                         : '';
                     alert((data?.message || 'Ошибка при выполнении запроса') + logHint);
                     return;
