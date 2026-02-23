@@ -159,6 +159,7 @@ function connectors_default_operations(array $connector): array
             'page_url' => '',
             'file_extension' => 'xlsx',
             'download_mode' => 'browser',
+            'log_steps' => 0,
             'steps_json' => '',
             'curl_config_json' => '',
             'target_table' => $defaultTarget,
@@ -188,6 +189,7 @@ function connectors_decode_operations(array $connector): array
         $operations['report']['download_mode'] = in_array(($report['download_mode'] ?? 'browser'), ['browser', 'curl'], true)
             ? (string)$report['download_mode']
             : 'browser';
+        $operations['report']['log_steps'] = !empty($report['log_steps']) ? 1 : 0;
 
         if (isset($report['steps'])) {
             $operations['report']['steps_json'] = json_encode($report['steps'], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT) ?: '';
@@ -365,10 +367,14 @@ function connectors_curl_request(array $cfg, array $vars, bool $sslIgnore): arra
     }
 
     $bodyData = [];
+    $rawBody = [];
     if (isset($cfg['body']) && is_array($cfg['body'])) {
-        foreach ($cfg['body'] as $k => $v) {
-            $bodyData[$k] = connectors_apply_vars($v, $vars);
-        }
+        $rawBody = $cfg['body'];
+    } elseif (isset($cfg['fields']) && is_array($cfg['fields'])) {
+        $rawBody = $cfg['fields'];
+    }
+    foreach ($rawBody as $k => $v) {
+        $bodyData[$k] = connectors_apply_vars($v, $vars);
     }
 
     $responseHeaders = [];
@@ -429,6 +435,22 @@ function connectors_download_report_file(array $connector, array $reportCfg, ?st
         'login' => trim((string)($connector['auth_username'] ?? '')),
         'password' => trim((string)($connector['auth_password'] ?? '')),
     ];
+
+
+    $logStepsEnabled = !empty($reportCfg['log_steps']);
+    $stepLog = [];
+    $appendStepLog = static function (string $step, string $message, array $meta = []) use (&$stepLog, $logStepsEnabled): void {
+        if (!$logStepsEnabled) {
+            return;
+        }
+
+        $stepLog[] = [
+            'time' => date('c'),
+            'step' => $step,
+            'message' => $message,
+            'meta' => $meta,
+        ];
+    };
 
     if (($reportCfg['download_mode'] ?? 'browser') === 'browser') {
         $reportSteps = isset($reportCfg['steps']) && is_array($reportCfg['steps']) ? $reportCfg['steps'] : [];
@@ -521,8 +543,13 @@ function connectors_download_report_file(array $connector, array $reportCfg, ?st
     }
 
     if (isset($curlCfg['login']) && is_array($curlCfg['login'])) {
+        $appendStepLog('login', 'Выполняем login-запрос через cURL', [
+            'url' => (string)($curlCfg['login']['url'] ?? ''),
+            'method' => strtoupper((string)($curlCfg['login']['method'] ?? 'GET')),
+        ]);
         $loginResponse = connectors_curl_request($curlCfg['login'], $vars, !empty($connector['ssl_ignore']));
         $loginHttp = (int)($loginResponse['http_code'] ?? 0);
+        $appendStepLog('login', 'Login-запрос выполнен', ['http_code' => $loginHttp]);
         if ($loginHttp >= 400) {
             throw new RuntimeException('Ошибка логина через cURL: HTTP ' . $loginHttp);
         }
@@ -536,6 +563,11 @@ function connectors_download_report_file(array $connector, array $reportCfg, ?st
         $headers[] = 'Cookie: ' . implode('; ', $cookieParts);
     }
 
+    $appendStepLog('download_prepare', 'Подготовлен запрос на скачивание файла', [
+        'url' => $url,
+        'method' => $method,
+        'has_cookie_header' => $hasCookieHeader || !empty($cookieParts),
+    ]);
 
     $tmpFile = tempnam(sys_get_temp_dir(), 'connector-report-');
     if ($tmpFile === false) {
@@ -576,20 +608,29 @@ function connectors_download_report_file(array $connector, array $reportCfg, ?st
 
     if (!$ok || $httpCode >= 400) {
         @unlink($filePath);
+        $appendStepLog('download', 'Скачивание завершилось ошибкой', ['http_code' => $httpCode]);
         throw new RuntimeException('Ошибка скачивания через cURL: HTTP ' . $httpCode . ' ' . $curlErr);
     }
 
     $size = (int)filesize($filePath);
     if ($size <= 0) {
         @unlink($filePath);
+        $appendStepLog('download', 'Скачивание завершилось пустым файлом', ['http_code' => $httpCode]);
         throw new RuntimeException('Скачанный файл пустой');
     }
+
+    $appendStepLog('download', 'Файл успешно скачан', [
+        'http_code' => $httpCode,
+        'file_size' => $size,
+        'file_path' => $filePath,
+    ]);
 
     return [
         'file_path' => $filePath,
         'file_size' => $size,
         'file_extension' => $ext,
         'download_mode' => 'curl',
+        'step_log' => $logStepsEnabled ? $stepLog : [],
     ];
 }
 
@@ -660,6 +701,7 @@ function connectors_build_operations_payload_from_post(): array
     $pageUrl = trim((string)($_POST['report_page_url'] ?? ''));
     $fileExtension = strtolower(trim((string)($_POST['report_file_extension'] ?? 'xlsx')));
     $downloadMode = trim((string)($_POST['report_download_mode'] ?? 'browser'));
+    $logSteps = !empty($_POST['report_log_steps']) ? 1 : 0;
     $stepsJson = trim((string)($_POST['report_steps_json'] ?? ''));
     $curlConfigJson = trim((string)($_POST['report_curl_config_json'] ?? ''));
     $targetTable = strtolower(trim((string)($_POST['report_target_table'] ?? '')));
@@ -716,6 +758,7 @@ function connectors_build_operations_payload_from_post(): array
             'page_url' => $pageUrl,
             'file_extension' => $fileExtension,
             'download_mode' => $downloadMode,
+            'log_steps' => $logSteps,
             'steps' => $steps,
             'curl_config' => $curlConfig,
             'target_table' => $targetTable,
@@ -1276,6 +1319,7 @@ switch ($normalizedAction) {
                 'period_from' => $periodFrom,
                 'period_to' => $periodTo,
                 'download' => $downloadInfo,
+                'step_log' => isset($downloadInfo['step_log']) && is_array($downloadInfo['step_log']) ? $downloadInfo['step_log'] : [],
                 'imported_rows' => $importedRows,
             ];
         } catch (InvalidArgumentException $e) {

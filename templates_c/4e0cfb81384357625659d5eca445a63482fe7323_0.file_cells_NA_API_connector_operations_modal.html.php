@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-02-23 15:44:48
+/* Smarty version 5.3.1, created on 2026-02-23 17:34:38
   from 'file:cells_NA_API_connector_operations_modal.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_699c75f0c16a91_39834266',
+  'unifunc' => 'content_699c8fae13cd94_62969228',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '4e0cfb81384357625659d5eca445a63482fe7323' => 
     array (
       0 => 'cells_NA_API_connector_operations_modal.html',
-      1 => 1771861141,
+      1 => 1771868068,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_699c75f0c16a91_39834266 (\Smarty\Template $_smarty_tpl) {
+function content_699c8fae13cd94_62969228 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>
 <section class="section">
@@ -94,6 +94,24 @@ $_smarty_current_dir = '/home/cells/web/templates';
               </div>
             </div>
 
+
+
+            <div class="row mb-3">
+              <label for="report_log_steps" class="col-md-4 col-lg-3 col-form-label">Лог шагов</label>
+              <div class="col-md-8 col-lg-9">
+                <div class="form-check">
+                  <input class="form-check-input"
+                         type="checkbox"
+                         id="report_log_steps"
+                         name="report_log_steps"
+                         value="1"
+                         <?php if ($_smarty_tpl->getValue('operations')['report']['log_steps'] == 1) {?>checked<?php }?>>
+                  <label class="form-check-label" for="report_log_steps">Писать в лог шаги сценария (только при включении)</label>
+                </div>
+              </div>
+            </div>
+
+
             <div class="row mb-3">
               <label for="report_steps_json" class="col-md-4 col-lg-3 col-form-label">Шаги формы/кнопок</label>
               <div class="col-md-8 col-lg-9">
@@ -118,7 +136,22 @@ $_smarty_current_dir = '/home/cells/web/templates';
                           placeholder="JSON конфиг для PHP cURL режима"><?php echo htmlspecialchars((string)$_smarty_tpl->getValue('operations')['report']['curl_config_json'], ENT_QUOTES, 'UTF-8', true);?>
 </textarea>
                 <div class="form-text">Используется, если выбран режим "Через PHP cURL".</div>
-                <pre class="form-text mb-0">{"url":"https://portal.example.com/export","method":"POST","headers":{"Accept":"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"},"body":{"date_from":"${date_from}","date_to":"${date_to}"}}</pre>
+                <pre class="form-text mb-0">{
+  "login": {
+    "url": "https://backend.colibri.az/login",
+    "method": "POST",
+    "fields": {
+      "username": "${login}",
+      "password": "${password}"
+    }
+  },
+  "url": "https://dev-backend.colibri.az/collector/reports/all_packages",
+  "method": "POST",
+  "body": {
+    "from_date": "${date_from}",
+    "to_date": "${date_to}"
+  }
+}</pre>
               </div>
             </div>
 
@@ -179,7 +212,7 @@ $_smarty_current_dir = '/home/cells/web/templates';
                        class="form-control"
                        id="report_target_table"
                        name="report_target_table"
-                       value="connector_report_<?php echo htmlspecialchars((string)$_smarty_tpl->getValue('operations')['report']['target_table'], ENT_QUOTES, 'UTF-8', true);?>
+                       value="<?php echo htmlspecialchars((string)$_smarty_tpl->getValue('operations')['report']['target_table'], ENT_QUOTES, 'UTF-8', true);?>
 "
                        placeholder="forward_company_us">
                 <div class="form-text">Например: forward_name_country (латиница, цифры, underscore).</div>
