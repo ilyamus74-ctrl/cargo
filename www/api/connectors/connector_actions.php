@@ -1027,6 +1027,8 @@ switch ($normalizedAction) {
 
 
 
+
+
     case 'test_connector_operations':
         $connectorId = (int)($_POST['connector_id'] ?? 0);
         if ($connectorId <= 0) {
@@ -1079,36 +1081,59 @@ switch ($normalizedAction) {
             $periodMessage = ' Период: ' . ($periodFrom ?? '...') . ' — ' . ($periodTo ?? '...') . '.';
         }
 
-        $downloadInfo = connectors_download_report_file($connector, $reportCfg, $periodFrom, $periodTo);
+        try {
+            $downloadInfo = connectors_download_report_file($connector, $reportCfg, $periodFrom, $periodTo);
 
-        $importedRows = 0;
-        $importMessage = ' Парсинг не выполнен: поддержан авто-импорт только CSV.';
-        $fieldMapping = isset($reportCfg['field_mapping']) && is_array($reportCfg['field_mapping']) ? $reportCfg['field_mapping'] : [];
-        if (($downloadInfo['file_extension'] ?? '') === 'csv') {
-            $importedRows = connectors_import_csv_into_report_table(
-                $dbcnx,
-                $targetTable,
-                (string)$downloadInfo['file_path'],
-                $connectorId,
-                $periodFrom,
-                $periodTo,
-                $fieldMapping
-            );
-            $importMessage = ' Импортировано строк: ' . $importedRows . '.';
+            $importedRows = 0;
+            $importMessage = ' Парсинг не выполнен: поддержан авто-импорт только CSV.';
+            $fieldMapping = isset($reportCfg['field_mapping']) && is_array($reportCfg['field_mapping']) ? $reportCfg['field_mapping'] : [];
+            if (($downloadInfo['file_extension'] ?? '') === 'csv') {
+                $importedRows = connectors_import_csv_into_report_table(
+                    $dbcnx,
+                    $targetTable,
+                    (string)$downloadInfo['file_path'],
+                    $connectorId,
+                    $periodFrom,
+                    $periodTo,
+                    $fieldMapping
+                );
+                $importMessage = ' Импортировано строк: ' . $importedRows . '.';
+            }
+
+            $response = [
+                'status' => 'ok',
+                'message' => 'Тест операции пройден. Файл скачан (' . (int)($downloadInfo['file_size'] ?? 0) . ' байт). Таблица `' . $targetTable . '` готова.' . $periodMessage . $importMessage,
+                'connector_id' => $connectorId,
+                'target_table' => $targetTable,
+                'period_from' => $periodFrom,
+                'period_to' => $periodTo,
+                'download' => $downloadInfo,
+                'imported_rows' => $importedRows,
+            ];
+        } catch (InvalidArgumentException $e) {
+            $response = [
+                'status' => 'error',
+                'message' => $e->getMessage(),
+                'connector_id' => $connectorId,
+                'target_table' => $targetTable,
+            ];
+        } catch (RuntimeException $e) {
+            $response = [
+                'status' => 'error',
+                'message' => $e->getMessage(),
+                'connector_id' => $connectorId,
+                'target_table' => $targetTable,
+            ];
+        } catch (Throwable $e) {
+            error_log('test_connector_operations fatal: ' . $e->getMessage());
+            $response = [
+                'status' => 'error',
+                'message' => 'Ошибка во время теста операции: ' . $e->getMessage(),
+                'connector_id' => $connectorId,
+                'target_table' => $targetTable,
+            ];
         }
-
-        $response = [
-            'status' => 'ok',
-            'message' => 'Тест операции пройден. Файл скачан (' . (int)($downloadInfo['file_size'] ?? 0) . ' байт). Таблица `' . $targetTable . '` готова.' . $periodMessage . $importMessage,
-            'connector_id' => $connectorId,
-            'target_table' => $targetTable,
-            'period_from' => $periodFrom,
-            'period_to' => $periodTo,
-            'download' => $downloadInfo,
-            'imported_rows' => $importedRows,
-        ];
         break;
-
 
 
     case 'save_connector':
