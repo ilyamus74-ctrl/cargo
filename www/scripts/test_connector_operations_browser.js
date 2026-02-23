@@ -5,6 +5,10 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const puppeteer = require('puppeteer');
+const puppeteerExtra = require('puppeteer-extra');
+const StealthPlugin = require('puppeteer-extra-plugin-stealth');
+
+puppeteerExtra.use(StealthPlugin());
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -53,6 +57,7 @@ async function launchBrowserWithFallback(puppeteerLib, executableCandidates, ssl
   const baseArgs = [
     '--no-sandbox',
     '--disable-setuid-sandbox',
+    '--disable-blink-features=AutomationControlled',
     '--disable-crash-reporter',
     '--disable-breakpad',
     '--disable-features=Crashpad,CrashReporting',
