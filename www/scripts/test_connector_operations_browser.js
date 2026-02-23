@@ -135,6 +135,26 @@ async function safeRm(dir) {
   } catch (_) {}
 }
 
+function safeFilePart(value) {
+  return String(value || '')
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, '_')
+    .replace(/^_+|_+$/g, '') || 'step';
+}
+
+async function saveStepScreenshot(page, dir, stepNo, action) {
+  if (!page || !dir) return null;
+
+  const fileName = `${String(stepNo).padStart(2, '0')}-${safeFilePart(action)}.png`;
+  const fullPath = path.join(dir, fileName);
+  try {
+    await page.screenshot({ path: fullPath, fullPage: true });
+    return fullPath;
+  } catch (_) {
+    return null;
+  }
+}
+
 async function configureDownloadBehavior(page, downloadDir) {
   const errors = [];
   const sessionFactories = [
@@ -230,6 +250,9 @@ async function waitForDownloadedFileInDirs(dirs, ext, timeoutMs) {
   }
 
   const downloadDir = fs.mkdtempSync(path.join(os.tmpdir(), 'connector-op-'));
+  const artifactsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'connector-op-artifacts-'));
+  const captureScreenshots = payload.capture_screenshots !== false;
+  const stepLog = [];
   let browser;
   let userDataDir = '';
   let runtimeHomeDir = '';
@@ -285,14 +308,30 @@ async function waitForDownloadedFileInDirs(dirs, ext, timeoutMs) {
       };
     }
 
+    let stepNo = 0;
     for (const step of steps) {
+      stepNo += 1;
       const action = String(step.action || '').trim();
-      if (!action) continue;
+      if (!action) {
+        stepLog.push({ time: new Date().toISOString(), step: stepNo, action: 'empty', status: 'skip', message: 'empty action' });
+        continue;
+      }
+
+      stepLog.push({
+        time: new Date().toISOString(),
+        step: stepNo,
+        action,
+        status: 'start',
+        url: step.url || undefined,
+        selector: step.selector || undefined,
+      });
 
       if (action === 'goto') {
         const url = applyVars(step.url || '', vars);
         if (!url) throw new Error('goto.url is required');
         await safeGoto(page, url, { waitUntil: step.wait_until || 'domcontentloaded' });
+        const shot = captureScreenshots ? await saveStepScreenshot(page, artifactsDir, stepNo, action) : null;
+        stepLog.push({ time: new Date().toISOString(), step: stepNo, action, status: 'ok', screenshot: shot || undefined, meta: { url } });
         continue;
       }
 
@@ -303,6 +342,8 @@ async function waitForDownloadedFileInDirs(dirs, ext, timeoutMs) {
           await page.waitForSelector(selector, { visible: !!step.visible });
           await page.click(selector);
         });
+        const shot = captureScreenshots ? await saveStepScreenshot(page, artifactsDir, stepNo, action) : null;
+        stepLog.push({ time: new Date().toISOString(), step: stepNo, action, status: 'ok', screenshot: shot || undefined, meta: { selector } });
         continue;
       }
 
@@ -330,6 +371,8 @@ async function waitForDownloadedFileInDirs(dirs, ext, timeoutMs) {
 
           await page.type(selector, text, { delay: Number(step.delay_ms || 0) });
         });
+        const shot = captureScreenshots ? await saveStepScreenshot(page, artifactsDir, stepNo, action) : null;
+        stepLog.push({ time: new Date().toISOString(), step: stepNo, action, status: 'ok', screenshot: shot || undefined, meta: { selector } });
         continue;
       }
 
@@ -342,6 +385,8 @@ async function waitForDownloadedFileInDirs(dirs, ext, timeoutMs) {
         } else {
           await runWithTransientRetry(() => page.waitForTimeout(timeout));
         }
+        const shot = captureScreenshots ? await saveStepScreenshot(page, artifactsDir, stepNo, action) : null;
+        stepLog.push({ time: new Date().toISOString(), step: stepNo, action, status: 'ok', screenshot: shot || undefined, meta: { selector: selector || undefined, timeout } });
         continue;
       }
 
@@ -349,6 +394,9 @@ async function waitForDownloadedFileInDirs(dirs, ext, timeoutMs) {
         const timeoutMs = Number(step.timeout_ms || 30000);
         const downloaded = await waitForDownloadedFileInDirs([downloadDir, fallbackDownloadDir], fileExtension, timeoutMs);
         if (!downloaded) throw new Error(`Download not found with .${fileExtension} within ${timeoutMs}ms`);
+
+        const shot = captureScreenshots ? await saveStepScreenshot(page, artifactsDir, stepNo, action) : null;
+        stepLog.push({ time: new Date().toISOString(), step: stepNo, action, status: 'ok', screenshot: shot || undefined, meta: { timeoutMs } });
 
         process.stdout.write(
           JSON.stringify({
@@ -360,6 +408,8 @@ async function waitForDownloadedFileInDirs(dirs, ext, timeoutMs) {
             executable_path: executablePath,
             download_cdp_configured: !!downloadBehavior.configured,
             download_warning: downloadBehavior.warning || undefined,
+            step_log: stepLog,
+            artifacts_dir: artifactsDir,
           }) + '\n'
         );
 
@@ -376,6 +426,9 @@ async function waitForDownloadedFileInDirs(dirs, ext, timeoutMs) {
     const downloaded = await waitForDownloadedFileInDirs([downloadDir, fallbackDownloadDir], fileExtension, 30000);
     if (!downloaded) throw new Error(`Download step missing or file not found (.${fileExtension})`);
 
+    const finalShot = captureScreenshots ? await saveStepScreenshot(page, artifactsDir, stepNo + 1, 'final') : null;
+    stepLog.push({ time: new Date().toISOString(), step: stepNo + 1, action: 'final_download_probe', status: 'ok', screenshot: finalShot || undefined });
+
     process.stdout.write(
       JSON.stringify({
         ok: true,
@@ -386,6 +439,8 @@ async function waitForDownloadedFileInDirs(dirs, ext, timeoutMs) {
         executable_path: executablePath,
         download_cdp_configured: !!downloadBehavior.configured,
         download_warning: downloadBehavior.warning || undefined,
+        step_log: stepLog,
+        artifacts_dir: artifactsDir,
       }) + '\n'
     );
 
@@ -394,6 +449,24 @@ async function waitForDownloadedFileInDirs(dirs, ext, timeoutMs) {
     await safeRm(runtimeHomeDir);
     process.exit(0);
   } catch (err) {
+    let pageRef = null;
+    if (browser) {
+      try {
+        const pages = await browser.pages();
+        pageRef = pages[0] || null;
+      } catch (_) {}
+    }
+
+    const errorShot = captureScreenshots ? await saveStepScreenshot(pageRef, artifactsDir, stepLog.length + 1, 'error') : null;
+    stepLog.push({
+      time: new Date().toISOString(),
+      step: stepLog.length + 1,
+      action: 'error',
+      status: 'fail',
+      message: err?.message || 'Browser test failed',
+      screenshot: errorShot || undefined,
+    });
+
     if (browser) {
       try {
         await browser.close();
@@ -407,6 +480,8 @@ async function waitForDownloadedFileInDirs(dirs, ext, timeoutMs) {
         ok: false,
         message: err?.message || 'Browser test failed',
         executable_path: executablePath,
+        step_log: stepLog,
+        artifacts_dir: artifactsDir,
       }) + '\n'
     );
     process.exit(1);

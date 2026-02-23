@@ -10,7 +10,6 @@ $response = ['status' => 'error', 'message' => 'Unknown connector action: ' . $n
 
 require_once __DIR__ . '/connector_engine.php';
 
-
 final class ConnectorStepLogException extends RuntimeException
 {
     /** @var array<int,array<string,mixed>> */
@@ -28,6 +27,7 @@ final class ConnectorStepLogException extends RuntimeException
         return $this->stepLog;
     }
 }
+
 
 function connectors_ensure_schema(mysqli $dbcnx): void
 {
@@ -500,6 +500,10 @@ function connectors_download_report_file(array $connector, array $reportCfg, ?st
             throw new RuntimeException('Не удалось выполнить browser-тест скачивания: ' . trim((string)$output));
         }
         if (empty($decoded['ok'])) {
+            $browserStepLog = isset($decoded['step_log']) && is_array($decoded['step_log']) ? $decoded['step_log'] : [];
+            if (!empty($browserStepLog)) {
+                throw new ConnectorStepLogException((string)($decoded['message'] ?? 'Browser test failed'), $browserStepLog);
+            }
             throw new RuntimeException((string)($decoded['message'] ?? 'Browser test failed'));
         }
 
@@ -513,6 +517,8 @@ function connectors_download_report_file(array $connector, array $reportCfg, ?st
             'file_size' => (int)filesize($filePath),
             'file_extension' => $ext,
             'download_mode' => 'browser',
+            'step_log' => isset($decoded['step_log']) && is_array($decoded['step_log']) ? $decoded['step_log'] : [],
+            'artifacts_dir' => trim((string)($decoded['artifacts_dir'] ?? '')),
         ];
     }
 
