@@ -162,6 +162,7 @@ function connectors_default_operations(array $connector): array
             'steps_json' => '',
             'curl_config_json' => '',
             'target_table' => $defaultTarget,
+            'field_mapping_json' => '',
         ],
     ];
 }
@@ -196,10 +197,298 @@ function connectors_decode_operations(array $connector): array
         }
 
         $operations['report']['target_table'] = trim((string)($report['target_table'] ?? $operations['report']['target_table']));
+
+        if (isset($report['field_mapping'])) {
+            $operations['report']['field_mapping_json'] = json_encode($report['field_mapping'], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT) ?: '';
+        }
     }
 
     return $operations;
 }
+
+
+
+function connectors_validate_iso_date(?string $value): ?string
+{
+    $value = trim((string)$value);
+    if ($value === '') {
+        return null;
+    }
+
+    $dt = DateTime::createFromFormat('Y-m-d', $value);
+    if (!$dt || $dt->format('Y-m-d') !== $value) {
+        throw new InvalidArgumentException('Дата должна быть в формате YYYY-MM-DD');
+    }
+
+    return $value;
+}
+
+function connectors_normalize_report_table_name(string $table): string
+{
+    $table = strtolower(trim($table));
+    $table = preg_replace('/[^a-z0-9_]+/', '_', $table) ?? '';
+    $table = trim($table, '_');
+
+    if ($table === '') {
+        throw new InvalidArgumentException('Не указана целевая таблица отчета');
+    }
+
+    if (strpos($table, 'connector_report_') !== 0) {
+        $table = 'connector_report_' . $table;
+    }
+
+    return $table;
+}
+
+function connectors_ensure_report_table(mysqli $dbcnx, string $tableName): void
+{
+    $safeTable = '`' . str_replace('`', '``', $tableName) . '`';
+    $sql = "CREATE TABLE IF NOT EXISTS {$safeTable} (
+"
+        . " id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+"
+        . " connector_id INT UNSIGNED NOT NULL,
+"
+        . " period_from DATE NULL,
+"
+        . " period_to DATE NULL,
+"
+        . " payload_json LONGTEXT NULL,
+"
+        . " source_file VARCHAR(255) NOT NULL DEFAULT '',
+"
+        . " created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+"
+        . " PRIMARY KEY (id),
+"
+        . " KEY idx_connector_period (connector_id, period_from, period_to)
+"
+        . ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci";
+
+    if (!$dbcnx->query($sql)) {
+        throw new RuntimeException('DB error (create report table): ' . $dbcnx->error);
+    }
+}
+
+
+function connectors_apply_vars($value, array $vars)
+{
+    if (is_array($value)) {
+        $result = [];
+        foreach ($value as $k => $v) {
+            $result[$k] = connectors_apply_vars($v, $vars);
+        }
+        return $result;
+    }
+
+    if (!is_string($value)) {
+        return $value;
+    }
+
+    return preg_replace_callback('/\$\{([a-zA-Z0-9_]+)\}/', static function ($m) use ($vars) {
+        $key = $m[1] ?? '';
+        return array_key_exists($key, $vars) ? (string)$vars[$key] : '';
+    }, $value) ?? $value;
+}
+
+function connectors_download_report_file(array $connector, array $reportCfg, ?string $periodFrom, ?string $periodTo): array
+{
+    $ext = strtolower(trim((string)($reportCfg['file_extension'] ?? 'xlsx')));
+    if ($ext === '') {
+        $ext = 'xlsx';
+    }
+
+    $vars = [
+        'date_from' => $periodFrom ?? '',
+        'date_to' => $periodTo ?? '',
+        'base_url' => trim((string)($connector['base_url'] ?? '')),
+    ];
+
+    if (($reportCfg['download_mode'] ?? 'browser') === 'browser') {
+        $steps = isset($reportCfg['steps']) && is_array($reportCfg['steps']) ? $reportCfg['steps'] : [];
+        if (empty($steps)) {
+            throw new InvalidArgumentException('Для режима browser нужно заполнить шаги (report_steps_json)');
+        }
+
+        $scriptPath = realpath(__DIR__ . '/../../scripts/test_connector_operations_browser.js');
+        if (!$scriptPath) {
+            throw new RuntimeException('Не найден browser script для теста скачивания');
+        }
+
+        $payload = [
+            'steps' => $steps,
+            'vars' => $vars,
+            'file_extension' => $ext,
+            'ssl_ignore' => !empty($connector['ssl_ignore']),
+            'cookies' => (string)($connector['auth_cookies'] ?? ''),
+            'auth_token' => (string)($connector['auth_token'] ?? ''),
+        ];
+
+        $cmd = 'node ' . escapeshellarg($scriptPath) . ' ' . escapeshellarg((string)json_encode($payload, JSON_UNESCAPED_UNICODE));
+        $output = shell_exec($cmd . ' 2>&1');
+        $decoded = json_decode(trim((string)$output), true);
+        if (!is_array($decoded)) {
+            throw new RuntimeException('Не удалось выполнить browser-тест скачивания: ' . trim((string)$output));
+        }
+        if (empty($decoded['ok'])) {
+            throw new RuntimeException((string)($decoded['message'] ?? 'Browser test failed'));
+        }
+
+        $filePath = (string)($decoded['file_path'] ?? '');
+        if ($filePath === '' || !is_file($filePath)) {
+            throw new RuntimeException('Browser-тест не вернул путь к скачанному файлу');
+        }
+
+        return [
+            'file_path' => $filePath,
+            'file_size' => (int)filesize($filePath),
+            'file_extension' => $ext,
+            'download_mode' => 'browser',
+        ];
+    }
+
+    $curlCfg = isset($reportCfg['curl_config']) && is_array($reportCfg['curl_config']) ? $reportCfg['curl_config'] : [];
+    $url = trim((string)($curlCfg['url'] ?? ''));
+    if ($url === '') {
+        throw new InvalidArgumentException('Для режима cURL нужен url в report_curl_config_json');
+    }
+
+    $url = (string)connectors_apply_vars($url, $vars);
+    $method = strtoupper(trim((string)($curlCfg['method'] ?? 'GET')));
+    if ($method === '') {
+        $method = 'GET';
+    }
+
+    $headers = [];
+    if (isset($curlCfg['headers']) && is_array($curlCfg['headers'])) {
+        foreach ($curlCfg['headers'] as $k => $v) {
+            $headers[] = $k . ': ' . (string)connectors_apply_vars((string)$v, $vars);
+        }
+    }
+
+    $bodyData = [];
+    if (isset($curlCfg['body']) && is_array($curlCfg['body'])) {
+        foreach ($curlCfg['body'] as $k => $v) {
+            $bodyData[$k] = connectors_apply_vars($v, $vars);
+        }
+    }
+
+    $tmpFile = tempnam(sys_get_temp_dir(), 'connector-report-');
+    if ($tmpFile === false) {
+        throw new RuntimeException('Не удалось создать временный файл');
+    }
+    $filePath = $tmpFile . '.' . $ext;
+    @rename($tmpFile, $filePath);
+
+    $fh = fopen($filePath, 'wb');
+    if ($fh === false) {
+        throw new RuntimeException('Не удалось открыть временный файл для записи');
+    }
+
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, $url);
+    curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+    curl_setopt($ch, CURLOPT_TIMEOUT, 120);
+    curl_setopt($ch, CURLOPT_FILE, $fh);
+    if (!empty($connector['ssl_ignore'])) {
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
+    }
+    if (!empty($headers)) {
+        curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+    }
+    if ($method !== 'GET') {
+        curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $method);
+        if (!empty($bodyData)) {
+            curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($bodyData));
+        }
+    }
+
+    $ok = curl_exec($ch);
+    $httpCode = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+    $curlErr = curl_error($ch);
+    curl_close($ch);
+    fclose($fh);
+
+    if (!$ok || $httpCode >= 400) {
+        @unlink($filePath);
+        throw new RuntimeException('Ошибка скачивания через cURL: HTTP ' . $httpCode . ' ' . $curlErr);
+    }
+
+    $size = (int)filesize($filePath);
+    if ($size <= 0) {
+        @unlink($filePath);
+        throw new RuntimeException('Скачанный файл пустой');
+    }
+
+    return [
+        'file_path' => $filePath,
+        'file_size' => $size,
+        'file_extension' => $ext,
+        'download_mode' => 'curl',
+    ];
+}
+
+function connectors_import_csv_into_report_table(mysqli $dbcnx, string $tableName, string $filePath, int $connectorId, ?string $periodFrom, ?string $periodTo, array $fieldMapping): int
+{
+    $fh = fopen($filePath, 'rb');
+    if ($fh === false) {
+        throw new RuntimeException('Не удалось открыть CSV для импорта');
+    }
+
+    $header = fgetcsv($fh);
+    if (!is_array($header) || empty($header)) {
+        fclose($fh);
+        throw new RuntimeException('CSV не содержит заголовок');
+    }
+
+    $headerMap = [];
+    foreach ($header as $idx => $name) {
+        $headerMap[trim((string)$name)] = (int)$idx;
+    }
+
+    if (empty($fieldMapping)) {
+        fclose($fh);
+        throw new InvalidArgumentException('Для CSV-импорта заполните "Маппинг полей"');
+    }
+
+    $safeTable = '`' . str_replace('`', '``', $tableName) . '`';
+    $sql = 'INSERT INTO ' . $safeTable . ' (connector_id, period_from, period_to, payload_json, source_file) VALUES (?, ?, ?, ?, ?)';
+    $stmt = $dbcnx->prepare($sql);
+    if (!$stmt) {
+        fclose($fh);
+        throw new RuntimeException('DB error (prepare import): ' . $dbcnx->error);
+    }
+
+    $count = 0;
+    while (($row = fgetcsv($fh)) !== false) {
+        $payload = [];
+        foreach ($fieldMapping as $targetField => $csvColumnName) {
+            $csvColumnName = trim((string)$csvColumnName);
+            if ($csvColumnName === '' || !array_key_exists($csvColumnName, $headerMap)) {
+                $payload[$targetField] = null;
+                continue;
+            }
+            $payload[$targetField] = $row[$headerMap[$csvColumnName]] ?? null;
+        }
+
+        $payloadJson = json_encode($payload, JSON_UNESCAPED_UNICODE);
+        if ($payloadJson === false) {
+            continue;
+        }
+
+        $sourceFile = basename($filePath);
+        $stmt->bind_param('issss', $connectorId, $periodFrom, $periodTo, $payloadJson, $sourceFile);
+        if ($stmt->execute()) {
+            $count++;
+        }
+    }
+
+    $stmt->close();
+    fclose($fh);
+    return $count;
+}
+
 
 function connectors_build_operations_payload_from_post(): array
 {
@@ -210,6 +499,8 @@ function connectors_build_operations_payload_from_post(): array
     $stepsJson = trim((string)($_POST['report_steps_json'] ?? ''));
     $curlConfigJson = trim((string)($_POST['report_curl_config_json'] ?? ''));
     $targetTable = strtolower(trim((string)($_POST['report_target_table'] ?? '')));
+    $fieldMappingJson = trim((string)($_POST['report_field_mapping_json'] ?? ''));
+
 
     $targetTable = preg_replace('/[^a-z0-9_]+/', '_', $targetTable ?? '');
     if ($targetTable !== '') {
@@ -234,6 +525,15 @@ function connectors_build_operations_payload_from_post(): array
         $curlConfig = $decoded;
     }
 
+    $fieldMapping = [];
+    if ($fieldMappingJson !== '') {
+        $decoded = json_decode($fieldMappingJson, true);
+        if (!is_array($decoded)) {
+            throw new InvalidArgumentException('Некорректный JSON в "Маппинг полей"');
+        }
+        $fieldMapping = $decoded;
+    }
+
     if (!in_array($downloadMode, ['browser', 'curl'], true)) {
         $downloadMode = 'browser';
     }
@@ -251,6 +551,7 @@ function connectors_build_operations_payload_from_post(): array
             'steps' => $steps,
             'curl_config' => $curlConfig,
             'target_table' => $targetTable,
+            'field_mapping' => $fieldMapping,
         ],
     ];
 }
@@ -723,6 +1024,91 @@ switch ($normalizedAction) {
             'connector_id' => $connectorId,
         ];
         break;
+
+
+
+    case 'test_connector_operations':
+        $connectorId = (int)($_POST['connector_id'] ?? 0);
+        if ($connectorId <= 0) {
+            $response = [
+                'status' => 'error',
+                'message' => 'connector_id required',
+            ];
+            break;
+        }
+
+        $connector = connectors_fetch_one($dbcnx, $connectorId);
+        if (!$connector) {
+            $response = [
+                'status' => 'error',
+                'message' => 'Коннектор не найден',
+            ];
+            break;
+        }
+
+        try {
+            $operationsPayload = connectors_build_operations_payload_from_post();
+            $reportCfg = (array)($operationsPayload['report'] ?? []);
+
+            $periodFrom = connectors_validate_iso_date($_POST['test_period_from'] ?? null);
+            $periodTo = connectors_validate_iso_date($_POST['test_period_to'] ?? null);
+            if ($periodFrom !== null && $periodTo !== null && $periodFrom > $periodTo) {
+                throw new InvalidArgumentException('Дата начала периода больше даты окончания');
+            }
+
+            $targetTable = connectors_normalize_report_table_name((string)($reportCfg['target_table'] ?? ''));
+            connectors_ensure_report_table($dbcnx, $targetTable);
+        } catch (InvalidArgumentException $e) {
+            $response = [
+                'status' => 'error',
+                'message' => $e->getMessage(),
+                'connector_id' => $connectorId,
+            ];
+            break;
+        } catch (RuntimeException $e) {
+            $response = [
+                'status' => 'error',
+                'message' => $e->getMessage(),
+                'connector_id' => $connectorId,
+            ];
+            break;
+        }
+
+        $periodMessage = '';
+        if ($periodFrom !== null || $periodTo !== null) {
+            $periodMessage = ' Период: ' . ($periodFrom ?? '...') . ' — ' . ($periodTo ?? '...') . '.';
+        }
+
+        $downloadInfo = connectors_download_report_file($connector, $reportCfg, $periodFrom, $periodTo);
+
+        $importedRows = 0;
+        $importMessage = ' Парсинг не выполнен: поддержан авто-импорт только CSV.';
+        $fieldMapping = isset($reportCfg['field_mapping']) && is_array($reportCfg['field_mapping']) ? $reportCfg['field_mapping'] : [];
+        if (($downloadInfo['file_extension'] ?? '') === 'csv') {
+            $importedRows = connectors_import_csv_into_report_table(
+                $dbcnx,
+                $targetTable,
+                (string)$downloadInfo['file_path'],
+                $connectorId,
+                $periodFrom,
+                $periodTo,
+                $fieldMapping
+            );
+            $importMessage = ' Импортировано строк: ' . $importedRows . '.';
+        }
+
+        $response = [
+            'status' => 'ok',
+            'message' => 'Тест операции пройден. Файл скачан (' . (int)($downloadInfo['file_size'] ?? 0) . ' байт). Таблица `' . $targetTable . '` готова.' . $periodMessage . $importMessage,
+            'connector_id' => $connectorId,
+            'target_table' => $targetTable,
+            'period_from' => $periodFrom,
+            'period_to' => $periodTo,
+            'download' => $downloadInfo,
+            'imported_rows' => $importedRows,
+        ];
+        break;
+
 
 
     case 'save_connector':

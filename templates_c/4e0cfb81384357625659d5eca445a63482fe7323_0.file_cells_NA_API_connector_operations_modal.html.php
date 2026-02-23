@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-02-22 19:05:05
+/* Smarty version 5.3.1, created on 2026-02-23 12:29:52
   from 'file:cells_NA_API_connector_operations_modal.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_699b536104a585_55890809',
+  'unifunc' => 'content_699c4840cb8121_37783665',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '4e0cfb81384357625659d5eca445a63482fe7323' => 
     array (
       0 => 'cells_NA_API_connector_operations_modal.html',
-      1 => 1771787078,
+      1 => 1771849355,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_699b536104a585_55890809 (\Smarty\Template $_smarty_tpl) {
+function content_699c4840cb8121_37783665 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>
 <section class="section">
@@ -121,6 +121,56 @@ $_smarty_current_dir = '/home/cells/web/templates';
                 <pre class="form-text mb-0">{"url":"https://portal.example.com/export","method":"POST","headers":{"Accept":"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"},"body":{"date_from":"${date_from}","date_to":"${date_to}"}}</pre>
               </div>
             </div>
+
+
+            <div class="row mb-3">
+              <label class="col-md-4 col-lg-3 col-form-label">Период теста</label>
+              <div class="col-md-8 col-lg-9">
+                <div class="row g-2">
+                  <div class="col-md-6">
+                    <input type="date" class="form-control" name="test_period_from" id="test_period_from">
+                    <div class="form-text">Дата начала (например, 2025-01-01)</div>
+                  </div>
+                  <div class="col-md-6">
+                    <input type="date" class="form-control" name="test_period_to" id="test_period_to">
+                    <div class="form-text">Дата окончания (например, 2026-02-22)</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+
+            <div class="row mb-3">
+              <label for="report_field_mapping_json" class="col-md-4 col-lg-3 col-form-label">Маппинг полей</label>
+              <div class="col-md-8 col-lg-9">
+                <textarea class="form-control"
+                          id="report_field_mapping_json"
+                          name="report_field_mapping_json"
+                          rows="6"
+                          placeholder="JSON маппинга полей (для CSV авто-импорта)"><?php echo htmlspecialchars((string)$_smarty_tpl->getValue('operations')['report']['field_mapping_json'], ENT_QUOTES, 'UTF-8', true);?>
+</textarea>
+                <div class="form-text">Где указывать, какие поля куда кладем. Формат: target_field: csv_column_name.</div>
+                <pre class="form-text mb-0">{"tracking_number":"Tracking Number","shipment_status":"Status","updated_at":"Updated At"}</pre>
+              </div>
+            </div>
+
+
+            <div class="row mb-3">
+              <label class="col-md-4 col-lg-3 col-form-label">Период теста</label>
+              <div class="col-md-8 col-lg-9">
+                <div class="row g-2">
+                  <div class="col-md-6">
+                    <input type="date" class="form-control" name="test_period_from" id="test_period_from">
+                    <div class="form-text">Дата начала (например, 2025-01-01)</div>
+                  </div>
+                  <div class="col-md-6">
+                    <input type="date" class="form-control" name="test_period_to" id="test_period_to">
+                    <div class="form-text">Дата окончания (например, 2026-02-22)</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
 
             <div class="row mb-3">
               <label for="report_target_table" class="col-md-4 col-lg-3 col-form-label">Целевая таблица</label>
