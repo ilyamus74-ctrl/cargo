@@ -155,6 +155,17 @@ async function saveStepScreenshot(page, dir, stepNo, action) {
 }
 
 
+function writeArtifactNote(dir, fileName, text) {
+  if (!dir || !fileName) return null;
+  const fullPath = path.join(dir, fileName);
+  try {
+    fs.writeFileSync(fullPath, String(text || ''), 'utf8');
+    return fullPath;
+  } catch (_) {
+    return null;
+  }
+}
+
 function ensureDirExists(dir) {
   if (!dir) return false;
   try {
@@ -471,6 +482,7 @@ async function waitForDownloadedFileInDirs(dirs, ext, timeoutMs) {
     await safeRm(runtimeHomeDir);
     process.exit(0);
   } catch (err) {
+
     let pageRef = null;
     if (browser) {
       try {
@@ -480,6 +492,13 @@ async function waitForDownloadedFileInDirs(dirs, ext, timeoutMs) {
     }
 
     const errorShot = captureScreenshots ? await saveStepScreenshot(pageRef, artifactsDir, stepLog.length + 1, 'error') : null;
+    const errorNote = !errorShot
+      ? writeArtifactNote(
+          artifactsDir,
+          `${String(stepLog.length + 1).padStart(2, '0')}-error.txt`,
+          `Screenshot was not captured.\nReason: ${err?.message || 'Browser test failed'}\nTime: ${new Date().toISOString()}\n`
+        )
+      : null;
     stepLog.push({
       time: new Date().toISOString(),
       step: stepLog.length + 1,
@@ -487,7 +506,9 @@ async function waitForDownloadedFileInDirs(dirs, ext, timeoutMs) {
       status: 'fail',
       message: err?.message || 'Browser test failed',
       screenshot: errorShot || undefined,
+      note: errorNote || undefined,
     });
+
 
     if (browser) {
       try {
