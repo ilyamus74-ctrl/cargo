@@ -430,6 +430,27 @@ async function waitForDownloadedFileInDirs(dirs, ext, timeoutMs) {
   return null;
 }
 
+function persistDownloadedFileIfNeeded(downloaded, runtimeHomeDir, stableDownloadDir) {
+  if (!downloaded || !downloaded.fullPath) return downloaded;
+
+  const fullPath = path.resolve(downloaded.fullPath);
+  const runtimeRoot = runtimeHomeDir ? path.resolve(runtimeHomeDir) : '';
+  if (!runtimeRoot || (!fullPath.startsWith(runtimeRoot + path.sep) && fullPath !== runtimeRoot)) {
+    return downloaded;
+  }
+
+  try {
+    fs.mkdirSync(stableDownloadDir, { recursive: true });
+    const fileName = path.basename(fullPath || '') || `downloaded_${Date.now()}`;
+    const targetPath = path.join(stableDownloadDir, `${Date.now()}_${fileName}`);
+    fs.copyFileSync(fullPath, targetPath);
+    const size = fs.statSync(targetPath).size;
+    return { fullPath: targetPath, size };
+  } catch (_) {
+    return downloaded;
+  }
+}
+
 
 (async () => {
   const args = process.argv.slice(2);
@@ -595,7 +616,7 @@ async function waitForDownloadedFileInDirs(dirs, ext, timeoutMs) {
             }, nativeDateValue);
             return;
           }
-
+          
           await page.focus(selector);
           const typedText = convertIsoDateToDotFormat(text);
 
@@ -635,6 +656,7 @@ async function waitForDownloadedFileInDirs(dirs, ext, timeoutMs) {
         const timeoutMs = Number(step.timeout_ms || 30000);
         const downloaded = await waitForDownloadedFileInDirs([downloadDir, fallbackDownloadDir], fileExtension, timeoutMs);
         if (!downloaded) throw new Error(`Download not found with .${fileExtension} within ${timeoutMs}ms`);
+        const persistedDownloaded = persistDownloadedFileIfNeeded(downloaded, runtimeHomeDir, downloadDir);
 
         const shot = captureScreenshots ? await saveStepScreenshot(page, artifactsDir, stepNo, action) : null;
         stepLog.push({ time: new Date().toISOString(), step: stepNo, action, status: 'ok', screenshot: shot || undefined, meta: { timeoutMs } });
@@ -643,8 +665,8 @@ async function waitForDownloadedFileInDirs(dirs, ext, timeoutMs) {
           JSON.stringify({
             ok: true,
             message: 'Файл успешно скачан через browser steps',
-            file_path: downloaded.fullPath,
-            file_size: downloaded.size,
+            file_path: persistedDownloaded.fullPath,
+            file_size: persistedDownloaded.size,
             file_extension: fileExtension,
             executable_path: executablePath,
             browser_product: resolvedBrowserProduct,
@@ -675,8 +697,8 @@ async function waitForDownloadedFileInDirs(dirs, ext, timeoutMs) {
       JSON.stringify({
         ok: true,
         message: 'Файл успешно скачан через browser steps',
-        file_path: downloaded.fullPath,
-        file_size: downloaded.size,
+        file_path: persistedDownloaded.fullPath,
+        file_size: persistedDownloaded.size,
         file_extension: fileExtension,
         executable_path: executablePath,
         browser_product: resolvedBrowserProduct,
