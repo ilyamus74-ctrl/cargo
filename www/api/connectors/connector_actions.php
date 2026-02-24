@@ -444,6 +444,49 @@ function connectors_curl_request(array $cfg, array $vars, bool $sslIgnore): arra
 }
 
 
+
+function connectors_clear_directory(string $directory): void
+{
+    if (!is_dir($directory)) {
+        return;
+    }
+
+    $items = scandir($directory);
+    if (!is_array($items)) {
+        return;
+    }
+
+    foreach ($items as $item) {
+        if ($item === '.' || $item === '..') {
+            continue;
+        }
+
+        $path = $directory . DIRECTORY_SEPARATOR . $item;
+        if (is_dir($path) && !is_link($path)) {
+            connectors_clear_directory($path);
+            @rmdir($path);
+            continue;
+        }
+
+        @unlink($path);
+    }
+}
+
+function connectors_is_node_runtime_available(): bool
+{
+    static $cached = null;
+    if ($cached !== null) {
+        return $cached;
+    }
+
+    $output = [];
+    $exitCode = 1;
+    @exec('node --version 2>/dev/null', $output, $exitCode);
+    $cached = ($exitCode === 0);
+    return $cached;
+}
+
+
 function connectors_download_report_file(array $connector, array $reportCfg, ?string $periodFrom, ?string $periodTo): array
 {
     $ext = strtolower(trim((string)($reportCfg['file_extension'] ?? 'xlsx')));
@@ -502,7 +545,7 @@ function connectors_download_report_file(array $connector, array $reportCfg, ?st
         if (!is_dir($tempDir)) {
             @mkdir($tempDir, 0775, true);
         }
-
+        connectors_clear_directory($tempDir);
 
         $payload = [
             'steps' => $steps,
@@ -1369,8 +1412,13 @@ switch ($normalizedAction) {
         }
 
         $operations = connectors_decode_operations($connector);
+        $nodeRuntimeAvailable = connectors_is_node_runtime_available();
+        if ($nodeRuntimeAvailable && (($operations['report']['download_mode'] ?? 'browser') === 'curl')) {
+            $operations['report']['download_mode'] = 'browser';
+        }
         $smarty->assign('connector', $connector);
         $smarty->assign('operations', $operations);
+        $smarty->assign('node_runtime_available', $nodeRuntimeAvailable);
 
         ob_start();
         $smarty->display('cells_NA_API_connector_operations_modal.html');
@@ -1765,4 +1813,3 @@ switch ($normalizedAction) {
         ];
         break;
 }
-

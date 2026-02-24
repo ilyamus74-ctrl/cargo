@@ -61,7 +61,9 @@
               <div class="col-md-8 col-lg-9">
                 <select class="form-select" id="report_download_mode" name="report_download_mode">
                   <option value="browser" {if $operations.report.download_mode == 'browser'}selected{/if}>Через браузерные шаги</option>
+                  {if !$node_runtime_available}
                   <option value="curl" {if $operations.report.download_mode == 'curl'}selected{/if}>Через PHP cURL</option>
+                  {/if}
                 </select>
               </div>
             </div>
@@ -97,6 +99,7 @@
               </div>
             </div>
 
+            {if !$node_runtime_available}
             <div class="row mb-3">
               <label for="report_curl_config_json" class="col-md-4 col-lg-3 col-form-label">PHP cURL конфиг</label>
               <div class="col-md-8 col-lg-9">
@@ -124,7 +127,9 @@
 }{/literal}</pre>
               </div>
             </div>
-
+            {else}
+            <input type="hidden" name="report_curl_config_json" value="{$operations.report.curl_config_json|escape}">
+            {/if}
 
             <div class="row mb-3">
               <label class="col-md-4 col-lg-3 col-form-label">Период теста</label>

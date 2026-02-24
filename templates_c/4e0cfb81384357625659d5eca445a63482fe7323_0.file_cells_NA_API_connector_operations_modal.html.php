@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-02-24 16:59:10
+/* Smarty version 5.3.1, created on 2026-02-24 17:14:00
   from 'file:cells_NA_API_connector_operations_modal.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_699dd8de898886_14704570',
+  'unifunc' => 'content_699ddc580dd3a4_72681382',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '4e0cfb81384357625659d5eca445a63482fe7323' => 
     array (
       0 => 'cells_NA_API_connector_operations_modal.html',
-      1 => 1771952347,
+      1 => 1771953131,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_699dd8de898886_14704570 (\Smarty\Template $_smarty_tpl) {
+function content_699ddc580dd3a4_72681382 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>
 <section class="section">
@@ -89,7 +89,9 @@ $_smarty_current_dir = '/home/cells/web/templates';
               <div class="col-md-8 col-lg-9">
                 <select class="form-select" id="report_download_mode" name="report_download_mode">
                   <option value="browser" <?php if ($_smarty_tpl->getValue('operations')['report']['download_mode'] == 'browser') {?>selected<?php }?>>Через браузерные шаги</option>
+                  <?php if (!$_smarty_tpl->getValue('node_runtime_available')) {?>
                   <option value="curl" <?php if ($_smarty_tpl->getValue('operations')['report']['download_mode'] == 'curl') {?>selected<?php }?>>Через PHP cURL</option>
+                  <?php }?>
                 </select>
               </div>
             </div>
@@ -126,6 +128,7 @@ $_smarty_current_dir = '/home/cells/web/templates';
               </div>
             </div>
 
+            <?php if (!$_smarty_tpl->getValue('node_runtime_available')) {?>
             <div class="row mb-3">
               <label for="report_curl_config_json" class="col-md-4 col-lg-3 col-form-label">PHP cURL конфиг</label>
               <div class="col-md-8 col-lg-9">
@@ -154,7 +157,10 @@ $_smarty_current_dir = '/home/cells/web/templates';
 }</pre>
               </div>
             </div>
-
+            <?php } else { ?>
+            <input type="hidden" name="report_curl_config_json" value="<?php echo htmlspecialchars((string)$_smarty_tpl->getValue('operations')['report']['curl_config_json'], ENT_QUOTES, 'UTF-8', true);?>
+">
+            <?php }?>
 
             <div class="row mb-3">
               <label class="col-md-4 col-lg-3 col-form-label">Период теста</label>
