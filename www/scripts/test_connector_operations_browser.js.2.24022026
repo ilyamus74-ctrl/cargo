@@ -377,44 +377,7 @@ async function safeGoto(page, url, options) {
   await runWithTransientRetry(() => page.goto(url, options), { maxAttempts: 6, baseDelayMs: 450 });
 }
 
-async function clickNearElement(page, selector, offsetX = -14, offsetY = 0) {
-  if (!selector) return false;
 
-  const point = await page.$eval(selector, (el, dx, dy) => {
-    const rect = el.getBoundingClientRect();
-    const x = Math.max(2, Math.floor(rect.left + dx));
-    const y = Math.max(2, Math.floor(rect.top + rect.height / 2 + dy));
-    return { x, y };
-  }, Number(offsetX), Number(offsetY));
-
-  if (!point || !Number.isFinite(point.x) || !Number.isFinite(point.y)) return false;
-  await page.mouse.click(point.x, point.y);
-  return true;
-}
-
-async function clickNearExportButton(page, offsetX = -14, offsetY = 0) {
-  const handles = await page.$$('button, a, input[type="button"], input[type="submit"]');
-  for (const handle of handles) {
-    try {
-      const matches = await handle.evaluate((el) => {
-        const text = String(el?.innerText || el?.value || '').trim().toLowerCase();
-        return text === 'export' || text.includes('export');
-      });
-      if (!matches) continue;
-
-      const box = await handle.boundingBox();
-      if (!box) continue;
-
-      const x = Math.max(2, Math.floor(box.x + Number(offsetX)));
-      const y = Math.max(2, Math.floor(box.y + box.height / 2 + Number(offsetY)));
-      await page.mouse.click(x, y);
-      return true;
-    } catch (_) {
-      // continue
-    }
-  }
-  return false;
-}
 
 async function createPageWithWarmup(browser, payload) {
   const maxAttempts = 5;
@@ -631,7 +594,6 @@ function persistDownloadedFileIfNeeded(downloaded, runtimeHomeDir, stableDownloa
         await runWithTransientRetry(async () => {
           await page.waitForSelector(selector, { visible: !!step.visible });
 
-
           const fieldMeta = await page.$eval(selector, (el) => {
             const element = el;
             const tagName = String(element?.tagName || '').toLowerCase();
@@ -652,18 +614,9 @@ function persistDownloadedFileIfNeeded(downloaded, runtimeHomeDir, stableDownloa
               input.dispatchEvent(new Event('input', { bubbles: true }));
               input.dispatchEvent(new Event('change', { bubbles: true }));
             }, nativeDateValue);
-
-            const blurNearSelector = applyVars(step.blur_near_selector || step.after_fill_click_near_selector || '', vars);
-            const blurOffsetX = Number(step.blur_near_offset_x ?? step.after_fill_click_near_offset_x ?? -14);
-            const blurOffsetY = Number(step.blur_near_offset_y ?? step.after_fill_click_near_offset_y ?? 0);
-            if (blurNearSelector) {
-              await clickNearElement(page, blurNearSelector, blurOffsetX, blurOffsetY);
-            } else if (step.auto_blur_after_fill !== false) {
-              await clickNearExportButton(page, blurOffsetX, blurOffsetY);
-            }
             return;
           }
-
+          
           await page.focus(selector);
           const typedText = convertIsoDateToDotFormat(text);
 
@@ -672,12 +625,6 @@ function persistDownloadedFileIfNeeded(downloaded, runtimeHomeDir, stableDownloa
             await page.click(selector, { clickCount: 3 });
             await page.keyboard.press('Backspace');
           }
-            if (typeof el.setSelectionRange === 'function') {
-              el.setSelectionRange(0, 0);
-            }
-          });
-
-
           await page.$eval(selector, (el) => {
             if (typeof el.setSelectionRange === 'function') {
               el.setSelectionRange(0, 0);
@@ -685,16 +632,7 @@ function persistDownloadedFileIfNeeded(downloaded, runtimeHomeDir, stableDownloa
           });
 
           await page.type(selector, typedText, { delay: Number(step.delay_ms || 0) });
-
-          const blurNearSelector = applyVars(step.blur_near_selector || step.after_fill_click_near_selector || '', vars);
-          const blurOffsetX = Number(step.blur_near_offset_x ?? step.after_fill_click_near_offset_x ?? -14);
-          const blurOffsetY = Number(step.blur_near_offset_y ?? step.after_fill_click_near_offset_y ?? 0);
-          if (blurNearSelector) {
-            await clickNearElement(page, blurNearSelector, blurOffsetX, blurOffsetY);
-          } else if (step.auto_blur_after_fill !== false) {
-            await clickNearExportButton(page, blurOffsetX, blurOffsetY);
-          }
-
+        });
         const shot = captureScreenshots ? await saveStepScreenshot(page, artifactsDir, stepNo, action) : null;
         stepLog.push({ time: new Date().toISOString(), step: stepNo, action, status: 'ok', screenshot: shot || undefined, meta: { selector } });
         continue;
