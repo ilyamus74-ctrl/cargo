@@ -861,7 +861,7 @@ const CoreAPI = {
                         if (screenshotPaths.length > 0) {
                             console.group('connector screenshots');
                             screenshotPaths.forEach((fullPath, idx) => {
-                                const publicUrl = CoreAPI.ui.toPublicArtifactUrl(fullPath);
+                                const publicUrl = CoreAPI.events.toPublicArtifactUrl(fullPath);
                                 console.log(`${idx + 1}. ${publicUrl}`);
                             });
                             console.groupEnd();
