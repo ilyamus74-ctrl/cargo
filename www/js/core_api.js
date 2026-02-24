@@ -849,14 +849,29 @@ const CoreAPI = {
                             const msg = entry?.message || '';
                             console.log(`#${idx + 1} [${ts}] ${step}: ${msg}`, entry?.meta || {});
                         });
+
+                        const screenshotPaths = Array.from(new Set(stepLog
+                            .map((entry) => String(entry?.screenshot || '').trim())
+                            .filter(Boolean)));
+
                         if (artifactsDir) {
                             console.log('artifacts_dir:', artifactsDir);
                         }
+
+                        if (screenshotPaths.length > 0) {
+                            console.group('connector screenshots');
+                            screenshotPaths.forEach((fullPath, idx) => {
+                                const publicUrl = CoreAPI.ui.toPublicArtifactUrl(fullPath);
+                                console.log(`${idx + 1}. ${publicUrl}`);
+                            });
+                            console.groupEnd();
+                        }
+
                         console.groupEnd();
                     }
 
                     const logHint = stepLog.length > 0
-                        ? '\n\nПошаговый лог выведен в консоль браузера (connector step log).' + (artifactsDir ? `\nСкриншоты: ${artifactsDir}` : '')
+                        ? '\n\nПошаговый лог выведен в консоль браузера (connector step log).\nСсылки на скриншоты — в группе connector screenshots.' + (artifactsDir ? `\nПапка артефактов: ${artifactsDir}` : '')
                         : '';
                     alert((data?.message || 'Ошибка при выполнении запроса') + logHint);
                     return;
@@ -872,6 +887,29 @@ const CoreAPI = {
                     CoreAPI.ui.reloadList('warehouse_item_in');
                 }
             }
+        },
+
+
+        toPublicArtifactUrl(filePath) {
+            const normalized = String(filePath || '').trim();
+            if (!normalized) return '';
+
+            if (/^https?:\/\//i.test(normalized)) return normalized;
+
+            const marker = '/www/';
+            const idx = normalized.lastIndexOf(marker);
+            if (idx >= 0) {
+                const webPath = normalized.slice(idx + marker.length);
+                const base = `${window.location.protocol}//${window.location.host}`;
+                return `${base}/${webPath}`;
+            }
+
+            if (normalized.startsWith('/')) {
+                const base = `${window.location.protocol}//${window.location.host}`;
+                return `${base}${normalized}`;
+            }
+
+            return normalized;
         },
         /**
          * Обработчик загрузки фото инструмента
