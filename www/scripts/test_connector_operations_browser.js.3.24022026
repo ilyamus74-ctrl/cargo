@@ -508,8 +508,6 @@ function persistDownloadedFileIfNeeded(downloaded, runtimeHomeDir, stableDownloa
   const forceCdpDownloadBehavior = !!payload.force_cdp_download_behavior;
   const tempDirBase = typeof payload.temp_dir === 'string' ? payload.temp_dir.trim() : '';
   const browserProduct = String(payload.browser_product || payload.browser || 'auto').toLowerCase();
-  const defaultPostGotoWaitMs = Math.max(0, Number(payload.post_goto_wait_ms ?? 1200));
-  const defaultBeforeExportClickWaitMs = Math.max(0, Number(payload.before_export_click_wait_ms ?? 1500));
 
   if (steps.length === 0) {
     process.stdout.write(JSON.stringify({ ok: false, message: 'No steps provided' }) + '\n');
@@ -601,38 +599,20 @@ function persistDownloadedFileIfNeeded(downloaded, runtimeHomeDir, stableDownloa
         const url = applyVars(step.url || '', vars);
         if (!url) throw new Error('goto.url is required');
         await safeGoto(page, url, { waitUntil: step.wait_until || 'domcontentloaded' });
-
-        const postGotoWaitMs = Math.max(0, Number(step.post_goto_wait_ms ?? defaultPostGotoWaitMs));
-        if (postGotoWaitMs > 0) {
-          await sleep(postGotoWaitMs);
-        }
-
         const shot = captureScreenshots ? await saveStepScreenshot(page, artifactsDir, stepNo, action) : null;
-        stepLog.push({ time: new Date().toISOString(), step: stepNo, action, status: 'ok', screenshot: shot || undefined, meta: { url, postGotoWaitMs } });
+        stepLog.push({ time: new Date().toISOString(), step: stepNo, action, status: 'ok', screenshot: shot || undefined, meta: { url } });
         continue;
       }
 
       if (action === 'click') {
         const selector = applyVars(step.selector || '', vars);
         if (!selector) throw new Error('click.selector is required');
-        const isExportClick = isLikelyExportSelector(selector) || step.is_export_click === true;
-        const beforeClickWaitMs = Math.max(
-          0,
-          Number(
-            step.before_click_wait_ms
-              ?? (isExportClick ? (step.before_export_click_wait_ms ?? defaultBeforeExportClickWaitMs) : 0)
-          )
-        );
-
         await runWithTransientRetry(async () => {
           await page.waitForSelector(selector, { visible: !!step.visible });
-          if (beforeClickWaitMs > 0) {
-            await sleep(beforeClickWaitMs);
-          }
           await page.click(selector);
         });
         const shot = captureScreenshots ? await saveStepScreenshot(page, artifactsDir, stepNo, action) : null;
-        stepLog.push({ time: new Date().toISOString(), step: stepNo, action, status: 'ok', screenshot: shot || undefined, meta: { selector, beforeClickWaitMs, isExportClick } });
+        stepLog.push({ time: new Date().toISOString(), step: stepNo, action, status: 'ok', screenshot: shot || undefined, meta: { selector } });
         continue;
       }
 
@@ -766,7 +746,6 @@ function persistDownloadedFileIfNeeded(downloaded, runtimeHomeDir, stableDownloa
     // если не было явного download step — попробуем найти файл в конце
     const downloaded = await waitForDownloadedFileInDirs([downloadDir, fallbackDownloadDir], fileExtension, 30000);
     if (!downloaded) throw new Error(`Download step missing or file not found (.${fileExtension})`);
-    const persistedDownloaded = persistDownloadedFileIfNeeded(downloaded, runtimeHomeDir, downloadDir);
 
     const finalShot = captureScreenshots ? await saveStepScreenshot(page, artifactsDir, stepNo + 1, 'final') : null;
     stepLog.push({ time: new Date().toISOString(), step: stepNo + 1, action: 'final_download_probe', status: 'ok', screenshot: finalShot || undefined });
