@@ -653,6 +653,7 @@ function persistDownloadedFileIfNeeded(downloaded, runtimeHomeDir, stableDownloa
       if (action === 'fill' || action === 'type') {
         const selector = applyVars(step.selector || '', vars);
         if (!selector) throw new Error(`${action}.selector is required`);
+        const requireVisible = step.visible !== false;
 
         // поддержка: step.text / step.value / step.var
         let text = '';
@@ -729,6 +730,7 @@ function persistDownloadedFileIfNeeded(downloaded, runtimeHomeDir, stableDownloa
       if (action === 'wait_for') {
         const selector = applyVars(step.selector || '', vars);
         const timeout = Number(step.timeout_ms || 10000);
+        const requireVisible = step.visible !== false;
 
         if (selector) {
           await runWithTransientRetry(() => findSelectorWithFallback(page, selector, { timeout, visible: requireVisible }));
