@@ -19,18 +19,7 @@ function applyVars(value, vars) {
   return value.replace(/\$\{([a-zA-Z0-9_]+)\}/g, (_, key) => (vars[key] ?? ''));
 }
 
-function resolveExecutableCandidates() {
-  const fromEnv = (process.env.PUPPETEER_EXECUTABLE_PATH || '').trim();
-  const candidates = [
-    fromEnv,
-    '/usr/bin/chromium-browser',
-    '/usr/bin/chromium',
-    '/usr/lib64/chromium-browser/chromium-browser',
-    '/usr/lib/chromium/chromium',
-    '/usr/bin/google-chrome-stable',
-    '/usr/bin/google-chrome',
-  ].filter(Boolean);
-
+function uniqueExistingPaths(candidates) {
   const expanded = [];
   for (const candidate of candidates) {
     expanded.push(candidate);
@@ -43,7 +32,7 @@ function resolveExecutableCandidates() {
   const existing = [];
   const seen = new Set();
   for (const candidate of expanded) {
-    if (seen.has(candidate)) continue;
+    if (!candidate || seen.has(candidate)) continue;
     seen.add(candidate);
     try {
       if (fs.existsSync(candidate)) existing.push(candidate);
@@ -53,10 +42,46 @@ function resolveExecutableCandidates() {
   return existing;
 }
 
-async function launchBrowserWithFallback(puppeteerLib, executableCandidates, sslIgnore, userDataDir, runtimeHomeDir) {
-  const baseArgs = [
+
+function resolveExecutableCandidates(product) {
+  const normalized = String(product || 'chrome').toLowerCase();
+
+  if (normalized === 'firefox') {
+    const fromEnv = (process.env.FIREFOX_EXECUTABLE_PATH || process.env.PUPPETEER_EXECUTABLE_PATH || '').trim();
+    return uniqueExistingPaths([
+      fromEnv,
+      '/usr/bin/firefox',
+      '/usr/lib64/firefox/firefox',
+      '/usr/lib/firefox/firefox',
+    ].filter(Boolean));
+  }
+
+  const fromEnv = (process.env.PUPPETEER_EXECUTABLE_PATH || '').trim();
+  return uniqueExistingPaths([
+    fromEnv,
+    '/usr/bin/chromium-browser',
+    '/usr/bin/chromium',
+    '/usr/lib64/chromium-browser/chromium-browser',
+    '/usr/lib/chromium/chromium',
+    '/usr/bin/google-chrome-stable',
+    '/usr/bin/google-chrome',
+  ].filter(Boolean));
+}
+
+function buildLaunchPlans(browserProduct, userDataDir, runtimeHomeDir) {
+  const launchEnv = {
+    ...process.env,
+    HOME: runtimeHomeDir,
+    XDG_CONFIG_HOME: path.join(runtimeHomeDir, '.config'),
+    XDG_CACHE_HOME: path.join(runtimeHomeDir, '.cache'),
+  };
+
+  const chromeArgs = [
     '--no-sandbox',
     '--disable-setuid-sandbox',
+    '--disable-gpu',
+    '--single-process',
+    '--disable-site-isolation-trials',
     '--disable-blink-features=AutomationControlled',
     '--disable-crash-reporter',
     '--disable-breakpad',
@@ -69,38 +94,65 @@ async function launchBrowserWithFallback(puppeteerLib, executableCandidates, ssl
     `--user-data-dir=${userDataDir}`,
   ];
 
-  const launchEnv = {
-    ...process.env,
-    HOME: runtimeHomeDir,
-    XDG_CONFIG_HOME: path.join(runtimeHomeDir, '.config'),
-    XDG_CACHE_HOME: path.join(runtimeHomeDir, '.cache'),
-  };
-
-  const strategyTemplates = [
-    { name: 'primary', opts: { args: baseArgs, env: launchEnv } },
-    { name: 'pipe-mode', opts: { pipe: true, args: baseArgs, env: launchEnv } },
-    // headless:'shell' доступен не везде; оставляем как опциональный фолбэк
-    { name: 'headless-shell', opts: { headless: 'shell', args: baseArgs, env: launchEnv } },
+  const firefoxArgs = [
+    '--headless',
+    '--no-remote',
+    '--profile',
+    userDataDir,
   ];
 
-  const candidates = [undefined, ...executableCandidates];
+  const chromePlan = {
+    product: 'chrome',
+    lib: puppeteer,
+    candidates: resolveExecutableCandidates('chrome'),
+    strategies: [
+      { name: 'primary', opts: { args: chromeArgs, env: launchEnv } },
+      { name: 'pipe-mode', opts: { pipe: true, args: chromeArgs, env: launchEnv } },
+      { name: 'headless-shell', opts: { headless: 'shell', args: chromeArgs, env: launchEnv } },
+    ],
+  };
+
+  const firefoxPlan = {
+    product: 'firefox',
+    lib: puppeteer,
+    candidates: resolveExecutableCandidates('firefox'),
+    strategies: [
+      { name: 'firefox', opts: { product: 'firefox', browser: 'firefox', args: firefoxArgs, env: launchEnv } },
+    ],
+    includeDefaultCandidate: false,
+  };
+
+  const mode = String(browserProduct || 'chrome').toLowerCase();
+  if (mode === 'firefox') return [firefoxPlan];
+  if (mode === 'auto') return [chromePlan, firefoxPlan];
+  return [chromePlan];
+}
+async function launchBrowserWithFallback(launchPlans, sslIgnore) {
   const errors = [];
   let lastErr = null;
 
-  for (const candidate of candidates) {
-    for (const strategy of strategyTemplates) {
-      const strategyName = `${strategy.name}${candidate ? `@${candidate}` : '@default'}`;
-      try {
-        return await puppeteerLib.launch({
-          headless: true,
-          ignoreHTTPSErrors: sslIgnore,
-          executablePath: candidate,
-          ...strategy.opts,
-        });
-      } catch (err) {
-        const message = err?.message ? err.message : String(err);
-        errors.push(`${strategyName}: ${message}`);
-        lastErr = err;
+  for (const plan of launchPlans) {
+    const candidates = plan.includeDefaultCandidate === false ? [...plan.candidates] : [undefined, ...plan.candidates];
+    if (!candidates.length) {
+      errors.push(`${plan.product}: no executable candidates found`);
+      continue;
+    }
+    for (const candidate of candidates) {
+      for (const strategy of plan.strategies) {
+        const strategyName = `${plan.product}:${strategy.name}${candidate ? `@${candidate}` : '@default'}`;
+        try {
+          const browser = await plan.lib.launch({
+            headless: true,
+            ignoreHTTPSErrors: sslIgnore,
+            executablePath: candidate,
+            ...strategy.opts,
+          });
+          return { browser, product: plan.product, executablePath: candidate || null };
+        } catch (err) {
+          const message = err?.message ? err.message : String(err);
+          errors.push(`${strategyName}: ${message}`);
+          lastErr = err;
+        }
       }
     }
   }
@@ -250,6 +302,8 @@ async function safeGoto(page, url, options) {
   await runWithTransientRetry(() => page.goto(url, options), { maxAttempts: 6, baseDelayMs: 450 });
 }
 
+
+
 async function createPageWithWarmup(browser) {
   const maxAttempts = 5;
 
@@ -261,12 +315,12 @@ async function createPageWithWarmup(browser) {
       page.setDefaultNavigationTimeout(60000);
 
       // Даём chromium небольшой старт под apache/php-fpm до первого реального шага.
-      await page.waitForTimeout(200 * attempt);
+      await sleep(200 * attempt);
       await runWithTransientRetry(
         () => page.goto('about:blank', { waitUntil: 'domcontentloaded', timeout: 15000 }),
         { maxAttempts: 4, baseDelayMs: 300 }
       );
-      await page.waitForTimeout(500);
+      await sleep(500);
 
       return page;
     } catch (err) {
@@ -318,6 +372,7 @@ async function waitForDownloadedFileInDirs(dirs, ext, timeoutMs) {
   const sslIgnore = !!payload.ssl_ignore;
   const forceCdpDownloadBehavior = !!payload.force_cdp_download_behavior;
   const tempDirBase = typeof payload.temp_dir === 'string' ? payload.temp_dir.trim() : '';
+  const browserProduct = String(payload.browser_product || payload.browser || 'auto').toLowerCase();
 
   if (steps.length === 0) {
     process.stdout.write(JSON.stringify({ ok: false, message: 'No steps provided' }) + '\n');
@@ -332,8 +387,8 @@ async function waitForDownloadedFileInDirs(dirs, ext, timeoutMs) {
   let userDataDir = '';
   let runtimeHomeDir = '';
 
-  const executableCandidates = resolveExecutableCandidates();
-  const executablePath = executableCandidates[0] || null;
+  let executablePath = null;
+  let resolvedBrowserProduct = browserProduct;
 
   try {
     userDataDir = mkTempDir(tempDirBase, 'connector-browser-profile-');
@@ -341,7 +396,11 @@ async function waitForDownloadedFileInDirs(dirs, ext, timeoutMs) {
     fs.mkdirSync(path.join(runtimeHomeDir, '.config'), { recursive: true });
     fs.mkdirSync(path.join(runtimeHomeDir, '.cache'), { recursive: true });
 
-    browser = await launchBrowserWithFallback(puppeteer, executableCandidates, sslIgnore, userDataDir, runtimeHomeDir);
+    const launchPlans = buildLaunchPlans(browserProduct, userDataDir, runtimeHomeDir);
+    const launched = await launchBrowserWithFallback(launchPlans, sslIgnore);
+    browser = launched.browser;
+    executablePath = launched.executablePath;
+    resolvedBrowserProduct = launched.product;
 
     const page = await createPageWithWarmup(browser);
 
@@ -362,7 +421,12 @@ async function waitForDownloadedFileInDirs(dirs, ext, timeoutMs) {
     fs.mkdirSync(fallbackDownloadDir, { recursive: true });
 
     let downloadBehavior = { configured: false, warning: '' };
-    if (forceCdpDownloadBehavior) {
+    if (resolvedBrowserProduct === 'firefox') {
+      downloadBehavior = {
+        configured: false,
+        warning: 'CDP download behavior disabled for firefox.',
+      };
+    } else if (forceCdpDownloadBehavior) {
       try {
         downloadBehavior = await configureDownloadBehavior(page, downloadDir);
       } catch (err) {
@@ -476,6 +540,7 @@ async function waitForDownloadedFileInDirs(dirs, ext, timeoutMs) {
             file_size: downloaded.size,
             file_extension: fileExtension,
             executable_path: executablePath,
+            browser_product: resolvedBrowserProduct,
             download_cdp_configured: !!downloadBehavior.configured,
             download_warning: downloadBehavior.warning || undefined,
             step_log: stepLog,
@@ -507,6 +572,7 @@ async function waitForDownloadedFileInDirs(dirs, ext, timeoutMs) {
         file_size: downloaded.size,
         file_extension: fileExtension,
         executable_path: executablePath,
+        browser_product: resolvedBrowserProduct,
         download_cdp_configured: !!downloadBehavior.configured,
         download_warning: downloadBehavior.warning || undefined,
         step_log: stepLog,
@@ -560,6 +626,7 @@ async function waitForDownloadedFileInDirs(dirs, ext, timeoutMs) {
         ok: false,
         message: err?.message || 'Browser test failed',
         executable_path: executablePath,
+        browser_product: resolvedBrowserProduct,
         step_log: stepLog,
         artifacts_dir: artifactsDir,
       }) + '\n'
