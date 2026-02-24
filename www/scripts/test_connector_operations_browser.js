@@ -19,6 +19,14 @@ function applyVars(value, vars) {
   return value.replace(/\$\{([a-zA-Z0-9_]+)\}/g, (_, key) => (vars[key] ?? ''));
 }
 
+function convertIsoDateToDotFormat(value) {
+  const v = String(value || '').trim();
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v);
+  if (!m) return value;
+  return `${m[3]}.${m[2]}.${m[1]}`;
+}
+
+
 function selectorCandidates(selector) {
   const base = String(selector || '').trim();
   if (!base) return [];
@@ -555,13 +563,14 @@ async function waitForDownloadedFileInDirs(dirs, ext, timeoutMs) {
           await page.waitForSelector(selector, { visible: !!step.visible });
           await page.focus(selector);
 
+          const typedText = convertIsoDateToDotFormat(text);
+
           if (step.clear !== false) {
             // чистим поле
             await page.click(selector, { clickCount: 3 });
             await page.keyboard.press('Backspace');
           }
-
-          await page.type(selector, text, { delay: Number(step.delay_ms || 0) });
+          await page.type(selector, typedText, { delay: Number(step.delay_ms || 0) });
         });
         const shot = captureScreenshots ? await saveStepScreenshot(page, artifactsDir, stepNo, action) : null;
         stepLog.push({ time: new Date().toISOString(), step: stepNo, action, status: 'ok', screenshot: shot || undefined, meta: { selector } });
