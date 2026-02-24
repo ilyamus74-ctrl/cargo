@@ -627,6 +627,7 @@ function persistDownloadedFileIfNeeded(downloaded, runtimeHomeDir, stableDownloa
       if (action === 'click') {
         const selector = applyVars(step.selector || '', vars);
         if (!selector) throw new Error('click.selector is required');
+        const requireVisible = step.visible !== false;
         const isExportClick = isLikelyExportSelector(selector) || step.is_export_click === true;
         const beforeClickWaitMs = Math.max(
           0,
@@ -637,7 +638,7 @@ function persistDownloadedFileIfNeeded(downloaded, runtimeHomeDir, stableDownloa
         );
 
         await runWithTransientRetry(async () => {
-          const matchedSelector = await findSelectorWithFallback(page, selector, { visible: !!step.visible });
+          const matchedSelector = await findSelectorWithFallback(page, selector, { visible: requireVisible });
           if (beforeClickWaitMs > 0) {
             await sleep(beforeClickWaitMs);
           }
@@ -661,7 +662,7 @@ function persistDownloadedFileIfNeeded(downloaded, runtimeHomeDir, stableDownloa
         text = applyVars(text, vars);
 
         await runWithTransientRetry(async () => {
-          const matchedSelector = await findSelectorWithFallback(page, selector, { visible: !!step.visible });
+          const matchedSelector = await findSelectorWithFallback(page, selector, { visible: requireVisible });
 
           const fieldMeta = await page.$eval(matchedSelector, (el) => {
             const element = el;
@@ -730,7 +731,7 @@ function persistDownloadedFileIfNeeded(downloaded, runtimeHomeDir, stableDownloa
         const timeout = Number(step.timeout_ms || 10000);
 
         if (selector) {
-          await runWithTransientRetry(() => findSelectorWithFallback(page, selector, { timeout, visible: !!step.visible }));
+          await runWithTransientRetry(() => findSelectorWithFallback(page, selector, { timeout, visible: requireVisible }));
         } else {
           await runWithTransientRetry(() => sleep(timeout));
         }
