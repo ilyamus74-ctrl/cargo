@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-02-24 17:14:00
+/* Smarty version 5.3.1, created on 2026-02-24 17:44:05
   from 'file:cells_NA_API_connector_operations_modal.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_699ddc580dd3a4_72681382',
+  'unifunc' => 'content_699de3650864d0_00799742',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '4e0cfb81384357625659d5eca445a63482fe7323' => 
     array (
       0 => 'cells_NA_API_connector_operations_modal.html',
-      1 => 1771953131,
+      1 => 1771955019,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_699ddc580dd3a4_72681382 (\Smarty\Template $_smarty_tpl) {
+function content_699de3650864d0_00799742 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>
 <section class="section">
@@ -31,9 +31,47 @@ $_smarty_current_dir = '/home/cells/web/templates';
           <h5 class="card-title">Операции коннектора: <?php echo htmlspecialchars((string)$_smarty_tpl->getValue('connector')['name'], ENT_QUOTES, 'UTF-8', true);?>
 </h5>
 
+
+          <ul class="nav nav-tabs mb-3" id="connector-operations-tabs" role="tablist">
+            <li class="nav-item" role="presentation">
+              <button class="nav-link active"
+                      id="op1-tab"
+                      data-bs-toggle="tab"
+                      data-bs-target="#op1-pane"
+                      type="button"
+                      role="tab"
+                      aria-controls="op1-pane"
+                      aria-selected="true">Операция #1</button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button class="nav-link"
+                      id="op2-tab"
+                      data-bs-toggle="tab"
+                      data-bs-target="#op2-pane"
+                      type="button"
+                      role="tab"
+                      aria-controls="op2-pane"
+                      aria-selected="false">Операция #2</button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button class="nav-link"
+                      id="op3-tab"
+                      data-bs-toggle="tab"
+                      data-bs-target="#op3-pane"
+                      type="button"
+                      role="tab"
+                      aria-controls="op3-pane"
+                      aria-selected="false">Операция #3</button>
+            </li>
+          </ul>
+
+
           <form id="connector-operations-form" autocomplete="off">
             <input type="hidden" name="connector_id" value="<?php echo (($tmp = $_smarty_tpl->getValue('connector')['id'] ?? null)===null||$tmp==='' ? 0 ?? null : $tmp);?>
 ">
+
+            <div class="tab-content" id="connector-operations-tab-content">
+              <div class="tab-pane fade show active" id="op1-pane" role="tabpanel" aria-labelledby="op1-tab" tabindex="0">
 
             <div class="row mb-3">
               <label class="col-md-4 col-lg-3 col-form-label">Операция #1</label>
@@ -217,6 +255,24 @@ $_smarty_current_dir = '/home/cells/web/templates';
 ">
                 Тест операции
               </button>
+            </div>
+
+
+              </div>
+
+              <div class="tab-pane fade" id="op2-pane" role="tabpanel" aria-labelledby="op2-tab" tabindex="0">
+                <div class="alert alert-info mb-0" role="alert">
+                  <strong>Операция #2 (OutboundSubmission)</strong><br>
+                  Заготовка под сценарий отправки/подачи данных во внешний сервис.
+                </div>
+              </div>
+
+              <div class="tab-pane fade" id="op3-pane" role="tabpanel" aria-labelledby="op3-tab" tabindex="0">
+                <div class="alert alert-info mb-0" role="alert">
+                  <strong>Операция #3 (TrackAndLabelInfo)</strong><br>
+                  Заготовка под сценарий проверки трека и загрузки label/документов.
+                </div>
+              </div>
             </div>
           </form>
         </div>

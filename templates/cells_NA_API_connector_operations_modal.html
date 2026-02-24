@@ -6,8 +6,46 @@
         <div class="card-body pt-3">
           <h5 class="card-title">Операции коннектора: {$connector.name|escape}</h5>
 
+
+          <ul class="nav nav-tabs mb-3" id="connector-operations-tabs" role="tablist">
+            <li class="nav-item" role="presentation">
+              <button class="nav-link active"
+                      id="op1-tab"
+                      data-bs-toggle="tab"
+                      data-bs-target="#op1-pane"
+                      type="button"
+                      role="tab"
+                      aria-controls="op1-pane"
+                      aria-selected="true">Операция #1</button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button class="nav-link"
+                      id="op2-tab"
+                      data-bs-toggle="tab"
+                      data-bs-target="#op2-pane"
+                      type="button"
+                      role="tab"
+                      aria-controls="op2-pane"
+                      aria-selected="false">Операция #2</button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button class="nav-link"
+                      id="op3-tab"
+                      data-bs-toggle="tab"
+                      data-bs-target="#op3-pane"
+                      type="button"
+                      role="tab"
+                      aria-controls="op3-pane"
+                      aria-selected="false">Операция #3</button>
+            </li>
+          </ul>
+
+
           <form id="connector-operations-form" autocomplete="off">
             <input type="hidden" name="connector_id" value="{$connector.id|default:0}">
+
+            <div class="tab-content" id="connector-operations-tab-content">
+              <div class="tab-pane fade show active" id="op1-pane" role="tabpanel" aria-labelledby="op1-tab" tabindex="0">
 
             <div class="row mb-3">
               <label class="col-md-4 col-lg-3 col-form-label">Операция #1</label>
@@ -183,6 +221,24 @@
               <button type="button" class="btn btn-outline-secondary js-core-link" data-core-action="test_connector_operations" data-connector-id="{$connector.id}">
                 Тест операции
               </button>
+            </div>
+
+
+              </div>
+
+              <div class="tab-pane fade" id="op2-pane" role="tabpanel" aria-labelledby="op2-tab" tabindex="0">
+                <div class="alert alert-info mb-0" role="alert">
+                  <strong>Операция #2 (OutboundSubmission)</strong><br>
+                  Заготовка под сценарий отправки/подачи данных во внешний сервис.
+                </div>
+              </div>
+
+              <div class="tab-pane fade" id="op3-pane" role="tabpanel" aria-labelledby="op3-tab" tabindex="0">
+                <div class="alert alert-info mb-0" role="alert">
+                  <strong>Операция #3 (TrackAndLabelInfo)</strong><br>
+                  Заготовка под сценарий проверки трека и загрузки label/документов.
+                </div>
+              </div>
             </div>
           </form>
         </div>
