@@ -672,12 +672,6 @@ function persistDownloadedFileIfNeeded(downloaded, runtimeHomeDir, stableDownloa
             await page.click(selector, { clickCount: 3 });
             await page.keyboard.press('Backspace');
           }
-            if (typeof el.setSelectionRange === 'function') {
-              el.setSelectionRange(0, 0);
-            }
-          });
-
-
           await page.$eval(selector, (el) => {
             if (typeof el.setSelectionRange === 'function') {
               el.setSelectionRange(0, 0);
@@ -694,6 +688,7 @@ function persistDownloadedFileIfNeeded(downloaded, runtimeHomeDir, stableDownloa
           } else if (step.auto_blur_after_fill !== false) {
             await clickNearExportButton(page, blurOffsetX, blurOffsetY);
           }
+        });
 
         const shot = captureScreenshots ? await saveStepScreenshot(page, artifactsDir, stepNo, action) : null;
         stepLog.push({ time: new Date().toISOString(), step: stepNo, action, status: 'ok', screenshot: shot || undefined, meta: { selector } });
