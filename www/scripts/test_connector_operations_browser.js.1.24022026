@@ -19,62 +19,6 @@ function applyVars(value, vars) {
   return value.replace(/\$\{([a-zA-Z0-9_]+)\}/g, (_, key) => (vars[key] ?? ''));
 }
 
-function selectorCandidates(selector) {
-  const base = String(selector || '').trim();
-  if (!base) return [];
-
-  const candidates = [base];
-  const m = /^input\[name=["']?([^"'\]]+)["']?\]$/i.exec(base);
-  if (m) {
-    const name = m[1];
-    candidates.push(`[name="${name}"]`);
-    candidates.push(`#${name}`);
-    candidates.push(`input#${name}`);
-  }
-
-  return Array.from(new Set(candidates));
-}
-
-async function findSelectorWithFallback(page, selector, options = {}) {
-  const timeout = Number(options.timeout || 30000);
-  const visible = !!options.visible;
-  const candidates = selectorCandidates(selector);
-  let lastErr = null;
-
-  for (const candidate of candidates) {
-    try {
-      await page.waitForSelector(candidate, { timeout, visible });
-      return candidate;
-    } catch (err) {
-      lastErr = err;
-    }
-  }
-
-  const finalErr = new Error(`No element found for selector: ${selector}`);
-  finalErr.cause = lastErr;
-  throw finalErr;
-}
-
-
-function resolveViewport(payload) {
-  const DEFAULT_WIDTH = 1600;
-  const DEFAULT_HEIGHT = 900;
-
-  const raw = String(payload?.viewport || payload?.window_size || '').trim().toLowerCase();
-  const m = /^(\d{3,5})[x×](\d{3,5})$/.exec(raw);
-  if (m) {
-    return { width: Number(m[1]), height: Number(m[2]) };
-  }
-
-  const width = Number(payload?.viewport_width || payload?.width || DEFAULT_WIDTH);
-  const height = Number(payload?.viewport_height || payload?.height || DEFAULT_HEIGHT);
-
-  return {
-    width: Number.isFinite(width) && width >= 320 ? Math.floor(width) : DEFAULT_WIDTH,
-    height: Number.isFinite(height) && height >= 240 ? Math.floor(height) : DEFAULT_HEIGHT,
-  };
-}
-
 function uniqueExistingPaths(candidates) {
   const expanded = [];
   for (const candidate of candidates) {
