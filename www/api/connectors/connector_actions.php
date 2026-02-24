@@ -452,10 +452,17 @@ function connectors_download_report_file(array $connector, array $reportCfg, ?st
     }
 
     $today = date('Y-m-d');
+    $defaultDateFrom = date('Y-m-d', strtotime('-2 years', strtotime($today)));
+    $resolvedDateFrom = $periodFrom ?? $defaultDateFrom;
+    $resolvedDateTo = $periodTo ?? $today;
+
     $vars = [
-        'date_from' => $periodFrom ?? '',
-        'date_to' => $periodTo ?? '',
+        'date_from' => $resolvedDateFrom,
+        'date_to' => $resolvedDateTo,
+        'test_period_from' => $resolvedDateFrom,
+        'test_period_to' => $resolvedDateTo,
         'today' => $today,
+        'today_minus_2y' => $defaultDateFrom,
         'base_url' => trim((string)($connector['base_url'] ?? '')),
         'login' => trim((string)($connector['auth_username'] ?? '')),
         'password' => trim((string)($connector['auth_password'] ?? '')),

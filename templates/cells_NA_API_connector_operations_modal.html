@@ -92,7 +92,7 @@
                           name="report_steps_json"
                           rows="9"
                           placeholder="JSON шагов browser-автоматизации">{$operations.report.steps_json|escape}</textarea>
-                <div class="form-text">JSON-массив шагов: goto/fill/click/wait_for/download. Перед ними автоматически выполнятся login.browser_steps (или browser_login_steps) из scenario_json коннектора.</div>
+                <div class="form-text">{literal}JSON-массив шагов: goto/fill/click/wait_for/download. Доступные переменные: ${date_from}/${test_period_from}, ${date_to}/${test_period_to}, ${today}, ${today_minus_2y}. Если период теста не задан — берется today_minus_2y → today. Перед шагами автоматически выполнятся login.browser_steps (или browser_login_steps) из scenario_json коннектора.{/literal}</div>
                 <pre class="form-text mb-0">{literal}[{"action":"goto","url":"https://portal.example.com/reports"},{"action":"click","selector":"#period_today"},{"action":"click","selector":"button.export-xlsx"}]{/literal}</pre>
               </div>
             </div>
@@ -132,11 +132,11 @@
                 <div class="row g-2">
                   <div class="col-md-6">
                     <input type="date" class="form-control" name="test_period_from" id="test_period_from">
-                    <div class="form-text">Дата начала (например, 2025-01-01)</div>
+                    <div class="form-text">{literal}Дата начала теста (подставляется в ${test_period_from}/${date_from}; если пусто — сегодня минус 2 года){/literal}</div>
                   </div>
                   <div class="col-md-6">
                     <input type="date" class="form-control" name="test_period_to" id="test_period_to">
-                    <div class="form-text">Дата окончания (например, 2026-02-22)</div>
+                    <div class="form-text">{literal}Дата окончания теста (подставляется в ${test_period_to}/${date_to}; если пусто — сегодня){/literal}</div>
                   </div>
                 </div>
               </div>

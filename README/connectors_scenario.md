@@ -74,7 +74,7 @@
 
 Контекст, который живет между шагами:
 
-    vars: ${login}, ${password}, ${today}
+    vars: ${login}, ${password}, ${today}, ${today_minus_2y}, ${date_from}/${test_period_from}, ${date_to}/${test_period_to}
 
     cookies/token/csrf
 

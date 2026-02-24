@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-02-24 08:24:24
+/* Smarty version 5.3.1, created on 2026-02-24 16:59:10
   from 'file:cells_NA_API_connector_operations_modal.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_699d6038a1f532_64654357',
+  'unifunc' => 'content_699dd8de898886_14704570',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '4e0cfb81384357625659d5eca445a63482fe7323' => 
     array (
       0 => 'cells_NA_API_connector_operations_modal.html',
-      1 => 1771921450,
+      1 => 1771952347,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_699d6038a1f532_64654357 (\Smarty\Template $_smarty_tpl) {
+function content_699dd8de898886_14704570 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>
 <section class="section">
@@ -121,7 +121,7 @@ $_smarty_current_dir = '/home/cells/web/templates';
                           rows="9"
                           placeholder="JSON шагов browser-автоматизации"><?php echo htmlspecialchars((string)$_smarty_tpl->getValue('operations')['report']['steps_json'], ENT_QUOTES, 'UTF-8', true);?>
 </textarea>
-                <div class="form-text">JSON-массив шагов: goto/fill/click/wait_for/download. Перед ними автоматически выполнятся login.browser_steps (или browser_login_steps) из scenario_json коннектора.</div>
+                <div class="form-text">JSON-массив шагов: goto/fill/click/wait_for/download. Доступные переменные: ${date_from}/${test_period_from}, ${date_to}/${test_period_to}, ${today}, ${today_minus_2y}. Если период теста не задан — берется today_minus_2y → today. Перед шагами автоматически выполнятся login.browser_steps (или browser_login_steps) из scenario_json коннектора.</div>
                 <pre class="form-text mb-0">[{"action":"goto","url":"https://portal.example.com/reports"},{"action":"click","selector":"#period_today"},{"action":"click","selector":"button.export-xlsx"}]</pre>
               </div>
             </div>
@@ -162,11 +162,11 @@ $_smarty_current_dir = '/home/cells/web/templates';
                 <div class="row g-2">
                   <div class="col-md-6">
                     <input type="date" class="form-control" name="test_period_from" id="test_period_from">
-                    <div class="form-text">Дата начала (например, 2025-01-01)</div>
+                    <div class="form-text">Дата начала теста (подставляется в ${test_period_from}/${date_from}; если пусто — сегодня минус 2 года)</div>
                   </div>
                   <div class="col-md-6">
                     <input type="date" class="form-control" name="test_period_to" id="test_period_to">
-                    <div class="form-text">Дата окончания (например, 2026-02-22)</div>
+                    <div class="form-text">Дата окончания теста (подставляется в ${test_period_to}/${date_to}; если пусто — сегодня)</div>
                   </div>
                 </div>
               </div>
