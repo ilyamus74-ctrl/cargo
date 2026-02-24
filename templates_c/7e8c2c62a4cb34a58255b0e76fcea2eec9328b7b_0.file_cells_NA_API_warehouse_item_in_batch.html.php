@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-02-20 10:36:12
+/* Smarty version 5.3.1, created on 2026-02-24 12:55:36
   from 'file:cells_NA_API_warehouse_item_in_batch.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_6998391c0ad3b9_04161445',
+  'unifunc' => 'content_699d9fc8d710c7_96774629',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '7e8c2c62a4cb34a58255b0e76fcea2eec9328b7b' => 
     array (
       0 => 'cells_NA_API_warehouse_item_in_batch.html',
-      1 => 1771583766,
+      1 => 1771937721,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_6998391c0ad3b9_04161445 (\Smarty\Template $_smarty_tpl) {
+function content_699d9fc8d710c7_96774629 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>
 
@@ -273,9 +273,11 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
 
   "cell_null_default_forwrad": {
     "CAMEX_AZB": "A99",
-    "CAMEX_TBS": "C99",
-    "CAMEX_KG":  "K99",
+    "CAMARATC_TBS": "C99",
+    "CAMARATC_KG":  "K99",
     "COLIBRI_AZB": "C0",
+    "KOLLI_AZB": "379761",
+    "POSTLINK_AZB": "00069",
     "ASER_AZB": "AS0"
   },
 
