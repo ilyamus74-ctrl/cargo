@@ -360,8 +360,9 @@ async function safeGoto(page, url, options) {
 
 
 
-async function createPageWithWarmup(browser) {
+async function createPageWithWarmup(browser, payload) {
   const maxAttempts = 5;
+  const viewport = resolveViewport(payload);
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     let page = null;
@@ -369,6 +370,7 @@ async function createPageWithWarmup(browser) {
       page = await browser.newPage();
       page.setDefaultTimeout(30000);
       page.setDefaultNavigationTimeout(60000);
+      await page.setViewport(viewport);
 
       // Даём chromium небольшой старт под apache/php-fpm до первого реального шага.
       await sleep(200 * attempt);
@@ -458,7 +460,7 @@ async function waitForDownloadedFileInDirs(dirs, ext, timeoutMs) {
     executablePath = launched.executablePath;
     resolvedBrowserProduct = launched.product;
 
-    const page = await createPageWithWarmup(browser);
+    const page = await createPageWithWarmup(browser, payload);
 
     // headers
     const extraHeaders = {};
