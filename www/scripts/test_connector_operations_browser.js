@@ -636,8 +636,6 @@ function persistDownloadedFileIfNeeded(downloaded, runtimeHomeDir, stableDownloa
   const browserProduct = String(payload.browser_product || payload.browser || 'auto').toLowerCase();
   const defaultPostGotoWaitMs = Math.max(0, Number(payload.post_goto_wait_ms ?? 1200));
   const defaultBeforeExportClickWaitMs = Math.max(0, Number(payload.before_export_click_wait_ms ?? 1500));
-  const minFileSizeBytes = Math.max(0, Number(payload.min_file_size_bytes ?? 1));
-  const debugDownloadNetwork = payload.debug_download_network === true;
   const minFileSizeBytes = Math.max(0, readNumberOption(payload, 'min_file_size_bytes', 'CONNECTOR_MIN_FILE_SIZE_BYTES', 1));
   const debugDownloadNetwork = readBoolOption(payload, 'debug_download_network', 'CONNECTOR_DEBUG_DOWNLOAD_NETWORK', false);
 
