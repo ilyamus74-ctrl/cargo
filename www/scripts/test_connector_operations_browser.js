@@ -38,6 +38,18 @@ function normalizeDateForNativeInput(value) {
   return '';
 }
 
+function isLikelyExportSelector(selector) {
+  const s = String(selector || "").trim().toLowerCase();
+  if (!s) return false;
+  return (
+    s.includes("export") ||
+    s.includes("download") ||
+    s.includes("выгруз") ||
+    s.includes("скачат")
+  );
+}
+
+
 function selectorCandidates(selector) {
   const base = String(selector || '').trim();
   if (!base) return [];
@@ -625,11 +637,11 @@ function persistDownloadedFileIfNeeded(downloaded, runtimeHomeDir, stableDownloa
         );
 
         await runWithTransientRetry(async () => {
-          await page.waitForSelector(selector, { visible: !!step.visible });
+          const matchedSelector = await findSelectorWithFallback(page, selector, { visible: !!step.visible });
           if (beforeClickWaitMs > 0) {
             await sleep(beforeClickWaitMs);
           }
-          await page.click(selector);
+          await page.click(matchedSelector);
         });
         const shot = captureScreenshots ? await saveStepScreenshot(page, artifactsDir, stepNo, action) : null;
         stepLog.push({ time: new Date().toISOString(), step: stepNo, action, status: 'ok', screenshot: shot || undefined, meta: { selector, beforeClickWaitMs, isExportClick } });
@@ -649,10 +661,9 @@ function persistDownloadedFileIfNeeded(downloaded, runtimeHomeDir, stableDownloa
         text = applyVars(text, vars);
 
         await runWithTransientRetry(async () => {
-          await page.waitForSelector(selector, { visible: !!step.visible });
+          const matchedSelector = await findSelectorWithFallback(page, selector, { visible: !!step.visible });
 
-
-          const fieldMeta = await page.$eval(selector, (el) => {
+          const fieldMeta = await page.$eval(matchedSelector, (el) => {
             const element = el;
             const tagName = String(element?.tagName || '').toLowerCase();
             const type = String(element?.getAttribute?.('type') || '').toLowerCase();
@@ -665,7 +676,7 @@ function persistDownloadedFileIfNeeded(downloaded, runtimeHomeDir, stableDownloa
               throw new Error(`Cannot normalize date value for native input[type=date]: ${text}`);
             }
 
-            await page.$eval(selector, (el, val) => {
+            await page.$eval(matchedSelector, (el, val) => {
               const input = el;
               input.focus();
               input.value = val;
@@ -684,22 +695,21 @@ function persistDownloadedFileIfNeeded(downloaded, runtimeHomeDir, stableDownloa
             return;
           }
 
-          await page.focus(selector);
+          await page.focus(matchedSelector);
           const typedText = convertIsoDateToDotFormat(text);
 
           if (step.clear !== false) {
             // чистим поле
-            await page.click(selector, { clickCount: 3 });
+            await page.click(matchedSelector, { clickCount: 3 });
             await page.keyboard.press('Backspace');
           }
-          await page.$eval(selector, (el) => {
+          await page.$eval(matchedSelector, (el) => {
             if (typeof el.setSelectionRange === 'function') {
               el.setSelectionRange(0, 0);
             }
           });
 
-          await page.type(selector, typedText, { delay: Number(step.delay_ms || 0) });
-
+          await page.type(matchedSelector, typedText, { delay: Number(step.delay_ms || 0) });
           const blurNearSelector = applyVars(step.blur_near_selector || step.after_fill_click_near_selector || '', vars);
           const blurOffsetX = Number(step.blur_near_offset_x ?? step.after_fill_click_near_offset_x ?? -14);
           const blurOffsetY = Number(step.blur_near_offset_y ?? step.after_fill_click_near_offset_y ?? 0);
@@ -720,7 +730,7 @@ function persistDownloadedFileIfNeeded(downloaded, runtimeHomeDir, stableDownloa
         const timeout = Number(step.timeout_ms || 10000);
 
         if (selector) {
-          await runWithTransientRetry(() => page.waitForSelector(selector, { timeout, visible: !!step.visible }));
+          await runWithTransientRetry(() => findSelectorWithFallback(page, selector, { timeout, visible: !!step.visible }));
         } else {
           await runWithTransientRetry(() => sleep(timeout));
         }
