@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-02-23 17:34:38
+/* Smarty version 5.3.1, created on 2026-02-24 08:24:24
   from 'file:cells_NA_API_connector_operations_modal.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_699c8fae13cd94_62969228',
+  'unifunc' => 'content_699d6038a1f532_64654357',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '4e0cfb81384357625659d5eca445a63482fe7323' => 
     array (
       0 => 'cells_NA_API_connector_operations_modal.html',
-      1 => 1771868068,
+      1 => 1771921450,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_699c8fae13cd94_62969228 (\Smarty\Template $_smarty_tpl) {
+function content_699d6038a1f532_64654357 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>
 <section class="section">
@@ -187,22 +187,6 @@ $_smarty_current_dir = '/home/cells/web/templates';
               </div>
             </div>
 
-
-            <div class="row mb-3">
-              <label class="col-md-4 col-lg-3 col-form-label">Период теста</label>
-              <div class="col-md-8 col-lg-9">
-                <div class="row g-2">
-                  <div class="col-md-6">
-                    <input type="date" class="form-control" name="test_period_from" id="test_period_from">
-                    <div class="form-text">Дата начала (например, 2025-01-01)</div>
-                  </div>
-                  <div class="col-md-6">
-                    <input type="date" class="form-control" name="test_period_to" id="test_period_to">
-                    <div class="form-text">Дата окончания (например, 2026-02-22)</div>
-                  </div>
-                </div>
-              </div>
-            </div>
 
 
             <div class="row mb-3">
