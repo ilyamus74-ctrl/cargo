@@ -453,7 +453,7 @@ async function waitForDownloadedFileInDirs(dirs, ext, timeoutMs) {
         if (selector) {
           await runWithTransientRetry(() => page.waitForSelector(selector, { timeout, visible: !!step.visible }));
         } else {
-          await runWithTransientRetry(() => page.waitForTimeout(timeout));
+          await runWithTransientRetry(() => sleep(timeout));
         }
         const shot = captureScreenshots ? await saveStepScreenshot(page, artifactsDir, stepNo, action) : null;
         stepLog.push({ time: new Date().toISOString(), step: stepNo, action, status: 'ok', screenshot: shot || undefined, meta: { selector: selector || undefined, timeout } });

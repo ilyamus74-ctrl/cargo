@@ -1,0 +1,3 @@
+Screenshot was not captured.
+Reason: page.waitForTimeout is not a function
+Time: 2026-02-24T06:43:45.459Z
