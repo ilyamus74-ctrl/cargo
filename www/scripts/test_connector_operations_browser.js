@@ -27,6 +27,17 @@ function convertIsoDateToDotFormat(value) {
 }
 
 
+function normalizeDateForNativeInput(value) {
+  const v = String(value || '').trim();
+  let m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v);
+  if (m) return `${m[1]}-${m[2]}-${m[3]}`;
+
+  m = /^(\d{2})\.(\d{2})\.(\d{4})$/.exec(v);
+  if (m) return `${m[3]}-${m[2]}-${m[1]}`;
+
+  return '';
+}
+
 function selectorCandidates(selector) {
   const base = String(selector || '').trim();
   if (!base) return [];
@@ -561,8 +572,31 @@ async function waitForDownloadedFileInDirs(dirs, ext, timeoutMs) {
 
         await runWithTransientRetry(async () => {
           await page.waitForSelector(selector, { visible: !!step.visible });
-          await page.focus(selector);
 
+          const fieldMeta = await page.$eval(selector, (el) => {
+            const element = el;
+            const tagName = String(element?.tagName || '').toLowerCase();
+            const type = String(element?.getAttribute?.('type') || '').toLowerCase();
+            return { isNativeDateInput: tagName === 'input' && type === 'date' };
+          });
+
+          if (fieldMeta?.isNativeDateInput) {
+            const nativeDateValue = normalizeDateForNativeInput(text);
+            if (!nativeDateValue) {
+              throw new Error(`Cannot normalize date value for native input[type=date]: ${text}`);
+            }
+
+            await page.$eval(selector, (el, val) => {
+              const input = el;
+              input.focus();
+              input.value = val;
+              input.dispatchEvent(new Event('input', { bubbles: true }));
+              input.dispatchEvent(new Event('change', { bubbles: true }));
+            }, nativeDateValue);
+            return;
+          }
+
+          await page.focus(selector);
           const typedText = convertIsoDateToDotFormat(text);
 
           if (step.clear !== false) {
@@ -570,6 +604,12 @@ async function waitForDownloadedFileInDirs(dirs, ext, timeoutMs) {
             await page.click(selector, { clickCount: 3 });
             await page.keyboard.press('Backspace');
           }
+          await page.$eval(selector, (el) => {
+            if (typeof el.setSelectionRange === 'function') {
+              el.setSelectionRange(0, 0);
+            }
+          });
+
           await page.type(selector, typedText, { delay: Number(step.delay_ms || 0) });
         });
         const shot = captureScreenshots ? await saveStepScreenshot(page, artifactsDir, stepNo, action) : null;
