@@ -190,6 +190,15 @@ function connectors_default_operations(array $connector): array
             'target_table' => $defaultTarget,
             'field_mapping_json' => '',
         ],
+        'submission' => [
+            'enabled' => 0,
+            'page_url' => '',
+            'log_steps' => 0,
+            'steps_json' => '',
+            'request_config_json' => '',
+            'success_selector' => '',
+            'success_text' => '',
+        ],
     ];
 }
 
@@ -227,6 +236,23 @@ function connectors_decode_operations(array $connector): array
 
         if (isset($report['field_mapping'])) {
             $operations['report']['field_mapping_json'] = json_encode($report['field_mapping'], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT) ?: '';
+        }
+    }
+
+    if (isset($decoded['submission']) && is_array($decoded['submission'])) {
+        $submission = $decoded['submission'];
+        $operations['submission']['enabled'] = !empty($submission['enabled']) ? 1 : 0;
+        $operations['submission']['page_url'] = trim((string)($submission['page_url'] ?? ''));
+        $operations['submission']['log_steps'] = !empty($submission['log_steps']) ? 1 : 0;
+        $operations['submission']['success_selector'] = trim((string)($submission['success_selector'] ?? ''));
+        $operations['submission']['success_text'] = trim((string)($submission['success_text'] ?? ''));
+
+        if (isset($submission['steps'])) {
+            $operations['submission']['steps_json'] = json_encode($submission['steps'], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT) ?: '';
+        }
+
+        if (isset($submission['request_config'])) {
+            $operations['submission']['request_config_json'] = json_encode($submission['request_config'], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT) ?: '';
         }
     }
 
@@ -964,6 +990,14 @@ function connectors_build_operations_payload_from_post(): array
     $fieldMappingJson = trim((string)($_POST['report_field_mapping_json'] ?? ''));
 
 
+    $submissionEnabled = !empty($_POST['submission_enabled']) ? 1 : 0;
+    $submissionPageUrl = trim((string)($_POST['submission_page_url'] ?? ''));
+    $submissionLogSteps = !empty($_POST['submission_log_steps']) ? 1 : 0;
+    $submissionStepsJson = trim((string)($_POST['submission_steps_json'] ?? ''));
+    $submissionRequestConfigJson = trim((string)($_POST['submission_request_config_json'] ?? ''));
+    $submissionSuccessSelector = trim((string)($_POST['submission_success_selector'] ?? ''));
+    $submissionSuccessText = trim((string)($_POST['submission_success_text'] ?? ''));
+
     $targetTable = preg_replace('/[^a-z0-9_]+/', '_', $targetTable ?? '');
     if ($targetTable !== '') {
         $targetTable = trim($targetTable, '_');
@@ -1008,6 +1042,29 @@ function connectors_build_operations_payload_from_post(): array
         $fileExtension = 'xlsx';
     }
 
+
+    $submissionSteps = [];
+    if ($submissionStepsJson !== '') {
+        $decoded = json_decode($submissionStepsJson, true);
+        if (!is_array($decoded)) {
+            throw new InvalidArgumentException('Некорректный JSON в "Шаги формы операции #2"');
+        }
+        $submissionSteps = $decoded;
+    }
+
+    $submissionRequestConfig = [];
+    if ($submissionRequestConfigJson !== '') {
+        $decoded = json_decode($submissionRequestConfigJson, true);
+        if (!is_array($decoded)) {
+            throw new InvalidArgumentException('Некорректный JSON в "AJAX / Request конфиг"');
+        }
+        $isList = array_keys($decoded) === range(0, count($decoded) - 1);
+        if ($isList) {
+            throw new InvalidArgumentException('"AJAX / Request конфиг" должен быть JSON-объектом, а не массивом.');
+        }
+        $submissionRequestConfig = $decoded;
+    }
+
     return [
         'report' => [
             'enabled' => $enabled,
@@ -1019,6 +1076,16 @@ function connectors_build_operations_payload_from_post(): array
             'curl_config' => $curlConfig,
             'target_table' => $targetTable,
             'field_mapping' => $fieldMapping,
+        ],
+
+        'submission' => [
+            'enabled' => $submissionEnabled,
+            'page_url' => $submissionPageUrl,
+            'log_steps' => $submissionLogSteps,
+            'steps' => $submissionSteps,
+            'request_config' => $submissionRequestConfig,
+            'success_selector' => $submissionSuccessSelector,
+            'success_text' => $submissionSuccessText,
         ],
     ];
 }

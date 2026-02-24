@@ -227,9 +227,113 @@
               </div>
 
               <div class="tab-pane fade" id="op2-pane" role="tabpanel" aria-labelledby="op2-tab" tabindex="0">
-                <div class="alert alert-info mb-0" role="alert">
-                  <strong>Операция #2 (OutboundSubmission)</strong><br>
-                  Заготовка под сценарий отправки/подачи данных во внешний сервис.
+                <div class="row mb-3 mt-3">
+                  <label class="col-md-4 col-lg-3 col-form-label">Операция #2</label>
+                  <div class="col-md-8 col-lg-9">
+                    <div class="form-text mt-2">Сценарий заполнения и отправки формы (например, https://dev-backend.colibri.az/collector).</div>
+                  </div>
+                </div>
+
+                <div class="row mb-3">
+                  <label for="submission_enabled" class="col-md-4 col-lg-3 col-form-label">Включено</label>
+                  <div class="col-md-8 col-lg-9">
+                    <div class="form-check">
+                      <input class="form-check-input"
+                             type="checkbox"
+                             id="submission_enabled"
+                             name="submission_enabled"
+                             value="1"
+                             {if $operations.submission.enabled == 1}checked{/if}>
+                      <label class="form-check-label" for="submission_enabled">Использовать операцию отправки</label>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="row mb-3">
+                  <label for="submission_page_url" class="col-md-4 col-lg-3 col-form-label">Страница формы</label>
+                  <div class="col-md-8 col-lg-9">
+                    <input type="text"
+                           class="form-control"
+                           id="submission_page_url"
+                           name="submission_page_url"
+                           value="{$operations.submission.page_url|escape}"
+                           placeholder="https://dev-backend.colibri.az/collector">
+                  </div>
+                </div>
+
+                <div class="row mb-3">
+                  <label for="submission_log_steps" class="col-md-4 col-lg-3 col-form-label">Лог шагов</label>
+                  <div class="col-md-8 col-lg-9">
+                    <div class="form-check">
+                      <input class="form-check-input"
+                             type="checkbox"
+                             id="submission_log_steps"
+                             name="submission_log_steps"
+                             value="1"
+                             {if $operations.submission.log_steps == 1}checked{/if}>
+                      <label class="form-check-label" for="submission_log_steps">Писать в лог шаги сценария операции #2</label>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="row mb-3">
+                  <label for="submission_steps_json" class="col-md-4 col-lg-3 col-form-label">Шаги формы операции #2</label>
+                  <div class="col-md-8 col-lg-9">
+                    <textarea class="form-control"
+                              id="submission_steps_json"
+                              name="submission_steps_json"
+                              rows="10"
+                              placeholder="JSON шагов browser-автоматизации">{$operations.submission.steps_json|escape}</textarea>
+                    <div class="form-text">{literal}JSON-массив шагов для формы: goto/fill/click/wait_for. Можно использовать переменные из scenario_json: ${login}, ${password}, ${date_from}, ${date_to}.{/literal}</div>
+                    <pre class="form-text mb-0">{literal}[
+  {"action":"goto","url":"https://dev-backend.colibri.az/collector"},
+  {"action":"fill","selector":"input[name=\"tracking\"]","value":"${tracking_number}"},
+  {"action":"click","selector":"button[type=\"submit\"]"},
+  {"action":"wait_for","selector":".alert-success","timeout_ms":10000}
+]{/literal}</pre>
+                  </div>
+                </div>
+
+                <div class="row mb-3">
+                  <label for="submission_request_config_json" class="col-md-4 col-lg-3 col-form-label">AJAX / Request конфиг</label>
+                  <div class="col-md-8 col-lg-9">
+                    <textarea class="form-control"
+                              id="submission_request_config_json"
+                              name="submission_request_config_json"
+                              rows="8"
+                              placeholder="JSON для ajax/fetch запроса формы">{$operations.submission.request_config_json|escape}</textarea>
+                    <div class="form-text">Опционально: параметры XHR/fetch, если нужно отправлять форму без клика по кнопке.</div>
+                    <pre class="form-text mb-0">{literal}{
+  "url": "https://dev-backend.colibri.az/collector/store",
+  "method": "POST",
+  "headers": {
+    "X-Requested-With": "XMLHttpRequest"
+  },
+  "body": {
+    "tracking": "${tracking_number}",
+    "suite": "${suite}"
+  }
+}{/literal}</pre>
+                  </div>
+                </div>
+
+                <div class="row mb-3">
+                  <label for="submission_success_selector" class="col-md-4 col-lg-3 col-form-label">Проверка успеха</label>
+                  <div class="col-md-8 col-lg-9">
+                    <input type="text"
+                           class="form-control mb-2"
+                           id="submission_success_selector"
+                           name="submission_success_selector"
+                           value="{$operations.submission.success_selector|escape}"
+                           placeholder=".alert-success, table#changes tbody tr:first-child">
+                    <input type="text"
+                           class="form-control"
+                           id="submission_success_text"
+                           name="submission_success_text"
+                           value="{$operations.submission.success_text|escape}"
+                           placeholder="Expected success text (optional)">
+                    <div class="form-text">Селектор и/или текст для валидации успешной отправки формы.</div>
+                  </div>
                 </div>
               </div>
 

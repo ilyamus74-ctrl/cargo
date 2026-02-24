@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-02-24 17:44:05
+/* Smarty version 5.3.1, created on 2026-02-24 17:59:20
   from 'file:cells_NA_API_connector_operations_modal.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_699de3650864d0_00799742',
+  'unifunc' => 'content_699de6f8361963_95207642',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '4e0cfb81384357625659d5eca445a63482fe7323' => 
     array (
       0 => 'cells_NA_API_connector_operations_modal.html',
-      1 => 1771955019,
+      1 => 1771955769,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_699de3650864d0_00799742 (\Smarty\Template $_smarty_tpl) {
+function content_699de6f8361963_95207642 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>
 <section class="section">
@@ -261,9 +261,118 @@ $_smarty_current_dir = '/home/cells/web/templates';
               </div>
 
               <div class="tab-pane fade" id="op2-pane" role="tabpanel" aria-labelledby="op2-tab" tabindex="0">
-                <div class="alert alert-info mb-0" role="alert">
-                  <strong>Операция #2 (OutboundSubmission)</strong><br>
-                  Заготовка под сценарий отправки/подачи данных во внешний сервис.
+                <div class="row mb-3 mt-3">
+                  <label class="col-md-4 col-lg-3 col-form-label">Операция #2</label>
+                  <div class="col-md-8 col-lg-9">
+                    <div class="form-text mt-2">Сценарий заполнения и отправки формы (например, https://dev-backend.colibri.az/collector).</div>
+                  </div>
+                </div>
+
+                <div class="row mb-3">
+                  <label for="submission_enabled" class="col-md-4 col-lg-3 col-form-label">Включено</label>
+                  <div class="col-md-8 col-lg-9">
+                    <div class="form-check">
+                      <input class="form-check-input"
+                             type="checkbox"
+                             id="submission_enabled"
+                             name="submission_enabled"
+                             value="1"
+                             <?php if ($_smarty_tpl->getValue('operations')['submission']['enabled'] == 1) {?>checked<?php }?>>
+                      <label class="form-check-label" for="submission_enabled">Использовать операцию отправки</label>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="row mb-3">
+                  <label for="submission_page_url" class="col-md-4 col-lg-3 col-form-label">Страница формы</label>
+                  <div class="col-md-8 col-lg-9">
+                    <input type="text"
+                           class="form-control"
+                           id="submission_page_url"
+                           name="submission_page_url"
+                           value="<?php echo htmlspecialchars((string)$_smarty_tpl->getValue('operations')['submission']['page_url'], ENT_QUOTES, 'UTF-8', true);?>
+"
+                           placeholder="https://dev-backend.colibri.az/collector">
+                  </div>
+                </div>
+
+                <div class="row mb-3">
+                  <label for="submission_log_steps" class="col-md-4 col-lg-3 col-form-label">Лог шагов</label>
+                  <div class="col-md-8 col-lg-9">
+                    <div class="form-check">
+                      <input class="form-check-input"
+                             type="checkbox"
+                             id="submission_log_steps"
+                             name="submission_log_steps"
+                             value="1"
+                             <?php if ($_smarty_tpl->getValue('operations')['submission']['log_steps'] == 1) {?>checked<?php }?>>
+                      <label class="form-check-label" for="submission_log_steps">Писать в лог шаги сценария операции #2</label>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="row mb-3">
+                  <label for="submission_steps_json" class="col-md-4 col-lg-3 col-form-label">Шаги формы операции #2</label>
+                  <div class="col-md-8 col-lg-9">
+                    <textarea class="form-control"
+                              id="submission_steps_json"
+                              name="submission_steps_json"
+                              rows="10"
+                              placeholder="JSON шагов browser-автоматизации"><?php echo htmlspecialchars((string)$_smarty_tpl->getValue('operations')['submission']['steps_json'], ENT_QUOTES, 'UTF-8', true);?>
+</textarea>
+                    <div class="form-text">JSON-массив шагов для формы: goto/fill/click/wait_for. Можно использовать переменные из scenario_json: ${login}, ${password}, ${date_from}, ${date_to}.</div>
+                    <pre class="form-text mb-0">[
+  {"action":"goto","url":"https://dev-backend.colibri.az/collector"},
+  {"action":"fill","selector":"input[name=\"tracking\"]","value":"${tracking_number}"},
+  {"action":"click","selector":"button[type=\"submit\"]"},
+  {"action":"wait_for","selector":".alert-success","timeout_ms":10000}
+]</pre>
+                  </div>
+                </div>
+
+                <div class="row mb-3">
+                  <label for="submission_request_config_json" class="col-md-4 col-lg-3 col-form-label">AJAX / Request конфиг</label>
+                  <div class="col-md-8 col-lg-9">
+                    <textarea class="form-control"
+                              id="submission_request_config_json"
+                              name="submission_request_config_json"
+                              rows="8"
+                              placeholder="JSON для ajax/fetch запроса формы"><?php echo htmlspecialchars((string)$_smarty_tpl->getValue('operations')['submission']['request_config_json'], ENT_QUOTES, 'UTF-8', true);?>
+</textarea>
+                    <div class="form-text">Опционально: параметры XHR/fetch, если нужно отправлять форму без клика по кнопке.</div>
+                    <pre class="form-text mb-0">{
+  "url": "https://dev-backend.colibri.az/collector/store",
+  "method": "POST",
+  "headers": {
+    "X-Requested-With": "XMLHttpRequest"
+  },
+  "body": {
+    "tracking": "${tracking_number}",
+    "suite": "${suite}"
+  }
+}</pre>
+                  </div>
+                </div>
+
+                <div class="row mb-3">
+                  <label for="submission_success_selector" class="col-md-4 col-lg-3 col-form-label">Проверка успеха</label>
+                  <div class="col-md-8 col-lg-9">
+                    <input type="text"
+                           class="form-control mb-2"
+                           id="submission_success_selector"
+                           name="submission_success_selector"
+                           value="<?php echo htmlspecialchars((string)$_smarty_tpl->getValue('operations')['submission']['success_selector'], ENT_QUOTES, 'UTF-8', true);?>
+"
+                           placeholder=".alert-success, table#changes tbody tr:first-child">
+                    <input type="text"
+                           class="form-control"
+                           id="submission_success_text"
+                           name="submission_success_text"
+                           value="<?php echo htmlspecialchars((string)$_smarty_tpl->getValue('operations')['submission']['success_text'], ENT_QUOTES, 'UTF-8', true);?>
+"
+                           placeholder="Expected success text (optional)">
+                    <div class="form-text">Селектор и/или текст для валидации успешной отправки формы.</div>
+                  </div>
                 </div>
               </div>
 
