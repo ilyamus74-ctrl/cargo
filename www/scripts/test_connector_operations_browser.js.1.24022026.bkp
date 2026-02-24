@@ -250,43 +250,6 @@ async function safeGoto(page, url, options) {
   await runWithTransientRetry(() => page.goto(url, options), { maxAttempts: 6, baseDelayMs: 450 });
 }
 
-async function createPageWithWarmup(browser) {
-  const maxAttempts = 5;
-
-  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    let page = null;
-    try {
-      page = await browser.newPage();
-      page.setDefaultTimeout(30000);
-      page.setDefaultNavigationTimeout(60000);
-
-      // Даём chromium небольшой старт под apache/php-fpm до первого реального шага.
-      await page.waitForTimeout(200 * attempt);
-      await runWithTransientRetry(
-        () => page.goto('about:blank', { waitUntil: 'domcontentloaded', timeout: 15000 }),
-        { maxAttempts: 4, baseDelayMs: 300 }
-      );
-      await page.waitForTimeout(500);
-
-      return page;
-    } catch (err) {
-      if (page) {
-        try {
-          await page.close();
-        } catch (_) {}
-      }
-
-      if (!isTransientFrameError(err) || attempt === maxAttempts) {
-        throw err;
-      }
-      await sleep(350 * attempt);
-    }
-  }
-
-  throw new Error('Unable to initialize browser page');
-}
-
-
 async function waitForDownloadedFileInDirs(dirs, ext, timeoutMs) {
   const started = Date.now();
   while (Date.now() - started < timeoutMs) {
@@ -343,7 +306,12 @@ async function waitForDownloadedFileInDirs(dirs, ext, timeoutMs) {
 
     browser = await launchBrowserWithFallback(puppeteer, executableCandidates, sslIgnore, userDataDir, runtimeHomeDir);
 
-    const page = await createPageWithWarmup(browser);
+    const page = await browser.newPage();
+    page.setDefaultTimeout(30000);
+    page.setDefaultNavigationTimeout(60000);
+
+    // warmup to avoid transient "main frame too early" errors on first action
+    await runWithTransientRetry(() => page.goto('about:blank', { waitUntil: 'domcontentloaded' }), { maxAttempts: 4, baseDelayMs: 300 });
 
     // headers
     const extraHeaders = {};
