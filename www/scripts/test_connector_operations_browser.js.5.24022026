@@ -321,7 +321,6 @@ async function waitForStableDownloadedFileInDirs(dirs, ext, timeoutMs, opts = {}
   const started = Date.now();
   const minSizeBytes = Math.max(0, Number(opts.minSizeBytes || 0));
   const stablePollsRequired = Math.max(1, Number(opts.stablePollsRequired || 2));
-  const stableWindowMs = Math.max(0, Number(opts.stableWindowMs || 1000));
   const seen = new Map();
 
   while (Date.now() - started < timeoutMs) {
@@ -335,13 +334,10 @@ async function waitForStableDownloadedFileInDirs(dirs, ext, timeoutMs, opts = {}
       const prev = seen.get(key);
       const isSameSize = prev && prev.size === downloaded.size;
       const stableCount = isSameSize ? (prev.stableCount + 1) : 1;
-      const firstSeenAt = prev?.firstSeenAt || Date.now();
-      const lastChangedAt = isSameSize ? (prev?.lastChangedAt || Date.now()) : Date.now();
-      seen.set(key, { size: downloaded.size, stableCount, firstSeenAt, lastChangedAt });
+      seen.set(key, { size: downloaded.size, stableCount });
 
       if (downloaded.size < minSizeBytes) continue;
       if (stableCount < stablePollsRequired) continue;
-      if (Date.now() - lastChangedAt < stableWindowMs) continue;
 
       return {
         ...downloaded,
@@ -582,36 +578,6 @@ function shouldLogDownloadResponse(response) {
   }
 }
 
-
-
-function tryParseContentLength(response) {
-  try {
-    const headers = response.headers() || {};
-    const raw = headers['content-length'];
-    const n = Number(raw);
-    return Number.isFinite(n) && n > 0 ? n : null;
-  } catch (_) {
-    return null;
-  }
-}
-
-function isLikelySpreadsheetDownloadResponse(response) {
-  try {
-    const headers = response.headers() || {};
-    const ct = String(headers['content-type'] || '').toLowerCase();
-    const cd = String(headers['content-disposition'] || '').toLowerCase();
-    const u = String(response.url() || '').toLowerCase();
-    return (
-      ct.includes('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet') ||
-      ct.includes('spreadsheet') ||
-      (cd.includes('attachment') && cd.includes('.xlsx')) ||
-      u.includes('.xlsx')
-    );
-  } catch (_) {
-    return false;
-  }
-}
-
 function persistDownloadedFileIfNeeded(downloaded, runtimeHomeDir, stableDownloadDir) {
   if (!downloaded || !downloaded.fullPath) return downloaded;
 
@@ -704,20 +670,23 @@ function persistDownloadedFileIfNeeded(downloaded, runtimeHomeDir, stableDownloa
     const page = await createPageWithWarmup(browser, payload);
 
     const downloadNetworkLog = [];
-    let expectedDownloadSizeBytes = 0;
-    page.on('response', async (response) => {
-      const contentLength = tryParseContentLength(response);
-      if (isLikelySpreadsheetDownloadResponse(response) && contentLength) {
-        expectedDownloadSizeBytes = Math.max(expectedDownloadSizeBytes, contentLength);
-      }
-      if (!debugDownloadNetwork || !shouldLogDownloadResponse(response)) return;
-      downloadNetworkLog.push({
-        time: new Date().toISOString(),
-        status: response.status(),
-        url: response.url(),
-        content_length: contentLength,
+    if (debugDownloadNetwork) {
+      page.on('response', async (response) => {
+        if (!shouldLogDownloadResponse(response)) return;
+        let contentLength = null;
+        try {
+          const headers = response.headers() || {};
+          contentLength = headers['content-length'] || null;
+        } catch (_) {}
+
+        downloadNetworkLog.push({
+          time: new Date().toISOString(),
+          status: response.status(),
+          url: response.url(),
+          content_length: contentLength,
+        });
       });
-    });
+    }
 
 
     // headers
@@ -911,14 +880,9 @@ function persistDownloadedFileIfNeeded(downloaded, runtimeHomeDir, stableDownloa
 
       if (action === 'download') {
         const timeoutMs = Number(step.timeout_ms || 30000);
-        const effectiveMinSizeBytes = Math.max(
-          minFileSizeBytes,
-          expectedDownloadSizeBytes > 0 ? Math.floor(expectedDownloadSizeBytes * 0.9) : 0
-        );
         const downloaded = await waitForStableDownloadedFileInDirs([downloadDir, fallbackDownloadDir], fileExtension, timeoutMs, {
-          minSizeBytes: effectiveMinSizeBytes,
+          minSizeBytes: minFileSizeBytes,
           stablePollsRequired: 2,
-          stableWindowMs: 1500,
         });
         if (!downloaded) throw new Error(`Download not found with .${fileExtension} within ${timeoutMs}ms`);
         const persistedDownloaded = persistDownloadedFileIfNeeded(downloaded, runtimeHomeDir, downloadDir);
@@ -939,8 +903,6 @@ function persistDownloadedFileIfNeeded(downloaded, runtimeHomeDir, stableDownloa
             download_warning: downloadBehavior.warning || undefined,
             file_is_zip_container: downloaded.is_zip_container,
             min_file_size_bytes: minFileSizeBytes,
-            effective_min_file_size_bytes: effectiveMinSizeBytes,
-            expected_download_size_bytes: expectedDownloadSizeBytes || undefined,
             step_log: stepLog,
             artifacts_dir: artifactsDir,
             network_log: debugDownloadNetwork ? downloadNetworkLog : undefined,
@@ -958,12 +920,8 @@ function persistDownloadedFileIfNeeded(downloaded, runtimeHomeDir, stableDownloa
 
     // если не было явного download step — попробуем найти файл в конце
     const downloaded = await waitForStableDownloadedFileInDirs([downloadDir, fallbackDownloadDir], fileExtension, 30000, {
-      minSizeBytes: Math.max(
-        minFileSizeBytes,
-        expectedDownloadSizeBytes > 0 ? Math.floor(expectedDownloadSizeBytes * 0.9) : 0
-      ),
+      minSizeBytes: minFileSizeBytes,
       stablePollsRequired: 2,
-      stableWindowMs: 1500,
     });
     if (!downloaded) throw new Error(`Download step missing or file not found (.${fileExtension})`);
     const persistedDownloaded = persistDownloadedFileIfNeeded(downloaded, runtimeHomeDir, downloadDir);
@@ -984,7 +942,6 @@ function persistDownloadedFileIfNeeded(downloaded, runtimeHomeDir, stableDownloa
         download_warning: downloadBehavior.warning || undefined,
         file_is_zip_container: downloaded.is_zip_container,
         min_file_size_bytes: minFileSizeBytes,
-        expected_download_size_bytes: expectedDownloadSizeBytes || undefined,
         step_log: stepLog,
         artifacts_dir: artifactsDir,
         network_log: debugDownloadNetwork ? downloadNetworkLog : undefined,
