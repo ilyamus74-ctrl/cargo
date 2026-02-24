@@ -14,38 +14,6 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function readBoolOption(payload, key, envKey, defaultValue = false) {
-  if (payload && Object.prototype.hasOwnProperty.call(payload, key)) {
-    const raw = payload[key];
-    if (typeof raw === 'boolean') return raw;
-    const txt = String(raw || '').trim().toLowerCase();
-    if (txt === '1' || txt === 'true' || txt === 'yes' || txt === 'on') return true;
-    if (txt === '0' || txt === 'false' || txt === 'no' || txt === 'off') return false;
-  }
-
-  const envRaw = String(process.env[envKey] || '').trim().toLowerCase();
-  if (envRaw === '1' || envRaw === 'true' || envRaw === 'yes' || envRaw === 'on') return true;
-  if (envRaw === '0' || envRaw === 'false' || envRaw === 'no' || envRaw === 'off') return false;
-
-  return !!defaultValue;
-}
-
-function readNumberOption(payload, key, envKey, defaultValue = 0) {
-  if (payload && Object.prototype.hasOwnProperty.call(payload, key)) {
-    const n = Number(payload[key]);
-    if (Number.isFinite(n)) return n;
-  }
-
-  const envRaw = String(process.env[envKey] || '').trim();
-  if (envRaw !== '') {
-    const n = Number(envRaw);
-    if (Number.isFinite(n)) return n;
-  }
-
-  return Number(defaultValue);
-}
-
-
 function applyVars(value, vars) {
   if (typeof value !== 'string') return value;
   return value.replace(/\$\{([a-zA-Z0-9_]+)\}/g, (_, key) => (vars[key] ?? ''));
@@ -304,54 +272,6 @@ async function waitForDownloadedFile(dir, ext, timeoutMs) {
   return null;
 }
 
-
-function looksLikeZipContainer(filePath) {
-  try {
-    const fd = fs.openSync(filePath, 'r');
-    const buf = Buffer.alloc(4);
-    fs.readSync(fd, buf, 0, 4, 0);
-    fs.closeSync(fd);
-    return buf[0] === 0x50 && buf[1] === 0x4b;
-  } catch (_) {
-    return false;
-  }
-}
-
-async function waitForStableDownloadedFileInDirs(dirs, ext, timeoutMs, opts = {}) {
-  const started = Date.now();
-  const minSizeBytes = Math.max(0, Number(opts.minSizeBytes || 0));
-  const stablePollsRequired = Math.max(1, Number(opts.stablePollsRequired || 2));
-  const seen = new Map();
-
-  while (Date.now() - started < timeoutMs) {
-    for (const dir of dirs) {
-      if (!dir || !fs.existsSync(dir)) continue;
-
-      const downloaded = await waitForDownloadedFile(dir, ext, 500);
-      if (!downloaded || !downloaded.fullPath) continue;
-
-      const key = downloaded.fullPath;
-      const prev = seen.get(key);
-      const isSameSize = prev && prev.size === downloaded.size;
-      const stableCount = isSameSize ? (prev.stableCount + 1) : 1;
-      seen.set(key, { size: downloaded.size, stableCount });
-
-      if (downloaded.size < minSizeBytes) continue;
-      if (stableCount < stablePollsRequired) continue;
-
-      return {
-        ...downloaded,
-        is_zip_container: looksLikeZipContainer(downloaded.fullPath),
-      };
-    }
-
-    await sleep(250);
-  }
-
-  return null;
-}
-
-
 async function safeRm(dir) {
   if (!dir) return;
   try {
@@ -559,25 +479,6 @@ async function waitForDownloadedFileInDirs(dirs, ext, timeoutMs) {
   return null;
 }
 
-
-function shouldLogDownloadResponse(response) {
-  try {
-    const headers = response.headers() || {};
-    const ct = String(headers['content-type'] || '').toLowerCase();
-    const cd = String(headers['content-disposition'] || '').toLowerCase();
-    const u = String(response.url() || '').toLowerCase();
-    return (
-      cd.includes('attachment') ||
-      ct.includes('spreadsheet') ||
-      ct.includes('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet') ||
-      u.includes('export') ||
-      u.includes('download')
-    );
-  } catch (_) {
-    return false;
-  }
-}
-
 function persistDownloadedFileIfNeeded(downloaded, runtimeHomeDir, stableDownloadDir) {
   if (!downloaded || !downloaded.fullPath) return downloaded;
 
@@ -600,24 +501,9 @@ function persistDownloadedFileIfNeeded(downloaded, runtimeHomeDir, stableDownloa
 }
 
 
-
-
 (async () => {
   const args = process.argv.slice(2);
   const payloadRaw = args[0] || '{}';
-
-  if (args[0] === '--help' || args[0] === '-h') {
-    process.stdout.write(
-      [
-        'Usage: node test_connector_operations_browser.js "{...json payload...}"',
-        'Debug options:',
-        '  payload.debug_download_network=true (or env CONNECTOR_DEBUG_DOWNLOAD_NETWORK=1)',
-        '  payload.min_file_size_bytes=50000 (or env CONNECTOR_MIN_FILE_SIZE_BYTES=50000)',
-      ].join('\n') + '\n'
-    );
-    process.exit(0);
-  }
-
 
   let payload;
   try {
@@ -636,10 +522,6 @@ function persistDownloadedFileIfNeeded(downloaded, runtimeHomeDir, stableDownloa
   const browserProduct = String(payload.browser_product || payload.browser || 'auto').toLowerCase();
   const defaultPostGotoWaitMs = Math.max(0, Number(payload.post_goto_wait_ms ?? 1200));
   const defaultBeforeExportClickWaitMs = Math.max(0, Number(payload.before_export_click_wait_ms ?? 1500));
-  const minFileSizeBytes = Math.max(0, Number(payload.min_file_size_bytes ?? 1));
-  const debugDownloadNetwork = payload.debug_download_network === true;
-  const minFileSizeBytes = Math.max(0, readNumberOption(payload, 'min_file_size_bytes', 'CONNECTOR_MIN_FILE_SIZE_BYTES', 1));
-  const debugDownloadNetwork = readBoolOption(payload, 'debug_download_network', 'CONNECTOR_DEBUG_DOWNLOAD_NETWORK', false);
 
   if (steps.length === 0) {
     process.stdout.write(JSON.stringify({ ok: false, message: 'No steps provided' }) + '\n');
@@ -670,26 +552,6 @@ function persistDownloadedFileIfNeeded(downloaded, runtimeHomeDir, stableDownloa
     resolvedBrowserProduct = launched.product;
 
     const page = await createPageWithWarmup(browser, payload);
-
-    const downloadNetworkLog = [];
-    if (debugDownloadNetwork) {
-      page.on('response', async (response) => {
-        if (!shouldLogDownloadResponse(response)) return;
-        let contentLength = null;
-        try {
-          const headers = response.headers() || {};
-          contentLength = headers['content-length'] || null;
-        } catch (_) {}
-
-        downloadNetworkLog.push({
-          time: new Date().toISOString(),
-          status: response.status(),
-          url: response.url(),
-          content_length: contentLength,
-        });
-      });
-    }
-
 
     // headers
     const extraHeaders = {};
@@ -882,10 +744,7 @@ function persistDownloadedFileIfNeeded(downloaded, runtimeHomeDir, stableDownloa
 
       if (action === 'download') {
         const timeoutMs = Number(step.timeout_ms || 30000);
-        const downloaded = await waitForStableDownloadedFileInDirs([downloadDir, fallbackDownloadDir], fileExtension, timeoutMs, {
-          minSizeBytes: minFileSizeBytes,
-          stablePollsRequired: 2,
-        });
+        const downloaded = await waitForDownloadedFileInDirs([downloadDir, fallbackDownloadDir], fileExtension, timeoutMs);
         if (!downloaded) throw new Error(`Download not found with .${fileExtension} within ${timeoutMs}ms`);
         const persistedDownloaded = persistDownloadedFileIfNeeded(downloaded, runtimeHomeDir, downloadDir);
 
@@ -903,11 +762,8 @@ function persistDownloadedFileIfNeeded(downloaded, runtimeHomeDir, stableDownloa
             browser_product: resolvedBrowserProduct,
             download_cdp_configured: !!downloadBehavior.configured,
             download_warning: downloadBehavior.warning || undefined,
-            file_is_zip_container: downloaded.is_zip_container,
-            min_file_size_bytes: minFileSizeBytes,
             step_log: stepLog,
             artifacts_dir: artifactsDir,
-            network_log: debugDownloadNetwork ? downloadNetworkLog : undefined,
           }) + '\n'
         );
 
@@ -921,10 +777,7 @@ function persistDownloadedFileIfNeeded(downloaded, runtimeHomeDir, stableDownloa
     }
 
     // если не было явного download step — попробуем найти файл в конце
-    const downloaded = await waitForStableDownloadedFileInDirs([downloadDir, fallbackDownloadDir], fileExtension, 30000, {
-      minSizeBytes: minFileSizeBytes,
-      stablePollsRequired: 2,
-    });
+    const downloaded = await waitForDownloadedFileInDirs([downloadDir, fallbackDownloadDir], fileExtension, 30000);
     if (!downloaded) throw new Error(`Download step missing or file not found (.${fileExtension})`);
     const persistedDownloaded = persistDownloadedFileIfNeeded(downloaded, runtimeHomeDir, downloadDir);
 
@@ -942,11 +795,8 @@ function persistDownloadedFileIfNeeded(downloaded, runtimeHomeDir, stableDownloa
         browser_product: resolvedBrowserProduct,
         download_cdp_configured: !!downloadBehavior.configured,
         download_warning: downloadBehavior.warning || undefined,
-        file_is_zip_container: downloaded.is_zip_container,
-        min_file_size_bytes: minFileSizeBytes,
         step_log: stepLog,
         artifacts_dir: artifactsDir,
-        network_log: debugDownloadNetwork ? downloadNetworkLog : undefined,
       }) + '\n'
     );
 
