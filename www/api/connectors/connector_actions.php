@@ -92,7 +92,7 @@ function connectors_ensure_schema(mysqli $dbcnx): void
             error_log('connectors schema check error: ' . $dbcnx->error);
         }
     }
-}
+
 
 
     $addonsSql = "
@@ -212,7 +212,7 @@ function connectors_build_addons_payload_from_post(): array
         ],
         'node_mapping' => $nodeMapping,
     ];
-
+}
 function connectors_build_status(array $connector): array
 {
     $isActive = (int)($connector['is_active'] ?? 0) === 1;
