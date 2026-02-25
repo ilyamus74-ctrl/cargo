@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-02-24 17:59:20
+/* Smarty version 5.3.1, created on 2026-02-25 09:25:45
   from 'file:cells_NA_API_connector_operations_modal.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_699de6f8361963_95207642',
+  'unifunc' => 'content_699ec019489490_55479074',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '4e0cfb81384357625659d5eca445a63482fe7323' => 
     array (
       0 => 'cells_NA_API_connector_operations_modal.html',
-      1 => 1771955769,
+      1 => 1772008720,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_699de6f8361963_95207642 (\Smarty\Template $_smarty_tpl) {
+function content_699ec019489490_55479074 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>
 <section class="section">
@@ -161,7 +161,7 @@ $_smarty_current_dir = '/home/cells/web/templates';
                           rows="9"
                           placeholder="JSON шагов browser-автоматизации"><?php echo htmlspecialchars((string)$_smarty_tpl->getValue('operations')['report']['steps_json'], ENT_QUOTES, 'UTF-8', true);?>
 </textarea>
-                <div class="form-text">JSON-массив шагов: goto/fill/click/wait_for/download. Доступные переменные: ${date_from}/${test_period_from}, ${date_to}/${test_period_to}, ${today}, ${today_minus_2y}. Если период теста не задан — берется today_minus_2y → today. Перед шагами автоматически выполнятся login.browser_steps (или browser_login_steps) из scenario_json коннектора.</div>
+                <div class="form-text">JSON-массив шагов: goto/fill/click/wait_for/download. Доступные переменные: ${date_from}/${test_period_from}, ${date_to}/${test_period_to}, ${today}, ${today_minus_2y}. Если период теста не задан — берется today_minus_2y → today. Перед шагами автоматически выполнятся login.browser_steps (или browser_login_steps) из scenario_json коннектора. Тайминги можно настраивать прямо в шагах (например: post_goto_wait_ms, before_click_wait_ms, before_export_click_wait_ms, timeout_ms), чтобы каждый сценарий жил со своими задержками.</div>
                 <pre class="form-text mb-0">[{"action":"goto","url":"https://portal.example.com/reports"},{"action":"click","selector":"#period_today"},{"action":"click","selector":"button.export-xlsx"}]</pre>
               </div>
             </div>
@@ -253,10 +253,11 @@ $_smarty_current_dir = '/home/cells/web/templates';
               </button>
               <button type="button" class="btn btn-outline-secondary js-core-link" data-core-action="test_connector_operations" data-connector-id="<?php echo $_smarty_tpl->getValue('connector')['id'];?>
 ">
-                Тест операции
+                Тест операции #1
               </button>
             </div>
 
+            <div class="form-text mt-2">Кнопка теста сейчас запускает только сценарий операции #1 (скачивание отчета).</div>
 
               </div>
 

@@ -132,7 +132,7 @@
                           name="report_steps_json"
                           rows="9"
                           placeholder="JSON шагов browser-автоматизации">{$operations.report.steps_json|escape}</textarea>
-                <div class="form-text">{literal}JSON-массив шагов: goto/fill/click/wait_for/download. Доступные переменные: ${date_from}/${test_period_from}, ${date_to}/${test_period_to}, ${today}, ${today_minus_2y}. Если период теста не задан — берется today_minus_2y → today. Перед шагами автоматически выполнятся login.browser_steps (или browser_login_steps) из scenario_json коннектора.{/literal}</div>
+                <div class="form-text">{literal}JSON-массив шагов: goto/fill/click/wait_for/download. Доступные переменные: ${date_from}/${test_period_from}, ${date_to}/${test_period_to}, ${today}, ${today_minus_2y}. Если период теста не задан — берется today_minus_2y → today. Перед шагами автоматически выполнятся login.browser_steps (или browser_login_steps) из scenario_json коннектора. Тайминги можно настраивать прямо в шагах (например: post_goto_wait_ms, before_click_wait_ms, before_export_click_wait_ms, timeout_ms), чтобы каждый сценарий жил со своими задержками.{/literal}</div>
                 <pre class="form-text mb-0">{literal}[{"action":"goto","url":"https://portal.example.com/reports"},{"action":"click","selector":"#period_today"},{"action":"click","selector":"button.export-xlsx"}]{/literal}</pre>
               </div>
             </div>
@@ -219,10 +219,11 @@
                 Сохранить операции
               </button>
               <button type="button" class="btn btn-outline-secondary js-core-link" data-core-action="test_connector_operations" data-connector-id="{$connector.id}">
-                Тест операции
+                Тест операции #1
               </button>
             </div>
 
+            <div class="form-text mt-2">Кнопка теста сейчас запускает только сценарий операции #1 (скачивание отчета).</div>
 
               </div>
 
