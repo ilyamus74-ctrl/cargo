@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-02-25 11:55:51
+/* Smarty version 5.3.1, created on 2026-02-25 12:15:18
   from 'file:cells_NA_API_connector_operations_modal.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_699ee34795c8c1_73926390',
+  'unifunc' => 'content_699ee7d6ac5cc2_73331350',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '4e0cfb81384357625659d5eca445a63482fe7323' => 
     array (
       0 => 'cells_NA_API_connector_operations_modal.html',
-      1 => 1772020548,
+      1 => 1772021710,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_699ee34795c8c1_73926390 (\Smarty\Template $_smarty_tpl) {
+function content_699ee7d6ac5cc2_73331350 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>
 <section class="section">
@@ -403,40 +403,31 @@ $_smarty_current_dir = '/home/cells/web/templates';
                 </div>
 
                 <div class="row mb-3">
-                  <label for="addon_tariff_type" class="col-md-4 col-lg-3 col-form-label">Тип</label>
-                  <div class="col-md-8 col-lg-9">
-                    <select id="addon_tariff_type" name="addon_tariff_type" class="form-select collector-inputs">
-                      <option value="1" <?php if ($_smarty_tpl->getValue('addons')['tariff_type'] == '1') {?>selected<?php }?>>General</option>
-                      <option value="2" <?php if ($_smarty_tpl->getValue('addons')['tariff_type'] == '2') {?>selected<?php }?>>Liquid</option>
-                      <option value="3" <?php if ($_smarty_tpl->getValue('addons')['tariff_type'] == '3') {?>selected<?php }?>>Promotions</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div class="row mb-3">
-                  <label for="addon_category" class="col-md-4 col-lg-3 col-form-label">Категория</label>
-                  <div class="col-md-8 col-lg-9">
-                    <input type="text"
-                           class="form-control"
-                           id="addon_category"
-                           name="addon_category"
-                           value="<?php echo htmlspecialchars((string)$_smarty_tpl->getValue('addons')['category'], ENT_QUOTES, 'UTF-8', true);?>
-"
-                           placeholder="Categories">
-                    <div class="form-text">Можно передавать значение из выпадающего списка категории форварда.</div>
-                  </div>
-                </div>
-
-                <div class="row mb-3">
                   <label for="addon_extra_json" class="col-md-4 col-lg-3 col-form-label">Дополнения (extra)</label>
                   <div class="col-md-8 col-lg-9">
                     <textarea class="form-control"
                               id="addon_extra_json"
                               name="addon_extra_json"
                               rows="6"
-                              placeholder='{"brand":"...","material":"..."}'><?php echo htmlspecialchars((string)$_smarty_tpl->getValue('addons')['extra_json'], ENT_QUOTES, 'UTF-8', true);?>
+                              placeholder='[{"tariff_type":{"1":"General","2":"Liquid","3":"Promotions"}},{"category":{"50% school":"50% school","adapter (kompyuter)":"Adapter (Kompyuter)","animal accessories":"Animal Accessories"}}]'><?php echo htmlspecialchars((string)$_smarty_tpl->getValue('addons')['extra_json'], ENT_QUOTES, 'UTF-8', true);?>
 </textarea>
-                    <div class="form-text">JSON для будущих расширений по конкретному форварду.</div>
+                    <div class="form-text">JSON со справочниками по типу и категории. Пример:</div>
+                    <pre class="form-text mb-0">[
+  {
+    "tariff_type": {
+      "1": "General",
+      "2": "Liquid",
+      "3": "Promotions"
+    }
+  },
+  {
+    "category": {
+      "50% school": "50% school",
+      "adapter (kompyuter)": "Adapter (Kompyuter)",
+      "animal accessories": "Animal Accessories"
+    }
+  }
+]</pre>
                   </div>
                 </div>
 

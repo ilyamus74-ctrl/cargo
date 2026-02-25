@@ -364,38 +364,30 @@
                 </div>
 
                 <div class="row mb-3">
-                  <label for="addon_tariff_type" class="col-md-4 col-lg-3 col-form-label">Тип</label>
-                  <div class="col-md-8 col-lg-9">
-                    <select id="addon_tariff_type" name="addon_tariff_type" class="form-select collector-inputs">
-                      <option value="1" {if $addons.tariff_type == '1'}selected{/if}>General</option>
-                      <option value="2" {if $addons.tariff_type == '2'}selected{/if}>Liquid</option>
-                      <option value="3" {if $addons.tariff_type == '3'}selected{/if}>Promotions</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div class="row mb-3">
-                  <label for="addon_category" class="col-md-4 col-lg-3 col-form-label">Категория</label>
-                  <div class="col-md-8 col-lg-9">
-                    <input type="text"
-                           class="form-control"
-                           id="addon_category"
-                           name="addon_category"
-                           value="{$addons.category|escape}"
-                           placeholder="Categories">
-                    <div class="form-text">Можно передавать значение из выпадающего списка категории форварда.</div>
-                  </div>
-                </div>
-
-                <div class="row mb-3">
                   <label for="addon_extra_json" class="col-md-4 col-lg-3 col-form-label">Дополнения (extra)</label>
                   <div class="col-md-8 col-lg-9">
                     <textarea class="form-control"
                               id="addon_extra_json"
                               name="addon_extra_json"
                               rows="6"
-                              placeholder='{literal}{"brand":"...","material":"..."}{/literal}'>{$addons.extra_json|escape}</textarea>
-                    <div class="form-text">JSON для будущих расширений по конкретному форварду.</div>
+                              placeholder='{literal}[{"tariff_type":{"1":"General","2":"Liquid","3":"Promotions"}},{"category":{"50% school":"50% school","adapter (kompyuter)":"Adapter (Kompyuter)","animal accessories":"Animal Accessories"}}]{/literal}'>{$addons.extra_json|escape}</textarea>
+                    <div class="form-text">JSON со справочниками по типу и категории. Пример:</div>
+                    <pre class="form-text mb-0">{literal}[
+  {
+    "tariff_type": {
+      "1": "General",
+      "2": "Liquid",
+      "3": "Promotions"
+    }
+  },
+  {
+    "category": {
+      "50% school": "50% school",
+      "adapter (kompyuter)": "Adapter (Kompyuter)",
+      "animal accessories": "Animal Accessories"
+    }
+  }
+]{/literal}</pre>
                   </div>
                 </div>
 
