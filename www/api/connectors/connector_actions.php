@@ -624,6 +624,20 @@ function connectors_is_node_runtime_available(): bool
         return $cached;
     }
 
+    if (!function_exists('exec') || !is_callable('exec')) {
+        $cached = false;
+        return $cached;
+    }
+
+    $disabledFunctions = (string)ini_get('disable_functions');
+    if ($disabledFunctions !== '') {
+        $disabledList = array_map('trim', explode(',', $disabledFunctions));
+        if (in_array('exec', $disabledList, true)) {
+            $cached = false;
+            return $cached;
+        }
+    }
+
     $output = [];
     $exitCode = 1;
     @exec('node --version 2>/dev/null', $output, $exitCode);
@@ -1599,7 +1613,7 @@ switch ($normalizedAction) {
 
         $operations = connectors_decode_operations($connector);
         $nodeRuntimeAvailable = connectors_is_node_runtime_available();
-        if ($nodeRuntimeAvailable && (($operations['report']['download_mode'] ?? 'browser') === 'curl')) {
+        if (!$nodeRuntimeAvailable && (($operations['report']['download_mode'] ?? 'browser') === 'curl')) {
             $operations['report']['download_mode'] = 'browser';
         }
         $smarty->assign('connector', $connector);
