@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-02-20 17:08:07
+/* Smarty version 5.3.1, created on 2026-02-25 11:34:43
   from 'file:cells_NA_API_connectors.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_699894f782df40_68409986',
+  'unifunc' => 'content_699ede53422df6_74642281',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '98a558f7d8b706e3186772b3ec457fb100f271e8' => 
     array (
       0 => 'cells_NA_API_connectors.html',
-      1 => 1771606906,
+      1 => 1772019280,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_699894f782df40_68409986 (\Smarty\Template $_smarty_tpl) {
+function content_699ede53422df6_74642281 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>    <div class="pagetitle">
       <h1>Settings connectors</h1>

@@ -83,10 +83,18 @@ const CoreAPI = {
                 'test_connector': () => this.withAttribute('connector_id', link),
                 'manual_confirm_connector': () => this.getFormById('connector-form'),
                 'manual_confirm_puppeteer': () => this.getFormById('connector-form'),
-                'form_connector_operations': () => this.withAttribute('connector_id', link),
+                'form_connector_operations': () => {
+                    const fd = this.withAttribute('connector_id', link);
+                    const openTab = link?.getAttribute('data-open-tab') || '';
+                    if (openTab) {
+                        fd.append('open_tab', openTab);
+                    }
+                    return fd;
+                },
                 'save_connector_operations': () => this.getFormById('connector-operations-form'),
                 'test_connector_operations': () => this.getFormById('connector-operations-form'),
-             
+                'save_connector_addons': () => this.getFormById('connector-operations-form'),
+
                 'tools_management_open_modal': () => this.withAttribute('tool_id', link),
                 'tools_management_open_user_modal': () => this.withAttribute('tool_id', link),
                 'tools_management_open_cell_modal': () => this.withAttribute('tool_id', link),
@@ -448,6 +456,22 @@ const CoreAPI = {
         },
         'save_connector_operations': async (data) => {
             alert(data.message || 'Операции сохранены');
+            await CoreAPI.ui.reloadList('view_connectors');
+            const connectorId = data.connector_id;
+            if (connectorId) {
+                const fd = new FormData();
+                fd.append('action', 'form_connector_operations');
+                fd.append('connector_id', connectorId);
+                const d2 = await CoreAPI.client.call(fd);
+                if (d2?.status === 'ok') {
+                    CoreAPI.ui.showModal(d2.html);
+                }
+            }
+        },
+
+
+        'save_connector_addons': async (data) => {
+            alert(data.message || 'ДопИнфо сохранено');
             await CoreAPI.ui.reloadList('view_connectors');
             const connectorId = data.connector_id;
             if (connectorId) {

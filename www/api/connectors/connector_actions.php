@@ -94,6 +94,125 @@ function connectors_ensure_schema(mysqli $dbcnx): void
     }
 }
 
+
+    $addonsSql = "
+        CREATE TABLE IF NOT EXISTS connectors_addons (
+            id INT UNSIGNED NOT NULL AUTO_INCREMENT,
+            connector_id INT UNSIGNED NOT NULL,
+            connector_name VARCHAR(128) NOT NULL DEFAULT '',
+            addons_json LONGTEXT NULL,
+            node_mapping_json LONGTEXT NULL,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            UNIQUE KEY uniq_connector_id (connector_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+    ";
+
+    if (!$dbcnx->query($addonsSql)) {
+        error_log('connectors_addons schema create error: ' . $dbcnx->error);
+    }
+}
+
+function connectors_default_addons(): array
+{
+    return [
+        'tariff_type' => '1',
+        'category' => '',
+        'extra_json' => '',
+        'node_mapping_json' => '',
+    ];
+}
+
+function connectors_decode_addons(array $row): array
+{
+    $addons = connectors_default_addons();
+
+    $rawAddons = trim((string)($row['addons_json'] ?? ''));
+    if ($rawAddons !== '') {
+        $decoded = json_decode($rawAddons, true);
+        if (is_array($decoded)) {
+            $tariffType = trim((string)($decoded['tariff_type'] ?? '1'));
+            $addons['tariff_type'] = in_array($tariffType, ['1', '2', '3'], true) ? $tariffType : '1';
+            $addons['category'] = trim((string)($decoded['category'] ?? ''));
+
+            if (isset($decoded['extra']) && is_array($decoded['extra']) && !empty($decoded['extra'])) {
+                $addons['extra_json'] = json_encode($decoded['extra'], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT) ?: '';
+            }
+        }
+    }
+
+    $rawMapping = trim((string)($row['node_mapping_json'] ?? ''));
+    if ($rawMapping !== '') {
+        $decodedMapping = json_decode($rawMapping, true);
+        if (is_array($decodedMapping) && !empty($decodedMapping)) {
+            $addons['node_mapping_json'] = json_encode($decodedMapping, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT) ?: '';
+        }
+    }
+
+    return $addons;
+}
+
+function connectors_fetch_addons(mysqli $dbcnx, int $connectorId): array
+{
+    $addons = connectors_default_addons();
+    $stmt = $dbcnx->prepare('SELECT addons_json, node_mapping_json FROM connectors_addons WHERE connector_id = ? LIMIT 1');
+    if (!$stmt) {
+        error_log('connectors addons fetch prepare error: ' . $dbcnx->error);
+        return $addons;
+    }
+
+    $stmt->bind_param('i', $connectorId);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    $row = $res ? $res->fetch_assoc() : null;
+    $stmt->close();
+
+    if (!$row) {
+        return $addons;
+    }
+
+    return connectors_decode_addons($row);
+}
+
+function connectors_build_addons_payload_from_post(): array
+{
+    $tariffType = trim((string)($_POST['addon_tariff_type'] ?? '1'));
+    if (!in_array($tariffType, ['1', '2', '3'], true)) {
+        $tariffType = '1';
+    }
+
+    $category = trim((string)($_POST['addon_category'] ?? ''));
+    $extraJsonRaw = trim((string)($_POST['addon_extra_json'] ?? ''));
+    $nodeMappingJsonRaw = trim((string)($_POST['addon_node_mapping_json'] ?? ''));
+
+    $extra = [];
+    if ($extraJsonRaw !== '') {
+        $decodedExtra = json_decode($extraJsonRaw, true);
+        if (!is_array($decodedExtra)) {
+            throw new InvalidArgumentException('Некорректный JSON в "Дополнения (extra)"');
+        }
+        $extra = $decodedExtra;
+    }
+
+    $nodeMapping = [];
+    if ($nodeMappingJsonRaw !== '') {
+        $decodedMapping = json_decode($nodeMappingJsonRaw, true);
+        if (!is_array($decodedMapping)) {
+            throw new InvalidArgumentException('Некорректный JSON в "Node mapping"');
+        }
+        $nodeMapping = $decodedMapping;
+    }
+
+    return [
+        'addons' => [
+            'tariff_type' => $tariffType,
+            'category' => $category,
+            'extra' => $extra,
+        ],
+        'node_mapping' => $nodeMapping,
+    ];
+
 function connectors_build_status(array $connector): array
 {
     $isActive = (int)($connector['is_active'] ?? 0) === 1;
@@ -1484,7 +1603,12 @@ switch ($normalizedAction) {
             $operations['report']['download_mode'] = 'browser';
         }
         $smarty->assign('connector', $connector);
+        $addons = connectors_fetch_addons($dbcnx, $connectorId);
+
         $smarty->assign('operations', $operations);
+        $smarty->assign('addons', $addons);
+        $openTab = trim((string)($_POST['open_tab'] ?? ''));
+        $smarty->assign('open_tab', $openTab);
         $smarty->assign('node_runtime_available', $nodeRuntimeAvailable);
 
         ob_start();
@@ -1565,6 +1689,84 @@ switch ($normalizedAction) {
         break;
 
 
+
+    case 'save_connector_addons':
+        $connectorId = (int)($_POST['connector_id'] ?? 0);
+        if ($connectorId <= 0) {
+            $response = [
+                'status' => 'error',
+                'message' => 'connector_id required',
+            ];
+            break;
+        }
+
+        $connector = connectors_fetch_one($dbcnx, $connectorId);
+        if (!$connector) {
+            $response = [
+                'status' => 'error',
+                'message' => 'Коннектор не найден',
+            ];
+            break;
+        }
+
+        try {
+            $addonsPayload = connectors_build_addons_payload_from_post();
+        } catch (InvalidArgumentException $e) {
+            $response = [
+                'status' => 'error',
+                'message' => $e->getMessage(),
+            ];
+            break;
+        }
+
+        $addonsJson = json_encode($addonsPayload['addons'], JSON_UNESCAPED_UNICODE);
+        if ($addonsJson === false) {
+            $response = [
+                'status' => 'error',
+                'message' => 'Не удалось сериализовать ДопИнфо',
+            ];
+            break;
+        }
+
+        $nodeMappingJson = json_encode($addonsPayload['node_mapping'], JSON_UNESCAPED_UNICODE);
+        if ($nodeMappingJson === false) {
+            $response = [
+                'status' => 'error',
+                'message' => 'Не удалось сериализовать Node mapping',
+            ];
+            break;
+        }
+
+        $stmt = $dbcnx->prepare('INSERT INTO connectors_addons (connector_id, connector_name, addons_json, node_mapping_json) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE connector_name = VALUES(connector_name), addons_json = VALUES(addons_json), node_mapping_json = VALUES(node_mapping_json)');
+        if (!$stmt) {
+            $response = [
+                'status' => 'error',
+                'message' => 'DB error (save addons)',
+            ];
+            break;
+        }
+
+        $connectorName = trim((string)($connector['name'] ?? ''));
+        $stmt->bind_param('isss', $connectorId, $connectorName, $addonsJson, $nodeMappingJson);
+        if (!$stmt->execute()) {
+            $response = [
+                'status' => 'error',
+                'message' => 'DB error (save addons): ' . $stmt->error,
+            ];
+            $stmt->close();
+            break;
+        }
+        $stmt->close();
+
+        $userId = (int)($user['id'] ?? 0);
+        audit_log($userId, 'CONNECTOR_ADDONS_UPDATE', 'connector', $connectorId, 'ДопИнфо коннектора обновлено');
+
+        $response = [
+            'status' => 'ok',
+            'message' => 'ДопИнфо сохранено',
+            'connector_id' => $connectorId,
+        ];
+        break;
 
 
 

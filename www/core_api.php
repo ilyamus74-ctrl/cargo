@@ -43,6 +43,7 @@ $routes = [
     'manual_confirm_extension' => 'api/connectors/connector_actions.php',
     'form_connector_operations' => 'api/connectors/connector_actions.php',
     'save_connector_operations' => 'api/connectors/connector_actions.php',
+    'save_connector_addons' => 'api/connectors/connector_actions.php',
     'test_connector_operations' => 'api/connectors/connector_actions.php',
 
     // ========== TOOLS ==========
