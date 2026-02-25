@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-02-25 09:25:45
+/* Smarty version 5.3.1, created on 2026-02-25 11:55:51
   from 'file:cells_NA_API_connector_operations_modal.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_699ec019489490_55479074',
+  'unifunc' => 'content_699ee34795c8c1_73926390',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '4e0cfb81384357625659d5eca445a63482fe7323' => 
     array (
       0 => 'cells_NA_API_connector_operations_modal.html',
-      1 => 1772008720,
+      1 => 1772020548,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_699ec019489490_55479074 (\Smarty\Template $_smarty_tpl) {
+function content_699ee34795c8c1_73926390 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>
 <section class="section">
@@ -62,6 +62,16 @@ $_smarty_current_dir = '/home/cells/web/templates';
                       role="tab"
                       aria-controls="op3-pane"
                       aria-selected="false">Операция #3</button>
+            </li>
+            <li class="nav-item" role="presentation">
+              <button class="nav-link"
+                      id="addons-tab"
+                      data-bs-toggle="tab"
+                      data-bs-target="#addons-pane"
+                      type="button"
+                      role="tab"
+                      aria-controls="addons-pane"
+                      aria-selected="false">addons ДопИнфа</button>
             </li>
           </ul>
 
@@ -383,12 +393,99 @@ $_smarty_current_dir = '/home/cells/web/templates';
                   Заготовка под сценарий проверки трека и загрузки label/документов.
                 </div>
               </div>
+
+              <div class="tab-pane fade" id="addons-pane" role="tabpanel" aria-labelledby="addons-tab" tabindex="0">
+                <div class="row mb-3 mt-3">
+                  <label class="col-md-4 col-lg-3 col-form-label">Дополнительная информация</label>
+                  <div class="col-md-8 col-lg-9">
+                    <div class="form-text mt-2">Данные о содержимом посылки для форварда. Хранится в таблице <code>connectors_addons</code>.</div>
+                  </div>
+                </div>
+
+                <div class="row mb-3">
+                  <label for="addon_tariff_type" class="col-md-4 col-lg-3 col-form-label">Тип</label>
+                  <div class="col-md-8 col-lg-9">
+                    <select id="addon_tariff_type" name="addon_tariff_type" class="form-select collector-inputs">
+                      <option value="1" <?php if ($_smarty_tpl->getValue('addons')['tariff_type'] == '1') {?>selected<?php }?>>General</option>
+                      <option value="2" <?php if ($_smarty_tpl->getValue('addons')['tariff_type'] == '2') {?>selected<?php }?>>Liquid</option>
+                      <option value="3" <?php if ($_smarty_tpl->getValue('addons')['tariff_type'] == '3') {?>selected<?php }?>>Promotions</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div class="row mb-3">
+                  <label for="addon_category" class="col-md-4 col-lg-3 col-form-label">Категория</label>
+                  <div class="col-md-8 col-lg-9">
+                    <input type="text"
+                           class="form-control"
+                           id="addon_category"
+                           name="addon_category"
+                           value="<?php echo htmlspecialchars((string)$_smarty_tpl->getValue('addons')['category'], ENT_QUOTES, 'UTF-8', true);?>
+"
+                           placeholder="Categories">
+                    <div class="form-text">Можно передавать значение из выпадающего списка категории форварда.</div>
+                  </div>
+                </div>
+
+                <div class="row mb-3">
+                  <label for="addon_extra_json" class="col-md-4 col-lg-3 col-form-label">Дополнения (extra)</label>
+                  <div class="col-md-8 col-lg-9">
+                    <textarea class="form-control"
+                              id="addon_extra_json"
+                              name="addon_extra_json"
+                              rows="6"
+                              placeholder='{"brand":"...","material":"..."}'><?php echo htmlspecialchars((string)$_smarty_tpl->getValue('addons')['extra_json'], ENT_QUOTES, 'UTF-8', true);?>
+</textarea>
+                    <div class="form-text">JSON для будущих расширений по конкретному форварду.</div>
+                  </div>
+                </div>
+
+                <div class="row mb-3">
+                  <label for="addon_node_mapping_json" class="col-md-4 col-lg-3 col-form-label">Node mapping</label>
+                  <div class="col-md-8 col-lg-9">
+                    <textarea class="form-control"
+                              id="addon_node_mapping_json"
+                              name="addon_node_mapping_json"
+                              rows="6"
+                              placeholder='{"forwarder_field":"node_field"}'><?php echo htmlspecialchars((string)$_smarty_tpl->getValue('addons')['node_mapping_json'], ENT_QUOTES, 'UTF-8', true);?>
+</textarea>
+                    <div class="form-text">Маппинг для заполнения через node-сценарий по конкретному форварду.</div>
+                  </div>
+                </div>
+
+                <div class="d-flex gap-2">
+                  <button type="button" class="btn btn-primary js-core-link" data-core-action="save_connector_addons">
+                    Сохранить ДопИнфо
+                  </button>
+                </div>
+              </div>
+
             </div>
           </form>
         </div>
       </div>
     </div>
   </div>
+
+
+<?php if ((($tmp = $_smarty_tpl->getValue('open_tab') ?? null)===null||$tmp==='' ? '' ?? null : $tmp) != '') {
+echo '<script'; ?>
+>
+  (function() {
+    var tabTrigger = document.querySelector('[data-bs-target="#<?php echo strtr((string)$_smarty_tpl->getValue('open_tab'), array("\\" => "\\\\", "'" => "\\'", "\"" => "\\\"", "\r" => "\\r", 
+						"\n" => "\\n", "</" => "<\/", "<!--" => "<\!--", "<s" => "<\s", "<S" => "<\S",
+						"`" => "\\`", "\${" => "\\\$\{"));?>
+"]');
+    if (!tabTrigger || !window.bootstrap || !window.bootstrap.Tab) {
+      return;
+    }
+    window.bootstrap.Tab.getOrCreateInstance(tabTrigger).show();
+  })();
+<?php echo '</script'; ?>
+>
+<?php }?>
+
+
 </section>
 <?php }
 }

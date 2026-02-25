@@ -394,7 +394,7 @@
                               id="addon_extra_json"
                               name="addon_extra_json"
                               rows="6"
-                              placeholder='{"brand":"...","material":"..."}'>{$addons.extra_json|escape}</textarea>
+                              placeholder='{literal}{"brand":"...","material":"..."}{/literal}'>{$addons.extra_json|escape}</textarea>
                     <div class="form-text">JSON для будущих расширений по конкретному форварду.</div>
                   </div>
                 </div>
@@ -406,7 +406,7 @@
                               id="addon_node_mapping_json"
                               name="addon_node_mapping_json"
                               rows="6"
-                              placeholder='{"forwarder_field":"node_field"}'>{$addons.node_mapping_json|escape}</textarea>
+                              placeholder='{literal}{"forwarder_field":"node_field"}{/literal}'>{$addons.node_mapping_json|escape}</textarea>
                     <div class="form-text">Маппинг для заполнения через node-сценарий по конкретному форварду.</div>
                   </div>
                 </div>
