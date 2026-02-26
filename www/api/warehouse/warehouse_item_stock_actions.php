@@ -896,7 +896,7 @@ if ($action === 'save_item_stock') {
     }
 
     $stmt->bind_param(
-        "sssssssssisddddsssi",
+        "sssssssssisddddsi",
         $tuid,
         $tracking,
         $carrierCode,
