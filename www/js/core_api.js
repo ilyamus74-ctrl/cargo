@@ -683,6 +683,9 @@ const CoreAPI = {
             if (typeof initWarehouseStockAddons === 'function') {
                 initWarehouseStockAddons();
             }
+            if (typeof initWarehouseItemStockPhotoButtons === 'function') {
+                initWarehouseItemStockPhotoButtons();
+            }
         },
         'warehouse_move_open_modal': (data) => {
             CoreAPI.ui.showModal(data.html);
@@ -850,6 +853,21 @@ const CoreAPI = {
                 }
                 return;
             }
+            if (action === 'upload_item_stock_photo') {
+                const itemId = document.querySelector('#item-stock-modal-form input[name="item_id"]')?.value || '';
+                const photoType = link.getAttribute('data-photo-type') || '';
+                const inputId = photoType === 'label' ? 'warehouseStockLabelPhotoInput' : 'warehouseStockBoxPhotoInput';
+                const fileInput = document.getElementById(inputId);
+                if (!itemId || !photoType || !fileInput) {
+                    alert('Не удалось подготовить загрузку фото');
+                    return;
+                }
+                fileInput.value = '';
+                fileInput.dataset.itemId = itemId;
+                fileInput.dataset.photoType = photoType;
+                fileInput.click();
+                return;
+            }
             // Подсветка активного пункта меню
             const ul = link.closest('ul');
             if (ul) {
@@ -969,6 +987,37 @@ const CoreAPI = {
                 alert('Ошибка связи с сервером');
             }
 
+        },
+
+        async handleWarehouseItemStockPhotoUpload(e) {
+            const input = e.target;
+            const validIds = ['warehouseStockLabelPhotoInput', 'warehouseStockBoxPhotoInput'];
+            if (!(input instanceof HTMLInputElement) || !validIds.includes(input.id)) return;
+
+            const file = input.files?.[0];
+            const itemId = input.dataset.itemId || document.querySelector('#item-stock-modal-form input[name="item_id"]')?.value || '';
+            const photoType = input.dataset.photoType || input.getAttribute('data-photo-type') || '';
+            if (!file || !itemId || !photoType) return;
+
+            const fd = new FormData();
+            fd.append('action', 'upload_item_stock_photo');
+            fd.append('item_id', itemId);
+            fd.append('photo_type', photoType);
+            fd.append('photo', file);
+
+            try {
+                const data = await CoreAPI.client.call(fd);
+                if (!data || data.status !== 'ok') {
+                    alert(data?.message || 'Ошибка загрузки фото');
+                    return;
+                }
+                if (typeof window.setWarehouseItemStockPhotoState === 'function') {
+                    window.setWarehouseItemStockPhotoState(photoType, data.path || '', data.json || '');
+                }
+            } catch (err) {
+                console.error('core_api upload_item_stock_photo error:', err);
+                alert('Ошибка связи с сервером');
+            }
         },
         async handleRolePermissionToggle(e) {
             const checkbox = e.target.closest('.js-role-permission-toggle');
@@ -1674,6 +1723,7 @@ const CoreAPI = {
     init() {
         document.addEventListener('click', this.events.handleClick.bind(this));
         document.addEventListener('change', this.events.handlePhotoUpload.bind(this));
+        document.addEventListener('change', this.events.handleWarehouseItemStockPhotoUpload.bind(this));
         document.addEventListener('change', this.events.handleRolePermissionToggle.bind(this));
         document.addEventListener('shown.bs.tab', (event) => {
             if (event?.target?.id === 'warehouse-in-storage-tab') {
@@ -2140,6 +2190,60 @@ function initStandDevicePersistence() {
 }
 
 document.addEventListener('DOMContentLoaded', initStandDevicePersistence);
+
+
+function setWarehouseItemStockPhotoState(photoType, path, jsonValue) {
+    var isLabel = photoType === 'label';
+    var hidden = document.getElementById(isLabel ? 'warehouseStockLabelImageJson' : 'warehouseStockBoxImageJson');
+    var info = document.getElementById(isLabel ? 'warehouseStockLabelPhotoInfo' : 'warehouseStockBoxPhotoInfo');
+    if (hidden) hidden.value = jsonValue || '';
+    if (info) info.textContent = path ? ('Загружено: ' + path) : '';
+}
+
+function initWarehouseItemStockPhotoButtons() {
+    var labelBtn = document.getElementById('warehouseStockTakeLabelPhotoBtn');
+    var boxBtn = document.getElementById('warehouseStockTakeBoxPhotoBtn');
+    if (labelBtn && !labelBtn.getAttribute('data-core-action')) {
+        labelBtn.setAttribute('data-core-action', 'upload_item_stock_photo');
+        labelBtn.setAttribute('data-photo-type', 'label');
+        labelBtn.classList.add('js-core-link');
+    }
+    if (boxBtn && !boxBtn.getAttribute('data-core-action')) {
+        boxBtn.setAttribute('data-core-action', 'upload_item_stock_photo');
+        boxBtn.setAttribute('data-photo-type', 'box');
+        boxBtn.classList.add('js-core-link');
+    }
+
+    var labelHidden = document.getElementById('warehouseStockLabelImageJson');
+    var boxHidden = document.getElementById('warehouseStockBoxImageJson');
+    if (labelHidden && labelHidden.value) {
+        try {
+            var arrL = JSON.parse(labelHidden.value);
+            if (Array.isArray(arrL) && arrL[0]) setWarehouseItemStockPhotoState('label', arrL[0], labelHidden.value);
+        } catch (e) {}
+    }
+    if (boxHidden && boxHidden.value) {
+        try {
+            var arrB = JSON.parse(boxHidden.value);
+            if (Array.isArray(arrB) && arrB[0]) setWarehouseItemStockPhotoState('box', arrB[0], boxHidden.value);
+        } catch (e) {}
+    }
+}
+
+window.setWarehouseItemStockPhotoState = setWarehouseItemStockPhotoState;
+
+window.OCRScanner = window.OCRScanner || {};
+window.OCRScanner.captureAndUploadWarehouseItemStockPhoto = async function (photoType) {
+    var normalized = photoType === 'label' ? 'label' : 'box';
+    var inputId = normalized === 'label' ? 'warehouseStockLabelPhotoInput' : 'warehouseStockBoxPhotoInput';
+    var input = document.getElementById(inputId);
+    if (!input) {
+        throw new Error('Фото-инпут не найден: ' + inputId);
+    }
+    input.dataset.photoType = normalized;
+    input.click();
+    return { status: 'pending', message: 'Ожидается выбор/съемка фото в камере' };
+};
 
 function setSelectValWait(id,v,tries){
   var e=document.getElementById(id);

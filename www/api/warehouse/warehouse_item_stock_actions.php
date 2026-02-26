@@ -48,6 +48,51 @@ if (!function_exists('warehouse_stock_decode_item_addons')) {
     }
 }
 
+
+if (!function_exists('warehouse_stock_normalize_image_json')) {
+    function warehouse_stock_normalize_image_json(string $raw): ?string
+    {
+        $raw = trim($raw);
+        if ($raw === '') {
+            return null;
+        }
+
+        $decoded = json_decode($raw, true);
+        if (!is_array($decoded)) {
+            return null;
+        }
+
+        $clean = [];
+        foreach ($decoded as $path) {
+            if (!is_string($path)) {
+                continue;
+            }
+            $path = trim($path);
+            if ($path === '') {
+                continue;
+            }
+            $clean[] = $path;
+        }
+
+        if (empty($clean)) {
+            return null;
+        }
+
+        $encoded = json_encode(array_values($clean), JSON_UNESCAPED_UNICODE);
+        return $encoded !== false ? $encoded : null;
+    }
+}
+
+if (!function_exists('warehouse_stock_ensure_photo_dir')) {
+    function warehouse_stock_ensure_photo_dir(string $absDir): bool
+    {
+        if (is_dir($absDir)) {
+            return true;
+        }
+        return @mkdir($absDir, 0775, true);
+    }
+}
+
 if ($action === 'item_stock') {
     warehouse_stock_ensure_addons_column($dbcnx);
     auth_require_login();
@@ -519,11 +564,14 @@ if ($action === 'open_item_stock_modal') {
             receiver_address,
             sender_name,
             sender_company,
+            uid_created,
             weight_kg,
             size_l_cm,
             size_w_cm,
             size_h_cm,
-            addons_json
+            addons_json,
+            label_image,
+            box_image
         FROM warehouse_item_stock
         WHERE id = ?
         LIMIT 1
@@ -723,11 +771,14 @@ if ($action === 'save_item_stock') {
             receiver_company,
             receiver_address,
             sender_name,
+            uid_created,
             weight_kg,
             size_l_cm,
             size_w_cm,
             size_h_cm,
-            addons_json
+            addons_json,
+            label_image,
+            box_image
         FROM warehouse_item_stock
         WHERE id = ? 
         LIMIT 1
@@ -809,6 +860,8 @@ if ($action === 'save_item_stock') {
     $sizeW = $_POST['size_w_cm'] ?? '';
     $sizeH = $_POST['size_h_cm'] ?? '';
     $addonsJsonRaw = trim((string)($_POST['addons_json'] ?? ''));
+    $labelImageJsonRaw = trim((string)($_POST['label_image'] ?? ''));
+    $boxImageJsonRaw = trim((string)($_POST['box_image'] ?? ''));
 
     if ($addonsJsonRaw !== '') {
         $decodedAddons = json_decode($addonsJsonRaw, true);
@@ -830,6 +883,10 @@ if ($action === 'save_item_stock') {
     } else {
         $addonsJsonRaw = null;
     }
+
+
+    $labelImageJsonRaw = warehouse_stock_normalize_image_json($labelImageJsonRaw);
+    $boxImageJsonRaw = warehouse_stock_normalize_image_json($boxImageJsonRaw);
 
     $weightKg = ($weightKg === '' || $weightKg === null) ? 0.0 : (float)$weightKg;
     $sizeL = ($sizeL === '' || $sizeL === null) ? 0.0 : (float)$sizeL;
@@ -883,7 +940,9 @@ if ($action === 'save_item_stock') {
                size_l_cm = ?,
                size_w_cm = ?,
                size_h_cm = ?,
-               addons_json = ?
+               addons_json = ?,
+               label_image = ?,
+               box_image = ?
          WHERE id = ?
     ";
     $stmt = $dbcnx->prepare($sql);
@@ -896,7 +955,7 @@ if ($action === 'save_item_stock') {
     }
 
     $stmt->bind_param(
-        "sssssssssisddddsi",
+        "sssssssssisddddsssi",
         $tuid,
         $tracking,
         $carrierCode,
@@ -913,6 +972,8 @@ if ($action === 'save_item_stock') {
         $sizeW,
         $sizeH,
         $addonsJsonRaw,
+        $labelImageJsonRaw,
+        $boxImageJsonRaw,
         $itemId
     );
 
@@ -938,6 +999,8 @@ if ($action === 'save_item_stock') {
         'size_w_cm' => $sizeW,
         'size_h_cm' => $sizeH,
         'addons_json' => $addonsJsonRaw,
+        'label_image' => $labelImageJsonRaw,
+        'box_image' => $boxImageJsonRaw,
     ];
     
     foreach ($fieldMap as $field => $newValue) {
@@ -1020,5 +1083,112 @@ if ($action === 'save_item_stock') {
     $response = [
         'status'  => 'ok',
         'message' => 'Данные посылки сохранены',
+    ];
+}
+
+
+if ($action === 'upload_item_stock_photo') {
+    auth_require_login();
+
+    $itemId = isset($_POST['item_id']) ? (int)$_POST['item_id'] : 0;
+    $photoType = strtolower(trim((string)($_POST['photo_type'] ?? '')));
+    if ($itemId <= 0) {
+        $response = ['status' => 'error', 'message' => 'Некорректный item_id'];
+        return;
+    }
+    if (!in_array($photoType, ['label', 'box'], true)) {
+        $response = ['status' => 'error', 'message' => 'Некорректный тип фото'];
+        return;
+    }
+    if (!isset($_FILES['photo']) || !is_array($_FILES['photo'])) {
+        $response = ['status' => 'error', 'message' => 'Файл не передан'];
+        return;
+    }
+
+    $stmt = $dbcnx->prepare("SELECT id, uid_created, label_image, box_image FROM warehouse_item_stock WHERE id = ? LIMIT 1");
+    if (!$stmt) {
+        $response = ['status' => 'error', 'message' => 'DB error: ' . $dbcnx->error];
+        return;
+    }
+    $stmt->bind_param('i', $itemId);
+    $stmt->execute();
+    $item = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+    if (!$item) {
+        $response = ['status' => 'error', 'message' => 'Посылка не найдена'];
+        return;
+    }
+
+    $upload = $_FILES['photo'];
+    $errorCode = (int)($upload['error'] ?? UPLOAD_ERR_NO_FILE);
+    if ($errorCode !== UPLOAD_ERR_OK) {
+        $response = ['status' => 'error', 'message' => 'Ошибка загрузки файла'];
+        return;
+    }
+
+    $tmp = (string)($upload['tmp_name'] ?? '');
+    if ($tmp === '' || !is_uploaded_file($tmp)) {
+        $response = ['status' => 'error', 'message' => 'Некорректный временный файл'];
+        return;
+    }
+
+    $finfo = new finfo(FILEINFO_MIME_TYPE);
+    $mime = (string)$finfo->file($tmp);
+    $allowed = [
+        'image/jpeg' => 'jpg',
+        'image/png' => 'png',
+        'image/webp' => 'webp',
+    ];
+    if (!isset($allowed[$mime])) {
+        $response = ['status' => 'error', 'message' => 'Разрешены только JPEG/PNG/WEBP'];
+        return;
+    }
+
+    $uidCreated = trim((string)($item['uid_created'] ?? ''));
+    if ($uidCreated === '') {
+        $uidCreated = (string)$itemId;
+    }
+
+    $baseRelDir = 'img/warehouse_item_stock/' . $uidCreated;
+    $baseAbsDir = rtrim($_SERVER['DOCUMENT_ROOT'] ?? '', '/') . '/' . $baseRelDir;
+    if (!warehouse_stock_ensure_photo_dir($baseAbsDir)) {
+        $response = ['status' => 'error', 'message' => 'Не удалось создать каталог для фото'];
+        return;
+    }
+
+    $fileName = date('Ymd_His') . '_' . $photoType . '.' . $allowed[$mime];
+    $destAbs = $baseAbsDir . '/' . $fileName;
+    $publicPath = '/' . $baseRelDir . '/' . $fileName;
+
+    if (!move_uploaded_file($tmp, $destAbs)) {
+        $response = ['status' => 'error', 'message' => 'Не удалось сохранить файл'];
+        return;
+    }
+
+    $field = $photoType === 'label' ? 'label_image' : 'box_image';
+    $json = json_encode([$publicPath], JSON_UNESCAPED_UNICODE);
+    if ($json === false) {
+        @unlink($destAbs);
+        $response = ['status' => 'error', 'message' => 'Ошибка сериализации пути'];
+        return;
+    }
+
+    $sql = "UPDATE warehouse_item_stock SET {$field} = ? WHERE id = ? LIMIT 1";
+    $stmt = $dbcnx->prepare($sql);
+    if (!$stmt) {
+        @unlink($destAbs);
+        $response = ['status' => 'error', 'message' => 'DB error: ' . $dbcnx->error];
+        return;
+    }
+    $stmt->bind_param('si', $json, $itemId);
+    $stmt->execute();
+    $stmt->close();
+
+    $response = [
+        'status' => 'ok',
+        'message' => 'Фото загружено',
+        'photo_type' => $photoType,
+        'path' => $publicPath,
+        'json' => $json,
     ];
 }

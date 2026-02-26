@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-02-26 11:30:22
+/* Smarty version 5.3.1, created on 2026-02-26 13:02:07
   from 'file:cells_NA_API_warehouse_item_stock_modal.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_69a02ece43b974_89795080',
+  'unifunc' => 'content_69a0444fbe7523_22760581',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '76c261023c84dc78e924fef3e9010fc442e0a73f' => 
     array (
       0 => 'cells_NA_API_warehouse_item_stock_modal.html',
-      1 => 1772105312,
+      1 => 1772109843,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_69a02ece43b974_89795080 (\Smarty\Template $_smarty_tpl) {
+function content_69a0444fbe7523_22760581 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?><form id="item-stock-modal-form" class="row g-3">
   <input type="hidden" name="item_id" value="<?php echo $_smarty_tpl->getValue('item')['id'];?>
@@ -137,6 +137,28 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
 ">
       <input type="hidden" id="warehouseStockAddonsDebug" name="debug" value="">
     </div>
+  </div>
+
+  <div class="col-md-6">
+    <label class="form-label d-block">Фото Лейб</label>
+    <button type="button" class="btn btn-outline-secondary" id="warehouseStockTakeLabelPhotoBtn" data-photo-type="label">
+      Фото Лейб
+    </button>
+    <input type="file" accept="image/*" capture="environment" class="d-none" id="warehouseStockLabelPhotoInput" data-photo-type="label">
+    <input type="hidden" id="warehouseStockLabelImageJson" name="label_image" value="<?php echo htmlspecialchars((string)$_smarty_tpl->getValue('item')['label_image'], ENT_QUOTES, 'UTF-8', true);?>
+">
+    <div class="form-text" id="warehouseStockLabelPhotoInfo"></div>
+  </div>
+
+  <div class="col-md-6">
+    <label class="form-label d-block">Фото содерж</label>
+    <button type="button" class="btn btn-outline-secondary" id="warehouseStockTakeBoxPhotoBtn" data-photo-type="box">
+      Фото содерж
+    </button>
+    <input type="file" accept="image/*" capture="environment" class="d-none" id="warehouseStockBoxPhotoInput" data-photo-type="box">
+    <input type="hidden" id="warehouseStockBoxImageJson" name="box_image" value="<?php echo htmlspecialchars((string)$_smarty_tpl->getValue('item')['box_image'], ENT_QUOTES, 'UTF-8', true);?>
+">
+    <div class="form-text" id="warehouseStockBoxPhotoInfo"></div>
   </div>
 
 
