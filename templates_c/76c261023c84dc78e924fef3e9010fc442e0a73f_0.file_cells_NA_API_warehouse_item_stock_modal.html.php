@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-02-26 11:09:11
+/* Smarty version 5.3.1, created on 2026-02-26 11:30:22
   from 'file:cells_NA_API_warehouse_item_stock_modal.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_69a029d71b8248_65627253',
+  'unifunc' => 'content_69a02ece43b974_89795080',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '76c261023c84dc78e924fef3e9010fc442e0a73f' => 
     array (
       0 => 'cells_NA_API_warehouse_item_stock_modal.html',
-      1 => 1772103935,
+      1 => 1772105312,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_69a029d71b8248_65627253 (\Smarty\Template $_smarty_tpl) {
+function content_69a02ece43b974_89795080 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?><form id="item-stock-modal-form" class="row g-3">
   <input type="hidden" name="item_id" value="<?php echo $_smarty_tpl->getValue('item')['id'];?>
@@ -203,127 +203,5 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
     </button>
   </div>
 </form>
-
-
-
-<?php echo '<script'; ?>
->
-  (function () {
-    var section = document.getElementById('warehouseStockAddonsSection');
-    if (!section || section.__addonsBound) return;
-    section.__addonsBound = true;
-
-    var companySelect = document.getElementById('receiverCompany');
-    var controls = document.getElementById('warehouseStockAddonsControls');
-    var emptyNode = document.getElementById('warehouseStockAddonsEmpty');
-    var hiddenInput = document.getElementById('warehouseStockAddonsJson');
-    var debugInput = document.getElementById('warehouseStockAddonsDebug');
-    if (!companySelect || !controls || !emptyNode || !hiddenInput || !debugInput) return;
-
-    var addonsMap = {};
-    var addonsRawMap = {};
-    var selectedAddons = {};
-    try { addonsMap = JSON.parse(section.getAttribute('data-addons-map') || '{}') || {}; } catch (e) { addonsMap = {}; }
-    try { addonsRawMap = JSON.parse(section.getAttribute('data-addons-raw-map') || '{}') || {}; } catch (e) { addonsRawMap = {}; }
-    try { selectedAddons = JSON.parse(section.getAttribute('data-item-addons') || '{}') || {}; } catch (e) { selectedAddons = {}; }
-
-    function normalizeForwarderName(raw) {
-      return String(raw || '').trim().toUpperCase();
-    }
-
-    function updateDebug(forwarder) {
-      var raw = addonsRawMap[forwarder];
-      debugInput.value = typeof raw === 'string' ? raw : '';
-    }
-
-    function persist() {
-      var payload = {};
-      controls.querySelectorAll('select[data-addon-key]').forEach(function (select) {
-        var addonKey = select.getAttribute('data-addon-key') || '';
-        if (!addonKey) return;
-        var val = String(select.value || '').trim();
-        if (val === '') return;
-        payload[addonKey] = val;
-      });
-      hiddenInput.value = Object.keys(payload).length ? JSON.stringify(payload) : '';
-    }
-
-    function createSelect(addonKey, optionsMap, initialValue) {
-      var col = document.createElement('div');
-      col.className = 'col-md-6';
-
-      var label = document.createElement('label');
-      label.className = 'form-label';
-      label.textContent = addonKey;
-
-      var select = document.createElement('select');
-      select.className = 'form-select';
-      select.setAttribute('data-addon-key', addonKey);
-
-      var emptyOpt = document.createElement('option');
-      emptyOpt.value = '';
-      emptyOpt.textContent = '— выберите —';
-      select.appendChild(emptyOpt);
-
-      Object.keys(optionsMap || {}).forEach(function (valueKey) {
-        var opt = document.createElement('option');
-        opt.value = String(valueKey);
-        opt.textContent = String(optionsMap[valueKey]);
-        if (String(initialValue || '') === String(valueKey)) {
-          opt.selected = true;
-        }
-        select.appendChild(opt);
-      });
-
-      select.addEventListener('change', persist);
-
-      col.appendChild(label);
-      col.appendChild(select);
-      controls.appendChild(col);
-    }
-
-    function render() {
-      controls.innerHTML = '';
-      var forwarder = normalizeForwarderName(companySelect.value);
-      updateDebug(forwarder);
-      var extra = addonsMap[forwarder];
-      if ((!Array.isArray(extra) || !extra.length) && forwarder) {
-        Object.keys(addonsMap).some(function (rawKey) {
-          var normalizedKey = normalizeForwarderName(rawKey);
-          if (!normalizedKey) return false;
-
-          var isMatch = normalizedKey === forwarder
-            || normalizedKey.indexOf(forwarder) === 0
-            || forwarder.indexOf(normalizedKey) === 0;
-          if (!isMatch) return false;
-
-          extra = addonsMap[rawKey];
-          return Array.isArray(extra) && extra.length;
-        });
-      }
-      if (!Array.isArray(extra) || !extra.length) {
-        emptyNode.style.display = '';
-        hiddenInput.value = '';
-        return;
-      }
-
-      emptyNode.style.display = 'none';
-      extra.forEach(function (group) {
-        if (!group || typeof group !== 'object') return;
-        Object.keys(group).forEach(function (addonKey) {
-          var optionsMap = group[addonKey];
-          if (!optionsMap || typeof optionsMap !== 'object') return;
-          createSelect(addonKey, optionsMap, selectedAddons[addonKey]);
-        });
-      });
-      persist();
-    }
-
-    companySelect.addEventListener('change', render);
-    companySelect.addEventListener('input', render);
-    render();
-  })();
-<?php echo '</script'; ?>
->
 <?php }
 }

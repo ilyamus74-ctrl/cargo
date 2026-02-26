@@ -680,6 +680,9 @@ const CoreAPI = {
             if (typeof initStandDevicePersistence === 'function') {
                 initStandDevicePersistence();
             }
+            if (typeof initWarehouseStockAddons === 'function') {
+                initWarehouseStockAddons();
+            }
         },
         'warehouse_move_open_modal': (data) => {
             CoreAPI.ui.showModal(data.html);
@@ -1776,6 +1779,109 @@ function showToast(message, duration) {
             toast.parentNode.removeChild(toast);
         }
     }, timeoutMs);
+}
+
+
+function initWarehouseStockAddons() {
+    var section = document.getElementById('warehouseStockAddonsSection');
+    if (!section || section.__addonsBound) return;
+    section.__addonsBound = true;
+
+    var companySelect = document.getElementById('receiverCompany');
+    var controls = document.getElementById('warehouseStockAddonsControls');
+    var emptyNode = document.getElementById('warehouseStockAddonsEmpty');
+    var hiddenInput = document.getElementById('warehouseStockAddonsJson');
+    var debugInput = document.getElementById('warehouseStockAddonsDebug');
+    if (!companySelect || !controls || !emptyNode || !hiddenInput || !debugInput) return;
+
+    var addonsMap = {};
+    var addonsRawMap = {};
+    var selectedAddons = {};
+    try { addonsMap = JSON.parse(section.getAttribute('data-addons-map') || '{}') || {}; } catch (e) { addonsMap = {}; }
+    try { addonsRawMap = JSON.parse(section.getAttribute('data-addons-raw-map') || '{}') || {}; } catch (e) { addonsRawMap = {}; }
+    try { selectedAddons = JSON.parse(section.getAttribute('data-item-addons') || '{}') || {}; } catch (e) { selectedAddons = {}; }
+
+    function normalizeForwarderName(raw) {
+        return String(raw || '').trim().toUpperCase();
+    }
+
+    function updateDebug(forwarder) {
+        var raw = addonsRawMap[forwarder];
+        debugInput.value = typeof raw === 'string' ? raw : '';
+    }
+
+    function persist() {
+        var payload = {};
+        controls.querySelectorAll('select[data-addon-key]').forEach(function (select) {
+            var addonKey = select.getAttribute('data-addon-key') || '';
+            if (!addonKey) return;
+            var val = String(select.value || '').trim();
+            if (val === '') return;
+            payload[addonKey] = val;
+        });
+        hiddenInput.value = Object.keys(payload).length ? JSON.stringify(payload) : '';
+    }
+
+    function createSelect(addonKey, optionsMap, initialValue) {
+        var col = document.createElement('div');
+        col.className = 'col-md-6';
+
+        var label = document.createElement('label');
+        label.className = 'form-label';
+        label.textContent = addonKey;
+
+        var select = document.createElement('select');
+        select.className = 'form-select';
+        select.setAttribute('data-addon-key', addonKey);
+
+        var emptyOpt = document.createElement('option');
+        emptyOpt.value = '';
+        emptyOpt.textContent = '— выберите —';
+        select.appendChild(emptyOpt);
+
+        Object.keys(optionsMap || {}).forEach(function (valueKey) {
+            var opt = document.createElement('option');
+            opt.value = String(valueKey);
+            opt.textContent = String(optionsMap[valueKey]);
+            if (String(initialValue || '') === String(valueKey)) {
+                opt.selected = true;
+            }
+            select.appendChild(opt);
+        });
+
+        select.addEventListener('change', persist);
+
+        col.appendChild(label);
+        col.appendChild(select);
+        controls.appendChild(col);
+    }
+
+    function render() {
+        controls.innerHTML = '';
+        var forwarder = normalizeForwarderName(companySelect.value);
+        updateDebug(forwarder);
+        var extra = addonsMap[forwarder];
+        if (!Array.isArray(extra) || !extra.length) {
+            emptyNode.style.display = '';
+            hiddenInput.value = '';
+            return;
+        }
+
+        emptyNode.style.display = 'none';
+        extra.forEach(function (group) {
+            if (!group || typeof group !== 'object') return;
+            Object.keys(group).forEach(function (addonKey) {
+                var optionsMap = group[addonKey];
+                if (!optionsMap || typeof optionsMap !== 'object') return;
+                createSelect(addonKey, optionsMap, selectedAddons[addonKey]);
+            });
+        });
+        persist();
+    }
+
+    companySelect.addEventListener('change', render);
+    companySelect.addEventListener('input', render);
+    render();
 }
 
 
