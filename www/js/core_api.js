@@ -1791,23 +1791,15 @@ function initWarehouseStockAddons() {
     var controls = document.getElementById('warehouseStockAddonsControls');
     var emptyNode = document.getElementById('warehouseStockAddonsEmpty');
     var hiddenInput = document.getElementById('warehouseStockAddonsJson');
-    var debugInput = document.getElementById('warehouseStockAddonsDebug');
-    if (!companySelect || !controls || !emptyNode || !hiddenInput || !debugInput) return;
+    if (!companySelect || !controls || !emptyNode || !hiddenInput) return;
 
     var addonsMap = {};
-    var addonsRawMap = {};
     var selectedAddons = {};
     try { addonsMap = JSON.parse(section.getAttribute('data-addons-map') || '{}') || {}; } catch (e) { addonsMap = {}; }
-    try { addonsRawMap = JSON.parse(section.getAttribute('data-addons-raw-map') || '{}') || {}; } catch (e) { addonsRawMap = {}; }
     try { selectedAddons = JSON.parse(section.getAttribute('data-item-addons') || '{}') || {}; } catch (e) { selectedAddons = {}; }
 
     function normalizeForwarderName(raw) {
         return String(raw || '').trim().toUpperCase();
-    }
-
-    function updateDebug(forwarder) {
-        var raw = addonsRawMap[forwarder];
-        debugInput.value = typeof raw === 'string' ? raw : '';
     }
 
     function persist() {
@@ -1859,7 +1851,6 @@ function initWarehouseStockAddons() {
     function render() {
         controls.innerHTML = '';
         var forwarder = normalizeForwarderName(companySelect.value);
-        updateDebug(forwarder);
         var extra = addonsMap[forwarder];
         if (!Array.isArray(extra) || !extra.length) {
             emptyNode.style.display = '';
@@ -1883,7 +1874,6 @@ function initWarehouseStockAddons() {
     companySelect.addEventListener('input', render);
     render();
 }
-
 
 function initReceiverAddressQuickCells() {
     var form = document.getElementById('item-in-modal-form');

@@ -803,7 +803,7 @@ if ($action === 'save_item_stock') {
     $rcAddress = trim($_POST['receiver_address'] ?? '');
     $cellId = isset($_POST['cell_id']) ? (int)$_POST['cell_id'] : 0;
     $cellId = $cellId > 0 ? $cellId : null;
-    $senderCode = trim($_POST['sender_name'] ?? '');
+    $senderCode = trim($_POST['sender_code'] ?? '');
     $weightKg = $_POST['weight_kg'] ?? '';
     $sizeL = $_POST['size_l_cm'] ?? '';
     $sizeW = $_POST['size_w_cm'] ?? '';
@@ -883,6 +883,14 @@ if ($action === 'save_item_stock') {
          WHERE id = ?
     ";
     $stmt = $dbcnx->prepare($sql);
+    if (! $stmt) {
+        $response = [
+            'status'  => 'error',
+            'message' => 'DB error:  ' . $dbcnx->error,
+        ];
+        return;
+    }
+
     $stmt->bind_param(
         "sssssssssisddddssi",
         $tuid,
@@ -903,14 +911,7 @@ if ($action === 'save_item_stock') {
         $addonsJsonRaw,
         $itemId
     );
-    
-    if (! $stmt) {
-        $response = [
-            'status'  => 'error',
-            'message' => 'DB error:  ' . $dbcnx->error,
-        ];
-        return;
-    }
+
     $stmt->execute();
     $stmt->close();
 
