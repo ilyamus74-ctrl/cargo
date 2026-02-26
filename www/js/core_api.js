@@ -705,6 +705,9 @@ const CoreAPI = {
                 if (CoreAPI.warehouseWithoutCells?.resetAndLoad) {
                     CoreAPI.warehouseWithoutCells.resetAndLoad();
                 }
+                if (CoreAPI.warehouseWithoutAddons?.resetAndLoad) {
+                    CoreAPI.warehouseWithoutAddons.resetAndLoad();
+                }
                 if (CoreAPI.warehouseInStorage?.resetAndLoad) {
                     CoreAPI.warehouseInStorage.resetAndLoad();
                 }

@@ -6,7 +6,50 @@ declare(strict_types=1);
  */
 // Доступны:  $action, $user, $dbcnx, $smarty
 $response = ['status' => 'error', 'message' => 'Unknown warehouse stock action'];
+
+
+if (!function_exists('warehouse_stock_ensure_addons_column')) {
+    function warehouse_stock_ensure_addons_column(mysqli $dbcnx): void
+    {
+        $check = $dbcnx->query("SHOW COLUMNS FROM warehouse_item_stock LIKE 'addons_json'");
+        if ($check instanceof mysqli_result) {
+            $exists = $check->num_rows > 0;
+            $check->free();
+            if ($exists) {
+                return;
+            }
+        }
+
+        $dbcnx->query("ALTER TABLE warehouse_item_stock ADD COLUMN addons_json LONGTEXT NULL AFTER box_image");
+    }
+}
+
+if (!function_exists('warehouse_stock_decode_connector_addons')) {
+    function warehouse_stock_decode_connector_addons(string $rawAddons): array
+    {
+        $decoded = json_decode($rawAddons, true);
+        if (!is_array($decoded)) {
+            return [];
+        }
+
+        $extra = $decoded['extra'] ?? [];
+        return is_array($extra) ? $extra : [];
+    }
+}
+
+if (!function_exists('warehouse_stock_decode_item_addons')) {
+    function warehouse_stock_decode_item_addons(string $rawAddons): array
+    {
+        if ($rawAddons === '') {
+            return [];
+        }
+        $decoded = json_decode($rawAddons, true);
+        return is_array($decoded) ? $decoded : [];
+    }
+}
+
 if ($action === 'item_stock') {
+    warehouse_stock_ensure_addons_column($dbcnx);
     auth_require_login();
     $current = $user;
     $userId = (int)$current['id'];
@@ -67,6 +110,7 @@ if ($action === 'item_stock') {
 
 
 if ($action === 'item_stock_without_cells') {
+    warehouse_stock_ensure_addons_column($dbcnx);
     auth_require_login();
     $current = $user;
     $userId = (int)$current['id'];
@@ -185,6 +229,7 @@ if ($action === 'item_stock_without_cells') {
 
 
 if ($action === 'item_stock_without_addons') {
+    warehouse_stock_ensure_addons_column($dbcnx);
     auth_require_login();
     $current = $user;
     $userId = (int)$current['id'];
@@ -205,10 +250,11 @@ if ($action === 'item_stock_without_addons') {
 
     $conditions = [
         "wi.cell_id IS NULL",
-        "NOT EXISTS (
+        "(wi.addons_json IS NULL OR TRIM(wi.addons_json) = '' OR TRIM(wi.addons_json) = '{}' OR TRIM(wi.addons_json) = '[]')",
+        "EXISTS (
             SELECT 1
               FROM connectors_addons ca
-             WHERE ca.connector_name = wi.carrier_name
+             WHERE ca.connector_name = COALESCE(NULLIF(wi.receiver_company, ''), wi.carrier_name)
                AND ca.addons_json IS NOT NULL
                AND TRIM(ca.addons_json) <> ''
                AND TRIM(ca.addons_json) <> '{}'
@@ -311,6 +357,7 @@ if ($action === 'item_stock_without_addons') {
 
 
 if ($action === 'item_stock_in_storage') {
+    warehouse_stock_ensure_addons_column($dbcnx);
     auth_require_login();
     $current = $user;
     $userId = (int)$current['id'];
@@ -436,6 +483,7 @@ if ($action === 'item_stock_in_storage') {
 }
 
 if ($action === 'open_item_stock_modal') {
+    warehouse_stock_ensure_addons_column($dbcnx);
     auth_require_login();
     $current = $user;
     $userId = (int)$current['id'];
@@ -474,7 +522,8 @@ if ($action === 'open_item_stock_modal') {
             weight_kg,
             size_l_cm,
             size_w_cm,
-            size_h_cm
+            size_h_cm,
+            addons_json
         FROM warehouse_item_stock
         WHERE id = ?
         LIMIT 1
@@ -570,11 +619,44 @@ if ($action === 'open_item_stock_modal') {
         }
         $resCells->free();
     }
-    
+
+
+    $itemAddonsRaw = trim((string)($item['addons_json'] ?? ''));
+    $itemAddons = warehouse_stock_decode_item_addons($itemAddonsRaw);
+    $itemForwarder = trim((string)($item['receiver_company'] ?? ''));
+
+    $addonsMap = [];
+    $sql = "
+        SELECT connector_name, addons_json
+          FROM connectors_addons
+         WHERE addons_json IS NOT NULL
+           AND TRIM(addons_json) <> ''
+           AND TRIM(addons_json) <> '{}'
+           AND TRIM(addons_json) <> '[]'
+    ";
+    if ($resAddons = $dbcnx->query($sql)) {
+        while ($row = $resAddons->fetch_assoc()) {
+            $name = trim((string)($row['connector_name'] ?? ''));
+            if ($name === '') {
+                continue;
+            }
+            $options = warehouse_stock_decode_connector_addons(trim((string)($row['addons_json'] ?? '')));
+            if (!empty($options)) {
+                $addonsMap[$name] = $options;
+            }
+        }
+        $resAddons->free();
+    }
+
     $smarty->assign('item', $item);
     $smarty->assign('dest_country', $dest_country);
     $smarty->assign('stand_devices', $stand_devices);
     $smarty->assign('cells', $cells);
+
+    $smarty->assign('addons_map', $addonsMap);
+    $smarty->assign('item_addons_json', $itemAddonsRaw);
+    $smarty->assign('item_addons', $itemAddons);
+    $smarty->assign('item_forwarder', $itemForwarder);
     $smarty->assign('can_edit', $isAdmin || $isWorker || $itemUserId === $userId || $canManageStock);
 
     ob_start();
@@ -602,6 +684,7 @@ if ($action === 'open_item_stock_modal') {
 
 
 if ($action === 'save_item_stock') {
+    warehouse_stock_ensure_addons_column($dbcnx);
     auth_require_login();
     $current = $user;
     $userId = (int)$current['id'];
@@ -638,7 +721,8 @@ if ($action === 'save_item_stock') {
             weight_kg,
             size_l_cm,
             size_w_cm,
-            size_h_cm
+            size_h_cm,
+            addons_json
         FROM warehouse_item_stock
         WHERE id = ? 
         LIMIT 1
@@ -719,7 +803,29 @@ if ($action === 'save_item_stock') {
     $sizeL = $_POST['size_l_cm'] ?? '';
     $sizeW = $_POST['size_w_cm'] ?? '';
     $sizeH = $_POST['size_h_cm'] ?? '';
-    
+    $addonsJsonRaw = trim((string)($_POST['addons_json'] ?? ''));
+
+    if ($addonsJsonRaw !== '') {
+        $decodedAddons = json_decode($addonsJsonRaw, true);
+        if (!is_array($decodedAddons)) {
+            $response = [
+                'status'  => 'error',
+                'message' => 'Некорректный JSON в ДопИнфо',
+            ];
+            return;
+        }
+        $addonsJsonRaw = json_encode($decodedAddons, JSON_UNESCAPED_UNICODE);
+        if ($addonsJsonRaw === false) {
+            $response = [
+                'status'  => 'error',
+                'message' => 'Не удалось сериализовать ДопИнфо',
+            ];
+            return;
+        }
+    } else {
+        $addonsJsonRaw = null;
+    }
+
     $weightKg = ($weightKg === '' || $weightKg === null) ? 0.0 : (float)$weightKg;
     $sizeL = ($sizeL === '' || $sizeL === null) ? 0.0 : (float)$sizeL;
     $sizeW = ($sizeW === '' || $sizeW === null) ? 0.0 : (float)$sizeW;
@@ -767,12 +873,13 @@ if ($action === 'save_item_stock') {
                weight_kg = ?,
                size_l_cm = ?,
                size_w_cm = ?,
-               size_h_cm = ? 
+               size_h_cm = ?,
+               addons_json = ?
          WHERE id = ?
     ";
     $stmt = $dbcnx->prepare($sql);
     $stmt->bind_param(
-        "sssssssssisddddi",
+        "sssssssssisddddssi",
         $tuid,
         $tracking,
         $carrierCode,
@@ -788,6 +895,7 @@ if ($action === 'save_item_stock') {
         $sizeL,
         $sizeW,
         $sizeH,
+        $addonsJsonRaw,
         $itemId
     );
     
@@ -819,6 +927,7 @@ if ($action === 'save_item_stock') {
         'size_l_cm' => $sizeL,
         'size_w_cm' => $sizeW,
         'size_h_cm' => $sizeH,
+        'addons_json' => $addonsJsonRaw,
     ];
     
     foreach ($fieldMap as $field => $newValue) {

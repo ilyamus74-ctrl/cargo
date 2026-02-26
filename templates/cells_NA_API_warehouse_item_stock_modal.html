@@ -72,6 +72,18 @@
     <input type="text" class="form-control" id="carrierCode" name="sender_code" value="{$item.sender_name|escape}">
   </div>
 
+  <div class="col-12">
+    <div id="warehouseStockAddonsSection"
+         data-addons-map='{$addons_map|json_encode|escape:'html'}'
+         data-item-addons='{$item_addons|json_encode|escape:'html'}'>
+      <label class="form-label">ДопИнфо</label>
+      <div id="warehouseStockAddonsControls" class="row g-2"></div>
+      <div id="warehouseStockAddonsEmpty" class="form-text text-muted">Для выбранной компании форварда нет настроенной ДопИнфо.</div>
+      <input type="hidden" id="warehouseStockAddonsJson" name="addons_json" value="{$item_addons_json|escape}">
+    </div>
+  </div>
+
+
   <div class="col-md-6">
     <label for="standDevice" class="form-label">Устройство измерения</label>
     <select class="form-select" id="standDevice" name="stand_device_uid">
@@ -118,3 +130,100 @@
     </button>
   </div>
 </form>
+
+
+
+<script>
+  (function () {
+    var section = document.getElementById('warehouseStockAddonsSection');
+    if (!section || section.__addonsBound) return;
+    section.__addonsBound = true;
+
+    var companySelect = document.getElementById('receiverCompany');
+    var controls = document.getElementById('warehouseStockAddonsControls');
+    var emptyNode = document.getElementById('warehouseStockAddonsEmpty');
+    var hiddenInput = document.getElementById('warehouseStockAddonsJson');
+    if (!companySelect || !controls || !emptyNode || !hiddenInput) return;
+
+    var addonsMap = {};
+    var selectedAddons = {};
+    try { addonsMap = JSON.parse(section.getAttribute('data-addons-map') || '{}') || {}; } catch (e) { addonsMap = {}; }
+    try { selectedAddons = JSON.parse(section.getAttribute('data-item-addons') || '{}') || {}; } catch (e) { selectedAddons = {}; }
+
+    function normalizeForwarderName(raw) {
+      return String(raw || '').trim().toUpperCase();
+    }
+
+    function persist() {
+      var payload = {};
+      controls.querySelectorAll('select[data-addon-key]').forEach(function (select) {
+        var addonKey = select.getAttribute('data-addon-key') || '';
+        if (!addonKey) return;
+        var val = String(select.value || '').trim();
+        if (val === '') return;
+        payload[addonKey] = val;
+      });
+      hiddenInput.value = Object.keys(payload).length ? JSON.stringify(payload) : '';
+    }
+
+    function createSelect(addonKey, optionsMap, initialValue) {
+      var col = document.createElement('div');
+      col.className = 'col-md-6';
+
+      var label = document.createElement('label');
+      label.className = 'form-label';
+      label.textContent = addonKey;
+
+      var select = document.createElement('select');
+      select.className = 'form-select';
+      select.setAttribute('data-addon-key', addonKey);
+
+      var emptyOpt = document.createElement('option');
+      emptyOpt.value = '';
+      emptyOpt.textContent = '— выберите —';
+      select.appendChild(emptyOpt);
+
+      Object.keys(optionsMap || {}).forEach(function (valueKey) {
+        var opt = document.createElement('option');
+        opt.value = String(valueKey);
+        opt.textContent = String(optionsMap[valueKey]);
+        if (String(initialValue || '') === String(valueKey)) {
+          opt.selected = true;
+        }
+        select.appendChild(opt);
+      });
+
+      select.addEventListener('change', persist);
+
+      col.appendChild(label);
+      col.appendChild(select);
+      controls.appendChild(col);
+    }
+
+    function render() {
+      controls.innerHTML = '';
+      var forwarder = normalizeForwarderName(companySelect.value);
+      var extra = addonsMap[forwarder];
+      if (!Array.isArray(extra) || !extra.length) {
+        emptyNode.style.display = '';
+        hiddenInput.value = '';
+        return;
+      }
+
+      emptyNode.style.display = 'none';
+      extra.forEach(function (group) {
+        if (!group || typeof group !== 'object') return;
+        Object.keys(group).forEach(function (addonKey) {
+          var optionsMap = group[addonKey];
+          if (!optionsMap || typeof optionsMap !== 'object') return;
+          createSelect(addonKey, optionsMap, selectedAddons[addonKey]);
+        });
+      });
+      persist();
+    }
+
+    companySelect.addEventListener('change', render);
+    companySelect.addEventListener('input', render);
+    render();
+  })();
+</script>
