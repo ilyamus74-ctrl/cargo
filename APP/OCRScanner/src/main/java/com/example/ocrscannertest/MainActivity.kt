@@ -837,6 +837,14 @@ fun AppRoot() {
                 prepareFormForNextScanInWebView(webView)
                 true
             }
+            "upload_item_stock_photo_label" -> {
+                captureWarehouseItemStockPhotoInWebView(webView, "label")
+                true
+            }
+            "upload_item_stock_photo_box" -> {
+                captureWarehouseItemStockPhotoInWebView(webView, "box")
+                true
+            }
             else -> false
         }
     }
@@ -3810,6 +3818,27 @@ fun requestStandMeasurementInWebView(webView: WebView) {
     webView.post { webView.evaluateJavascript(js, null) }
 }
 
+fun captureWarehouseItemStockPhotoInWebView(webView: WebView, photoType: String) {
+    val normalized = if (photoType.equals("label", ignoreCase = true)) "label" else "box"
+    val escapedType = escapeJsString(normalized)
+    val js = """
+        (function(){
+          try {
+            if (window.OCRScanner && typeof window.OCRScanner.captureAndUploadWarehouseItemStockPhoto === 'function') {
+              window.OCRScanner.captureAndUploadWarehouseItemStockPhoto('$escapedType');
+              return;
+            }
+            var btnId = '$escapedType' === 'label' ? 'warehouseStockTakeLabelPhotoBtn' : 'warehouseStockTakeBoxPhotoBtn';
+            var btn = document.getElementById(btnId);
+            if (btn && typeof btn.click === 'function') {
+              btn.click();
+            }
+          } catch (e) {}
+        })();
+    """.trimIndent()
+    webView.post { webView.evaluateJavascript(js, null) }
+}
+
 fun withStandDeviceSelected(webView: WebView, onResult: (Boolean) -> Unit) {
     val js = """
         (function(){
@@ -6310,6 +6339,14 @@ fun handleNativeWebOp(
         }
         "add_new_item" -> {
             prepareFormForNextScanInWebView(webView)
+            true
+        }
+        "upload_item_stock_photo_label" -> {
+            captureWarehouseItemStockPhotoInWebView(webView, "label")
+            true
+        }
+        "upload_item_stock_photo_box" -> {
+            captureWarehouseItemStockPhotoInWebView(webView, "box")
             true
         }
         else -> false
