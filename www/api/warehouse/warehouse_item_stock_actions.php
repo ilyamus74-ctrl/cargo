@@ -183,6 +183,133 @@ if ($action === 'item_stock_without_cells') {
     ];
 }
 
+
+if ($action === 'item_stock_without_addons') {
+    auth_require_login();
+    $current = $user;
+    $userId = (int)$current['id'];
+    $isWorker = auth_has_role('WORKER');
+    $canViewAll = auth_has_permission('warehouse.stock.view_all') || auth_has_role('ADMIN') || $isWorker;
+
+    $limitRaw = $_POST['limit'] ?? '20';
+    $limit = null;
+    if ($limitRaw !== 'all') {
+        $limit = max(20, (int)$limitRaw);
+    }
+    $offset = max(0, (int)($_POST['offset'] ?? 0));
+
+    $sortRaw = strtoupper(trim((string)($_POST['sort'] ?? 'DESC')));
+    $sort = $sortRaw === 'ASC' ? 'ASC' : 'DESC';
+
+    $search = trim((string)($_POST['search'] ?? ''));
+
+    $conditions = [
+        "wi.cell_id IS NULL",
+        "NOT EXISTS (
+            SELECT 1
+              FROM connectors_addons ca
+             WHERE ca.connector_name = wi.carrier_name
+               AND ca.addons_json IS NOT NULL
+               AND TRIM(ca.addons_json) <> ''
+               AND TRIM(ca.addons_json) <> '{}'
+               AND TRIM(ca.addons_json) <> '[]'
+        )",
+    ];
+    $params = [];
+    $types = '';
+
+    if (!$canViewAll) {
+        $conditions[] = "wi.user_id = ?";
+        $types .= 'i';
+        $params[] = $userId;
+    }
+
+    if ($search !== '') {
+        $conditions[] = "(wi.receiver_name LIKE ? OR wi.tracking_no LIKE ?)";
+        $like = '%' . $search . '%';
+        $types .= 'ss';
+        $params[] = $like;
+        $params[] = $like;
+    }
+
+    $whereSql = 'WHERE ' . implode(' AND ', $conditions);
+
+    $countSql = "SELECT COUNT(*) AS total FROM warehouse_item_stock wi {$whereSql}";
+    $total = 0;
+    if ($types === '') {
+        if ($res = $dbcnx->query($countSql)) {
+            $row = $res->fetch_assoc();
+            $total = (int)($row['total'] ?? 0);
+            $res->free();
+        }
+    } else {
+        $stmt = $dbcnx->prepare($countSql);
+        $stmt->bind_param($types, ...$params);
+        $stmt->execute();
+        $row = $stmt->get_result()->fetch_assoc();
+        $total = (int)($row['total'] ?? 0);
+        $stmt->close();
+    }
+
+    $sql = "
+        SELECT
+            wi.id,
+            COALESCE(NULLIF(wi.tuid, ''), NULLIF(wi.tracking_no, ''), wi.uid_created) AS parcel_uid,
+            wi.receiver_name,
+            wi.tracking_no,
+            wi.created_at,
+            wi.user_id,
+            u.full_name AS user_name
+        FROM warehouse_item_stock wi
+        LEFT JOIN users u ON u.id = wi.user_id
+        {$whereSql}
+        ORDER BY wi.created_at {$sort}
+    ";
+
+    if ($limit !== null) {
+        $sql .= " LIMIT ? OFFSET ?";
+        $types .= 'ii';
+        $params[] = $limit;
+        $params[] = $offset;
+    }
+
+    $parcels = [];
+    if ($types === '') {
+        if ($res = $dbcnx->query($sql)) {
+            while ($row = $res->fetch_assoc()) {
+                $parcels[] = $row;
+            }
+            $res->free();
+        }
+    } else {
+        $stmt = $dbcnx->prepare($sql);
+        $stmt->bind_param($types, ...$params);
+        $stmt->execute();
+        $res = $stmt->get_result();
+        while ($row = $res->fetch_assoc()) {
+            $parcels[] = $row;
+        }
+        $stmt->close();
+    }
+
+    $smarty->assign('parcels_without_addons', $parcels);
+    $smarty->assign('current_user', $current);
+    $smarty->assign('show_empty', $offset === 0);
+
+    ob_start();
+    $smarty->display('cells_NA_API_warehouse_item_stock_without_addons_rows.html');
+    $html = ob_get_clean();
+
+    $response = [
+        'status'      => 'ok',
+        'html'        => $html,
+        'total'       => $total,
+        'items_count' => count($parcels),
+        'has_more'    => $limit !== null ? ($offset + count($parcels) < $total) : false,
+    ];
+}
+
+
 if ($action === 'item_stock_in_storage') {
     auth_require_login();
     $current = $user;

@@ -1128,6 +1128,150 @@ const CoreAPI = {
         }
     },
     // ====================================
+
+    // WAREHOUSE - Parcels without addons
+    // ====================================
+    warehouseWithoutAddons: {
+        root: null,
+        tbody: null,
+        total: null,
+        searchInput: null,
+        limitSelect: null,
+        sortSelect: null,
+        sentinel: null,
+        observer: null,
+        searchTimer: null,
+        initialized: false,
+        state: {
+            limit: '20',
+            offset: 0,
+            sort: 'DESC',
+            search: '',
+            loading: false,
+            done: false
+        },
+        init() {
+            const root = document.getElementById('warehouse-without-addons');
+            if (!root) return;
+            if (this.initialized && this.root === root) {
+                return;
+            }
+            this.root = root;
+            this.tbody = root.querySelector('#warehouse-without-addons-tbody');
+            this.total = root.querySelector('#warehouse-without-addons-total');
+            this.searchInput = root.querySelector('#warehouse-without-addons-search');
+            this.limitSelect = root.querySelector('#warehouse-without-addons-limit');
+            this.sortSelect = root.querySelector('#warehouse-without-addons-sort');
+            this.sentinel = root.querySelector('#warehouse-without-addons-sentinel');
+
+            if (!this.tbody || !this.total || !this.searchInput || !this.limitSelect || !this.sortSelect || !this.sentinel) {
+                return;
+            }
+
+            this.state.limit = this.limitSelect.value || '20';
+            this.state.sort = this.sortSelect.value || 'DESC';
+            this.state.search = '';
+            this.state.offset = 0;
+            this.state.done = false;
+
+            this.bindEvents();
+            this.setupObserver();
+            this.resetAndLoad();
+            this.initialized = true;
+        },
+        bindEvents() {
+            this.limitSelect.addEventListener('change', () => {
+                this.state.limit = this.limitSelect.value || '20';
+                this.resetAndLoad();
+            });
+
+            this.sortSelect.addEventListener('change', () => {
+                this.state.sort = this.sortSelect.value || 'DESC';
+                this.resetAndLoad();
+            });
+
+            this.searchInput.addEventListener('input', () => {
+                if (this.searchTimer) {
+                    clearTimeout(this.searchTimer);
+                }
+                this.searchTimer = setTimeout(() => {
+                    this.state.search = this.searchInput.value.trim();
+                    this.resetAndLoad();
+                }, 300);
+            });
+        },
+        setupObserver() {
+            if (this.observer) {
+                this.observer.disconnect();
+            }
+            this.observer = new IntersectionObserver((entries) => {
+                const entry = entries[0];
+                if (entry?.isIntersecting) {
+                    this.loadNext();
+                }
+            }, { rootMargin: '200px' });
+            this.observer.observe(this.sentinel);
+        },
+        resetAndLoad() {
+            this.state.offset = 0;
+            this.state.done = false;
+            const columnCount = this.tbody.closest('table')?.querySelectorAll('thead th').length || 3;
+            this.tbody.innerHTML = `
+                <tr>
+                    <td colspan="${columnCount}" class="text-center text-muted">Загрузка...</td>
+                </tr>
+            `;
+            if (this.total) {
+                this.total.textContent = '0';
+            }
+            this.loadNext();
+        },
+        setLoading(isLoading) {
+            this.state.loading = isLoading;
+            if (this.sentinel) {
+                this.sentinel.textContent = isLoading ? 'Загрузка...' : '';
+            }
+        },
+        async loadNext() {
+            if (this.state.loading || this.state.done) return;
+            if (this.state.limit === 'all' && this.state.offset > 0) return;
+            this.setLoading(true);
+            const fd = new FormData();
+            fd.append('action', 'item_stock_without_addons');
+            fd.append('limit', this.state.limit);
+            fd.append('offset', String(this.state.offset));
+            fd.append('sort', this.state.sort);
+            fd.append('search', this.state.search);
+            try {
+                const data = await CoreAPI.client.call(fd);
+                if (!data || data.status !== 'ok') {
+                    console.error('core_api error (item_stock_without_addons):', data);
+                    this.setLoading(false);
+                    return;
+                }
+                if (this.state.offset === 0) {
+                    this.tbody.innerHTML = data.html || '';
+                } else if (data.html) {
+                    this.tbody.insertAdjacentHTML('beforeend', data.html);
+                }
+                if (this.total) {
+                    this.total.textContent = String(data.total ?? 0);
+                }
+                const loaded = Number(data.items_count ?? 0);
+                this.state.offset += loaded;
+                if (this.state.limit === 'all') {
+                    this.state.done = true;
+                } else {
+                    this.state.done = loaded === 0 || data.has_more === false;
+                }
+            } catch (err) {
+                console.error('core_api fetch error (item_stock_without_addons):', err);
+            } finally {
+                this.setLoading(false);
+            }
+        }
+    },
+    // ====================================
     // WAREHOUSE - Parcels in storage (with cells)
     // ====================================
     warehouseInStorage: {
@@ -1529,6 +1673,9 @@ const CoreAPI = {
             if (event?.target?.id === 'warehouse-in-storage-tab') {
                 this.warehouseInStorage.init();
             }
+            if (event?.target?.id === 'warehouse-without-addons-tab') {
+                this.warehouseWithoutAddons.init();
+            }
         });
         // Ensure page init handlers run on full page load (not only via loadMain).
         try {
@@ -1541,6 +1688,7 @@ const CoreAPI = {
             console.error('CoreAPI.pageInits init error', e);
         }
         this.warehouseWithoutCells.init();
+        this.warehouseWithoutAddons.init();
         this.warehouseInStorage.init();
         this.warehouseMove.init();
         this.warehouseMoveBatch.init();

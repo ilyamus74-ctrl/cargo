@@ -1,0 +1,25 @@
+Новый
++23-0
+{foreach $parcels_without_addons as $parcel}
+  <tr>
+    <td>
+      <button type="button"
+              class="btn btn-link p-0 js-core-link"
+              data-core-action="open_item_stock_modal"
+              data-item-id="{$parcel.id}">
+        {$parcel.parcel_uid|default:'—'}
+      </button>
+    </td>
+    {if $current_user.role == 'ADMIN'}
+      <td>{$parcel.user_name|default:'—'}</td>
+    {/if}
+    <td>{$parcel.created_at|default:'—'}</td>
+  </tr>
+{/foreach}
+{if !$parcels_without_addons && $show_empty}
+  <tr>
+    <td colspan="{if $current_user.role == 'ADMIN'}3{else}2{/if}" class="text-center text-muted">
+      Нет посылок без ДопИнфо
+    </td>
+  </tr>
+{/if}

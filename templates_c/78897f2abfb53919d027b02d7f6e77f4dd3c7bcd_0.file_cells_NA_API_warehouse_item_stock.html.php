@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-01-16 10:08:32
+/* Smarty version 5.3.1, created on 2026-02-26 09:30:31
   from 'file:cells_NA_API_warehouse_item_stock.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_696a0e20b546d8_01925044',
+  'unifunc' => 'content_69a012b7e94145_97706142',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '78897f2abfb53919d027b02d7f6e77f4dd3c7bcd' => 
     array (
       0 => 'cells_NA_API_warehouse_item_stock.html',
-      1 => 1768557805,
+      1 => 1772098016,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_696a0e20b546d8_01925044 (\Smarty\Template $_smarty_tpl) {
+function content_69a012b7e94145_97706142 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>
     <div class="pagetitle">
@@ -57,6 +57,11 @@ $_smarty_current_dir = '/home/cells/web/templates';
                 <li class="nav-item flex-fill" role="presentation">
                   <button class="nav-link w-100" id="warehouse-in-storage-tab" data-bs-toggle="tab" data-bs-target="#warehouse-in-storage" type="button" role="tab" aria-controls="warehouse-in-storage" aria-selected="false" tabindex="-1">
                     Посылки на складе
+                  </button>
+                </li>
+                <li class="nav-item flex-fill" role="presentation">
+                  <button class="nav-link w-100" id="warehouse-without-addons-tab" data-bs-toggle="tab" data-bs-target="#warehouse-without-addons" type="button" role="tab" aria-controls="warehouse-without-addons" aria-selected="false" tabindex="-1">
+                    Посылки без ДопИнфо
                   </button>
                 </li>
               </ul>
@@ -206,6 +211,56 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
                     </tbody>
                   </table>
                   <div id="warehouse-in-storage-sentinel" class="py-2"></div>
+                </div>
+                <div class="tab-pane fade" id="warehouse-without-addons" role="tabpanel" aria-labelledby="warehouse-without-addons-tab">
+                  <p class="small text-muted mb-2">
+                    Всего посылок: <span id="warehouse-without-addons-total">0</span>
+                  </p>
+
+                  <div class="row g-2 align-items-end mb-3">
+                    <div class="col-12 col-md-5">
+                      <label class="form-label small mb-1" for="warehouse-without-addons-search">Быстрый поиск</label>
+                      <input type="text" id="warehouse-without-addons-search" class="form-control form-control-sm" placeholder="ФИО или трекномер">
+                    </div>
+                    <div class="col-6 col-md-3">
+                      <label class="form-label small mb-1" for="warehouse-without-addons-limit">Вывод строк</label>
+                      <select id="warehouse-without-addons-limit" class="form-select form-select-sm">
+                        <option value="20" selected>20</option>
+                        <option value="50">50</option>
+                        <option value="100">100</option>
+                        <option value="all">Все</option>
+                      </select>
+                    </div>
+                    <div class="col-6 col-md-3">
+                      <label class="form-label small mb-1" for="warehouse-without-addons-sort">Сортировка</label>
+                      <select id="warehouse-without-addons-sort" class="form-select form-select-sm">
+                        <option value="DESC" selected>DESC</option>
+                        <option value="ASC">ASC</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div class="table-responsive">
+                    <table class="table table-sm align-middle users-table">
+                      <thead>
+                        <tr>
+                          <th scope="col">Посылка</th>
+                          <?php if ($_smarty_tpl->getValue('current_user')['role'] == 'ADMIN') {?>
+                            <th scope="col">Пользователь</th>
+                          <?php }?>
+                          <th scope="col">Создана</th>
+                        </tr>
+                      </thead>
+
+                      <tbody id="warehouse-without-addons-tbody">
+                        <tr>
+                          <td colspan="<?php if ($_smarty_tpl->getValue('current_user')['role'] == 'ADMIN') {?>3<?php } else { ?>2<?php }?>" class="text-center text-muted">
+                            Загрузка...
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                  <div id="warehouse-without-addons-sentinel" class="py-2"></div>
                 </div>
               </div>
             </div>

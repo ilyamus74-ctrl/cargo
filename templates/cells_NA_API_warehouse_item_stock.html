@@ -35,6 +35,11 @@
                     Посылки на складе
                   </button>
                 </li>
+                <li class="nav-item flex-fill" role="presentation">
+                  <button class="nav-link w-100" id="warehouse-without-addons-tab" data-bs-toggle="tab" data-bs-target="#warehouse-without-addons" type="button" role="tab" aria-controls="warehouse-without-addons" aria-selected="false" tabindex="-1">
+                    Посылки без ДопИнфо
+                  </button>
+                </li>
               </ul>
               <div class="tab-content pt-3" id="warehouseTabsContent">
                 <div class="tab-pane fade show active" id="warehouse-without-cells" role="tabpanel" aria-labelledby="warehouse-without-cells-tab">
@@ -170,6 +175,56 @@
                     </tbody>
                   </table>
                   <div id="warehouse-in-storage-sentinel" class="py-2"></div>
+                </div>
+                <div class="tab-pane fade" id="warehouse-without-addons" role="tabpanel" aria-labelledby="warehouse-without-addons-tab">
+                  <p class="small text-muted mb-2">
+                    Всего посылок: <span id="warehouse-without-addons-total">0</span>
+                  </p>
+
+                  <div class="row g-2 align-items-end mb-3">
+                    <div class="col-12 col-md-5">
+                      <label class="form-label small mb-1" for="warehouse-without-addons-search">Быстрый поиск</label>
+                      <input type="text" id="warehouse-without-addons-search" class="form-control form-control-sm" placeholder="ФИО или трекномер">
+                    </div>
+                    <div class="col-6 col-md-3">
+                      <label class="form-label small mb-1" for="warehouse-without-addons-limit">Вывод строк</label>
+                      <select id="warehouse-without-addons-limit" class="form-select form-select-sm">
+                        <option value="20" selected>20</option>
+                        <option value="50">50</option>
+                        <option value="100">100</option>
+                        <option value="all">Все</option>
+                      </select>
+                    </div>
+                    <div class="col-6 col-md-3">
+                      <label class="form-label small mb-1" for="warehouse-without-addons-sort">Сортировка</label>
+                      <select id="warehouse-without-addons-sort" class="form-select form-select-sm">
+                        <option value="DESC" selected>DESC</option>
+                        <option value="ASC">ASC</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div class="table-responsive">
+                    <table class="table table-sm align-middle users-table">
+                      <thead>
+                        <tr>
+                          <th scope="col">Посылка</th>
+                          {if $current_user.role == 'ADMIN'}
+                            <th scope="col">Пользователь</th>
+                          {/if}
+                          <th scope="col">Создана</th>
+                        </tr>
+                      </thead>
+
+                      <tbody id="warehouse-without-addons-tbody">
+                        <tr>
+                          <td colspan="{if $current_user.role == 'ADMIN'}3{else}2{/if}" class="text-center text-muted">
+                            Загрузка...
+                          </td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                  <div id="warehouse-without-addons-sentinel" class="py-2"></div>
                 </div>
               </div>
             </div>
