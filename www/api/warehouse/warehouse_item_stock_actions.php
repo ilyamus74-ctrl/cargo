@@ -861,6 +861,10 @@ if ($action === 'save_item_stock') {
     $originalCellId = $existingItem['cell_id'] !== null ? (int)$existingItem['cell_id'] : null;
     $newCellId = $cellId !== null ? (int)$cellId : null;
 
+    // Для nullable INT в bind_param используем 0 и преобразуем в NULL на SQL-стороне.
+    // Иначе пустой cell_id может попасть как 0 и вызвать ошибку FK/валидации.
+    $cellIdForBind = $cellId ?? 0;
+
     // Обновляем запись
     $sql = "
         UPDATE warehouse_item_stock
@@ -873,7 +877,7 @@ if ($action === 'save_item_stock') {
                receiver_name = ?,
                receiver_company = ?,
                receiver_address = ?,
-               cell_id = ?,
+               cell_id = NULLIF(?, 0),
                sender_name = ?,
                weight_kg = ?,
                size_l_cm = ?,
@@ -892,7 +896,7 @@ if ($action === 'save_item_stock') {
     }
 
     $stmt->bind_param(
-        "sssssssssisddddssi",
+        "sssssssssisddddsssi",
         $tuid,
         $tracking,
         $carrierCode,
@@ -902,7 +906,7 @@ if ($action === 'save_item_stock') {
         $rcName,
         $rcCompany,
         $rcAddress,
-        $cellId,
+        $cellIdForBind,
         $senderCode,
         $weightKg,
         $sizeL,
