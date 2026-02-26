@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-02-26 10:11:50
+/* Smarty version 5.3.1, created on 2026-02-26 11:09:11
   from 'file:cells_NA_API_warehouse_item_stock_modal.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_69a01c66e87c31_54808505',
+  'unifunc' => 'content_69a029d71b8248_65627253',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '76c261023c84dc78e924fef3e9010fc442e0a73f' => 
     array (
       0 => 'cells_NA_API_warehouse_item_stock_modal.html',
-      1 => 1772100349,
+      1 => 1772103935,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_69a01c66e87c31_54808505 (\Smarty\Template $_smarty_tpl) {
+function content_69a029d71b8248_65627253 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?><form id="item-stock-modal-form" class="row g-3">
   <input type="hidden" name="item_id" value="<?php echo $_smarty_tpl->getValue('item')['id'];?>
@@ -126,6 +126,8 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
     <div id="warehouseStockAddonsSection"
          data-addons-map='<?php echo htmlspecialchars((string)json_encode($_smarty_tpl->getValue('addons_map')), ENT_QUOTES, 'UTF-8', true);?>
 '
+         data-addons-raw-map='<?php echo htmlspecialchars((string)json_encode($_smarty_tpl->getValue('addons_raw_map')), ENT_QUOTES, 'UTF-8', true);?>
+'
          data-item-addons='<?php echo htmlspecialchars((string)json_encode($_smarty_tpl->getValue('item_addons')), ENT_QUOTES, 'UTF-8', true);?>
 '>
       <label class="form-label">ДопИнфо</label>
@@ -133,6 +135,7 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
       <div id="warehouseStockAddonsEmpty" class="form-text text-muted">Для выбранной компании форварда нет настроенной ДопИнфо.</div>
       <input type="hidden" id="warehouseStockAddonsJson" name="addons_json" value="<?php echo htmlspecialchars((string)$_smarty_tpl->getValue('item_addons_json'), ENT_QUOTES, 'UTF-8', true);?>
 ">
+      <input type="hidden" id="warehouseStockAddonsDebug" name="debug" value="">
     </div>
   </div>
 
@@ -214,15 +217,23 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
     var controls = document.getElementById('warehouseStockAddonsControls');
     var emptyNode = document.getElementById('warehouseStockAddonsEmpty');
     var hiddenInput = document.getElementById('warehouseStockAddonsJson');
-    if (!companySelect || !controls || !emptyNode || !hiddenInput) return;
+    var debugInput = document.getElementById('warehouseStockAddonsDebug');
+    if (!companySelect || !controls || !emptyNode || !hiddenInput || !debugInput) return;
 
     var addonsMap = {};
+    var addonsRawMap = {};
     var selectedAddons = {};
     try { addonsMap = JSON.parse(section.getAttribute('data-addons-map') || '{}') || {}; } catch (e) { addonsMap = {}; }
+    try { addonsRawMap = JSON.parse(section.getAttribute('data-addons-raw-map') || '{}') || {}; } catch (e) { addonsRawMap = {}; }
     try { selectedAddons = JSON.parse(section.getAttribute('data-item-addons') || '{}') || {}; } catch (e) { selectedAddons = {}; }
 
     function normalizeForwarderName(raw) {
       return String(raw || '').trim().toUpperCase();
+    }
+
+    function updateDebug(forwarder) {
+      var raw = addonsRawMap[forwarder];
+      debugInput.value = typeof raw === 'string' ? raw : '';
     }
 
     function persist() {
@@ -274,7 +285,22 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
     function render() {
       controls.innerHTML = '';
       var forwarder = normalizeForwarderName(companySelect.value);
+      updateDebug(forwarder);
       var extra = addonsMap[forwarder];
+      if ((!Array.isArray(extra) || !extra.length) && forwarder) {
+        Object.keys(addonsMap).some(function (rawKey) {
+          var normalizedKey = normalizeForwarderName(rawKey);
+          if (!normalizedKey) return false;
+
+          var isMatch = normalizedKey === forwarder
+            || normalizedKey.indexOf(forwarder) === 0
+            || forwarder.indexOf(normalizedKey) === 0;
+          if (!isMatch) return false;
+
+          extra = addonsMap[rawKey];
+          return Array.isArray(extra) && extra.length;
+        });
+      }
       if (!Array.isArray(extra) || !extra.length) {
         emptyNode.style.display = '';
         hiddenInput.value = '';

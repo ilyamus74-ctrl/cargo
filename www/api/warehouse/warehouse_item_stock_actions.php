@@ -623,9 +623,10 @@ if ($action === 'open_item_stock_modal') {
 
     $itemAddonsRaw = trim((string)($item['addons_json'] ?? ''));
     $itemAddons = warehouse_stock_decode_item_addons($itemAddonsRaw);
-    $itemForwarder = trim((string)($item['receiver_company'] ?? ''));
+    $itemForwarder = strtoupper(trim((string)($item['receiver_company'] ?? '')));
 
     $addonsMap = [];
+    $addonsRawMap = [];
     $sql = "
         SELECT connector_name, addons_json
           FROM connectors_addons
@@ -636,11 +637,14 @@ if ($action === 'open_item_stock_modal') {
     ";
     if ($resAddons = $dbcnx->query($sql)) {
         while ($row = $resAddons->fetch_assoc()) {
-            $name = trim((string)($row['connector_name'] ?? ''));
+            $name = strtoupper(trim((string)($row['connector_name'] ?? '')));
             if ($name === '') {
                 continue;
             }
-            $options = warehouse_stock_decode_connector_addons(trim((string)($row['addons_json'] ?? '')));
+            $rawAddonsJson = trim((string)($row['addons_json'] ?? ''));
+            $addonsRawMap[$name] = $rawAddonsJson;
+
+            $options = warehouse_stock_decode_connector_addons($rawAddonsJson);
             if (!empty($options)) {
                 $addonsMap[$name] = $options;
             }
@@ -654,6 +658,7 @@ if ($action === 'open_item_stock_modal') {
     $smarty->assign('cells', $cells);
 
     $smarty->assign('addons_map', $addonsMap);
+    $smarty->assign('addons_raw_map', $addonsRawMap);
     $smarty->assign('item_addons_json', $itemAddonsRaw);
     $smarty->assign('item_addons', $itemAddons);
     $smarty->assign('item_forwarder', $itemForwarder);
