@@ -266,8 +266,32 @@ class MainActivity : ComponentActivity() {
             object : OnBackPressedCallback(true) {
                 override fun handleOnBackPressed() {
                     val activeWebView = MainActivity.activeWebViewProvider?.invoke()
-                    if (activeWebView != null && activeWebView.canGoBack()) {
-                        activeWebView.goBack()
+                    if (activeWebView != null) {
+                        activeWebView.evaluateJavascript(
+                            """
+                            (function() {
+                                var modal = document.querySelector('.modal.show');
+                                if (!modal) return false;
+
+                                if (window.bootstrap && window.bootstrap.Modal) {
+                                    var instance = window.bootstrap.Modal.getInstance(modal) || new window.bootstrap.Modal(modal);
+                                    instance.hide();
+                                } else {
+                                    modal.classList.remove('show');
+                                    modal.style.display = 'none';
+                                    document.body.classList.remove('modal-open');
+                                    var backdrop = document.querySelector('.modal-backdrop');
+                                    if (backdrop) backdrop.remove();
+                                }
+
+                                return true;
+                            })();
+                            """.trimIndent()
+                        ) { modalWasClosed ->
+                            if (modalWasClosed != "true" && activeWebView.canGoBack()) {
+                                activeWebView.goBack()
+                            }
+                        }
                         return
                     }
                     // в киоск-режиме остаемся в приложении
