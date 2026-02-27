@@ -749,6 +749,9 @@ const CoreAPI = {
         },
         'warehouse_move_box_assign': (data) => {
             alert(data.message || 'Сохранено');
+            if (CoreAPI.warehouseMoveBox?.refreshAfterMove) {
+                CoreAPI.warehouseMoveBox.refreshAfterMove();
+            }
         },
         'tools_management_save_move': (data) => {
             alert(data.message || 'Сохранено');
@@ -1751,6 +1754,85 @@ const CoreAPI = {
             }
         }
     },
+
+    // ====================================
+    // WAREHOUSE - Move (box items preview)
+    // ====================================
+    warehouseMoveBox: {
+        root: null,
+        tbody: null,
+        total: null,
+        fromCellSelect: null,
+        initialized: false,
+        init() {
+            const root = document.getElementById('warehouse-move-box');
+            if (!root) return;
+            if (this.initialized && this.root === root) {
+                return;
+            }
+            this.root = root;
+            this.tbody = root.querySelector('#warehouse-move-box-items-tbody');
+            this.total = root.querySelector('#warehouse-move-box-total');
+            this.fromCellSelect = root.querySelector('#warehouse-move-box-from-cell');
+
+            if (!this.tbody || !this.total || !this.fromCellSelect) {
+                return;
+            }
+
+            this.bindEvents();
+            this.clearResults();
+            this.initialized = true;
+        },
+        bindEvents() {
+            this.fromCellSelect.addEventListener('change', () => {
+                const cellId = this.fromCellSelect.value || '';
+                if (!cellId) {
+                    this.clearResults();
+                    return;
+                }
+                this.fetchItems(cellId);
+            });
+        },
+        clearResults() {
+            if (this.tbody) {
+                this.tbody.innerHTML = '';
+            }
+            if (this.total) {
+                this.total.textContent = '0';
+            }
+        },
+        async fetchItems(fromCellId) {
+            const fd = new FormData();
+            fd.append('action', 'warehouse_move_box_items');
+            fd.append('from_cell_id', fromCellId);
+            try {
+                const data = await CoreAPI.client.call(fd);
+                if (!data || data.status !== 'ok') {
+                    console.error('core_api error (warehouse_move_box_items):', data);
+                    this.clearResults();
+                    return;
+                }
+                if (this.tbody) {
+                    this.tbody.innerHTML = data.html || '';
+                }
+                if (this.total) {
+                    this.total.textContent = String(data.total ?? 0);
+                }
+            } catch (err) {
+                console.error('core_api fetch error (warehouse_move_box_items):', err);
+                this.clearResults();
+            }
+        },
+        refreshAfterMove() {
+            const fromCellId = this.fromCellSelect?.value || '';
+            if (!fromCellId) {
+                this.clearResults();
+                return;
+            }
+            this.fetchItems(fromCellId);
+        }
+    },
+
     // ====================================
     // INIT - инициализация
     // ====================================
@@ -1782,6 +1864,7 @@ const CoreAPI = {
         this.warehouseInStorage.init();
         this.warehouseMove.init();
         this.warehouseMoveBatch.init();
+        this.warehouseMoveBox.init();
         console.log('CoreAPI initialized');
     }
 };

@@ -1,0 +1,24 @@
+{foreach $move_box_items as $item}
+  <tr>
+    <td>
+      <button type="button"
+              class="btn btn-link p-0 js-core-link"
+              data-core-action="open_item_stock_modal"
+              data-item-id="{$item.id}">
+        {$item.parcel_uid|default:'—'}
+      </button>
+    </td>
+    <td>{$item.cell_address|default:'—'}</td>
+    {if $current_user.role == 'ADMIN'}
+      <td>{$item.user_name|default:'—'}</td>
+    {/if}
+    <td>{$item.stored_at|default:'—'}</td>
+  </tr>
+{/foreach}
+{if !$move_box_items && $show_empty}
+  <tr>
+    <td colspan="{if $current_user.role == 'ADMIN'}4{else}3{/if}" class="text-center text-muted">
+      В выбранной ячейке нет посылок
+    </td>
+  </tr>
+{/if}

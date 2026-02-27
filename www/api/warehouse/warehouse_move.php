@@ -240,6 +240,76 @@ if ($action === 'warehouse_move_batch_search') {
     ];
 }
 
+
+
+if ($action === 'warehouse_move_box_items') {
+    auth_require_login();
+    $current = $user;
+    $userId = (int)$current['id'];
+    $isWorker = auth_has_role('WORKER');
+    $canViewAll = auth_has_permission('warehouse.stock.view_all') || auth_has_role('ADMIN') || $isWorker;
+
+    $cellId = isset($_POST['from_cell_id']) ? (int)$_POST['from_cell_id'] : 0;
+    if ($cellId <= 0) {
+        $response = [
+            'status' => 'ok',
+            'html'   => '',
+            'total'  => 0,
+        ];
+        return;
+    }
+
+    $params = [$cellId];
+    $types = 'i';
+    $userSql = '';
+    if (!$canViewAll) {
+        $userSql = 'AND wi.user_id = ?';
+        $types .= 'i';
+        $params[] = $userId;
+    }
+
+    $sql = "
+        SELECT
+            wi.id,
+            COALESCE(NULLIF(wi.tuid, ''), NULLIF(wi.tracking_no, ''), wi.uid_created) AS parcel_uid,
+            wi.created_at AS stored_at,
+            wi.user_id,
+            u.full_name AS user_name,
+            c.code AS cell_address
+        FROM warehouse_item_stock wi
+        LEFT JOIN users u ON u.id = wi.user_id
+        LEFT JOIN cells c ON c.id = wi.cell_id
+        WHERE wi.cell_id = ?
+        {$userSql}
+        ORDER BY wi.created_at DESC
+        LIMIT 200
+    ";
+
+    $items = [];
+    $stmt = $dbcnx->prepare($sql);
+    $stmt->bind_param($types, ...$params);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    while ($row = $res->fetch_assoc()) {
+        $items[] = $row;
+    }
+    $stmt->close();
+
+    $smarty->assign('move_box_items', $items);
+    $smarty->assign('current_user', $current);
+    $smarty->assign('show_empty', true);
+
+    ob_start();
+    $smarty->display('cells_NA_API_warehouse_move_box_rows.html');
+    $html = ob_get_clean();
+
+    $response = [
+        'status' => 'ok',
+        'html'   => $html,
+        'total'  => count($items),
+    ];
+}
+
 if ($action === 'warehouse_move_open_modal') {
     auth_require_login();
     $current = $user;

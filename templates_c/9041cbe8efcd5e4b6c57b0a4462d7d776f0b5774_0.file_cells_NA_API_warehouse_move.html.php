@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-02-27 11:58:11
+/* Smarty version 5.3.1, created on 2026-02-27 12:21:17
   from 'file:cells_NA_API_warehouse_move.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_69a186d3344be7_06021042',
+  'unifunc' => 'content_69a18c3dc0f484_88911409',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '9041cbe8efcd5e4b6c57b0a4462d7d776f0b5774' => 
     array (
       0 => 'cells_NA_API_warehouse_move.html',
-      1 => 1772193129,
+      1 => 1772194707,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_69a186d3344be7_06021042 (\Smarty\Template $_smarty_tpl) {
+function content_69a18c3dc0f484_88911409 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>    <div class="pagetitle">
       <h1>Warehouse Move</h1>
@@ -194,6 +194,26 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
                         Подтвердить
                       </button>
                     </div>
+                  </div>
+
+                  <p class="small text-muted mb-2 mt-3">
+                    В исходной ячейке: <span id="warehouse-move-box-total">0</span>
+                  </p>
+
+                  <div class="table-responsive">
+                    <table class="table table-sm align-middle users-table">
+                      <thead>
+                        <tr>
+                          <th scope="col">Посылка</th>
+                          <th scope="col">Ячейка</th>
+                          <?php if ($_smarty_tpl->getValue('current_user')['role'] == 'ADMIN') {?>
+                            <th scope="col">Пользователь</th>
+                          <?php }?>
+                          <th scope="col">Размещена</th>
+                        </tr>
+                      </thead>
+                      <tbody id="warehouse-move-box-items-tbody"></tbody>
+                    </table>
                   </div>
                 </div>
               </div>

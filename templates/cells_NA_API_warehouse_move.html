@@ -144,6 +144,26 @@
                       </button>
                     </div>
                   </div>
+
+                  <p class="small text-muted mb-2 mt-3">
+                    В исходной ячейке: <span id="warehouse-move-box-total">0</span>
+                  </p>
+
+                  <div class="table-responsive">
+                    <table class="table table-sm align-middle users-table">
+                      <thead>
+                        <tr>
+                          <th scope="col">Посылка</th>
+                          <th scope="col">Ячейка</th>
+                          {if $current_user.role == 'ADMIN'}
+                            <th scope="col">Пользователь</th>
+                          {/if}
+                          <th scope="col">Размещена</th>
+                        </tr>
+                      </thead>
+                      <tbody id="warehouse-move-box-items-tbody"></tbody>
+                    </table>
+                  </div>
                 </div>
               </div>
             </div>
