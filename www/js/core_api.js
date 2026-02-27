@@ -2676,6 +2676,37 @@ async function clearItemInDraftForm() {
     setItemInDraftControlsEnabled(false);
 }
 
+
+function isItemInDraftFormDirty() {
+    var form = document.getElementById('item-in-modal-form');
+    if (!form) return false;
+
+    var controls = form.querySelectorAll('input[type="text"], input[type="number"], select, textarea');
+    for (var i = 0; i < controls.length; i += 1) {
+        var el = controls[i];
+        if (el.disabled) continue;
+        if (el.tagName === 'SELECT') {
+            if (el.value) return true;
+            continue;
+        }
+        if ((el.value || '').trim() !== '') return true;
+    }
+    return false;
+}
+
+async function clearItemInDraftBeforeModalClose() {
+    var form = document.getElementById('item-in-modal-form');
+    if (!form) return;
+    if (form.__itemInDraftClosingInProgress) return;
+    form.__itemInDraftClosingInProgress = true;
+    try {
+        await clearItemInDraftForm();
+    } finally {
+        form.__itemInDraftClosingInProgress = false;
+    }
+}
+
+
 function initItemInDraftControls() {
     var form = document.getElementById('item-in-modal-form');
     if (!form || form.__itemInDraftBound) return;
@@ -2687,6 +2718,30 @@ function initItemInDraftControls() {
     if (clearBtn) {
         clearBtn.addEventListener('click', function () {
             clearItemInDraftForm();
+        });
+    }
+
+    var modalEl = document.getElementById('fullscreenModal');
+    if (modalEl) {
+        modalEl.addEventListener('hide.bs.modal', function (event) {
+            if (!document.getElementById('item-in-modal-form')) return;
+            if (modalEl.dataset.itemInDraftAllowClose === '1') {
+                delete modalEl.dataset.itemInDraftAllowClose;
+                return;
+            }
+            if (!isItemInDraftFormDirty() && !(document.getElementById('itemInDraftId')?.value)) {
+                modalEl.dataset.itemInDraftAllowClose = '1';
+                return;
+            }
+
+            event.preventDefault();
+            clearItemInDraftBeforeModalClose().finally(function () {
+                modalEl.dataset.itemInDraftAllowClose = '1';
+                if (window.bootstrap?.Modal) {
+                    var modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+                    modal.hide();
+                }
+            });
         });
     }
 }

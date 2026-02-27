@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-02-27 17:05:36
+/* Smarty version 5.3.1, created on 2026-02-27 17:20:12
   from 'file:cells_NA_API_warehouse_item_in_batch.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_69a1cee0d207d1_97819024',
+  'unifunc' => 'content_69a1d24cce80d4_15732385',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '7e8c2c62a4cb34a58255b0e76fcea2eec9328b7b' => 
     array (
       0 => 'cells_NA_API_warehouse_item_in_batch.html',
-      1 => 1772211874,
+      1 => 1772212738,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_69a1cee0d207d1_97819024 (\Smarty\Template $_smarty_tpl) {
+function content_69a1d24cce80d4_15732385 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>
 
@@ -203,14 +203,12 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
     <div class="form-text" id="warehouseStockBoxPhotoInfo"></div>
   </div>
 
-  <div class="col-12">
+  <div class="col-12 d-flex justify-content-between align-items-center">
     <button type="button" class="btn btn-outline-danger" id="itemInClearBtn">
       Очистить
     </button>
-
-  <div class="col-12">
     <button type="button"
-            class="btn btn-primary js-core-link"
+            class="btn btn-primary js-core-link ms-auto"
             data-core-action="add_new_item_in">
       Добавить посылку
     </button>
