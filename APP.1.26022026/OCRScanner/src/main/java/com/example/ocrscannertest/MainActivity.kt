@@ -2,10 +2,6 @@
 
 package com.example.ocrscannertest
 import android.content.Context
-import java.io.File
-import androidx.core.content.FileProvider
-import android.provider.MediaStore
-import android.content.Intent
 import android.os.Build
 import android.widget.Toast
 import kotlinx.coroutines.Dispatchers
@@ -61,9 +57,6 @@ import javax.net.ssl.SSLSession
 import android.view.ViewGroup
 import android.webkit.WebView
 import android.webkit.WebViewClient
-import android.app.Activity
-import android.webkit.ValueCallback
-import android.webkit.WebChromeClient
 import android.webkit.SslErrorHandler
 import android.webkit.WebSettings
 import android.webkit.WebStorage
@@ -2838,24 +2831,6 @@ fun parseOcrTemplates(json: String): OcrTemplates? = try {
 }
 
 
-private fun createCameraCaptureIntent(context: Context): Pair<Intent, Uri>? {
-    return try {
-        val imagesDir = File(context.cacheDir, "webview_captures").apply { mkdirs() }
-        val imageFile = File.createTempFile("capture_", ".jpg", imagesDir)
-        val authority = "${context.packageName}.fileprovider"
-        val uri = FileProvider.getUriForFile(context, authority, imageFile)
-
-        val intent = Intent(MediaStore.ACTION_IMAGE_CAPTURE).apply {
-            putExtra(MediaStore.EXTRA_OUTPUT, uri)
-            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            addFlags(Intent.FLAG_GRANT_WRITE_URI_PERMISSION)
-        }
-        Pair(intent, uri)
-    } catch (_: Exception) {
-        null
-    }
-}
-
 private fun clearWebViewDataOnStart(context: Context) {
     val webView = WebView(context)
     try {
@@ -2890,31 +2865,6 @@ fun DeviceWebViewScreen(
     onContextUpdated: (taskJson: String?, tmplJson: String?, destJson: String?, dictJson: String?) -> Unit
 
 ) {
-    var filePathCallback by remember { mutableStateOf<ValueCallback<Array<Uri>>?>(null) }
-    var pendingCaptureUri by remember { mutableStateOf<Uri?>(null) }
-    val fileChooserLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.StartActivityForResult()
-    ) { result ->
-        val callback = filePathCallback
-        val captureUri = pendingCaptureUri
-        filePathCallback = null
-        pendingCaptureUri = null
-        if (callback == null) return@rememberLauncherForActivityResult
-
-        val uris = if (result.resultCode == Activity.RESULT_OK) {
-            val parsed = WebChromeClient.FileChooserParams.parseResult(result.resultCode, result.data)
-            when {
-                parsed != null && parsed.isNotEmpty() -> parsed
-                captureUri != null -> arrayOf(captureUri)
-                else -> emptyArray()
-            }
-        } else {
-            emptyArray()
-        }
-        callback.onReceiveValue(uris)
-    }
-
-
     AndroidView(
         modifier = modifier.fillMaxSize(),
         factory = { ctx ->
@@ -2979,56 +2929,6 @@ fun DeviceWebViewScreen(
                     } catch (_: Exception) {
                     }
                 }
-
-                webChromeClient = object : WebChromeClient() {
-                    override fun onShowFileChooser(
-                        webView: WebView?,
-                        chooserCallback: ValueCallback<Array<Uri>>?,
-                        fileChooserParams: FileChooserParams?
-                    ): Boolean {
-                        filePathCallback?.onReceiveValue(null)
-                        filePathCallback = chooserCallback
-
-                        if (chooserCallback == null) return false
-
-                        val captureEnabled = fileChooserParams?.isCaptureEnabled == true
-                        val acceptsImage = fileChooserParams
-                            ?.acceptTypes
-                            ?.any { it?.contains("image", ignoreCase = true) == true } == true
-
-                        val intentToLaunch = if (captureEnabled && acceptsImage) {
-                            createCameraCaptureIntent(context)?.also { (intent, uri) ->
-                                pendingCaptureUri = uri
-                            }?.first
-                        } else {
-                            pendingCaptureUri = null
-                            try {
-                                fileChooserParams?.createIntent()
-                            } catch (_: Exception) {
-                                null
-                            }
-                        }
-
-                        if (intentToLaunch == null) {
-                            filePathCallback = null
-                            pendingCaptureUri = null
-                            chooserCallback.onReceiveValue(null)
-                            return false
-                        }
-
-                        return try {
-                            fileChooserLauncher.launch(intentToLaunch)
-                            true
-                        } catch (_: Exception) {
-                            filePathCallback = null
-                            pendingCaptureUri = null
-                            chooserCallback.onReceiveValue(null)
-                            false
-                        }
-                    }
-                }
-
-
                 webViewClient = object : WebViewClient() {
 
                     private var firstPageLoaded = false

@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-02-26 13:02:07
+/* Smarty version 5.3.1, created on 2026-02-26 14:10:37
   from 'file:cells_NA_API_warehouse_item_stock_modal.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_69a0444fbe7523_22760581',
+  'unifunc' => 'content_69a0545d8976d5_64227539',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '76c261023c84dc78e924fef3e9010fc442e0a73f' => 
     array (
       0 => 'cells_NA_API_warehouse_item_stock_modal.html',
-      1 => 1772109843,
+      1 => 1772115031,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_69a0444fbe7523_22760581 (\Smarty\Template $_smarty_tpl) {
+function content_69a0545d8976d5_64227539 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?><form id="item-stock-modal-form" class="row g-3">
   <input type="hidden" name="item_id" value="<?php echo $_smarty_tpl->getValue('item')['id'];?>
@@ -141,7 +141,7 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
 
   <div class="col-md-6">
     <label class="form-label d-block">Фото Лейб</label>
-    <button type="button" class="btn btn-outline-secondary" id="warehouseStockTakeLabelPhotoBtn" data-photo-type="label">
+    <button type="button" class="btn btn-outline-secondary js-core-link" id="warehouseStockTakeLabelPhotoBtn" data-photo-type="label" data-core-action="upload_item_stock_photo">
       Фото Лейб
     </button>
     <input type="file" accept="image/*" capture="environment" class="d-none" id="warehouseStockLabelPhotoInput" data-photo-type="label">
@@ -152,7 +152,7 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
 
   <div class="col-md-6">
     <label class="form-label d-block">Фото содерж</label>
-    <button type="button" class="btn btn-outline-secondary" id="warehouseStockTakeBoxPhotoBtn" data-photo-type="box">
+    <button type="button" class="btn btn-outline-secondary js-core-link" id="warehouseStockTakeBoxPhotoBtn" data-photo-type="box" data-core-action="upload_item_stock_photo">
       Фото содерж
     </button>
     <input type="file" accept="image/*" capture="environment" class="d-none" id="warehouseStockBoxPhotoInput" data-photo-type="box">
