@@ -2222,7 +2222,7 @@ function openWarehousePhotoPreview(photoPath) {
         '<div class="bar"><button class="close" type="button" aria-label="Закрыть" title="Закрыть">&times;</button></div>' +
         '<div class="wrap"><img src="' + escapedPath + '" alt="Фото"></div>' +
         '<script>' +
-        'function closePreview(){if(window.opener&&!window.opener.closed){window.opener.focus();}window.close();}' +
+        'function closePreview(){if(window.opener&&!window.opener.closed){window.opener.focus();}window.close();setTimeout(function(){if(!window.closed){if(window.history&&window.history.length>1){window.history.back();}else{window.location.href="about:blank";}}},60);}' +
         'document.querySelector(".close").addEventListener("click",closePreview);' +
         'document.addEventListener("keydown",function(e){if(e.key==="Escape"){closePreview();}});' +
         '<\/script></body></html>'
@@ -2272,7 +2272,6 @@ function renderWarehousePhotoPreviewButtons(photoType, paths) {
 
     info.appendChild(holder);
 }
-
 
 function setWarehouseItemStockPhotoState(photoType, path, jsonValue) {
     var isLabel = photoType === 'label';
