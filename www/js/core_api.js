@@ -2773,13 +2773,19 @@ function initItemInDraftControls() {
             }
 
             event.preventDefault();
-            clearItemInDraftBeforeModalClose().finally(function () {
+            var closeTriggered = false;
+            var finalizeClose = function () {
+                if (closeTriggered) return;
+                closeTriggered = true;
                 modalEl.dataset.itemInDraftAllowClose = '1';
                 if (window.bootstrap?.Modal) {
                     var modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
                     modal.hide();
                 }
-            });
+            };
+
+            clearItemInDraftBeforeModalClose().finally(finalizeClose);
+            setTimeout(finalizeClose, 1500);
         });
     }
 }
