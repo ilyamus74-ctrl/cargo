@@ -2677,6 +2677,7 @@ async function clearItemInDraftForm() {
 }
 
 
+
 function isItemInDraftFormDirty() {
     var form = document.getElementById('item-in-modal-form');
     if (!form) return false;
@@ -2706,6 +2707,35 @@ async function clearItemInDraftBeforeModalClose() {
     }
 }
 
+function hasManualMeasurementValues() {
+    var ids = ['weightKg', 'sizeL', 'sizeW', 'sizeH'];
+    for (var i = 0; i < ids.length; i += 1) {
+        var el = document.getElementById(ids[i]);
+        if (!el || el.disabled) continue;
+        if ((el.value || '').trim() !== '') {
+            return true;
+        }
+    }
+    return false;
+}
+
+function triggerDraftCreationByManualMeasurements() {
+    var form = document.getElementById('item-in-modal-form');
+    if (!form) return;
+    if (!hasManualMeasurementValues()) return;
+    if (document.getElementById('itemInDraftId')?.value) {
+        setItemInDraftControlsEnabled(true);
+        return;
+    }
+    if (form.__manualMeasurementDraftPending) return;
+
+    form.__manualMeasurementDraftPending = true;
+    ensureItemInDraftCreated().catch(function (e) {
+        console.warn('Не удалось создать черновик по ручным измерениям', e);
+    }).finally(function () {
+        form.__manualMeasurementDraftPending = false;
+    });
+}
 
 function initItemInDraftControls() {
     var form = document.getElementById('item-in-modal-form');
@@ -2720,6 +2750,14 @@ function initItemInDraftControls() {
             clearItemInDraftForm();
         });
     }
+
+    ['weightKg', 'sizeL', 'sizeW', 'sizeH'].forEach(function (id) {
+        var field = document.getElementById(id);
+        if (!field) return;
+        field.addEventListener('input', triggerDraftCreationByManualMeasurements);
+        field.addEventListener('change', triggerDraftCreationByManualMeasurements);
+    });
+    triggerDraftCreationByManualMeasurements();
 
     var modalEl = document.getElementById('fullscreenModal');
     if (modalEl) {

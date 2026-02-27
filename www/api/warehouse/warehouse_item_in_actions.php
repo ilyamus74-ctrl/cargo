@@ -135,6 +135,53 @@ function warehouse_item_in_ensure_photo_dir(string $absDir): bool
     return @mkdir($absDir, 0775, true);
 }
 
+
+function warehouse_item_in_move_images_to_stock_dir(?string $raw): ?string
+{
+    $paths = warehouse_item_in_decode_image_paths($raw);
+    if (empty($paths)) {
+        return null;
+    }
+
+    $docRoot = rtrim((string)($_SERVER['DOCUMENT_ROOT'] ?? ''), '/');
+    $result = [];
+    foreach ($paths as $path) {
+        if (!is_string($path) || $path === '') {
+            continue;
+        }
+
+        if (strpos($path, '/img/warehouse_item_in/') !== 0 || $docRoot === '') {
+            $result[] = $path;
+            continue;
+        }
+
+        $targetPath = '/img/warehouse_item_stock/' . ltrim(substr($path, strlen('/img/warehouse_item_in/')), '/');
+        $sourceAbs = $docRoot . $path;
+        $targetAbs = $docRoot . $targetPath;
+        $targetDir = dirname($targetAbs);
+
+        if (!warehouse_item_in_ensure_photo_dir($targetDir)) {
+            $result[] = $path;
+            continue;
+        }
+
+        $moved = false;
+        if (is_file($sourceAbs)) {
+            if (@rename($sourceAbs, $targetAbs)) {
+                $moved = true;
+            } elseif (@copy($sourceAbs, $targetAbs)) {
+                @unlink($sourceAbs);
+                $moved = true;
+            }
+        }
+
+        $result[] = $moved ? $targetPath : $path;
+    }
+
+    return warehouse_item_in_normalize_image_json(json_encode($result, JSON_UNESCAPED_UNICODE) ?: '');
+}
+
+
 function warehouse_item_in_find_or_create_draft(mysqli $dbcnx, int $batchUid, int $ownerUserId, int $deviceId, array $fields): int
 {
     $tuid = trim((string)($fields['tuid'] ?? ''));
@@ -480,6 +527,8 @@ switch ($action) {
         $addonsJson = $addonsJsonRaw !== '' ? $addonsJsonRaw : null;
         $labelImage = $labelImage !== '' ? $labelImage : null;
         $boxImage   = $boxImage !== '' ? $boxImage : null;
+        $labelImage = warehouse_item_in_move_images_to_stock_dir($labelImage);
+        $boxImage   = warehouse_item_in_move_images_to_stock_dir($boxImage);
         if ($tuid === '' || $tracking === '') {
             $response = [
                 'status'  => 'error',
