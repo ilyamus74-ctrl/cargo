@@ -2318,6 +2318,32 @@ function parseWarehousePhotoJson(jsonValue, fallbackPath) {
     return fallbackPath ? [fallbackPath] : [];
 }
 
+function deleteWarehouseItemStockPhoto(photoType) {
+    var itemId = document.querySelector('#item-stock-modal-form input[name="item_id"]')?.value || '';
+    if (!itemId || !photoType) {
+        alert('Не удалось удалить фото');
+        return;
+    }
+
+    var fd = new FormData();
+    fd.append('action', 'delete_item_stock_photo');
+    fd.append('item_id', itemId);
+    fd.append('photo_type', photoType);
+
+    CoreAPI.client.call(fd)
+        .then(function (data) {
+            if (!data || data.status !== 'ok') {
+                alert(data?.message || 'Ошибка удаления фото');
+                return;
+            }
+            setWarehouseItemStockPhotoState(photoType, '', data.json || '');
+        })
+        .catch(function (err) {
+            console.error('core_api delete_item_stock_photo error:', err);
+            alert('Ошибка связи с сервером');
+        });
+}
+
 function renderWarehousePhotoPreviewButtons(photoType, paths) {
     var isLabel = photoType === 'label';
     var info = document.getElementById(isLabel ? 'warehouseStockLabelPhotoInfo' : 'warehouseStockBoxPhotoInfo');
@@ -2327,7 +2353,7 @@ function renderWarehousePhotoPreviewButtons(photoType, paths) {
     if (!Array.isArray(paths) || paths.length === 0) return;
 
     var holder = document.createElement('div');
-    holder.className = 'd-flex flex-wrap gap-2';
+    holder.className = 'd-flex flex-wrap gap-2 align-items-center';
 
     paths.forEach(function (path, index) {
         var button = document.createElement('button');
@@ -2339,6 +2365,15 @@ function renderWarehousePhotoPreviewButtons(photoType, paths) {
         });
         holder.appendChild(button);
     });
+
+    var deleteButton = document.createElement('button');
+    deleteButton.type = 'button';
+    deleteButton.className = 'btn btn-sm btn-outline-danger';
+    deleteButton.textContent = 'Удалить фото';
+    deleteButton.addEventListener('click', function () {
+        deleteWarehouseItemStockPhoto(photoType);
+    });
+    holder.appendChild(deleteButton);
 
     info.appendChild(holder);
 }

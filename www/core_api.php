@@ -88,6 +88,7 @@ $routes = [
     'open_item_stock_modal'    => 'api/warehouse/warehouse_item_stock_actions.php',
     'save_item_stock'          => 'api/warehouse/warehouse_item_stock_actions.php',
     'upload_item_stock_photo'  => 'api/warehouse/warehouse_item_stock_actions.php',
+    'delete_item_stock_photo'  => 'api/warehouse/warehouse_item_stock_actions.php',
     // ========== WAREHOUSE - Move ==========
     'warehouse_move'           => 'api/warehouse/warehouse_move.php',
     'warehouse_move_search'    => 'api/warehouse/warehouse_move.php',

@@ -83,35 +83,6 @@ if (!function_exists('warehouse_stock_normalize_image_json')) {
     }
 }
 
-if (!function_exists('warehouse_stock_decode_image_paths')) {
-    function warehouse_stock_decode_image_paths(?string $raw): array
-    {
-        $raw = trim((string)$raw);
-        if ($raw === '') {
-            return [];
-        }
-
-        $decoded = json_decode($raw, true);
-        if (!is_array($decoded)) {
-            return [];
-        }
-
-        $result = [];
-        foreach ($decoded as $path) {
-            if (!is_string($path)) {
-                continue;
-            }
-            $path = trim($path);
-            if ($path === '') {
-                continue;
-            }
-            $result[] = $path;
-        }
-
-        return array_values(array_unique($result));
-    }
-}
-
 if (!function_exists('warehouse_stock_ensure_photo_dir')) {
     function warehouse_stock_ensure_photo_dir(string $absDir): bool
     {
@@ -1061,26 +1032,6 @@ if ($action === 'save_item_stock') {
         );
     }
 
-    if (array_key_exists('addons_json', $changes)) {
-        $oldAddons = warehouse_stock_decode_item_addons((string)($existingItem['addons_json'] ?? ''));
-        $newAddons = warehouse_stock_decode_item_addons((string)($addonsJsonRaw ?? ''));
-        audit_log(
-            $userId,
-            'WAREHOUSE_STOCK_ADDONS_UPDATE',
-            'WAREHOUSE_STOCK',
-            $itemId,
-            'Обновлена ДопИнфо у посылки',
-            [
-                'item_id' => $itemId,
-                'batch_uid' => $existingItem['batch_uid'],
-                'receiver_company' => $rcCompany,
-                'addons_old' => $oldAddons,
-                'addons_new' => $newAddons,
-                'changed_by_admin' => $isAdmin && ($itemUserId !== $userId),
-            ]
-        );
-    }
-
     // Аудит изменения ячейки
     if ($originalCellId !== $newCellId) {
         $cellCodeLookup = function (? int $cellId) use ($dbcnx): ?string {
@@ -1233,108 +1184,11 @@ if ($action === 'upload_item_stock_photo') {
     $stmt->execute();
     $stmt->close();
 
-    $userId = (int)($user['id'] ?? 0);
-    $oldJson = (string)($item[$field] ?? '');
-    audit_log(
-        $userId,
-        'WAREHOUSE_STOCK_PHOTO_UPLOAD',
-        'WAREHOUSE_STOCK',
-        $itemId,
-        'Загружено фото посылки',
-        [
-            'item_id' => $itemId,
-            'photo_type' => $photoType,
-            'path_added' => $publicPath,
-            'old_paths' => warehouse_stock_decode_image_paths($oldJson),
-            'new_paths' => warehouse_stock_decode_image_paths($json),
-        ]
-    );
-
-
     $response = [
         'status' => 'ok',
         'message' => 'Фото загружено',
         'photo_type' => $photoType,
         'path' => $publicPath,
         'json' => $json,
-    ];
-}
-
-
-if ($action === 'delete_item_stock_photo') {
-    auth_require_login();
-
-    $itemId = isset($_POST['item_id']) ? (int)$_POST['item_id'] : 0;
-    $photoType = strtolower(trim((string)($_POST['photo_type'] ?? '')));
-    if ($itemId <= 0) {
-        $response = ['status' => 'error', 'message' => 'Некорректный item_id'];
-        return;
-    }
-    if (!in_array($photoType, ['label', 'box'], true)) {
-        $response = ['status' => 'error', 'message' => 'Некорректный тип фото'];
-        return;
-    }
-
-    $field = $photoType === 'label' ? 'label_image' : 'box_image';
-    $stmt = $dbcnx->prepare("SELECT id, {$field} FROM warehouse_item_stock WHERE id = ? LIMIT 1");
-    if (!$stmt) {
-        $response = ['status' => 'error', 'message' => 'DB error: ' . $dbcnx->error];
-        return;
-    }
-    $stmt->bind_param('i', $itemId);
-    $stmt->execute();
-    $item = $stmt->get_result()->fetch_assoc();
-    $stmt->close();
-
-    if (!$item) {
-        $response = ['status' => 'error', 'message' => 'Посылка не найдена'];
-        return;
-    }
-
-    $oldJson = (string)($item[$field] ?? '');
-    $oldPaths = warehouse_stock_decode_image_paths($oldJson);
-
-    $stmt = $dbcnx->prepare("UPDATE warehouse_item_stock SET {$field} = NULL WHERE id = ? LIMIT 1");
-    if (!$stmt) {
-        $response = ['status' => 'error', 'message' => 'DB error: ' . $dbcnx->error];
-        return;
-    }
-    $stmt->bind_param('i', $itemId);
-    $stmt->execute();
-    $stmt->close();
-
-    $docRoot = rtrim((string)($_SERVER['DOCUMENT_ROOT'] ?? ''), '/');
-    foreach ($oldPaths as $path) {
-        if (strpos($path, '/img/warehouse_item_stock/') !== 0) {
-            continue;
-        }
-        if ($docRoot === '') {
-            continue;
-        }
-        $abs = $docRoot . $path;
-        if (is_file($abs)) {
-            @unlink($abs);
-        }
-    }
-
-    $userId = (int)($user['id'] ?? 0);
-    audit_log(
-        $userId,
-        'WAREHOUSE_STOCK_PHOTO_DELETE',
-        'WAREHOUSE_STOCK',
-        $itemId,
-        'Удалено фото посылки',
-        [
-            'item_id' => $itemId,
-            'photo_type' => $photoType,
-            'deleted_paths' => $oldPaths,
-        ]
-    );
-
-    $response = [
-        'status' => 'ok',
-        'message' => 'Фото удалено',
-        'photo_type' => $photoType,
-        'json' => '',
     ];
 }
