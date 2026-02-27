@@ -553,6 +553,101 @@ if ($action === 'warehouse_move_batch_assign') {
 }
 
 
+if ($action === 'warehouse_move_box_assign') {
+    auth_require_login();
+    $current = $user;
+    $userId = (int)$current['id'];
+    $isAdmin = auth_has_role('ADMIN');
+    $isWorker = auth_has_role('WORKER');
+    $canManageStock = auth_has_permission('warehouse.stock.manage') || $isWorker;
+
+    if (!$isAdmin && !$isWorker && !$canManageStock) {
+        $response = [
+            'status'  => 'error',
+            'message' => 'Недостаточно прав для массового перемещения',
+        ];
+        return;
+    }
+
+    $fromCellId = isset($_POST['from_cell_id']) ? (int)$_POST['from_cell_id'] : 0;
+    $toCellId = isset($_POST['to_cell_id']) ? (int)$_POST['to_cell_id'] : 0;
+
+    if ($fromCellId <= 0 || $toCellId <= 0) {
+        $response = [
+            'status'  => 'error',
+            'message' => 'Выберите исходную и целевую ячейку',
+        ];
+        return;
+    }
+
+    if ($fromCellId === $toCellId) {
+        $response = [
+            'status'  => 'error',
+            'message' => 'Исходная и целевая ячейки должны отличаться',
+        ];
+        return;
+    }
+
+    $updateSql = "
+        UPDATE warehouse_item_stock
+           SET cell_id = ?
+         WHERE cell_id = ?
+    ";
+    $stmt = $dbcnx->prepare($updateSql);
+    if (!$stmt) {
+        $response = [
+            'status'  => 'error',
+            'message' => 'DB error: ' . $dbcnx->error,
+        ];
+        return;
+    }
+
+    $stmt->bind_param('ii', $toCellId, $fromCellId);
+    $stmt->execute();
+    $affectedRows = (int)$stmt->affected_rows;
+    $stmt->close();
+
+    $cellCodeLookup = function (int $cellId) use ($dbcnx): ?string {
+        $stmt = $dbcnx->prepare("SELECT code FROM cells WHERE id = ? LIMIT 1");
+        if (!$stmt) {
+            return null;
+        }
+        $stmt->bind_param('i', $cellId);
+        $stmt->execute();
+        $row = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        return $row ? (string)$row['code'] : null;
+    };
+
+    $fromCellCode = $cellCodeLookup($fromCellId);
+    $toCellCode = $cellCodeLookup($toCellId);
+
+    audit_log(
+        $userId,
+        'WAREHOUSE_STOCK_CELL_BULK_MOVE',
+        'WAREHOUSE_STOCK',
+        0,
+        'Массовое перемещение посылок между ячейками',
+        [
+            'from_cell_id' => $fromCellId,
+            'to_cell_id' => $toCellId,
+            'from_cell_code' => $fromCellCode,
+            'to_cell_code' => $toCellCode,
+            'affected_rows' => $affectedRows,
+        ]
+    );
+
+    $response = [
+        'status'  => 'ok',
+        'message' => $affectedRows > 0
+            ? 'Перемещено посылок: ' . $affectedRows
+            : 'В выбранной ячейке нет посылок для перемещения',
+        'moved' => $affectedRows,
+    ];
+}
+
+
+
 if ($action === 'warehouse_move_save_cell') {
     auth_require_login();
     $current = $user;

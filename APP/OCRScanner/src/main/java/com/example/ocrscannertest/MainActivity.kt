@@ -842,6 +842,10 @@ fun AppRoot() {
                 confirmWarehouseMoveBatchInWebView(webView)
                 true
             }
+            "confirmBoxMove" -> {
+                clickElementBySelector(webView, "#warehouse-move-box .js-core-link[data-core-action=\"warehouse_move_box_assign\"]")
+                true
+            }
             "clearToolsStorageMoveSearch" -> {
                 setInputValueBySelector(webView, "#tools-storage-move-search", "")
                 true
@@ -3507,16 +3511,12 @@ fun confirmWarehouseMoveBatchInWebView(webView: WebView) {
             if (!cellSelect || !cellSelect.value) return false;
             var tbody = document.getElementById('warehouse-move-batch-results-tbody');
             if (!tbody) return false;
-            var totalEl = document.getElementById('warehouse-move-batch-total');
-            var total = Number((totalEl && totalEl.textContent || '').trim() || 0);
-            if (total !== 1) return false;
-            var row = tbody.querySelector('tr');
-            if (!row) return false;
-            var button = row.querySelector('.js-warehouse-move-batch-action');
-            var itemLink = row.querySelector('[data-item-id]');
-            var itemId = (button && button.getAttribute('data-item-id')) || (itemLink && itemLink.getAttribute('data-item-id'));
+            var buttons = tbody.querySelectorAll('.js-warehouse-move-batch-action[data-core-action="warehouse_move_batch_assign"]');
+            if (!buttons || buttons.length !== 1) return false;
+            var button = buttons[0];
+            var itemId = button.getAttribute('data-item-id');
             if (!itemId) return false;
-            if (button && button instanceof HTMLButtonElement && button.disabled) return false;
+            if (button instanceof HTMLButtonElement && button.disabled) return false;
             var formData = new FormData();
             formData.append('action', 'warehouse_move_batch_assign');
             formData.append('item_id', itemId);
@@ -3536,7 +3536,7 @@ fun confirmWarehouseMoveBatchInWebView(webView: WebView) {
                 });
               return true;
             }
-            if (button && typeof button.click === 'function') {
+            if (typeof button.click === 'function') {
               button.click();
               return true;
             }

@@ -129,6 +129,14 @@ const CoreAPI = {
                     }
                     return fd;
                 },
+                'warehouse_move_box_assign': () => {
+                    const fd = new FormData();
+                    const fromCellSelect = document.getElementById('warehouse-move-box-from-cell');
+                    const toCellSelect = document.getElementById('warehouse-move-box-to-cell');
+                    if (fromCellSelect) fd.append('from_cell_id', fromCellSelect.value || '');
+                    if (toCellSelect) fd.append('to_cell_id', toCellSelect.value || '');
+                    return fd;
+                },
                 'tools_management_save_move': () => this.getFormById('tool-storage-move-form')
             };
             const fd = builders[action] ? builders[action](link) : new FormData();
@@ -739,6 +747,9 @@ const CoreAPI = {
                 CoreAPI.warehouseMoveBatch.clearAfterMove();
             }
         },
+        'warehouse_move_box_assign': (data) => {
+            alert(data.message || 'Сохранено');
+        },
         'tools_management_save_move': (data) => {
             alert(data.message || 'Сохранено');
             CoreAPI.ui.onModalCloseOnce(() => {
@@ -817,6 +828,29 @@ const CoreAPI = {
                 if (!cellSelect || !cellSelect.value) {
                     alert('Выберите ячейку склада');
                     cellSelect?.focus();
+                    return;
+                }
+            }
+
+            if (action === 'warehouse_move_box_assign') {
+                const fromCellSelect = document.getElementById('warehouse-move-box-from-cell');
+                const toCellSelect = document.getElementById('warehouse-move-box-to-cell');
+                if (!fromCellSelect || !fromCellSelect.value) {
+                    alert('Выберите исходную ячейку');
+                    fromCellSelect?.focus();
+                    return;
+                }
+                if (!toCellSelect || !toCellSelect.value) {
+                    alert('Выберите целевую ячейку');
+                    toCellSelect?.focus();
+                    return;
+                }
+                if (fromCellSelect.value === toCellSelect.value) {
+                    alert('Исходная и целевая ячейки должны отличаться');
+                    toCellSelect?.focus();
+                    return;
+                }
+                if (!confirm('Переместить все посылки из выбранной ячейки в целевую?')) {
                     return;
                 }
             }
@@ -2557,6 +2591,20 @@ window.reloadWarehouseItemIn = () => CoreAPI.ui.reloadList('warehouse_item_in');
       return false;
     }
   };
+
+
+  window.confirmBoxMove = function () {
+    try {
+      const btn = document.querySelector('#warehouse-move-box .js-core-link[data-core-action="warehouse_move_box_assign"]');
+      if (!btn) return false;
+      btn.click();
+      return true;
+    } catch (e) {
+      console.error('confirmBoxMove error:', e);
+      return false;
+    }
+  };
+
 
   window.setCellFromQR = function (qrValue) {
     // если у тебя есть “умная” версия в pageInit — отлично,

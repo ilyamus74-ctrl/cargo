@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-01-31 11:13:24
+/* Smarty version 5.3.1, created on 2026-02-27 11:58:11
   from 'file:cells_NA_API_warehouse_move.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_697de3d45b05d3_26876205',
+  'unifunc' => 'content_69a186d3344be7_06021042',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '9041cbe8efcd5e4b6c57b0a4462d7d776f0b5774' => 
     array (
       0 => 'cells_NA_API_warehouse_move.html',
-      1 => 1769857820,
+      1 => 1772193129,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_697de3d45b05d3_26876205 (\Smarty\Template $_smarty_tpl) {
+function content_69a186d3344be7_06021042 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>    <div class="pagetitle">
       <h1>Warehouse Move</h1>
@@ -50,6 +50,11 @@ $_smarty_current_dir = '/home/cells/web/templates';
                 <li class="nav-item flex-fill" role="presentation">
                   <button class="nav-link w-100" id="warehouse-move-batch-tab" data-bs-toggle="tab" data-bs-target="#warehouse-move-batch" type="button" role="tab" aria-controls="warehouse-move-batch" aria-selected="false" tabindex="-1">
                     Пакетное перемещение
+                  </button>
+                </li>
+                <li class="nav-item flex-fill" role="presentation">
+                  <button class="nav-link w-100" id="warehouse-move-box-tab" data-bs-toggle="tab" data-bs-target="#warehouse-move-box" type="button" role="tab" aria-controls="warehouse-move-box" aria-selected="false" tabindex="-1">
+                    Box перемещение
                   </button>
                 </li>
               </ul>
@@ -142,6 +147,55 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
                     </table>
                   </div>
                 </div>
+
+                <div class="tab-pane fade" id="warehouse-move-box" role="tabpanel" aria-labelledby="warehouse-move-box-tab">
+                  <p class="text-muted mb-1">Выберите исходную и целевую ячейку для массового переноса.</p>
+                  <small class="text-muted">Цель: переписать <code>warehouse_item_stock.cell_id</code> у всех посылок из выбранной ячейки.</small>
+
+                  <div class="row g-2 align-items-end mt-3">
+                    <div class="col-12 col-md-5">
+                      <label class="form-label small mb-1" for="warehouse-move-box-from-cell">Из ячейки</label>
+                      <select class="form-select form-select-sm" id="warehouse-move-box-from-cell" name="from_cell_id">
+                        <option value="">— выберите ячейку —</option>
+                        <?php
+$_from = $_smarty_tpl->getSmarty()->getRuntime('Foreach')->init($_smarty_tpl, $_smarty_tpl->getValue('cells'), 'cell');
+$foreach1DoElse = true;
+foreach ($_from ?? [] as $_smarty_tpl->getVariable('cell')->value) {
+$foreach1DoElse = false;
+?>
+                          <option value="<?php echo htmlspecialchars((string)$_smarty_tpl->getValue('cell')['id'], ENT_QUOTES, 'UTF-8', true);?>
+"><?php echo htmlspecialchars((string)$_smarty_tpl->getValue('cell')['code'], ENT_QUOTES, 'UTF-8', true);?>
+</option>
+                        <?php
+}
+$_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
+                      </select>
+                    </div>
+                    <div class="col-12 col-md-5">
+                      <label class="form-label small mb-1" for="warehouse-move-box-to-cell">В ячейку</label>
+                      <select class="form-select form-select-sm" id="warehouse-move-box-to-cell" name="to_cell_id">
+                        <option value="">— выберите ячейку —</option>
+                        <?php
+$_from = $_smarty_tpl->getSmarty()->getRuntime('Foreach')->init($_smarty_tpl, $_smarty_tpl->getValue('cells'), 'cell');
+$foreach2DoElse = true;
+foreach ($_from ?? [] as $_smarty_tpl->getVariable('cell')->value) {
+$foreach2DoElse = false;
+?>
+                          <option value="<?php echo htmlspecialchars((string)$_smarty_tpl->getValue('cell')['id'], ENT_QUOTES, 'UTF-8', true);?>
+"><?php echo htmlspecialchars((string)$_smarty_tpl->getValue('cell')['code'], ENT_QUOTES, 'UTF-8', true);?>
+</option>
+                        <?php
+}
+$_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
+                      </select>
+                    </div>
+                    <div class="col-12 col-md-2">
+                      <button type="button" class="btn btn-sm btn-primary w-100 js-core-link" data-core-action="warehouse_move_box_assign">
+                        Подтвердить
+                      </button>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -174,7 +228,8 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
   "context_switch": {
     "tabs": {
       "#warehouse-move-scanner-tab": "scanner",
-      "#warehouse-move-batch-tab":   "batch"
+      "#warehouse-move-batch-tab":   "batch",
+      "#warehouse-move-box-tab":     "box"
     },
     "modals": {
       "#fullscreenModal": { "shown": "scanner_modal", "hidden": "scanner" }
@@ -323,6 +378,24 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
               "confirm": [ { "op": "web", "name": "confirmBatchMove" } ],
               "clear":   [ { "op": "set_step", "to": "scan_parcel" } ],
               "reset":   [ { "op": "web", "name": "reset_form" }, { "op": "set_step", "to": "scan_cell" } ]
+            }
+          }
+        }
+      }
+    },
+
+    "box": {
+      "active_tab_selector": "#warehouse-move-box-tab.nav-link.active",
+      "flow": {
+        "start": "idle",
+        "steps": {
+          "idle": {
+            "mode": "none",
+            "on_action": {
+              "scan":    [ { "op": "noop" } ],
+              "confirm": [ { "op": "web", "name": "confirmBoxMove" } ],
+              "clear":   [ { "op": "noop" } ],
+              "reset":   [ { "op": "web", "name": "reset_form" } ]
             }
           }
         }

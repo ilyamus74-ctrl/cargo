@@ -95,6 +95,7 @@ $routes = [
     'warehouse_move_batch_search' => 'api/warehouse/warehouse_move.php',
     'warehouse_move_open_modal' => 'api/warehouse/warehouse_move.php',
     'warehouse_move_batch_assign' => 'api/warehouse/warehouse_move.php',
+    'warehouse_move_box_assign' => 'api/warehouse/warehouse_move.php',
     'warehouse_move_save_cell'  => 'api/warehouse/warehouse_move.php',
 ];
 
