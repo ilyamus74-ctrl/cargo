@@ -78,6 +78,10 @@ $routes = [
     'open_item_in_batch'      => 'api/warehouse/warehouse_item_in_actions.php',
     'add_new_item_in'         => 'api/warehouse/warehouse_item_in_actions.php',
     'check_item_in_duplicate' => 'api/warehouse/warehouse_item_in_actions.php',
+    'save_item_in_draft'      => 'api/warehouse/warehouse_item_in_actions.php',
+    'clear_item_in_draft'     => 'api/warehouse/warehouse_item_in_actions.php',
+    'upload_item_in_photo'    => 'api/warehouse/warehouse_item_in_actions.php',
+    'delete_item_in_photo'    => 'api/warehouse/warehouse_item_in_actions.php',
     'delete_item_in'          => 'api/warehouse/warehouse_item_in_actions.php',
     'commit_item_in_batch'    => 'api/warehouse/warehouse_item_in_actions.php',
     // ========== WAREHOUSE - Stock ==========

@@ -617,6 +617,15 @@ const CoreAPI = {
             if (typeof initStandDevicePersistence === 'function') {
                 initStandDevicePersistence();
             }
+            if (typeof initWarehouseStockAddons === 'function') {
+                initWarehouseStockAddons();
+            }
+            if (typeof initWarehouseItemStockPhotoButtons === 'function') {
+                initWarehouseItemStockPhotoButtons();
+            }
+            if (typeof initItemInDraftControls === 'function') {
+                initItemInDraftControls();
+            }
             if (typeof initItemInDuplicateCheck === 'function') {
                 initItemInDuplicateCheck();
             }
@@ -643,6 +652,15 @@ const CoreAPI = {
                         if (typeof initStandDevicePersistence === 'function') {
                             initStandDevicePersistence();
                         }
+                        if (typeof initWarehouseStockAddons === 'function') {
+                            initWarehouseStockAddons();
+                        }
+                        if (typeof initWarehouseItemStockPhotoButtons === 'function') {
+                            initWarehouseItemStockPhotoButtons();
+                        }
+                        if (typeof initItemInDraftControls === 'function') {
+                            initItemInDraftControls();
+                        }
                         if (typeof initItemInDuplicateCheck === 'function') {
                             initItemInDuplicateCheck();
                         }
@@ -664,6 +682,15 @@ const CoreAPI = {
                     modalBody.innerHTML = data.html;
                     if (typeof initStandDevicePersistence === 'function') {
                         initStandDevicePersistence();
+                    }
+                    if (typeof initWarehouseStockAddons === 'function') {
+                        initWarehouseStockAddons();
+                    }
+                    if (typeof initWarehouseItemStockPhotoButtons === 'function') {
+                        initWarehouseItemStockPhotoButtons();
+                    }
+                    if (typeof initItemInDraftControls === 'function') {
+                        initItemInDraftControls();
                     }
                     if (typeof initItemInDuplicateCheck === 'function') {
                         initItemInDuplicateCheck();
@@ -891,7 +918,9 @@ const CoreAPI = {
                 return;
             }
             if (action === 'upload_item_stock_photo') {
-                const itemId = document.querySelector('#item-stock-modal-form input[name="item_id"]')?.value || '';
+                const stockItemId = document.querySelector('#item-stock-modal-form input[name="item_id"]')?.value || '';
+                const draftItemId = document.getElementById('itemInDraftId')?.value || '';
+                const itemId = stockItemId || draftItemId;
                 const photoType = link.getAttribute('data-photo-type') || '';
                 const inputId = photoType === 'label' ? 'warehouseStockLabelPhotoInput' : 'warehouseStockBoxPhotoInput';
                 const fileInput = document.getElementById(inputId);
@@ -1032,12 +1061,14 @@ const CoreAPI = {
             if (!(input instanceof HTMLInputElement) || !validIds.includes(input.id)) return;
 
             const file = input.files?.[0];
-            const itemId = input.dataset.itemId || document.querySelector('#item-stock-modal-form input[name="item_id"]')?.value || '';
+            const itemId = input.dataset.itemId || document.querySelector('#item-stock-modal-form input[name="item_id"]')?.value || document.getElementById('itemInDraftId')?.value || '';
             const photoType = input.dataset.photoType || input.getAttribute('data-photo-type') || '';
             if (!file || !itemId || !photoType) return;
 
+            const isDraft = !!document.getElementById('item-in-modal-form');
+
             const fd = new FormData();
-            fd.append('action', 'upload_item_stock_photo');
+            fd.append('action', isDraft ? 'upload_item_in_photo' : 'upload_item_stock_photo');
             fd.append('item_id', itemId);
             fd.append('photo_type', photoType);
             fd.append('photo', file);
@@ -2178,6 +2209,7 @@ function initItemInDuplicateCheck() {
         fd.append('tuid', tuid);
         fd.append('tracking_no', tracking);
         fd.append('carrier_name', carrier);
+        fd.append('item_id', document.getElementById('itemInDraftId')?.value || '0');
 
         try {
             var data = await CoreAPI.client.call(fd);
@@ -2271,6 +2303,15 @@ async function requestStandMeasurement() {
     setFieldValue('sizeL', formatNumber(sizeL, 1));
     setFieldValue('sizeW', formatNumber(sizeW, 1));
     setFieldValue('sizeH', formatNumber(sizeH, 1));
+
+
+    if (document.getElementById('item-in-modal-form')) {
+        try {
+            await ensureItemInDraftCreated();
+        } catch (e) {
+            alert(e?.message || 'Не удалось создать черновик посылки');
+        }
+    }
 }
 
 document.addEventListener('click', function (event) {
@@ -2438,14 +2479,17 @@ function parseWarehousePhotoJson(jsonValue, fallbackPath) {
 }
 
 function deleteWarehouseItemStockPhoto(photoType) {
-    var itemId = document.querySelector('#item-stock-modal-form input[name="item_id"]')?.value || '';
+    var stockItemId = document.querySelector('#item-stock-modal-form input[name="item_id"]')?.value || '';
+    var draftItemId = document.getElementById('itemInDraftId')?.value || '';
+    var itemId = stockItemId || draftItemId;
+    var isDraft = !!document.getElementById('item-in-modal-form');
     if (!itemId || !photoType) {
         alert('Не удалось удалить фото');
         return;
     }
 
     var fd = new FormData();
-    fd.append('action', 'delete_item_stock_photo');
+    fd.append('action', isDraft ? 'delete_item_in_photo' : 'delete_item_stock_photo');
     fd.append('item_id', itemId);
     fd.append('photo_type', photoType);
 
@@ -2540,6 +2584,114 @@ window.OCRScanner.captureAndUploadWarehouseItemStockPhoto = async function (phot
     input.click();
     return { status: 'pending', message: 'Ожидается выбор/съемка фото в камере' };
 };
+
+
+function setItemInDraftControlsEnabled(enabled) {
+    var section = document.getElementById('warehouseStockAddonsSection');
+    var labelBtn = document.getElementById('warehouseStockTakeLabelPhotoBtn');
+    var boxBtn = document.getElementById('warehouseStockTakeBoxPhotoBtn');
+    var lockTextId = 'itemInDraftLockText';
+
+    [section, labelBtn, boxBtn].forEach(function (el) {
+        if (!el) return;
+        el.classList.toggle('opacity-50', !enabled);
+    });
+
+    if (labelBtn) labelBtn.disabled = !enabled;
+    if (boxBtn) boxBtn.disabled = !enabled;
+    if (section) {
+        section.querySelectorAll('select[data-addon-key]').forEach(function (el) {
+            el.disabled = !enabled;
+        });
+    }
+
+    var lockNode = document.getElementById(lockTextId);
+    if (section) {
+        if (!lockNode) {
+            lockNode = document.createElement('div');
+            lockNode.id = lockTextId;
+            lockNode.className = 'form-text text-warning';
+            section.appendChild(lockNode);
+        }
+        lockNode.textContent = enabled ? '' : 'Сначала нажмите «Получить измерения», чтобы активировать ДопИнфо и фото.';
+    }
+}
+
+async function ensureItemInDraftCreated() {
+    var form = document.getElementById('item-in-modal-form');
+    if (!form) return null;
+
+    var itemIdField = document.getElementById('itemInDraftId');
+    if (itemIdField && itemIdField.value) {
+        setItemInDraftControlsEnabled(true);
+        return itemIdField.value;
+    }
+
+    var fd = new FormData(form);
+    fd.append('action', 'save_item_in_draft');
+    var data = await CoreAPI.client.call(fd);
+    if (!data || data.status !== 'ok' || !data.item_id) {
+        throw new Error(data?.message || 'Не удалось создать черновик');
+    }
+    if (itemIdField) itemIdField.value = String(data.item_id);
+    var batchField = form.querySelector('input[name="batch_uid"]');
+    if (batchField && data.batch_uid) {
+        batchField.value = String(data.batch_uid);
+    }
+    setItemInDraftControlsEnabled(true);
+    return String(data.item_id);
+}
+
+async function clearItemInDraftForm() {
+    var form = document.getElementById('item-in-modal-form');
+    if (!form) return;
+    var itemIdField = document.getElementById('itemInDraftId');
+    var itemId = itemIdField ? (itemIdField.value || '') : '';
+
+    if (itemId) {
+        var fd = new FormData();
+        fd.append('action', 'clear_item_in_draft');
+        fd.append('item_id', itemId);
+        try { await CoreAPI.client.call(fd); } catch (e) {}
+    }
+
+    form.querySelectorAll('input[type="text"], input[type="number"], input[type="hidden"], select').forEach(function (el) {
+        if (!el.name) return;
+        if (el.name === 'batch_uid') return;
+        if (el.id === 'itemInDraftId') return;
+        if (el.tagName === 'SELECT') {
+            el.selectedIndex = 0;
+        } else {
+            el.value = '';
+        }
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+    });
+
+    if (itemIdField) itemIdField.value = '';
+    setWarehouseItemStockPhotoState('label', '', '');
+    setWarehouseItemStockPhotoState('box', '', '');
+    var addons = document.getElementById('warehouseStockAddonsJson');
+    if (addons) addons.value = '';
+    setItemInDraftControlsEnabled(false);
+}
+
+function initItemInDraftControls() {
+    var form = document.getElementById('item-in-modal-form');
+    if (!form || form.__itemInDraftBound) return;
+    form.__itemInDraftBound = true;
+
+    setItemInDraftControlsEnabled(!!(document.getElementById('itemInDraftId')?.value));
+
+    var clearBtn = document.getElementById('itemInClearBtn');
+    if (clearBtn) {
+        clearBtn.addEventListener('click', function () {
+            clearItemInDraftForm();
+        });
+    }
+}
+
+window.clearItemInDraftForm = clearItemInDraftForm;
 
 function setSelectValWait(id,v,tries){
   var e=document.getElementById(id);

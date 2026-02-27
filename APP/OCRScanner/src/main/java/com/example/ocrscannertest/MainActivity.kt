@@ -4435,6 +4435,19 @@ fun clearParcelFormInWebView(webView: WebView) {
 }
 
 fun clearAllInWebView(webView: WebView) {
+
+    val jsClearDraft = """
+        (function(){
+          try {
+            if (typeof window.clearItemInDraftForm === 'function') {
+              window.clearItemInDraftForm();
+              return;
+            }
+          } catch(e) {}
+        })();
+    """.trimIndent()
+    webView.post { webView.evaluateJavascript(jsClearDraft, null) }
+
     clearParcelFormInWebView(webView)
 
     webView.post {

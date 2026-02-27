@@ -68,7 +68,154 @@ function warehouse_item_in_load_addons_map(mysqli $dbcnx): array
     return [$addonsMap, $addonsRawMap];
 }
 
-function findWarehouseDuplicate(mysqli $dbcnx, string $carrierName, string $tuid, string $tracking): array
+function warehouse_item_in_normalize_image_json(string $raw): ?string
+{
+    $raw = trim($raw);
+    if ($raw === '') {
+        return null;
+    }
+
+    $decoded = json_decode($raw, true);
+    if (!is_array($decoded)) {
+        return null;
+    }
+
+    $clean = [];
+    foreach ($decoded as $path) {
+        if (!is_string($path)) {
+            continue;
+        }
+        $path = trim($path);
+        if ($path === '') {
+            continue;
+        }
+        $clean[] = $path;
+    }
+
+    if (empty($clean)) {
+        return null;
+    }
+
+    $encoded = json_encode(array_values(array_unique($clean)), JSON_UNESCAPED_UNICODE);
+    return $encoded !== false ? $encoded : null;
+}
+
+function warehouse_item_in_decode_image_paths(?string $raw): array
+{
+    $raw = trim((string)$raw);
+    if ($raw === '') {
+        return [];
+    }
+
+    $decoded = json_decode($raw, true);
+    if (!is_array($decoded)) {
+        return [];
+    }
+
+    $result = [];
+    foreach ($decoded as $path) {
+        if (!is_string($path)) {
+            continue;
+        }
+        $path = trim($path);
+        if ($path === '') {
+            continue;
+        }
+        $result[] = $path;
+    }
+
+    return array_values(array_unique($result));
+}
+
+function warehouse_item_in_ensure_photo_dir(string $absDir): bool
+{
+    if (is_dir($absDir)) {
+        return true;
+    }
+    return @mkdir($absDir, 0775, true);
+}
+
+function warehouse_item_in_find_or_create_draft(mysqli $dbcnx, int $batchUid, int $ownerUserId, int $deviceId, array $fields): int
+{
+    $tuid = trim((string)($fields['tuid'] ?? ''));
+    $tracking = trim((string)($fields['tracking_no'] ?? ''));
+
+    $stmtFind = $dbcnx->prepare(
+        "SELECT id
+           FROM warehouse_item_in
+          WHERE batch_uid = ?
+            AND committed = 0
+            AND tuid = ?
+            AND tracking_no = ?
+          ORDER BY id DESC
+          LIMIT 1"
+    );
+    if ($stmtFind) {
+        $stmtFind->bind_param('iss', $batchUid, $tuid, $tracking);
+        $stmtFind->execute();
+        $row = $stmtFind->get_result()->fetch_assoc();
+        $stmtFind->close();
+        if ($row && isset($row['id'])) {
+            return (int)$row['id'];
+        }
+    }
+
+    $uidCreated = (int)(microtime(true) * 1000000);
+    $sql = "INSERT INTO warehouse_item_in (
+                batch_uid, uid_created, user_id, device_id, committed,
+                tuid, tracking_no, carrier_code, carrier_name,
+                receiver_country_code, receiver_country_name,
+                receiver_name, receiver_company, receiver_address,
+                sender_name, sender_company,
+                weight_kg, size_l_cm, size_w_cm, size_h_cm,
+                label_image, box_image, addons_json
+            ) VALUES (
+                ?, ?, ?, ?, 0,
+                ?, ?, ?, ?,
+                ?, ?,
+                ?, ?, ?,
+                ?, ?,
+                ?, ?, ?, ?,
+                ?, ?, ?
+            )";
+
+    $stmtInsert = $dbcnx->prepare($sql);
+    if (!$stmtInsert) {
+        return 0;
+    }
+
+    $stmtInsert->bind_param(
+        'iiiisssssssssssddddsss',
+        $batchUid,
+        $uidCreated,
+        $ownerUserId,
+        $deviceId,
+        $fields['tuid'],
+        $fields['tracking_no'],
+        $fields['carrier_code'],
+        $fields['carrier_name'],
+        $fields['receiver_country_code'],
+        $fields['receiver_country_name'],
+        $fields['receiver_name'],
+        $fields['receiver_company'],
+        $fields['receiver_address'],
+        $fields['sender_name'],
+        $fields['sender_company'],
+        $fields['weight_kg'],
+        $fields['size_l_cm'],
+        $fields['size_w_cm'],
+        $fields['size_h_cm'],
+        $fields['label_image'],
+        $fields['box_image'],
+        $fields['addons_json']
+    );
+    $stmtInsert->execute();
+    $newId = (int)$stmtInsert->insert_id;
+    $stmtInsert->close();
+    return $newId;
+}
+
+function findWarehouseDuplicate(mysqli $dbcnx, string $carrierName, string $tuid, string $tracking, int $excludeItemInId = 0): array
 {
     $carrierName = trim($carrierName);
     $tuid = trim($tuid);
@@ -82,7 +229,11 @@ function findWarehouseDuplicate(mysqli $dbcnx, string $carrierName, string $tuid
         'warehouse_item_stock',
     ];
     foreach ($checks as $table) {
-        $sql = "SELECT id FROM {$table} WHERE carrier_name = ? AND (tuid = ? OR tracking_no = ?) LIMIT 1";
+        $sql = "SELECT id FROM {$table} WHERE carrier_name = ? AND (tuid = ? OR tracking_no = ?)";
+        if ($table === 'warehouse_item_in' && $excludeItemInId > 0) {
+            $sql .= " AND id <> " . (int)$excludeItemInId;
+        }
+        $sql .= " LIMIT 1";
         $stmt = $dbcnx->prepare($sql);
         if (!$stmt) {
             continue;
@@ -336,7 +487,8 @@ switch ($action) {
             ];
             break;
         }
-        $duplicateCheck = findWarehouseDuplicate($dbcnx, $carrierName, $tuid, $tracking);
+        $itemId = (int)($_POST['item_id'] ?? 0);
+        $duplicateCheck = findWarehouseDuplicate($dbcnx, $carrierName, $tuid, $tracking, $itemId);
         if ($duplicateCheck['duplicate']) {
             $response = [
                 'status'  => 'error',
@@ -346,59 +498,130 @@ switch ($action) {
         }
         $uidCreated = (int)(microtime(true) * 1000000);
         $deviceId   = 0; // для веба 0, для мобилки можно класть реальный device_id
-        $sql = "INSERT INTO warehouse_item_in (
-                    batch_uid, uid_created, user_id, device_id, committed,
-                    tuid, tracking_no, carrier_code, carrier_name,
-                    receiver_country_code, receiver_country_name,
-                    receiver_name, receiver_company, receiver_address,
-                    sender_name, sender_company,
-                    weight_kg, size_l_cm, size_w_cm, size_h_cm,
-                    label_image, box_image, addons_json
-                ) VALUES (
-                    ?, ?, ?, ?, 0,
-                    ?, ?, ?, ?,
-                    ?, ?,
-                    ?, ?, ?,
-                    ?, ?,
-                    ?, ?, ?, ?,
-                    ?, ?, ?
-                )";
-        $stmt = $dbcnx->prepare($sql);
-        if (!$stmt) {
-            $response = [
-                'status'  => 'error',
-                'message' => 'DB error: ' . $dbcnx->error,
-            ];
-            break;
+
+        $itemId = (int)($_POST['item_id'] ?? 0);
+        if ($itemId > 0) {
+            $stmt = $dbcnx->prepare(
+                "UPDATE warehouse_item_in
+                    SET tuid = ?,
+                        tracking_no = ?,
+                        carrier_code = ?,
+                        carrier_name = ?,
+                        receiver_country_code = ?,
+                        receiver_country_name = ?,
+                        receiver_name = ?,
+                        receiver_company = ?,
+                        receiver_address = ?,
+                        sender_name = ?,
+                        sender_company = ?,
+                        weight_kg = ?,
+                        size_l_cm = ?,
+                        size_w_cm = ?,
+                        size_h_cm = ?,
+                        label_image = ?,
+                        box_image = ?,
+                        addons_json = ?
+                  WHERE id = ?
+                    AND batch_uid = ?
+                    AND committed = 0
+                  LIMIT 1"
+            );
+            if (!$stmt) {
+                $response = [
+                    'status'  => 'error',
+                    'message' => 'DB error: ' . $dbcnx->error,
+                ];
+                break;
+            }
+            $stmt->bind_param(
+                'sssssssssssddddsssii',
+                $tuid,
+                $tracking,
+                $carrierCode,
+                $carrierName,
+                $rcCountryCode,
+                $rcCountryName,
+                $rcName,
+                $rcCompany,
+                $rcAddress,
+                $sndName,
+                $sndCompany,
+                $weightKg,
+                $sizeL,
+                $sizeW,
+                $sizeH,
+                $labelImage,
+                $boxImage,
+                $addonsJson,
+                $itemId,
+                $batchUid
+            );
+            $stmt->execute();
+            $affected = $stmt->affected_rows;
+            $stmt->close();
+            if ($affected < 0) {
+                $response = [
+                    'status'  => 'error',
+                    'message' => 'Не удалось обновить посылку',
+                ];
+                break;
+            }
+        } else {
+            $sql = "INSERT INTO warehouse_item_in (
+                        batch_uid, uid_created, user_id, device_id, committed,
+                        tuid, tracking_no, carrier_code, carrier_name,
+                        receiver_country_code, receiver_country_name,
+                        receiver_name, receiver_company, receiver_address,
+                        sender_name, sender_company,
+                        weight_kg, size_l_cm, size_w_cm, size_h_cm,
+                        label_image, box_image, addons_json
+                    ) VALUES (
+                        ?, ?, ?, ?, 0,
+                        ?, ?, ?, ?,
+                        ?, ?,
+                        ?, ?, ?,
+                        ?, ?,
+                        ?, ?, ?, ?,
+                        ?, ?, ?
+                    )";
+            $stmt = $dbcnx->prepare($sql);
+            if (!$stmt) {
+                $response = [
+                    'status'  => 'error',
+                    'message' => 'DB error: ' . $dbcnx->error,
+                ];
+                break;
+            }
+            $stmt->bind_param(
+                "iiiisssssssssssddddsss",
+                $batchUid,
+                $uidCreated,
+                $ownerUserId,
+                $deviceId,
+                $tuid,
+                $tracking,
+                $carrierCode,
+                $carrierName,
+                $rcCountryCode,
+                $rcCountryName,
+                $rcName,
+                $rcCompany,
+                $rcAddress,
+                $sndName,
+                $sndCompany,
+                $weightKg,
+                $sizeL,
+                $sizeW,
+                $sizeH,
+                $labelImage,
+                $boxImage,
+                $addonsJson
+            );
+            $stmt->execute();
+            $itemId = (int)$stmt->insert_id;
+            $stmt->close();
         }
-        // iiiisssssssssssddddsss  = 22 параметра
-        $stmt->bind_param(
-            "iiiisssssssssssddddsss",
-            $batchUid,
-            $uidCreated,
-            $ownerUserId,    // владелец партии
-            $deviceId,
-            $tuid,
-            $tracking,
-            $carrierCode,
-            $carrierName,
-            $rcCountryCode,
-            $rcCountryName,
-            $rcName,
-            $rcCompany,
-            $rcAddress,
-            $sndName,
-            $sndCompany,
-            $weightKg,
-            $sizeL,
-            $sizeW,
-            $sizeH,
-            $labelImage,
-            $boxImage,
-            $addonsJson
-        );
-        $stmt->execute();
-        $stmt->close();
+
         audit_log(
             $operatorUserId,                 // кто реально добавил
             'WAREHOUSE_IN_ADD_PARCEL',
@@ -420,12 +643,303 @@ switch ($action) {
             'batch_uid' => $batchUid,
         ];
         break;
+
+    case 'save_item_in_draft':
+        auth_require_login();
+        warehouse_item_in_ensure_addons_columns($dbcnx);
+        $current = $user;
+        $operatorUserId = (int)$current['id'];
+
+        $batchUid = isset($_POST['batch_uid']) ? (int)$_POST['batch_uid'] : 0;
+        if ($batchUid <= 0) {
+            $batchUid = (int)(microtime(true) * 1000000);
+        }
+
+        $ownerUserId = $operatorUserId;
+        $stmtOwner = $dbcnx->prepare(
+            "SELECT user_id
+               FROM warehouse_item_in
+              WHERE batch_uid = ?
+                AND committed = 0
+              ORDER BY created_at ASC
+              LIMIT 1"
+        );
+        if ($stmtOwner) {
+            $stmtOwner->bind_param('i', $batchUid);
+            $stmtOwner->execute();
+            $resOwner = $stmtOwner->get_result();
+            if ($rowOwner = $resOwner->fetch_assoc()) {
+                $ownerUserId = (int)$rowOwner['user_id'];
+            }
+            $stmtOwner->close();
+        }
+
+        $tuid        = trim($_POST['tuid'] ?? '');
+        $tracking    = trim($_POST['tracking_no'] ?? '');
+        $carrierCode = trim($_POST['carrier_code'] ?? '');
+        $carrierName = trim($_POST['carrier_name'] ?? '');
+        $rcCountryCode = trim($_POST['receiver_country_code'] ?? '');
+        $rcCountryName = '';
+        $rcName        = trim($_POST['receiver_name'] ?? '');
+        $rcCompany     = trim($_POST['receiver_company'] ?? '');
+        $rcAddress     = trim($_POST['receiver_address'] ?? '');
+        $sndName       = trim($_POST['sender_name'] ?? '');
+        $sndCompany    = trim($_POST['sender_company'] ?? '');
+
+        $weightKg = $_POST['weight_kg'] ?? '';
+        $sizeL    = $_POST['size_l_cm'] ?? '';
+        $sizeW    = $_POST['size_w_cm'] ?? '';
+        $sizeH    = $_POST['size_h_cm'] ?? '';
+        $weightKg = ($weightKg === '' || $weightKg === null) ? 0.0 : (float)$weightKg;
+        $sizeL    = ($sizeL    === '' || $sizeL    === null) ? 0.0 : (float)$sizeL;
+        $sizeW    = ($sizeW    === '' || $sizeW    === null) ? 0.0 : (float)$sizeW;
+        $sizeH    = ($sizeH    === '' || $sizeH    === null) ? 0.0 : (float)$sizeH;
+
+        if ($tuid === '' || $tracking === '') {
+            $response = ['status' => 'error', 'message' => 'Нужны TUID и трек-номер'];
+            break;
+        }
+
+        $deviceId = 0;
+        $fields = [
+            'tuid' => $tuid,
+            'tracking_no' => $tracking,
+            'carrier_code' => $carrierCode,
+            'carrier_name' => $carrierName,
+            'receiver_country_code' => $rcCountryCode,
+            'receiver_country_name' => $rcCountryName,
+            'receiver_name' => $rcName,
+            'receiver_company' => $rcCompany,
+            'receiver_address' => $rcAddress,
+            'sender_name' => $sndName,
+            'sender_company' => $sndCompany,
+            'weight_kg' => $weightKg,
+            'size_l_cm' => $sizeL,
+            'size_w_cm' => $sizeW,
+            'size_h_cm' => $sizeH,
+            'label_image' => null,
+            'box_image' => null,
+            'addons_json' => null,
+        ];
+
+        $draftId = warehouse_item_in_find_or_create_draft($dbcnx, $batchUid, $ownerUserId, $deviceId, $fields);
+        if ($draftId <= 0) {
+            $response = ['status' => 'error', 'message' => 'Не удалось создать черновик'];
+            break;
+        }
+
+        $response = [
+            'status' => 'ok',
+            'message' => 'Черновик создан',
+            'batch_uid' => $batchUid,
+            'item_id' => $draftId,
+        ];
+        break;
+
+    case 'clear_item_in_draft':
+        auth_require_login();
+        $itemId = (int)($_POST['item_id'] ?? 0);
+        if ($itemId <= 0) {
+            $response = ['status' => 'ok', 'message' => 'Форма очищена'];
+            break;
+        }
+        $stmtRead = $dbcnx->prepare("SELECT label_image, box_image FROM warehouse_item_in WHERE id = ? AND committed = 0 LIMIT 1");
+        if ($stmtRead) {
+            $stmtRead->bind_param('i', $itemId);
+            $stmtRead->execute();
+            $row = $stmtRead->get_result()->fetch_assoc();
+            $stmtRead->close();
+
+            $paths = array_merge(
+                warehouse_item_in_decode_image_paths((string)($row['label_image'] ?? '')),
+                warehouse_item_in_decode_image_paths((string)($row['box_image'] ?? ''))
+            );
+            $docRoot = rtrim((string)($_SERVER['DOCUMENT_ROOT'] ?? ''), '/');
+            foreach ($paths as $path) {
+                if (strpos($path, '/img/warehouse_item_in/') !== 0 || $docRoot === '') {
+                    continue;
+                }
+                $abs = $docRoot . $path;
+                if (is_file($abs)) {
+                    @unlink($abs);
+                }
+            }
+        }
+
+        $stmt = $dbcnx->prepare("DELETE FROM warehouse_item_in WHERE id = ? AND committed = 0 LIMIT 1");
+        if (!$stmt) {
+            $response = ['status' => 'error', 'message' => 'DB error: ' . $dbcnx->error];
+            break;
+        }
+        $stmt->bind_param('i', $itemId);
+        $stmt->execute();
+        $stmt->close();
+        $response = ['status' => 'ok', 'message' => 'Черновик удалён'];
+        break;
+
+    case 'upload_item_in_photo':
+        auth_require_login();
+        $itemId = (int)($_POST['item_id'] ?? 0);
+        $photoType = strtolower(trim((string)($_POST['photo_type'] ?? '')));
+        if ($itemId <= 0) {
+            $response = ['status' => 'error', 'message' => 'Сначала получите измерения'];
+            break;
+        }
+        if (!in_array($photoType, ['label', 'box'], true)) {
+            $response = ['status' => 'error', 'message' => 'Некорректный тип фото'];
+            break;
+        }
+        if (!isset($_FILES['photo']) || !is_array($_FILES['photo'])) {
+            $response = ['status' => 'error', 'message' => 'Файл не передан'];
+            break;
+        }
+
+        $stmt = $dbcnx->prepare("SELECT id, uid_created, label_image, box_image FROM warehouse_item_in WHERE id = ? AND committed = 0 LIMIT 1");
+        if (!$stmt) {
+            $response = ['status' => 'error', 'message' => 'DB error: ' . $dbcnx->error];
+            break;
+        }
+        $stmt->bind_param('i', $itemId);
+        $stmt->execute();
+        $item = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        if (!$item) {
+            $response = ['status' => 'error', 'message' => 'Черновик не найден'];
+            break;
+        }
+
+        $upload = $_FILES['photo'];
+        $errorCode = (int)($upload['error'] ?? UPLOAD_ERR_NO_FILE);
+        if ($errorCode !== UPLOAD_ERR_OK) {
+            $response = ['status' => 'error', 'message' => 'Ошибка загрузки файла'];
+            break;
+        }
+        $tmp = (string)($upload['tmp_name'] ?? '');
+        if ($tmp === '' || !is_uploaded_file($tmp)) {
+            $response = ['status' => 'error', 'message' => 'Некорректный временный файл'];
+            break;
+        }
+
+        $finfo = new finfo(FILEINFO_MIME_TYPE);
+        $mime = (string)$finfo->file($tmp);
+        $allowed = [
+            'image/jpeg' => 'jpg',
+            'image/png' => 'png',
+            'image/webp' => 'webp',
+        ];
+        if (!isset($allowed[$mime])) {
+            $response = ['status' => 'error', 'message' => 'Разрешены только JPEG/PNG/WEBP'];
+            break;
+        }
+
+        $uidCreated = trim((string)($item['uid_created'] ?? ''));
+        if ($uidCreated === '') {
+            $uidCreated = (string)$itemId;
+        }
+        $baseRelDir = 'img/warehouse_item_in/' . $uidCreated;
+        $baseAbsDir = rtrim($_SERVER['DOCUMENT_ROOT'] ?? '', '/') . '/' . $baseRelDir;
+        if (!warehouse_item_in_ensure_photo_dir($baseAbsDir)) {
+            $response = ['status' => 'error', 'message' => 'Не удалось создать каталог для фото'];
+            break;
+        }
+
+        $fileName = date('Ymd_His') . '_' . $photoType . '.' . $allowed[$mime];
+        $destAbs = $baseAbsDir . '/' . $fileName;
+        $publicPath = '/' . $baseRelDir . '/' . $fileName;
+        if (!move_uploaded_file($tmp, $destAbs)) {
+            $response = ['status' => 'error', 'message' => 'Не удалось сохранить файл'];
+            break;
+        }
+
+        $field = $photoType === 'label' ? 'label_image' : 'box_image';
+        $oldJson = (string)($item[$field] ?? '');
+        $oldPaths = warehouse_item_in_decode_image_paths($oldJson);
+        $oldPaths[] = $publicPath;
+        $json = warehouse_item_in_normalize_image_json(json_encode($oldPaths, JSON_UNESCAPED_UNICODE) ?: '');
+        if ($json === null) {
+            @unlink($destAbs);
+            $response = ['status' => 'error', 'message' => 'Ошибка сериализации пути'];
+            break;
+        }
+
+        $sql = "UPDATE warehouse_item_in SET {$field} = ? WHERE id = ? AND committed = 0 LIMIT 1";
+        $stmt = $dbcnx->prepare($sql);
+        if (!$stmt) {
+            @unlink($destAbs);
+            $response = ['status' => 'error', 'message' => 'DB error: ' . $dbcnx->error];
+            break;
+        }
+        $stmt->bind_param('si', $json, $itemId);
+        $stmt->execute();
+        $stmt->close();
+
+        $response = [
+            'status' => 'ok',
+            'message' => 'Фото загружено',
+            'photo_type' => $photoType,
+            'path' => $publicPath,
+            'json' => $json,
+        ];
+        break;
+
+    case 'delete_item_in_photo':
+        auth_require_login();
+        $itemId = (int)($_POST['item_id'] ?? 0);
+        $photoType = strtolower(trim((string)($_POST['photo_type'] ?? '')));
+        if ($itemId <= 0) {
+            $response = ['status' => 'error', 'message' => 'Некорректный item_id'];
+            break;
+        }
+        if (!in_array($photoType, ['label', 'box'], true)) {
+            $response = ['status' => 'error', 'message' => 'Некорректный тип фото'];
+            break;
+        }
+
+        $field = $photoType === 'label' ? 'label_image' : 'box_image';
+        $stmt = $dbcnx->prepare("SELECT id, {$field} FROM warehouse_item_in WHERE id = ? AND committed = 0 LIMIT 1");
+        if (!$stmt) {
+            $response = ['status' => 'error', 'message' => 'DB error: ' . $dbcnx->error];
+            break;
+        }
+        $stmt->bind_param('i', $itemId);
+        $stmt->execute();
+        $item = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        if (!$item) {
+            $response = ['status' => 'error', 'message' => 'Черновик не найден'];
+            break;
+        }
+
+        $oldPaths = warehouse_item_in_decode_image_paths((string)($item[$field] ?? ''));
+        $stmt = $dbcnx->prepare("UPDATE warehouse_item_in SET {$field} = NULL WHERE id = ? AND committed = 0 LIMIT 1");
+        if (!$stmt) {
+            $response = ['status' => 'error', 'message' => 'DB error: ' . $dbcnx->error];
+            break;
+        }
+        $stmt->bind_param('i', $itemId);
+        $stmt->execute();
+        $stmt->close();
+
+        $docRoot = rtrim((string)($_SERVER['DOCUMENT_ROOT'] ?? ''), '/');
+        foreach ($oldPaths as $path) {
+            if (strpos($path, '/img/warehouse_item_in/') !== 0 || $docRoot === '') {
+                continue;
+            }
+            $abs = $docRoot . $path;
+            if (is_file($abs)) {
+                @unlink($abs);
+            }
+        }
+
+        $response = ['status' => 'ok', 'message' => 'Фото удалено', 'json' => ''];
+        break;
     case 'check_item_in_duplicate':
         auth_require_login();
         $tuid        = trim($_POST['tuid']        ?? '');
         $tracking    = trim($_POST['tracking_no'] ?? '');
         $carrierName = trim($_POST['carrier_name'] ?? '');
-        $duplicateCheck = findWarehouseDuplicate($dbcnx, $carrierName, $tuid, $tracking);
+        $itemId = (int)($_POST['item_id'] ?? 0);
+        $duplicateCheck = findWarehouseDuplicate($dbcnx, $carrierName, $tuid, $tracking, $itemId);
         $response = [
             'status'    => 'ok',
             'duplicate' => $duplicateCheck['duplicate'],
