@@ -2191,95 +2191,13 @@ function initStandDevicePersistence() {
 
 document.addEventListener('DOMContentLoaded', initStandDevicePersistence);
 
-function openWarehousePhotoPreview(photoPath) {
-    var normalizedPath = String(photoPath || '').trim();
-    if (!normalizedPath) return;
-
-    var previewWindow = window.open('', '_blank');
-    if (!previewWindow) {
-        window.open(normalizedPath, '_blank');
-        return;
-    }
-
-    var escapedPath = normalizedPath
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;');
-
-    previewWindow.document.write(
-        '<!doctype html>' +
-        '<html lang="ru"><head><meta charset="utf-8"><title>Просмотр фото</title>' +
-        '<meta name="viewport" content="width=device-width, initial-scale=1">' +
-        '<style>' +
-        'body{margin:0;background:#111;color:#fff;font-family:Arial,sans-serif;display:flex;flex-direction:column;height:100vh;}' +
-        '.bar{padding:10px 14px;display:flex;justify-content:flex-end;}' +
-        '.close{border:0;background:transparent;color:#fff;font-size:28px;line-height:1;cursor:pointer;}' +
-        '.wrap{flex:1;display:flex;align-items:center;justify-content:center;padding:12px;}' +
-        'img{max-width:100%;max-height:100%;object-fit:contain;}' +
-        '</style></head><body>' +
-        '<div class="bar"><button class="close" type="button" aria-label="Закрыть" title="Закрыть">&times;</button></div>' +
-        '<div class="wrap"><img src="' + escapedPath + '" alt="Фото"></div>' +
-        '<script>' +
-        'function closePreview(){if(window.opener&&!window.opener.closed){window.opener.focus();}window.close();}' +
-        'document.querySelector(".close").addEventListener("click",closePreview);' +
-        'document.addEventListener("keydown",function(e){if(e.key==="Escape"){closePreview();}});' +
-        '<\/script></body></html>'
-    );
-    previewWindow.document.close();
-}
-
-function parseWarehousePhotoJson(jsonValue, fallbackPath) {
-    var value = String(jsonValue || '').trim();
-    if (value) {
-        try {
-            var parsed = JSON.parse(value);
-            if (Array.isArray(parsed)) {
-                return parsed.filter(function (entry) {
-                    return typeof entry === 'string' && entry.trim() !== '';
-                });
-            }
-            if (typeof parsed === 'string' && parsed.trim() !== '') {
-                return [parsed.trim()];
-            }
-        } catch (e) {}
-    }
-    return fallbackPath ? [fallbackPath] : [];
-}
-
-function renderWarehousePhotoPreviewButtons(photoType, paths) {
-    var isLabel = photoType === 'label';
-    var info = document.getElementById(isLabel ? 'warehouseStockLabelPhotoInfo' : 'warehouseStockBoxPhotoInfo');
-    if (!info) return;
-
-    info.innerHTML = '';
-    if (!Array.isArray(paths) || paths.length === 0) return;
-
-    var holder = document.createElement('div');
-    holder.className = 'd-flex flex-wrap gap-2';
-
-    paths.forEach(function (path, index) {
-        var button = document.createElement('button');
-        button.type = 'button';
-        button.className = 'btn btn-sm btn-outline-primary';
-        button.textContent = paths.length > 1 ? ('Открыть фото ' + (index + 1)) : 'Открыть фото';
-        button.addEventListener('click', function () {
-            openWarehousePhotoPreview(path);
-        });
-        holder.appendChild(button);
-    });
-
-    info.appendChild(holder);
-}
-
 
 function setWarehouseItemStockPhotoState(photoType, path, jsonValue) {
     var isLabel = photoType === 'label';
     var hidden = document.getElementById(isLabel ? 'warehouseStockLabelImageJson' : 'warehouseStockBoxImageJson');
+    var info = document.getElementById(isLabel ? 'warehouseStockLabelPhotoInfo' : 'warehouseStockBoxPhotoInfo');
     if (hidden) hidden.value = jsonValue || '';
-    var paths = parseWarehousePhotoJson(jsonValue, path);
-    renderWarehousePhotoPreviewButtons(photoType, paths);
+    if (info) info.textContent = path ? ('Загружено: ' + path) : '';
 }
 
 function initWarehouseItemStockPhotoButtons() {
@@ -2298,8 +2216,18 @@ function initWarehouseItemStockPhotoButtons() {
 
     var labelHidden = document.getElementById('warehouseStockLabelImageJson');
     var boxHidden = document.getElementById('warehouseStockBoxImageJson');
-    setWarehouseItemStockPhotoState('label', '', labelHidden ? labelHidden.value : '');
-    setWarehouseItemStockPhotoState('box', '', boxHidden ? boxHidden.value : '');
+    if (labelHidden && labelHidden.value) {
+        try {
+            var arrL = JSON.parse(labelHidden.value);
+            if (Array.isArray(arrL) && arrL[0]) setWarehouseItemStockPhotoState('label', arrL[0], labelHidden.value);
+        } catch (e) {}
+    }
+    if (boxHidden && boxHidden.value) {
+        try {
+            var arrB = JSON.parse(boxHidden.value);
+            if (Array.isArray(arrB) && arrB[0]) setWarehouseItemStockPhotoState('box', arrB[0], boxHidden.value);
+        } catch (e) {}
+    }
 }
 
 window.setWarehouseItemStockPhotoState = setWarehouseItemStockPhotoState;
