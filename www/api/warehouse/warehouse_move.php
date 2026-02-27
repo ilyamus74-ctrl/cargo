@@ -114,7 +114,9 @@ if ($action === 'warehouse_move_search') {
 
     $moveItems = [];
     $stmt = $dbcnx->prepare($sql);
-    $stmt->bind_param($types, ...$params);
+    if ($types !== '') {
+        $stmt->bind_param($types, ...$params);
+    }
     $stmt->execute();
     $res = $stmt->get_result();
     while ($row = $res->fetch_assoc()) {
@@ -217,7 +219,9 @@ if ($action === 'warehouse_move_batch_search') {
 
     $moveItems = [];
     $stmt = $dbcnx->prepare($sql);
-    $stmt->bind_param($types, ...$params);
+    if ($types !== '') {
+        $stmt->bind_param($types, ...$params);
+    }
     $stmt->execute();
     $res = $stmt->get_result();
     while ($row = $res->fetch_assoc()) {
@@ -250,8 +254,11 @@ if ($action === 'warehouse_move_box_items') {
     $canManageStock = auth_has_permission('warehouse.stock.manage') || $isWorker;
     $canViewAll = auth_has_permission('warehouse.stock.view_all') || auth_has_role('ADMIN') || $canManageStock;
 
-    $cellId = isset($_POST['from_cell_id']) ? (int)$_POST['from_cell_id'] : 0;
-    if ($cellId <= 0) {
+    $fromCellRaw = trim((string)($_POST['from_cell_id'] ?? ''));
+    $withoutCellToken = '__without_cell__';
+    $isWithoutCell = ($fromCellRaw === $withoutCellToken);
+    $cellId = $isWithoutCell ? 0 : (int)$fromCellRaw;
+    if (!$isWithoutCell && $cellId <= 0) {
         $response = [
             'status' => 'ok',
             'html'   => '',
@@ -260,8 +267,17 @@ if ($action === 'warehouse_move_box_items') {
         return;
     }
 
-    $params = [$cellId];
-    $types = 'i';
+    $params = [];
+    $types = '';
+    $whereCellSql = '';
+    if ($isWithoutCell) {
+        $whereCellSql = 'wi.cell_id IS NULL';
+    } else {
+        $whereCellSql = 'wi.cell_id = ?';
+        $types .= 'i';
+        $params[] = $cellId;
+    }
+
     $userSql = '';
     if (!$canViewAll) {
         $userSql = 'AND wi.user_id = ?';
@@ -280,7 +296,7 @@ if ($action === 'warehouse_move_box_items') {
         FROM warehouse_item_stock wi
         LEFT JOIN users u ON u.id = wi.user_id
         LEFT JOIN cells c ON c.id = wi.cell_id
-        WHERE wi.cell_id = ?
+        WHERE {$whereCellSql}
         {$userSql}
         ORDER BY wi.created_at DESC
         LIMIT 200
@@ -288,7 +304,9 @@ if ($action === 'warehouse_move_box_items') {
 
     $items = [];
     $stmt = $dbcnx->prepare($sql);
-    $stmt->bind_param($types, ...$params);
+    if ($types !== '') {
+        $stmt->bind_param($types, ...$params);
+    }
     $stmt->execute();
     $res = $stmt->get_result();
     while ($row = $res->fetch_assoc()) {
@@ -640,10 +658,13 @@ if ($action === 'warehouse_move_box_assign') {
         return;
     }
 
-    $fromCellId = isset($_POST['from_cell_id']) ? (int)$_POST['from_cell_id'] : 0;
+    $fromCellRaw = trim((string)($_POST['from_cell_id'] ?? ''));
     $toCellId = isset($_POST['to_cell_id']) ? (int)$_POST['to_cell_id'] : 0;
+    $withoutCellToken = '__without_cell__';
+    $isFromWithoutCell = ($fromCellRaw === $withoutCellToken);
+    $fromCellId = $isFromWithoutCell ? 0 : (int)$fromCellRaw;
 
-    if ($fromCellId <= 0 || $toCellId <= 0) {
+    if (($fromCellId <= 0 && !$isFromWithoutCell) || $toCellId <= 0) {
         $response = [
             'status'  => 'error',
             'message' => 'Выберите исходную и целевую ячейку',
@@ -651,7 +672,7 @@ if ($action === 'warehouse_move_box_assign') {
         return;
     }
 
-    if ($fromCellId === $toCellId) {
+    if (!$isFromWithoutCell && $fromCellId === $toCellId) {
         $response = [
             'status'  => 'error',
             'message' => 'Исходная и целевая ячейки должны отличаться',
@@ -659,21 +680,39 @@ if ($action === 'warehouse_move_box_assign') {
         return;
     }
 
-    $updateSql = "
-        UPDATE warehouse_item_stock
-           SET cell_id = ?
-         WHERE cell_id = ?
-    ";
-    $stmt = $dbcnx->prepare($updateSql);
-    if (!$stmt) {
-        $response = [
-            'status'  => 'error',
-            'message' => 'DB error: ' . $dbcnx->error,
-        ];
-        return;
-    }
 
-    $stmt->bind_param('ii', $toCellId, $fromCellId);
+    if ($isFromWithoutCell) {
+        $updateSql = "
+            UPDATE warehouse_item_stock
+               SET cell_id = ?
+             WHERE cell_id IS NULL
+        ";
+        $stmt = $dbcnx->prepare($updateSql);
+        if (!$stmt) {
+            $response = [
+                'status'  => 'error',
+                'message' => 'DB error: ' . $dbcnx->error,
+            ];
+            return;
+        }
+        $stmt->bind_param('i', $toCellId);
+    } else {
+        $updateSql = "
+            UPDATE warehouse_item_stock
+               SET cell_id = ?
+             WHERE cell_id = ?
+        ";
+        $stmt = $dbcnx->prepare($updateSql);
+        if (!$stmt) {
+            $response = [
+                'status'  => 'error',
+                'message' => 'DB error: ' . $dbcnx->error,
+            ];
+            return;
+        }
+
+        $stmt->bind_param('ii', $toCellId, $fromCellId);
+    }
     $stmt->execute();
     $affectedRows = (int)$stmt->affected_rows;
     $stmt->close();
@@ -690,7 +729,7 @@ if ($action === 'warehouse_move_box_assign') {
         return $row ? (string)$row['code'] : null;
     };
 
-    $fromCellCode = $cellCodeLookup($fromCellId);
+    $fromCellCode = $isFromWithoutCell ? 'Без ячейки' : $cellCodeLookup($fromCellId);
     $toCellCode = $cellCodeLookup($toCellId);
 
     audit_log(

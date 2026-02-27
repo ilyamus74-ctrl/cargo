@@ -875,12 +875,15 @@ const CoreAPI = {
                     toCellSelect?.focus();
                     return;
                 }
-                if (fromCellSelect.value === toCellSelect.value) {
+                if (fromCellSelect.value !== '__without_cell__' && fromCellSelect.value === toCellSelect.value) {
                     alert('Исходная и целевая ячейки должны отличаться');
                     toCellSelect?.focus();
                     return;
                 }
-                if (!confirm('Переместить все посылки из выбранной ячейки в целевую?')) {
+                const confirmText = fromCellSelect.value === '__without_cell__'
+                    ? 'Назначить выбранную ячейку всем посылкам без ячейки?'
+                    : 'Переместить все посылки из выбранной ячейки в целевую?';
+                if (!confirm(confirmText)) {
                     return;
                 }
             }

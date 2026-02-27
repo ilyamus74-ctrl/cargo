@@ -124,6 +124,7 @@
                       <label class="form-label small mb-1" for="warehouse-move-box-from-cell">Из ячейки</label>
                       <select class="form-select form-select-sm" id="warehouse-move-box-from-cell" name="from_cell_id">
                         <option value="">— выберите ячейку —</option>
+                        <option value="__without_cell__">Посылки без ячейки</option>
                         {foreach $cells as $cell}
                           <option value="{$cell.id|escape}">{$cell.code|escape}</option>
                         {/foreach}
