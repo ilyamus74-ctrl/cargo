@@ -225,6 +225,7 @@ class MainActivity : ComponentActivity() {
         var onVolDownDouble: (() -> Unit)? = null
         var onVolUpSingle: (() -> Unit)? = null
         var onVolUpDouble: (() -> Unit)? = null
+        var activeWebViewProvider: (() -> WebView?)? = null
     }
 
     private lateinit var volumeButtonDispatcher: VolumeButtonDispatcher
@@ -264,7 +265,12 @@ class MainActivity : ComponentActivity() {
             this,
             object : OnBackPressedCallback(true) {
                 override fun handleOnBackPressed() {
-                    // игнорируем
+                    val activeWebView = MainActivity.activeWebViewProvider?.invoke()
+                    if (activeWebView != null && activeWebView.canGoBack()) {
+                        activeWebView.goBack()
+                        return
+                    }
+                    // в киоск-режиме остаемся в приложении
                 }
             }
         )
@@ -308,6 +314,14 @@ fun AppRoot() {
 
     // ссылка на WebView
     var webViewRef by remember { mutableStateOf<WebView?>(null) }
+    SideEffect {
+        MainActivity.activeWebViewProvider = { webViewRef }
+    }
+    DisposableEffect(Unit) {
+        onDispose {
+            MainActivity.activeWebViewProvider = null
+        }
+    }
     var ocrTemplates by remember { mutableStateOf<OcrTemplates?>(null) }
     var lastQr by remember { mutableStateOf<String?>(null) }
     var loginError by remember { mutableStateOf<String?>(null) }
