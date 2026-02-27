@@ -1780,18 +1780,20 @@ const CoreAPI = {
             }
 
             this.bindEvents();
-            this.clearResults();
             this.initialized = true;
+            this.refreshAfterMove();
         },
         bindEvents() {
-            this.fromCellSelect.addEventListener('change', () => {
+            const handleCellChange = () => {
                 const cellId = this.fromCellSelect.value || '';
                 if (!cellId) {
                     this.clearResults();
                     return;
                 }
                 this.fetchItems(cellId);
-            });
+            };
+            this.fromCellSelect.addEventListener('change', handleCellChange);
+            this.fromCellSelect.addEventListener('input', handleCellChange);
         },
         clearResults() {
             if (this.tbody) {
@@ -2604,6 +2606,18 @@ function renderToolPhotos(photos) {
 
 ///////
 CoreAPI.pageInits = CoreAPI.pageInits || {};
+
+CoreAPI.pageInits.warehouse_move = function warehouseMoveInit() {
+    if (CoreAPI.warehouseMove?.init) {
+        CoreAPI.warehouseMove.init();
+    }
+    if (CoreAPI.warehouseMoveBatch?.init) {
+        CoreAPI.warehouseMoveBatch.init();
+    }
+    if (CoreAPI.warehouseMoveBox?.init) {
+        CoreAPI.warehouseMoveBox.init();
+    }
+};
 
 CoreAPI.pageInits.tools_management = function toolsManagementInit() {
     window.clearToolsStorageMoveSearch = window.clearToolsStorageMoveSearch || function () {
