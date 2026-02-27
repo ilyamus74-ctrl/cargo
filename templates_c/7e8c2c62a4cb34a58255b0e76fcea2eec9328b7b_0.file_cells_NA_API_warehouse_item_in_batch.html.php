@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-02-24 12:55:36
+/* Smarty version 5.3.1, created on 2026-02-27 14:40:57
   from 'file:cells_NA_API_warehouse_item_in_batch.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_699d9fc8d710c7_96774629',
+  'unifunc' => 'content_69a1acf9446d70_64695535',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '7e8c2c62a4cb34a58255b0e76fcea2eec9328b7b' => 
     array (
       0 => 'cells_NA_API_warehouse_item_in_batch.html',
-      1 => 1771937721,
+      1 => 1772202901,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_699d9fc8d710c7_96774629 (\Smarty\Template $_smarty_tpl) {
+function content_69a1acf9446d70_64695535 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>
 
@@ -116,6 +116,43 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
     <label for="senderName" class="form-label">Форвард CODE</label>
     <input type="text" class="form-control" id="carrierCode" name="sender_code">
   </div>
+
+
+  <div class="col-12">
+    <div id="warehouseStockAddonsSection"
+         data-addons-map='<?php echo htmlspecialchars((string)json_encode($_smarty_tpl->getValue('addons_map')), ENT_QUOTES, 'UTF-8', true);?>
+'
+         data-addons-raw-map='<?php echo htmlspecialchars((string)json_encode($_smarty_tpl->getValue('addons_raw_map')), ENT_QUOTES, 'UTF-8', true);?>
+'
+         data-item-addons='{}'>
+      <label class="form-label">ДопИнфо</label>
+      <div id="warehouseStockAddonsControls" class="row g-2"></div>
+      <div id="warehouseStockAddonsEmpty" class="form-text text-muted">Для выбранной компании форварда нет настроенной ДопИнфо.</div>
+      <input type="hidden" id="warehouseStockAddonsJson" name="addons_json" value="">
+      <input type="hidden" id="warehouseStockAddonsDebug" name="debug" value="">
+    </div>
+  </div>
+
+  <div class="col-md-6">
+    <label class="form-label d-block">Фото Лейб</label>
+    <button type="button" class="btn btn-outline-secondary js-core-link" id="warehouseStockTakeLabelPhotoBtn" data-photo-type="label" data-core-action="upload_item_stock_photo">
+      Фото Лейб
+    </button>
+    <input type="file" accept="image/*" capture="environment" class="d-none" id="warehouseStockLabelPhotoInput" data-photo-type="label">
+    <input type="hidden" id="warehouseStockLabelImageJson" name="label_image" value="">
+    <div class="form-text" id="warehouseStockLabelPhotoInfo"></div>
+  </div>
+
+  <div class="col-md-6">
+    <label class="form-label d-block">Фото содерж</label>
+    <button type="button" class="btn btn-outline-secondary js-core-link" id="warehouseStockTakeBoxPhotoBtn" data-photo-type="box" data-core-action="upload_item_stock_photo">
+      Фото содерж
+    </button>
+    <input type="file" accept="image/*" capture="environment" class="d-none" id="warehouseStockBoxPhotoInput" data-photo-type="box">
+    <input type="hidden" id="warehouseStockBoxImageJson" name="box_image" value="">
+    <div class="form-text" id="warehouseStockBoxPhotoInfo"></div>
+  </div>
+
 
 
   <div class="col-md-6">

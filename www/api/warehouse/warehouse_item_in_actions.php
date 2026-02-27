@@ -7,6 +7,67 @@ declare(strict_types=1);
  */
 // Доступны: $action, $user, $dbcnx, $smarty
 $response = ['status' => 'error', 'message' => 'Unknown warehouse item in action'];
+
+
+function warehouse_item_in_ensure_addons_columns(mysqli $dbcnx): void
+{
+    $checkIn = $dbcnx->query("SHOW COLUMNS FROM warehouse_item_in LIKE 'addons_json'");
+    if ($checkIn instanceof mysqli_result) {
+        $existsIn = $checkIn->num_rows > 0;
+        $checkIn->free();
+        if (!$existsIn) {
+            $dbcnx->query("ALTER TABLE warehouse_item_in ADD COLUMN addons_json LONGTEXT NULL AFTER box_image");
+        }
+    }
+
+    $checkStock = $dbcnx->query("SHOW COLUMNS FROM warehouse_item_stock LIKE 'addons_json'");
+    if ($checkStock instanceof mysqli_result) {
+        $existsStock = $checkStock->num_rows > 0;
+        $checkStock->free();
+        if (!$existsStock) {
+            $dbcnx->query("ALTER TABLE warehouse_item_stock ADD COLUMN addons_json LONGTEXT NULL AFTER box_image");
+        }
+    }
+}
+
+function warehouse_item_in_load_addons_map(mysqli $dbcnx): array
+{
+    $addonsMap = [];
+    $addonsRawMap = [];
+
+    $sql = "SELECT connector_name, addons_json
+              FROM connectors_addons
+             WHERE addons_json IS NOT NULL
+               AND TRIM(addons_json) <> ''
+               AND TRIM(addons_json) <> '{}'
+               AND TRIM(addons_json) <> '[]'";
+    if ($res = $dbcnx->query($sql)) {
+        while ($row = $res->fetch_assoc()) {
+            $connector = strtoupper(trim((string)($row['connector_name'] ?? '')));
+            $rawAddonsJson = trim((string)($row['addons_json'] ?? ''));
+            if ($connector === '' || $rawAddonsJson === '') {
+                continue;
+            }
+
+            $decoded = json_decode($rawAddonsJson, true);
+            if (!is_array($decoded)) {
+                continue;
+            }
+
+            $extra = $decoded['extra'] ?? [];
+            if (!is_array($extra) || empty($extra)) {
+                continue;
+            }
+
+            $addonsMap[$connector] = $extra;
+            $addonsRawMap[$connector] = $decoded;
+        }
+        $res->free();
+    }
+
+    return [$addonsMap, $addonsRawMap];
+}
+
 function findWarehouseDuplicate(mysqli $dbcnx, string $carrierName, string $tuid, string $tracking): array
 {
     $carrierName = trim($carrierName);
@@ -98,8 +159,10 @@ switch ($action) {
             'html'   => $html,
         ];
         break;
+
     case 'open_item_in_batch':
         auth_require_login();
+        warehouse_item_in_ensure_addons_columns($dbcnx);
         $current = $user;
         $userId  = (int)$current['id'];
         $batchUid = isset($_POST['batch_uid']) ? (int)$_POST['batch_uid'] : 0;
@@ -190,6 +253,9 @@ switch ($action) {
             $resStand->free();
         }
         $smarty->assign('stand_devices', $stand_devices);
+        [$addonsMap, $addonsRawMap] = warehouse_item_in_load_addons_map($dbcnx);
+        $smarty->assign('addons_map', $addonsMap);
+        $smarty->assign('addons_raw_map', $addonsRawMap);
         require_once __DIR__ . '/../../ocr_templates.php';
         require_once __DIR__ . '/../../ocr_dicts.php';
         ob_start();
@@ -200,8 +266,10 @@ switch ($action) {
             'html'   => $html,
         ];
         break;
+
     case 'add_new_item_in':
         auth_require_login();
+        warehouse_item_in_ensure_addons_columns($dbcnx);
         $current = $user;
         // Кто сейчас залогинен — ОПЕРАТОР
         $operatorUserId = (int)$current['id'];
@@ -254,9 +322,13 @@ switch ($action) {
         $sizeL    = ($sizeL    === '' || $sizeL    === null) ? 0.0 : (float)$sizeL;
         $sizeW    = ($sizeW    === '' || $sizeW    === null) ? 0.0 : (float)$sizeW;
         $sizeH    = ($sizeH    === '' || $sizeH    === null) ? 0.0 : (float)$sizeH;
-        // пока не используем
-        $labelImage = null;
-        $boxImage   = null;
+        $addonsJsonRaw = trim((string)($_POST['addons_json'] ?? ''));
+        $labelImage = trim((string)($_POST['label_image'] ?? ''));
+        $boxImage   = trim((string)($_POST['box_image'] ?? ''));
+
+        $addonsJson = $addonsJsonRaw !== '' ? $addonsJsonRaw : null;
+        $labelImage = $labelImage !== '' ? $labelImage : null;
+        $boxImage   = $boxImage !== '' ? $boxImage : null;
         if ($tuid === '' || $tracking === '') {
             $response = [
                 'status'  => 'error',
@@ -281,7 +353,7 @@ switch ($action) {
                     receiver_name, receiver_company, receiver_address,
                     sender_name, sender_company,
                     weight_kg, size_l_cm, size_w_cm, size_h_cm,
-                    label_image, box_image
+                    label_image, box_image, addons_json
                 ) VALUES (
                     ?, ?, ?, ?, 0,
                     ?, ?, ?, ?,
@@ -289,7 +361,7 @@ switch ($action) {
                     ?, ?, ?,
                     ?, ?,
                     ?, ?, ?, ?,
-                    ?, ?
+                    ?, ?, ?
                 )";
         $stmt = $dbcnx->prepare($sql);
         if (!$stmt) {
@@ -299,9 +371,9 @@ switch ($action) {
             ];
             break;
         }
-        // iiiisssssssssssddddss  = 21 параметр
+        // iiiisssssssssssddddsss  = 22 параметра
         $stmt->bind_param(
-            "iiiisssssssssssddddss",
+            "iiiisssssssssssddddsss",
             $batchUid,
             $uidCreated,
             $ownerUserId,    // владелец партии
@@ -322,7 +394,8 @@ switch ($action) {
             $sizeW,
             $sizeH,
             $labelImage,
-            $boxImage
+            $boxImage,
+            $addonsJson
         );
         $stmt->execute();
         $stmt->close();
@@ -338,6 +411,7 @@ switch ($action) {
                 'operator_user_id' => $operatorUserId,
                 'tuid'             => $tuid,
                 'tracking_no'      => $tracking,
+                'addons_json'      => $addonsJson,
             ]
         );
         $response = [
@@ -359,6 +433,7 @@ switch ($action) {
         ];
     case 'delete_item_in':
         auth_require_login();
+        warehouse_item_in_ensure_addons_columns($dbcnx);
         $current = $user;
         $userId  = (int)$current['id'];
         $isAdmin = auth_has_permission('warehouse.in.manage_all') || auth_has_role('ADMIN');
@@ -525,6 +600,10 @@ switch ($action) {
             $resStand->free();
         }
         $smarty->assign('stand_devices', $stand_devices);
+
+        [$addonsMap, $addonsRawMap] = warehouse_item_in_load_addons_map($dbcnx);
+        $smarty->assign('addons_map', $addonsMap);
+        $smarty->assign('addons_raw_map', $addonsRawMap);
         require_once __DIR__ . '/../../ocr_templates.php';
         require_once __DIR__ . '/../../ocr_dicts.php';
         ob_start();
@@ -538,6 +617,7 @@ switch ($action) {
         break;
     case 'commit_item_in_batch':
         auth_require_login();
+        warehouse_item_in_ensure_addons_columns($dbcnx);
         $current  = $user;
         $userId   = (int)$current['id'];
         $batchUid = (int)($_POST['batch_uid'] ?? 0);
@@ -584,7 +664,7 @@ switch ($action) {
                         receiver_name, receiver_company, receiver_address,
                         sender_name, sender_company,
                         weight_kg, size_l_cm, size_w_cm, size_h_cm,
-                        label_image, box_image
+                        label_image, box_image, addons_json
                     )
                     SELECT
                         batch_uid, uid_created, user_id, device_id, created_at,
@@ -593,7 +673,7 @@ switch ($action) {
                         receiver_name, receiver_company, receiver_address,
                         sender_name, sender_company,
                         weight_kg, size_l_cm, size_w_cm, size_h_cm,
-                        label_image, box_image
+                        label_image, box_image, addons_json
                       FROM warehouse_item_in
                      WHERE batch_uid = ?
                        AND committed = 0";
