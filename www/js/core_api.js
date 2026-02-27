@@ -2191,9 +2191,79 @@ function initStandDevicePersistence() {
 
 document.addEventListener('DOMContentLoaded', initStandDevicePersistence);
 
+
+function isOcrScannerWebView() {
+    return !!(window.DeviceApp && typeof window.DeviceApp === 'object');
+}
+
+function closeWarehousePhotoOverlay(fromPopState) {
+    var overlay = document.getElementById('warehousePhotoPreviewOverlay');
+    if (!overlay) return;
+    overlay.classList.add('d-none');
+
+    if (!fromPopState) {
+        try {
+            if (window.history && window.history.state && window.history.state.warehousePhotoPreview === true) {
+                window.history.back();
+            }
+        } catch (e) {}
+    }
+}
+
+function ensureWarehousePhotoOverlay() {
+    var existing = document.getElementById('warehousePhotoPreviewOverlay');
+    if (existing) return existing;
+
+    var overlay = document.createElement('div');
+    overlay.id = 'warehousePhotoPreviewOverlay';
+    overlay.className = 'position-fixed top-0 start-0 w-100 h-100 d-none';
+    overlay.style.zIndex = '2000';
+    overlay.style.background = '#111';
+
+    overlay.innerHTML =
+        '<div class="d-flex justify-content-end p-2">' +
+        '<button type="button" class="btn btn-outline-light" data-photo-preview-close="1" aria-label="Закрыть" title="Закрыть">&times;</button>' +
+        '</div>' +
+        '<div class="d-flex align-items-center justify-content-center" style="height:calc(100% - 56px);padding:10px;">' +
+        '<img data-photo-preview-image="1" alt="Фото" style="max-width:100%;max-height:100%;object-fit:contain;">' +
+        '</div>';
+
+    overlay.querySelector('[data-photo-preview-close="1"]').addEventListener('click', function () {
+        closeWarehousePhotoOverlay(false);
+    });
+
+    document.body.appendChild(overlay);
+
+    if (!window.__warehousePhotoPreviewPopstateInstalled) {
+        window.__warehousePhotoPreviewPopstateInstalled = true;
+        window.addEventListener('popstate', function (event) {
+            var state = event && event.state ? event.state : null;
+            if (state && state.warehousePhotoPreview === true) {
+                return;
+            }
+            closeWarehousePhotoOverlay(true);
+        });
+    }
+
+    return overlay;
+}
+
 function openWarehousePhotoPreview(photoPath) {
     var normalizedPath = String(photoPath || '').trim();
     if (!normalizedPath) return;
+
+    if (isOcrScannerWebView()) {
+        var overlay = ensureWarehousePhotoOverlay();
+        var img = overlay.querySelector('[data-photo-preview-image="1"]');
+        if (img) {
+            img.src = normalizedPath;
+        }
+        overlay.classList.remove('d-none');
+        try {
+            window.history.pushState({ warehousePhotoPreview: true }, '');
+        } catch (e) {}
+        return;
+    }
 
     var previewWindow = window.open('', '_blank');
     if (!previewWindow) {
@@ -2272,6 +2342,7 @@ function renderWarehousePhotoPreviewButtons(photoType, paths) {
 
     info.appendChild(holder);
 }
+
 
 function setWarehouseItemStockPhotoState(photoType, path, jsonValue) {
     var isLabel = photoType === 'label';
