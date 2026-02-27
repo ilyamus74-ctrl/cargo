@@ -247,7 +247,8 @@ if ($action === 'warehouse_move_box_items') {
     $current = $user;
     $userId = (int)$current['id'];
     $isWorker = auth_has_role('WORKER');
-    $canViewAll = auth_has_permission('warehouse.stock.view_all') || auth_has_role('ADMIN') || $isWorker;
+    $canManageStock = auth_has_permission('warehouse.stock.manage') || $isWorker;
+    $canViewAll = auth_has_permission('warehouse.stock.view_all') || auth_has_role('ADMIN') || $canManageStock;
 
     $cellId = isset($_POST['from_cell_id']) ? (int)$_POST['from_cell_id'] : 0;
     if ($cellId <= 0) {
