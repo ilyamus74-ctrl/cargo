@@ -2763,7 +2763,8 @@ function initItemInDraftControls() {
     triggerDraftCreationByManualMeasurements();
 
     var modalEl = document.getElementById('fullscreenModal');
-    if (modalEl) {
+    if (modalEl && !modalEl.__itemInDraftHideHandlerBound) {
+        modalEl.__itemInDraftHideHandlerBound = true;
         modalEl.addEventListener('hide.bs.modal', function (event) {
             if (!document.getElementById('item-in-modal-form')) return;
             if (modalEl.dataset.itemInDraftAllowClose === '1') {
