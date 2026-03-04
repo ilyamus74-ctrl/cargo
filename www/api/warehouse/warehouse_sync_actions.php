@@ -248,20 +248,39 @@ if (!function_exists('warehouse_sync_fetch_item')) {
 if (!function_exists('warehouse_sync_fetch_connector')) {
     function warehouse_sync_fetch_connector(mysqli $dbcnx, string $forwarder, string $country): ?array
     {
+        $forwarder = strtoupper(trim($forwarder));
+        $forwarderCandidates = [$forwarder];
+        if (strpos($forwarder, 'DEV_') === 0) {
+            $forwarderCandidates[] = substr($forwarder, 4);
+        }
+
         $sql = "SELECT id, name, countries, auth_username, auth_password, auth_token, auth_cookies, base_url, ssl_ignore, scenario_json, operations_json, is_active
 "
             . "FROM connectors WHERE UPPER(TRIM(name)) = ? AND is_active = 1 ORDER BY id DESC";
-        $stmt = $dbcnx->prepare($sql);
-        if (!$stmt) return null;
-        $f = strtoupper(trim($forwarder));
-        $stmt->bind_param('s', $f);
-        $stmt->execute();
-        $res = $stmt->get_result();
         $rows = [];
-        while ($res && ($row = $res->fetch_assoc())) {
-            $rows[] = $row;
+
+        foreach ($forwarderCandidates as $candidate) {
+            $candidate = strtoupper(trim((string)$candidate));
+            if ($candidate === '') {
+                continue;
+            }
+
+            $stmt = $dbcnx->prepare($sql);
+            if (!$stmt) {
+                continue;
+            }
+            $stmt->bind_param('s', $candidate);
+            $stmt->execute();
+            $res = $stmt->get_result();
+            while ($res && ($row = $res->fetch_assoc())) {
+                $rows[] = $row;
+            }
+            $stmt->close();
+
+            if (!empty($rows)) {
+                break;
+            }
         }
-        $stmt->close();
         if (empty($rows)) return null;
 
         $country = strtoupper(trim($country));
