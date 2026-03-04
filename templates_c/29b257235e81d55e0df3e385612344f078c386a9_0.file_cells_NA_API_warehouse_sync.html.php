@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-03-04 13:54:44
+/* Smarty version 5.3.1, created on 2026-03-04 15:16:31
   from 'file:cells_NA_API_warehouse_sync.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_69a839a4938910_40280442',
+  'unifunc' => 'content_69a84ccf4e3dd9_91655420',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '29b257235e81d55e0df3e385612344f078c386a9' => 
     array (
       0 => 'cells_NA_API_warehouse_sync.html',
-      1 => 1772632047,
+      1 => 1772636510,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_69a839a4938910_40280442 (\Smarty\Template $_smarty_tpl) {
+function content_69a84ccf4e3dd9_91655420 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?><div class="pagetitle">
   <h1>Синхронизация</h1>
@@ -96,6 +96,11 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
                     <option value="all">Все</option>
                   </select>
                 </div>
+                <div class="col-6 col-md-3">
+                  <button type="button" id="warehouse-sync-all-sync-btn" class="btn btn-sm btn-primary w-100">
+                    all_sync
+                  </button>
+                </div>
               </div>
 
               <div class="table-responsive">
@@ -107,11 +112,12 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
                       <th scope="col">Страна</th>
                       <th scope="col">Ячейка</th>
                       <th scope="col">Таблица отчета</th>
+                      <th scope="col">Синхронизация</th>
                     </tr>
                   </thead>
                   <tbody id="warehouse-sync-missing-tbody">
                     <tr>
-                      <td colspan="5" class="text-center text-muted">Загрузка...</td>
+                      <td colspan="6" class="text-center text-muted">Загрузка...</td>
                     </tr>
                   </tbody>
                 </table>

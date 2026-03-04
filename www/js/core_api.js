@@ -1186,22 +1186,6 @@ const CoreAPI = {
             });
         },
 
-            this.tbody.addEventListener('click', (event) => {
-                const btn = event.target.closest('.warehouse-sync-row-btn');
-                if (!btn) return;
-                const parcel = btn.dataset.parcel || '';
-                const itemId = btn.dataset.itemId || '';
-                alert(`sync подготовлен для посылки: ${parcel || itemId || '—'}`);
-            });
-
-            this.allSyncBtn.addEventListener('click', () => {
-                const available = this.tbody.querySelectorAll('.warehouse-sync-row-btn').length;
-                if (!available) {
-                    alert('Нет посылок со статусом "Готов к синхронизации" в текущем фильтре');
-                    return;
-                }
-                alert(`all_sync подготовлен. Доступно к синхронизации: ${available}`);
-            });
         setupObserver() {
             if (this.observer) {
                 this.observer.disconnect();
@@ -1226,7 +1210,6 @@ const CoreAPI = {
             if (this.total) {
                 this.total.textContent = '0';
             }
-            this.updateAllSyncState();
             this.loadNext();
         },
         setLoading(isLoading) {
@@ -1349,22 +1332,6 @@ const CoreAPI = {
             });
         },
 
-            this.tbody.addEventListener('click', (event) => {
-                const btn = event.target.closest('.warehouse-sync-row-btn');
-                if (!btn) return;
-                const parcel = btn.dataset.parcel || '';
-                const itemId = btn.dataset.itemId || '';
-                alert(`sync подготовлен для посылки: ${parcel || itemId || '—'}`);
-            });
-
-            this.allSyncBtn.addEventListener('click', () => {
-                const available = this.tbody.querySelectorAll('.warehouse-sync-row-btn').length;
-                if (!available) {
-                    alert('Нет посылок со статусом "Готов к синхронизации" в текущем фильтре');
-                    return;
-                }
-                alert(`all_sync подготовлен. Доступно к синхронизации: ${available}`);
-            });
         setupObserver() {
             if (this.observer) {
                 this.observer.disconnect();
@@ -1389,7 +1356,6 @@ const CoreAPI = {
             if (this.total) {
                 this.total.textContent = '0';
             }
-            this.updateAllSyncState();
             this.loadNext();
         },
         setLoading(isLoading) {
@@ -1514,23 +1480,6 @@ const CoreAPI = {
                 }, 300);
             });
         },
-
-            this.tbody.addEventListener('click', (event) => {
-                const btn = event.target.closest('.warehouse-sync-row-btn');
-                if (!btn) return;
-                const parcel = btn.dataset.parcel || '';
-                const itemId = btn.dataset.itemId || '';
-                alert(`sync подготовлен для посылки: ${parcel || itemId || '—'}`);
-            });
-
-            this.allSyncBtn.addEventListener('click', () => {
-                const available = this.tbody.querySelectorAll('.warehouse-sync-row-btn').length;
-                if (!available) {
-                    alert('Нет посылок со статусом "Готов к синхронизации" в текущем фильтре');
-                    return;
-                }
-                alert(`all_sync подготовлен. Доступно к синхронизации: ${available}`);
-            });
         setupObserver() {
             if (this.observer) {
                 this.observer.disconnect();
@@ -1555,7 +1504,6 @@ const CoreAPI = {
             if (this.total) {
                 this.total.textContent = '0';
             }
-            this.updateAllSyncState();
             this.loadNext();
         },
         setLoading(isLoading) {
