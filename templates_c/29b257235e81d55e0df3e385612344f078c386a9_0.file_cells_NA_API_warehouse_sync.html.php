@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-03-04 15:16:31
+/* Smarty version 5.3.1, created on 2026-03-04 22:04:01
   from 'file:cells_NA_API_warehouse_sync.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_69a84ccf4e3dd9_91655420',
+  'unifunc' => 'content_69a8ac51b0a119_46298514',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '29b257235e81d55e0df3e385612344f078c386a9' => 
     array (
       0 => 'cells_NA_API_warehouse_sync.html',
-      1 => 1772636510,
+      1 => 1772660808,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_69a84ccf4e3dd9_91655420 (\Smarty\Template $_smarty_tpl) {
+function content_69a8ac51b0a119_46298514 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?><div class="pagetitle">
   <h1>Синхронизация</h1>
@@ -150,7 +150,29 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
               </div>
             </div>
             <div class="tab-pane fade" id="warehouse-sync-history" role="tabpanel" aria-labelledby="warehouse-sync-history-tab">
-              <p class="text-muted mb-0">Раздел под историю запусков сверки (следующий шаг).</p>
+              <p class="small text-muted mb-2">
+                Последние синхронизации: <span id="warehouse-sync-history-total">0</span>
+              </p>
+              <div class="table-responsive">
+                <table class="table table-sm align-middle users-table">
+                  <thead>
+                    <tr>
+                      <th scope="col">Дата</th>
+                      <th scope="col">Посылка</th>
+                      <th scope="col">Форвард</th>
+                      <th scope="col">Страна</th>
+                      <th scope="col">Статус</th>
+                      <th scope="col">Сообщение</th>
+                      <th scope="col">Пользователь</th>
+                    </tr>
+                  </thead>
+                  <tbody id="warehouse-sync-history-tbody">
+                    <tr>
+                      <td colspan="7" class="text-center text-muted">Загрузка...</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
 
