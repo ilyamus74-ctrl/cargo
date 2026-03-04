@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-01-26 18:51:32
+/* Smarty version 5.3.1, created on 2026-03-04 12:27:57
   from 'file:cells_NA_API_warehouse_move_modal.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_6977b7b4dd06b0_71607465',
+  'unifunc' => 'content_69a8254d5e48e6_49407261',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     'db5cd9b9c15bf3ee2e649b730b60f75c9e089222' => 
     array (
       0 => 'cells_NA_API_warehouse_move_modal.html',
-      1 => 1769453378,
+      1 => 1772627258,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_6977b7b4dd06b0_71607465 (\Smarty\Template $_smarty_tpl) {
+function content_69a8254d5e48e6_49407261 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?><form id="item-stock-modal-form" class="row g-3">
   <input type="hidden" name="item_id" value="<?php echo $_smarty_tpl->getValue('item')['id'];?>
@@ -82,24 +82,6 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
 " disabled>
   </div>
 
-  <div class="col-md-6">
-    <label for="cellId" class="form-label">Ячейки (адрес хранения)</label>
-    <select class="form-select" id="cellId" name="cell_id">
-      <option value="">— не назначать —</option>
-      <?php
-$_from = $_smarty_tpl->getSmarty()->getRuntime('Foreach')->init($_smarty_tpl, $_smarty_tpl->getValue('cells'), 'cell');
-$foreach1DoElse = true;
-foreach ($_from ?? [] as $_smarty_tpl->getVariable('cell')->value) {
-$foreach1DoElse = false;
-?>
-        <option value="<?php echo htmlspecialchars((string)$_smarty_tpl->getValue('cell')['id'], ENT_QUOTES, 'UTF-8', true);?>
-" <?php if ($_smarty_tpl->getValue('cell')['id'] == $_smarty_tpl->getValue('item')['cell_id']) {?>selected<?php }?>><?php echo htmlspecialchars((string)$_smarty_tpl->getValue('cell')['code'], ENT_QUOTES, 'UTF-8', true);?>
-</option>
-      <?php
-}
-$_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
-    </select>
-  </div>
 
 
   <div class="col-md-6">
@@ -118,21 +100,21 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
     </select>
   </div>
 
-  <div class="col-md-6">
+<!--  <div class="col-md-6">
     <label for="senderName" class="form-label">Форвард CODE</label>
     <input type="text" class="form-control" id="carrierCode" name="sender_code" value="<?php echo htmlspecialchars((string)$_smarty_tpl->getValue('item')['sender_name'], ENT_QUOTES, 'UTF-8', true);?>
 " disabled>
   </div>
-
+-->
   <div class="col-md-6">
     <label for="standDevice" class="form-label">Устройство измерения</label>
     <select class="form-select" id="standDevice" name="stand_device_uid" disabled>
       <option value="">— выберите устройство —</option>
       <?php
 $_from = $_smarty_tpl->getSmarty()->getRuntime('Foreach')->init($_smarty_tpl, $_smarty_tpl->getValue('stand_devices'), 'device');
-$foreach2DoElse = true;
+$foreach1DoElse = true;
 foreach ($_from ?? [] as $_smarty_tpl->getVariable('device')->value) {
-$foreach2DoElse = false;
+$foreach1DoElse = false;
 ?>
         <option value="<?php echo htmlspecialchars((string)$_smarty_tpl->getValue('device')['device_uid'], ENT_QUOTES, 'UTF-8', true);?>
 " data-device-token="<?php echo htmlspecialchars((string)$_smarty_tpl->getValue('device')['device_token'], ENT_QUOTES, 'UTF-8', true);?>
@@ -177,6 +159,25 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
     <label for="sizeH" class="form-label">Высота, см</label>
     <input type="number" step="0.1" class="form-control" id="sizeH" name="size_h_cm" value="<?php echo htmlspecialchars((string)$_smarty_tpl->getValue('item')['size_h_cm'], ENT_QUOTES, 'UTF-8', true);?>
 " disabled>
+  </div>
+
+  <div class="col-md-6">
+    <label for="cellId" class="form-label">Ячейки (адрес хранения)</label>
+    <select class="form-select" id="cellId" name="cell_id">
+      <option value="">— не назначать —</option>
+      <?php
+$_from = $_smarty_tpl->getSmarty()->getRuntime('Foreach')->init($_smarty_tpl, $_smarty_tpl->getValue('cells'), 'cell');
+$foreach2DoElse = true;
+foreach ($_from ?? [] as $_smarty_tpl->getVariable('cell')->value) {
+$foreach2DoElse = false;
+?>
+        <option value="<?php echo htmlspecialchars((string)$_smarty_tpl->getValue('cell')['id'], ENT_QUOTES, 'UTF-8', true);?>
+" <?php if ($_smarty_tpl->getValue('cell')['id'] == $_smarty_tpl->getValue('item')['cell_id']) {?>selected<?php }?>><?php echo htmlspecialchars((string)$_smarty_tpl->getValue('cell')['code'], ENT_QUOTES, 'UTF-8', true);?>
+</option>
+      <?php
+}
+$_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
+    </select>
   </div>
 
   <div class="col-12">

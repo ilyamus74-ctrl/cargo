@@ -82,11 +82,11 @@
     <input type="text" class="form-control" id="receiverCompany" name="receiver_company">
   </div>-->
 
-  <div class="col-md-6">
+<!--  <div class="col-md-6">
     <label for="senderName" class="form-label">Форвард CODE</label>
     <input type="text" class="form-control" id="carrierCode" name="sender_code">
   </div>
-
+-->
   <div class="col-md-6">
     <label for="standDevice" class="form-label">Устройство измерения</label>
     <select class="form-select" id="standDevice" name="stand_device_uid">
@@ -155,6 +155,16 @@
     <input type="file" accept="image/*" capture="environment" class="d-none" id="warehouseStockBoxPhotoInput" data-photo-type="box">
     <input type="hidden" id="warehouseStockBoxImageJson" name="box_image" value="">
     <div class="form-text" id="warehouseStockBoxPhotoInfo"></div>
+  </div>
+
+  <div class="col-md-6">
+    <label for="cellId" class="form-label">Ячейки (адрес хранения)</label>
+    <select class="form-select" id="cellId" name="cell_id">
+      <option value="">— не назначать —</option>
+      {foreach $cells as $cell}
+      <option value="{$cell.id|escape}">{$cell.code|escape}</option>
+      {/foreach}
+    </select>
   </div>
 
   <div class="col-12 d-flex justify-content-between align-items-center">
