@@ -10,10 +10,24 @@
         <div class="small {$item.sync_status_class|default:'text-muted'}">{$item.sync_status_label|escape}</div>
       {/if}
     </td>
+    <td>
+      {if $item.can_sync|default:0}
+        <button
+          type="button"
+          class="btn btn-sm btn-outline-primary warehouse-sync-row-btn"
+          data-item-id="{$item.id|default:''|escape}"
+          data-parcel="{$item.parcel_uid|default:''|escape}"
+        >
+          sync
+        </button>
+      {else}
+        <span class="text-muted small">—</span>
+      {/if}
+    </td>
   </tr>
 {/foreach}
 {if !$sync_missing_items && $show_empty}
   <tr>
-    <td colspan="5" class="text-center text-muted">Нет посылок для сравнения</td>
+    <td colspan="6" class="text-center text-muted">Нет посылок для сравнения</td>
   </tr>
 {/if}
