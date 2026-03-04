@@ -91,7 +91,14 @@ const CoreAPI = {
                     }
                     return fd;
                 },
-                'save_connector_operations': () => this.getFormById('connector-operations-form'),
+                'save_connector_operations': (currentLink) => {
+                    const fd = this.getFormById('connector-operations-form');
+                    const openTab = currentLink?.getAttribute('data-open-tab') || '';
+                    if (openTab) {
+                        fd.append('open_tab', openTab);
+                    }
+                    return fd;
+                },
                 'test_connector_operations': (currentLink) => {
                     const fd = this.getFormById('connector-operations-form');
                     const testOperation = currentLink?.getAttribute('data-test-operation') || '';
@@ -484,6 +491,10 @@ const CoreAPI = {
                 const fd = new FormData();
                 fd.append('action', 'form_connector_operations');
                 fd.append('connector_id', connectorId);
+                const openTab = String(data?.open_tab || '').trim();
+                if (openTab) {
+                    fd.append('open_tab', openTab);
+                }
                 const d2 = await CoreAPI.client.call(fd);
                 if (d2?.status === 'ok') {
                     CoreAPI.ui.showModal(d2.html);
@@ -555,6 +566,10 @@ const CoreAPI = {
                 const fd = new FormData();
                 fd.append('action', 'form_connector_operations');
                 fd.append('connector_id', connectorId);
+                const openTab = String(data?.open_tab || '').trim();
+                if (openTab) {
+                    fd.append('open_tab', openTab);
+                }
                 const d2 = await CoreAPI.client.call(fd);
                 if (d2?.status === 'ok') {
                     CoreAPI.ui.showModal(d2.html);

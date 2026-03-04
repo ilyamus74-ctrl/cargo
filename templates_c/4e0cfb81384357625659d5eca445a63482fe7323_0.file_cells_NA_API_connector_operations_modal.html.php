@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-03-04 19:10:13
+/* Smarty version 5.3.1, created on 2026-03-04 19:17:58
   from 'file:cells_NA_API_connector_operations_modal.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_69a88395550431_85048916',
+  'unifunc' => 'content_69a885663a1cc4_15036002',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '4e0cfb81384357625659d5eca445a63482fe7323' => 
     array (
       0 => 'cells_NA_API_connector_operations_modal.html',
-      1 => 1772651396,
+      1 => 1772651710,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_69a88395550431_85048916 (\Smarty\Template $_smarty_tpl) {
+function content_69a885663a1cc4_15036002 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>
 <section class="section">
@@ -410,6 +410,9 @@ $_smarty_current_dir = '/home/cells/web/templates';
                 </div>
 
                 <div class="d-flex gap-2 mb-2">
+                  <button type="button" class="btn btn-primary js-core-link" data-core-action="save_connector_operations" data-open-tab="op2-pane">
+                    Сохранить операции #2
+                  </button>
                   <button type="button" class="btn btn-outline-primary js-core-link" data-core-action="test_connector_operations" data-test-operation="submission" data-open-tab="op2-pane">
                     test_sync (Операция #2)
                   </button>

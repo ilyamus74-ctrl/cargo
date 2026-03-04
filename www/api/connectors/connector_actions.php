@@ -1787,6 +1787,7 @@ switch ($normalizedAction) {
             'status' => 'ok',
             'message' => 'Операции сохранены',
             'connector_id' => $connectorId,
+            'open_tab' => trim((string)($_POST['open_tab'] ?? '')),
         ];
         break;
 
