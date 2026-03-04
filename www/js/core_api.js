@@ -1681,21 +1681,86 @@ const CoreAPI = {
                 }, 300);
             });
 
-            this.tbody.addEventListener('click', (event) => {
+            this.tbody.addEventListener('click', async (event) => {
                 const btn = event.target.closest('.warehouse-sync-row-btn');
                 if (!btn) return;
-                const parcel = btn.dataset.parcel || '';
                 const itemId = btn.dataset.itemId || '';
-                alert(`sync подготовлен для посылки: ${parcel || itemId || '—'}`);
+                if (!itemId) return;
+
+                btn.disabled = true;
+                const prev = btn.textContent;
+                btn.textContent = 'sync...';
+                try {
+                    const fd = new FormData();
+                    fd.append('action', 'warehouse_sync_item');
+                    fd.append('item_id', itemId);
+                    const data = await CoreAPI.client.call(fd);
+                    if (!data || data.status !== 'ok') {
+                        throw new Error(data?.message || 'sync error');
+                    }
+                    btn.classList.remove('btn-outline-primary');
+                    btn.classList.add('btn-outline-success');
+                    btn.textContent = 'synced';
+                    alert(data.message || 'sync выполнен');
+                    await this.resetAndLoad();
+                    CoreAPI.warehouseSyncHistory.load();
+                } catch (err) {
+                    console.error('warehouse_sync_item error:', err);
+                    btn.disabled = false;
+                    btn.textContent = prev;
+                    alert(`sync ошибка: ${err?.message || err}`);
+                    CoreAPI.warehouseSyncHistory.load();
+                }
             });
 
-            this.allSyncBtn.addEventListener('click', () => {
-                const available = this.tbody.querySelectorAll('.warehouse-sync-row-btn').length;
+            this.allSyncBtn.addEventListener('click', async () => {
+                const buttons = Array.from(this.tbody.querySelectorAll('.warehouse-sync-row-btn'));
+                const available = buttons.length;
                 if (!available) {
                     alert('Нет посылок со статусом "Готов к синхронизации" в текущем фильтре');
                     return;
                 }
-                alert(`all_sync подготовлен. Доступно к синхронизации: ${available}`);
+
+
+                if (!confirm(`Запустить sync для ${available} посылок на текущей странице?`)) {
+                    return;
+                }
+
+                this.allSyncBtn.disabled = true;
+                let ok = 0;
+                let fail = 0;
+                for (const btn of buttons) {
+                    const itemId = btn.dataset.itemId || '';
+                    if (!itemId) continue;
+                    btn.disabled = true;
+                    const prev = btn.textContent;
+                    btn.textContent = 'sync...';
+                    try {
+                        const fd = new FormData();
+                        fd.append('action', 'warehouse_sync_item');
+                        fd.append('item_id', itemId);
+                        const data = await CoreAPI.client.call(fd);
+                        if (!data || data.status !== 'ok') {
+                            throw new Error(data?.message || 'sync error');
+                        }
+                        ok += 1;
+                        btn.classList.remove('btn-outline-primary');
+                        btn.classList.add('btn-outline-success');
+                        btn.textContent = 'synced';
+                    } catch (err) {
+                        fail += 1;
+                        btn.disabled = false;
+                        btn.textContent = prev;
+                        btn.classList.remove('btn-outline-primary');
+                        btn.classList.add('btn-outline-danger');
+                        console.error('warehouse_sync_item error:', err);
+                    }
+                }
+
+                alert(`all_sync завершен. Успех: ${ok}, Ошибки: ${fail}`);
+                this.allSyncBtn.disabled = false;
+                await this.resetAndLoad();
+                CoreAPI.warehouseSyncHistory.load();
             });
         },
         setupObserver() {
@@ -1710,7 +1775,7 @@ const CoreAPI = {
             }, { rootMargin: '200px' });
             this.observer.observe(this.sentinel);
         },
-        resetAndLoad() {
+        async resetAndLoad() {
             this.state.offset = 0;
             this.state.done = false;
             this.tbody.innerHTML = `
@@ -1722,7 +1787,7 @@ const CoreAPI = {
                 this.total.textContent = '0';
             }
             this.updateAllSyncState();
-            this.loadNext();
+            await this.loadNext();
         },
         updateAllSyncState() {
             if (!this.allSyncBtn || !this.tbody) return;
@@ -1815,6 +1880,77 @@ const CoreAPI = {
             }
         }
     },
+
+
+    warehouseSyncHistory: {
+        root: null,
+        tbody: null,
+        total: null,
+        initialized: false,
+        init() {
+            const root = document.getElementById('warehouse-sync-history');
+            if (!root) return;
+            this.root = root;
+            this.tbody = root.querySelector('#warehouse-sync-history-tbody');
+            this.total = root.querySelector('#warehouse-sync-history-total');
+            if (!this.tbody || !this.total) {
+                return;
+            }
+            this.load();
+            this.initialized = true;
+        },
+        async load() {
+            if (!this.tbody || !this.total) return;
+            this.tbody.innerHTML = `
+                <tr>
+                    <td colspan="7" class="text-center text-muted">Загрузка...</td>
+                </tr>
+            `;
+            const fd = new FormData();
+            fd.append('action', 'warehouse_sync_history');
+            try {
+                const data = await CoreAPI.client.call(fd);
+                if (!data || data.status !== 'ok') {
+                    console.error('core_api error (warehouse_sync_history):', data);
+                    return;
+                }
+                const rows = Array.isArray(data.rows) ? data.rows : [];
+                if (!rows.length) {
+                    this.tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted">Пока нет записей аудита</td></tr>';
+                    this.total.textContent = '0';
+                    return;
+                }
+                const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (ch) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch] || ch));
+                this.tbody.innerHTML = rows.map((row) => {
+                    const status = String(row.status || '').toLowerCase();
+                    const statusClass = status === 'success' ? 'text-success' : 'text-danger';
+                    const statusLabel = status === 'success' ? 'success' : 'error';
+                    const createdAt = String(row.created_at || '');
+                    const tracking = String(row.tracking_no || '—');
+                    const forwarder = String(row.forwarder || '—');
+                    const country = String(row.country_code || '—');
+                    const message = String(row.message || '');
+                    const userName = String(row.user_name || '—');
+                    const itemId = String(row.item_id || '');
+                    return `
+                        <tr>
+                          <td>${esc(createdAt)}</td>
+                          <td>${esc(tracking)}${itemId ? `<div class="small text-muted">#${esc(itemId)}</div>` : ''}</td>
+                          <td>${esc(forwarder)}</td>
+                          <td>${esc(country)}</td>
+                          <td class="${statusClass}">${esc(statusLabel)}</td>
+                          <td>${esc(message)}</td>
+                          <td>${esc(userName)}</td>
+                        </tr>
+                    `;
+                }).join('');
+                this.total.textContent = String(data.total ?? rows.length);
+            } catch (err) {
+                console.error('core_api fetch error (warehouse_sync_history):', err);
+            }
+        }
+    },
+
 
 
     // ====================================
@@ -2162,6 +2298,9 @@ const CoreAPI = {
             if (event?.target?.id === 'warehouse-sync-reports-tab') {
                 this.warehouseSyncReports.init();
             }
+            if (event?.target?.id === 'warehouse-sync-history-tab') {
+                this.warehouseSyncHistory.init();
+            }
         });
         // Ensure page init handlers run on full page load (not only via loadMain).
         try {
@@ -2178,6 +2317,7 @@ const CoreAPI = {
         this.warehouseInStorage.init();
         this.warehouseSync.init();
         this.warehouseSyncReports.init();
+        this.warehouseSyncHistory.init();
         this.warehouseMove.init();
         this.warehouseMoveBatch.init();
         this.warehouseMoveBox.init();

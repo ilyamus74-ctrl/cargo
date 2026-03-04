@@ -117,7 +117,29 @@
               </div>
             </div>
             <div class="tab-pane fade" id="warehouse-sync-history" role="tabpanel" aria-labelledby="warehouse-sync-history-tab">
-              <p class="text-muted mb-0">Раздел под историю запусков сверки (следующий шаг).</p>
+              <p class="small text-muted mb-2">
+                Последние синхронизации: <span id="warehouse-sync-history-total">0</span>
+              </p>
+              <div class="table-responsive">
+                <table class="table table-sm align-middle users-table">
+                  <thead>
+                    <tr>
+                      <th scope="col">Дата</th>
+                      <th scope="col">Посылка</th>
+                      <th scope="col">Форвард</th>
+                      <th scope="col">Страна</th>
+                      <th scope="col">Статус</th>
+                      <th scope="col">Сообщение</th>
+                      <th scope="col">Пользователь</th>
+                    </tr>
+                  </thead>
+                  <tbody id="warehouse-sync-history-tbody">
+                    <tr>
+                      <td colspan="7" class="text-center text-muted">Загрузка...</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
 

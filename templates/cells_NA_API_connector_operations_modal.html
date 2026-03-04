@@ -295,7 +295,7 @@
                               name="submission_steps_json"
                               rows="10"
                               placeholder="JSON шагов browser-автоматизации">{$operations.submission.steps_json|escape}</textarea>
-                    <div class="form-text">{literal}JSON-массив шагов для формы: goto/fill/click/wait_for. Можно использовать переменные из scenario_json: ${login}, ${password}, ${tracking_number}, ${suite}, ${length}, ${width}, ${height}, ${gross_weight}, ${quantity}, ${category}, ${seller}, ${title}, ${description}, ${invoice}.{/literal}</div>
+                    <div class="form-text">{literal}JSON-массив шагов для формы: goto/fill/click/press/select/wait_for/wait_for_hidden/wait_for_regex. Для DEV COLIBRI используем #number и #client + Enter. Переменные из scenario_json: ${login}, ${password}, ${tracking_number}, ${suite}, ${client_name_surname}, ${gross_weight}, ${tariff_type}, ${category}, ${sub_category}.{/literal}</div>
                     <pre class="form-text mb-0">{literal}
 [
   {"action":"goto","url":"https://dev-backend.colibri.az/login"},

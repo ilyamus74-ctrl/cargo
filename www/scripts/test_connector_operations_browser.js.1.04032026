@@ -938,56 +938,6 @@ function persistDownloadedFileIfNeeded(downloaded, runtimeHomeDir, stableDownloa
         continue;
       }
 
-      if (action === 'wait_for_hidden') {
-        const selectorRaw = applyVars(step.selector || '', vars);
-        if (!selectorRaw) throw new Error('wait_for_hidden.selector is required');
-        const timeout = Number(step.timeout_ms || 10000);
-        const selectors = selectorRaw.split(',').map((s) => s.trim()).filter(Boolean);
-
-        await runWithTransientRetry(async () => {
-          await page.waitForFunction((arr) => {
-            const isHidden = (el) => {
-              if (!el) return true;
-              const style = window.getComputedStyle(el);
-              return style.display === 'none' || style.visibility === 'hidden' || Number(style.opacity || '1') === 0;
-            };
-            return arr.every((sel) => {
-              const nodes = Array.from(document.querySelectorAll(sel));
-              if (!nodes.length) return true;
-              return nodes.every((node) => isHidden(node));
-            });
-          }, { timeout }, selectors);
-        });
-
-        const shot = captureScreenshots ? await saveStepScreenshot(page, artifactsDir, stepNo, action) : null;
-        stepLog.push({ time: new Date().toISOString(), step: stepNo, action, status: 'ok', screenshot: shot || undefined, meta: { selector: selectorRaw, timeout } });
-        continue;
-      }
-
-      if (action === 'wait_for_regex') {
-        const selector = applyVars(step.selector || '', vars);
-        const pattern = applyVars(step.pattern || '', vars);
-        if (!selector) throw new Error('wait_for_regex.selector is required');
-        if (!pattern) throw new Error('wait_for_regex.pattern is required');
-        const timeout = Number(step.timeout_ms || 10000);
-
-        await runWithTransientRetry(async () => {
-          await page.waitForFunction((sel, rxSource) => {
-            const root = document.querySelector(sel);
-            if (!root) return false;
-            try {
-              const rx = new RegExp(rxSource, 'm');
-              return rx.test(root.textContent || '') || rx.test(root.innerHTML || '');
-            } catch (_) {
-              return false;
-            }
-          }, { timeout }, selector, pattern);
-        });
-
-        const shot = captureScreenshots ? await saveStepScreenshot(page, artifactsDir, stepNo, action) : null;
-        stepLog.push({ time: new Date().toISOString(), step: stepNo, action, status: 'ok', screenshot: shot || undefined, meta: { selector, pattern, timeout } });
-        continue;
-      }
 
       if (action === 'wait_for') {
         const selector = applyVars(step.selector || '', vars);
@@ -1143,6 +1093,7 @@ function persistDownloadedFileIfNeeded(downloaded, runtimeHomeDir, stableDownloa
       await safeRm(userDataDir);
       await safeRm(runtimeHomeDir);
       process.exit(0);
+    }
 
     // если не было явного download step — попробуем найти файл в конце
     const downloaded = await waitForStableDownloadedFileInDirs([downloadDir, fallbackDownloadDir], fileExtension, 30000, {

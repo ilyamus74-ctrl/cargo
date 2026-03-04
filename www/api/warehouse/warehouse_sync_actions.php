@@ -142,6 +142,262 @@ if (!function_exists('warehouse_sync_find_column')) {
     }
 }
 
+
+
+if (!function_exists('warehouse_sync_apply_vars')) {
+    function warehouse_sync_apply_vars($value, array $vars)
+    {
+        if (is_array($value)) {
+            $result = [];
+            foreach ($value as $k => $v) {
+                $result[$k] = warehouse_sync_apply_vars($v, $vars);
+            }
+            return $result;
+        }
+
+        if (!is_string($value)) {
+            return $value;
+        }
+
+        return preg_replace_callback('/\$\{([a-zA-Z0-9_]+)\}/', static function ($m) use ($vars) {
+            $key = $m[1] ?? '';
+            return array_key_exists($key, $vars) ? (string)$vars[$key] : '';
+        }, $value) ?? $value;
+    }
+}
+
+if (!function_exists('warehouse_sync_ensure_audit_table')) {
+    function warehouse_sync_ensure_audit_table(mysqli $dbcnx): void
+    {
+        $sql = "CREATE TABLE IF NOT EXISTS warehouse_sync_audit (
+"
+            . " id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+"
+            . " item_id BIGINT UNSIGNED NOT NULL,
+"
+            . " tracking_no VARCHAR(255) NOT NULL DEFAULT '',
+"
+            . " forwarder VARCHAR(120) NOT NULL DEFAULT '',
+"
+            . " country_code VARCHAR(16) NOT NULL DEFAULT '',
+"
+            . " status VARCHAR(20) NOT NULL DEFAULT 'error',
+"
+            . " message TEXT NULL,
+"
+            . " response_json LONGTEXT NULL,
+"
+            . " created_by BIGINT UNSIGNED NOT NULL DEFAULT 0,
+"
+            . " created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+"
+            . " PRIMARY KEY (id),
+"
+            . " KEY idx_item_created (item_id, created_at),
+"
+            . " KEY idx_status_created (status, created_at)
+"
+            . ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci";
+        $dbcnx->query($sql);
+    }
+}
+
+if (!function_exists('warehouse_sync_audit_log')) {
+    function warehouse_sync_audit_log(mysqli $dbcnx, array $entry): void
+    {
+        warehouse_sync_ensure_audit_table($dbcnx);
+
+        $sql = 'INSERT INTO warehouse_sync_audit (item_id, tracking_no, forwarder, country_code, status, message, response_json, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?)';
+        $stmt = $dbcnx->prepare($sql);
+        if (!$stmt) {
+            return;
+        }
+
+        $itemId = (int)($entry['item_id'] ?? 0);
+        $tracking = trim((string)($entry['tracking_no'] ?? ''));
+        $forwarder = trim((string)($entry['forwarder'] ?? ''));
+        $country = trim((string)($entry['country_code'] ?? ''));
+        $status = trim((string)($entry['status'] ?? 'error'));
+        $message = trim((string)($entry['message'] ?? ''));
+        $responseJson = trim((string)($entry['response_json'] ?? ''));
+        $createdBy = (int)($entry['created_by'] ?? 0);
+
+        $stmt->bind_param('issssssi', $itemId, $tracking, $forwarder, $country, $status, $message, $responseJson, $createdBy);
+        $stmt->execute();
+        $stmt->close();
+    }
+}
+
+if (!function_exists('warehouse_sync_fetch_item')) {
+    function warehouse_sync_fetch_item(mysqli $dbcnx, int $itemId): ?array
+    {
+        $sql = "SELECT id, tuid, tracking_no, receiver_name, receiver_country_code, receiver_company, uid_created, weight_kg, addons_json
+"
+            . "FROM warehouse_item_stock WHERE id = ? LIMIT 1";
+        $stmt = $dbcnx->prepare($sql);
+        if (!$stmt) return null;
+        $stmt->bind_param('i', $itemId);
+        $stmt->execute();
+        $res = $stmt->get_result();
+        $row = $res ? $res->fetch_assoc() : null;
+        $stmt->close();
+        return $row ?: null;
+    }
+}
+
+if (!function_exists('warehouse_sync_fetch_connector')) {
+    function warehouse_sync_fetch_connector(mysqli $dbcnx, string $forwarder, string $country): ?array
+    {
+        $sql = "SELECT id, name, countries, auth_username, auth_password, auth_token, auth_cookies, base_url, ssl_ignore, scenario_json, operations_json, is_active
+"
+            . "FROM connectors WHERE UPPER(TRIM(name)) = ? AND is_active = 1 ORDER BY id DESC";
+        $stmt = $dbcnx->prepare($sql);
+        if (!$stmt) return null;
+        $f = strtoupper(trim($forwarder));
+        $stmt->bind_param('s', $f);
+        $stmt->execute();
+        $res = $stmt->get_result();
+        $rows = [];
+        while ($res && ($row = $res->fetch_assoc())) {
+            $rows[] = $row;
+        }
+        $stmt->close();
+        if (empty($rows)) return null;
+
+        $country = strtoupper(trim($country));
+        if ($country !== '') {
+            foreach ($rows as $row) {
+                $countriesRaw = strtoupper(trim((string)($row['countries'] ?? '')));
+                if ($countriesRaw === '') continue;
+                $parts = array_map('trim', explode(',', $countriesRaw));
+                if (in_array($country, $parts, true)) {
+                    return $row;
+                }
+            }
+        }
+
+        return $rows[0];
+    }
+}
+
+if (!function_exists('warehouse_sync_submission_steps')) {
+    function warehouse_sync_submission_steps(array $connector): array
+    {
+        $raw = trim((string)($connector['operations_json'] ?? ''));
+        if ($raw === '') return [];
+        $decoded = json_decode($raw, true);
+        if (!is_array($decoded)) return [];
+        $submission = isset($decoded['submission']) && is_array($decoded['submission']) ? $decoded['submission'] : [];
+        return isset($submission['steps']) && is_array($submission['steps']) ? $submission['steps'] : [];
+    }
+}
+
+if (!function_exists('warehouse_sync_build_vars')) {
+    function warehouse_sync_build_vars(array $connector, array $item): array
+    {
+        $vars = [
+            'base_url' => trim((string)($connector['base_url'] ?? '')),
+            'login' => trim((string)($connector['auth_username'] ?? '')),
+            'password' => trim((string)($connector['auth_password'] ?? '')),
+            'tracking_number' => trim((string)($item['tracking_no'] ?? '')),
+            'suite' => trim((string)($item['tuid'] ?? '')),
+            'client_name_surname' => trim((string)($item['receiver_name'] ?? '')),
+            'gross_weight' => trim((string)($item['weight_kg'] ?? '')),
+        ];
+
+        if ($vars['suite'] === '') {
+            $vars['suite'] = trim((string)($item['uid_created'] ?? ''));
+        }
+
+        $scenarioRaw = trim((string)($connector['scenario_json'] ?? ''));
+        if ($scenarioRaw !== '') {
+            $scenario = json_decode($scenarioRaw, true);
+            if (is_array($scenario)) {
+                foreach ($scenario as $k => $v) {
+                    if (is_string($k) && $k !== '' && (is_scalar($v) || $v === null)) {
+                        $vars[$k] = (string)($v ?? '');
+                    }
+                }
+            }
+        }
+
+        $addonsRaw = trim((string)($item['addons_json'] ?? ''));
+        if ($addonsRaw !== '') {
+            $addons = json_decode($addonsRaw, true);
+            if (is_array($addons)) {
+                if (!empty($addons['tariff_type'])) {
+                    $vars['tariff_type'] = (string)$addons['tariff_type'];
+                }
+                if (!empty($addons['category'])) {
+                    $vars['category'] = (string)$addons['category'];
+                }
+                if (!empty($addons['sub_category'])) {
+                    $vars['sub_category'] = (string)$addons['sub_category'];
+                } elseif (!empty($addons['subCat'])) {
+                    $vars['sub_category'] = (string)$addons['subCat'];
+                }
+            }
+        }
+
+        if (!isset($vars['sub_category']) || trim((string)$vars['sub_category']) === '') {
+            $vars['sub_category'] = trim((string)($vars['category'] ?? ''));
+        }
+
+        return $vars;
+    }
+}
+
+if (!function_exists('warehouse_sync_run_submission')) {
+    function warehouse_sync_run_submission(array $connector, array $item): array
+    {
+        $steps = warehouse_sync_submission_steps($connector);
+        if (empty($steps)) {
+            throw new RuntimeException('У коннектора не заполнены steps для Операции #2');
+        }
+
+        $scriptPath = realpath(__DIR__ . '/../../scripts/test_connector_operations_browser.js');
+        if (!$scriptPath) {
+            throw new RuntimeException('Не найден browser script для sync');
+        }
+
+        $tempDir = __DIR__ . '/../../scripts/_tmp';
+        if (!is_dir($tempDir)) {
+            @mkdir($tempDir, 0775, true);
+        }
+
+        $vars = warehouse_sync_build_vars($connector, $item);
+        $payload = [
+            'steps' => $steps,
+            'vars' => $vars,
+            'ssl_ignore' => !empty($connector['ssl_ignore']),
+            'cookies' => (string)($connector['auth_cookies'] ?? ''),
+            'auth_token' => (string)($connector['auth_token'] ?? ''),
+            'temp_dir' => realpath($tempDir) ?: $tempDir,
+            'expect_download' => false,
+        ];
+
+        $cmd = 'node ' . escapeshellarg($scriptPath) . ' ' . escapeshellarg((string)json_encode($payload, JSON_UNESCAPED_UNICODE));
+        $output = shell_exec($cmd . ' 2>&1');
+        $decoded = json_decode(trim((string)$output), true);
+        if (!is_array($decoded)) {
+            throw new RuntimeException('Node sync вернул некорректный ответ: ' . trim((string)$output));
+        }
+        if (empty($decoded['ok'])) {
+            $msg = trim((string)($decoded['message'] ?? 'Sync failed'));
+            throw new RuntimeException($msg !== '' ? $msg : 'Sync failed');
+        }
+
+        return [
+            'vars' => $vars,
+            'step_log' => isset($decoded['step_log']) && is_array($decoded['step_log']) ? $decoded['step_log'] : [],
+            'artifacts_dir' => trim((string)($decoded['artifacts_dir'] ?? '')),
+            'message' => trim((string)($decoded['message'] ?? '')),
+            'raw' => $decoded,
+        ];
+    }
+}
+
+
 if ($action === 'warehouse_sync' || $action === 'warehouse.sync') {
     auth_require_login();
     $current = $user;
@@ -329,6 +585,136 @@ if ($action === 'warehouse_sync_missing') {
         'has_more' => $limit !== null ? ($offset + count($paged) < $total) : false,
     ];
 }
+
+
+
+
+if ($action === 'warehouse_sync_item') {
+    auth_require_login();
+    $current = $user;
+    $userId = (int)($current['id'] ?? 0);
+
+    $itemId = (int)($_POST['item_id'] ?? 0);
+    if ($itemId <= 0) {
+        $response = ['status' => 'error', 'message' => 'item_id required'];
+        return;
+    }
+
+    $item = warehouse_sync_fetch_item($dbcnx, $itemId);
+    if (!$item) {
+        $response = ['status' => 'error', 'message' => 'Посылка не найдена', 'item_id' => $itemId];
+        return;
+    }
+
+    $forwarder = strtoupper(trim((string)($item['receiver_company'] ?? '')));
+    $country = strtoupper(trim((string)($item['receiver_country_code'] ?? '')));
+    $tracking = trim((string)($item['tracking_no'] ?? ''));
+
+    try {
+        $connector = warehouse_sync_fetch_connector($dbcnx, $forwarder, $country);
+        if (!$connector) {
+            throw new RuntimeException('Не найден активный коннектор для форварда ' . $forwarder);
+        }
+
+        $result = warehouse_sync_run_submission($connector, $item);
+
+        $responsePayload = [
+            'message' => $result['message'],
+            'connector_id' => (int)($connector['id'] ?? 0),
+            'step_log' => $result['step_log'],
+            'artifacts_dir' => $result['artifacts_dir'],
+            'vars' => $result['vars'],
+        ];
+        $responseJson = json_encode($responsePayload, JSON_UNESCAPED_UNICODE);
+        warehouse_sync_audit_log($dbcnx, [
+            'item_id' => $itemId,
+            'tracking_no' => $tracking,
+            'forwarder' => $forwarder,
+            'country_code' => $country,
+            'status' => 'success',
+            'message' => 'sync ok',
+            'response_json' => $responseJson === false ? '' : $responseJson,
+            'created_by' => $userId,
+        ]);
+
+        audit_log($userId, 'WAREHOUSE_SYNC_ITEM_SUCCESS', 'warehouse_item_stock', $itemId, 'Синхронизация посылки выполнена', [
+            'item_id' => $itemId,
+            'tracking_no' => $tracking,
+            'forwarder' => $forwarder,
+            'country_code' => $country,
+            'connector_id' => (int)($connector['id'] ?? 0),
+        ]);
+
+        $response = [
+            'status' => 'ok',
+            'item_id' => $itemId,
+            'tracking_no' => $tracking,
+            'forwarder' => $forwarder,
+            'country_code' => $country,
+            'message' => 'sync выполнен успешно',
+            'step_log' => $result['step_log'],
+            'artifacts_dir' => $result['artifacts_dir'],
+        ];
+    } catch (Throwable $e) {
+        $errorPayload = ['error' => $e->getMessage()];
+        $errorJson = json_encode($errorPayload, JSON_UNESCAPED_UNICODE);
+        warehouse_sync_audit_log($dbcnx, [
+            'item_id' => $itemId,
+            'tracking_no' => $tracking,
+            'forwarder' => $forwarder,
+            'country_code' => $country,
+            'status' => 'error',
+            'message' => $e->getMessage(),
+            'response_json' => $errorJson === false ? '' : $errorJson,
+            'created_by' => $userId,
+        ]);
+
+        audit_log($userId, 'WAREHOUSE_SYNC_ITEM_ERROR', 'warehouse_item_stock', $itemId, 'Ошибка синхронизации посылки', [
+            'item_id' => $itemId,
+            'tracking_no' => $tracking,
+            'forwarder' => $forwarder,
+            'country_code' => $country,
+            'error' => $e->getMessage(),
+        ]);
+
+        $response = [
+            'status' => 'error',
+            'item_id' => $itemId,
+            'tracking_no' => $tracking,
+            'message' => 'sync ошибка: ' . $e->getMessage(),
+        ];
+    }
+}
+
+if ($action === 'warehouse_sync_history') {
+    auth_require_login();
+    warehouse_sync_ensure_audit_table($dbcnx);
+
+    $rows = [];
+    $sql = "SELECT a.id, a.item_id, a.tracking_no, a.forwarder, a.country_code, a.status, a.message, a.created_at, u.full_name AS user_name
+"
+        . "FROM warehouse_sync_audit a
+"
+        . "LEFT JOIN users u ON u.id = a.created_by
+"
+        . "ORDER BY a.id DESC
+"
+        . "LIMIT 200";
+    if ($res = $dbcnx->query($sql)) {
+        while ($row = $res->fetch_assoc()) {
+            $rows[] = $row;
+        }
+        $res->free();
+    }
+
+    $response = [
+        'status' => 'ok',
+        'rows' => $rows,
+        'total' => count($rows),
+    ];
+}
+
+
 
 
 if ($action === 'warehouse_sync_reports') {

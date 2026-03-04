@@ -1113,6 +1113,8 @@ function connectors_import_xlsx_into_report_table(mysqli $dbcnx, string $tableNa
 
 
 
+
+
 function connectors_build_submission_test_vars(array $connector): array
 {
     $vars = [
@@ -1917,6 +1919,7 @@ switch ($normalizedAction) {
                 ];
                 break;
             }
+
             $periodFrom = connectors_validate_iso_date($_POST['test_period_from'] ?? null);
             $periodTo = connectors_validate_iso_date($_POST['test_period_to'] ?? null);
             if ($periodFrom !== null && $periodTo !== null && $periodFrom > $periodTo) {
