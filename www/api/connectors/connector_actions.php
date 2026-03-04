@@ -1110,6 +1110,94 @@ function connectors_import_xlsx_into_report_table(mysqli $dbcnx, string $tableNa
     return $count;
 }
 
+
+
+
+function connectors_build_submission_test_vars(array $connector): array
+{
+    $vars = [
+        'base_url' => trim((string)($connector['base_url'] ?? '')),
+        'login' => trim((string)($connector['auth_username'] ?? '')),
+        'password' => trim((string)($connector['auth_password'] ?? '')),
+    ];
+
+    $scenarioRaw = trim((string)($connector['scenario_json'] ?? ''));
+    if ($scenarioRaw !== '') {
+        $decoded = json_decode($scenarioRaw, true);
+        if (is_array($decoded)) {
+            foreach ($decoded as $k => $v) {
+                if (!is_string($k) || $k === '') {
+                    continue;
+                }
+                if (is_scalar($v) || $v === null) {
+                    $vars[$k] = (string)($v ?? '');
+                }
+            }
+        }
+    }
+
+    return $vars;
+}
+
+function connectors_run_submission_test(array $connector, array $submissionCfg): array
+{
+    $steps = isset($submissionCfg['steps']) && is_array($submissionCfg['steps']) ? $submissionCfg['steps'] : [];
+    if (empty($steps)) {
+        throw new InvalidArgumentException('Для теста операции #2 заполните "Шаги формы операции #2".');
+    }
+
+    $scriptPath = realpath(__DIR__ . '/../../scripts/test_connector_operations_browser.js');
+    if (!$scriptPath) {
+        throw new RuntimeException('Не найден browser script для теста операции #2');
+    }
+
+    $tempDir = __DIR__ . '/../../scripts/_tmp';
+    if (!is_dir($tempDir)) {
+        @mkdir($tempDir, 0775, true);
+    }
+    connectors_clear_directory($tempDir);
+
+    $vars = connectors_build_submission_test_vars($connector);
+    $payload = [
+        'steps' => $steps,
+        'vars' => $vars,
+        'ssl_ignore' => !empty($connector['ssl_ignore']),
+        'cookies' => (string)($connector['auth_cookies'] ?? ''),
+        'auth_token' => (string)($connector['auth_token'] ?? ''),
+        'temp_dir' => realpath($tempDir) ?: $tempDir,
+        'expect_download' => false,
+    ];
+
+    $cmd = 'node ' . escapeshellarg($scriptPath) . ' ' . escapeshellarg((string)json_encode($payload, JSON_UNESCAPED_UNICODE));
+    $output = shell_exec($cmd . ' 2>&1');
+    $decoded = json_decode(trim((string)$output), true);
+    if (!is_array($decoded)) {
+        throw new RuntimeException('Не удалось выполнить browser-тест операции #2: ' . trim((string)$output));
+    }
+    if (empty($decoded['ok'])) {
+        $browserStepLog = isset($decoded['step_log']) && is_array($decoded['step_log']) ? $decoded['step_log'] : [];
+        $browserArtifactsDir = trim((string)($decoded['artifacts_dir'] ?? ''));
+        if (!empty($browserStepLog)) {
+            throw new ConnectorStepLogException((string)($decoded['message'] ?? 'Browser test failed'), $browserStepLog, 0, null, $browserArtifactsDir);
+        }
+        throw new RuntimeException((string)($decoded['message'] ?? 'Browser test failed'));
+    }
+
+    $resolvedSuccessSelector = trim((string)connectors_apply_vars((string)($submissionCfg['success_selector'] ?? ''), $vars));
+    $resolvedSuccessText = trim((string)connectors_apply_vars((string)($submissionCfg['success_text'] ?? ''), $vars));
+    $tracking = trim((string)($vars['tracking_number'] ?? ''));
+
+    return [
+        'step_log' => isset($decoded['step_log']) && is_array($decoded['step_log']) ? $decoded['step_log'] : [],
+        'artifacts_dir' => trim((string)($decoded['artifacts_dir'] ?? '')),
+        'resolved_success_selector' => $resolvedSuccessSelector,
+        'resolved_success_text' => $resolvedSuccessText,
+        'tracking_number' => $tracking,
+        'message' => trim((string)($decoded['message'] ?? '')),
+    ];
+}
+
+
 function connectors_build_operations_payload_from_post(): array
 {
     $enabled = !empty($_POST['report_enabled']) ? 1 : 0;
@@ -1803,10 +1891,31 @@ switch ($normalizedAction) {
             break;
         }
 
+        $testOperation = trim((string)($_POST['test_operation'] ?? 'report'));
+
         try {
             $operationsPayload = connectors_build_operations_payload_from_post();
             $reportCfg = (array)($operationsPayload['report'] ?? []);
+            $submissionCfg = (array)($operationsPayload['submission'] ?? []);
 
+            if ($testOperation === 'submission') {
+                $submissionResult = connectors_run_submission_test($connector, $submissionCfg);
+                $tracking = (string)($submissionResult['tracking_number'] ?? '');
+                $suffix = $tracking !== '' ? (' Трек: ' . $tracking . '.') : '';
+                $response = [
+                    'status' => 'ok',
+                    'test_operation' => 'submission',
+                    'message' => 'Тест операции #2 пройден. Проверка Last changes выполнена.' . $suffix,
+                    'connector_id' => $connectorId,
+                    'open_tab' => 'op2-pane',
+                    'submission_tracking' => $tracking,
+                    'resolved_success_selector' => (string)($submissionResult['resolved_success_selector'] ?? ''),
+                    'resolved_success_text' => (string)($submissionResult['resolved_success_text'] ?? ''),
+                    'step_log' => isset($submissionResult['step_log']) && is_array($submissionResult['step_log']) ? $submissionResult['step_log'] : [],
+                    'artifacts_dir' => (string)($submissionResult['artifacts_dir'] ?? ''),
+                ];
+                break;
+            }
             $periodFrom = connectors_validate_iso_date($_POST['test_period_from'] ?? null);
             $periodTo = connectors_validate_iso_date($_POST['test_period_to'] ?? null);
             if ($periodFrom !== null && $periodTo !== null && $periodFrom > $periodTo) {
@@ -1827,6 +1936,17 @@ switch ($normalizedAction) {
                 'status' => 'error',
                 'message' => $e->getMessage(),
                 'connector_id' => $connectorId,
+                'test_operation' => $testOperation,
+            ];
+            break;
+        } catch (ConnectorStepLogException $e) {
+            $response = [
+                'status' => 'error',
+                'message' => $e->getMessage(),
+                'connector_id' => $connectorId,
+                'test_operation' => $testOperation,
+                'step_log' => $e->getStepLog(),
+                'artifacts_dir' => $e->getArtifactsDir(),
             ];
             break;
         }

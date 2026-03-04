@@ -92,7 +92,18 @@ const CoreAPI = {
                     return fd;
                 },
                 'save_connector_operations': () => this.getFormById('connector-operations-form'),
-                'test_connector_operations': () => this.getFormById('connector-operations-form'),
+                'test_connector_operations': (currentLink) => {
+                    const fd = this.getFormById('connector-operations-form');
+                    const testOperation = currentLink?.getAttribute('data-test-operation') || '';
+                    if (testOperation) {
+                        fd.append('test_operation', testOperation);
+                    }
+                    const openTab = currentLink?.getAttribute('data-open-tab') || '';
+                    if (openTab) {
+                        fd.append('open_tab', openTab);
+                    }
+                    return fd;
+                },
                 'save_connector_addons': () => this.getFormById('connector-operations-form'),
 
                 'tools_management_open_modal': () => this.withAttribute('tool_id', link),
@@ -497,6 +508,30 @@ const CoreAPI = {
         },
 
         'test_connector_operations': async (data) => {
+
+            const testOperation = String(data?.test_operation || '').trim();
+            if (testOperation === 'submission') {
+                const box = document.getElementById('submission-test-report');
+                if (box) {
+                    const stepLog = Array.isArray(data?.step_log) ? data.step_log : [];
+                    const safeMessage = String(data?.message || 'Тест операции #2 выполнен');
+                    const safeTracking = String(data?.submission_tracking || '').trim();
+                    const lines = [];
+                    lines.push(`<div><strong>${safeMessage.replace(/[<>&]/g, '')}</strong></div>`);
+                    if (safeTracking) {
+                        lines.push(`<div class="mt-1">tracking: <code>${safeTracking.replace(/[<>&]/g, '')}</code></div>`);
+                    }
+                    if (stepLog.length > 0) {
+                        lines.push('<div class="mt-2"><strong>step_log</strong></div>');
+                        lines.push(`<pre class="mb-0" style="max-height:260px;overflow:auto;">${JSON.stringify(stepLog, null, 2).replace(/[<>&]/g, '')}</pre>`);
+                    }
+                    box.innerHTML = lines.join('');
+                    box.style.display = 'block';
+                }
+                alert(data.message || 'Тест операции #2 выполнен');
+                return;
+            }
+
             alert(data.message || 'Тест операции выполнен');
             const connectorId = data.connector_id;
             if (connectorId) {

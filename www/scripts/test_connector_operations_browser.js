@@ -672,6 +672,7 @@ function persistDownloadedFileIfNeeded(downloaded, runtimeHomeDir, stableDownloa
   const defaultBeforeExportClickWaitMs = Math.max(0, Number(payload.before_export_click_wait_ms ?? 1500));
   const minFileSizeBytes = Math.max(0, readNumberOption(payload, 'min_file_size_bytes', 'CONNECTOR_MIN_FILE_SIZE_BYTES', 1));
   const debugDownloadNetwork = readBoolOption(payload, 'debug_download_network', 'CONNECTOR_DEBUG_DOWNLOAD_NETWORK', false);
+  const expectDownload = readBoolOption(payload, 'expect_download', 'EXPECT_DOWNLOAD', true);
 
   if (steps.length === 0) {
     process.stdout.write(JSON.stringify({ ok: false, message: 'No steps provided' }) + '\n');
@@ -894,6 +895,43 @@ function persistDownloadedFileIfNeeded(downloaded, runtimeHomeDir, stableDownloa
         continue;
       }
 
+
+      if (action === 'press') {
+        const selector = applyVars(step.selector || '', vars);
+        const key = String(step.key || step.value || 'Enter').trim() || 'Enter';
+        if (!selector) throw new Error('press.selector is required');
+
+        await runWithTransientRetry(async () => {
+          const matchedSelector = await findSelectorWithFallback(page, selector, { visible: step.visible !== false });
+          await page.focus(matchedSelector);
+          await page.keyboard.press(key);
+        });
+
+        const shot = captureScreenshots ? await saveStepScreenshot(page, artifactsDir, stepNo, action) : null;
+        stepLog.push({ time: new Date().toISOString(), step: stepNo, action, status: 'ok', screenshot: shot || undefined, meta: { selector, key } });
+        continue;
+      }
+
+      if (action === 'select') {
+        const selector = applyVars(step.selector || '', vars);
+        if (!selector) throw new Error('select.selector is required');
+        const rawValue = step.value ?? step.text ?? (typeof step.var === 'string' ? vars[step.var] : '');
+        const value = applyVars(String(rawValue ?? ''), vars);
+
+        await runWithTransientRetry(async () => {
+          const matchedSelector = await findSelectorWithFallback(page, selector, { visible: step.visible !== false });
+          const selected = await page.select(matchedSelector, value);
+          if (!selected || selected.length === 0) {
+            throw new Error(`No option selected for ${selector} by value: ${value}`);
+          }
+        });
+
+        const shot = captureScreenshots ? await saveStepScreenshot(page, artifactsDir, stepNo, action) : null;
+        stepLog.push({ time: new Date().toISOString(), step: stepNo, action, status: 'ok', screenshot: shot || undefined, meta: { selector, value } });
+        continue;
+      }
+
+
       if (action === 'wait_for') {
         const selector = applyVars(step.selector || '', vars);
         const timeout = Number(step.timeout_ms || 10000);
@@ -953,7 +991,29 @@ function persistDownloadedFileIfNeeded(downloaded, runtimeHomeDir, stableDownloa
         process.exit(0);
       }
 
-      throw new Error(`Unsupported action: ${action}`);
+      throw new Error(`Unsupported action: ${action} (supported: goto/click/fill/type/press/select/wait_for/download)`);
+    }
+
+    if (!expectDownload) {
+      const finalShot = captureScreenshots ? await saveStepScreenshot(page, artifactsDir, stepNo + 1, 'final') : null;
+      stepLog.push({ time: new Date().toISOString(), step: stepNo + 1, action: 'final_no_download', status: 'ok', screenshot: finalShot || undefined });
+
+      process.stdout.write(
+        JSON.stringify({
+          ok: true,
+          message: 'Сценарий выполнен без скачивания файла',
+          executable_path: executablePath,
+          browser_product: resolvedBrowserProduct,
+          step_log: stepLog,
+          artifacts_dir: artifactsDir,
+          network_log: debugDownloadNetwork ? downloadNetworkLog : undefined,
+        }) + '\n'
+      );
+
+      await browser.close();
+      await safeRm(userDataDir);
+      await safeRm(runtimeHomeDir);
+      process.exit(0);
     }
 
     // если не было явного download step — попробуем найти файл в конце
