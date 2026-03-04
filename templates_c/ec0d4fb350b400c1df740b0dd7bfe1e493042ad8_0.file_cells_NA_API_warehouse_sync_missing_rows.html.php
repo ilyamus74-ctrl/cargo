@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-03-04 13:21:54
+/* Smarty version 5.3.1, created on 2026-03-04 13:54:44
   from 'file:cells_NA_API_warehouse_sync_missing_rows.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_69a831f22bdf50_08671381',
+  'unifunc' => 'content_69a839a4a05f07_29023345',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     'ec0d4fb350b400c1df740b0dd7bfe1e493042ad8' => 
     array (
       0 => 'cells_NA_API_warehouse_sync_missing_rows.html',
-      1 => 1772630186,
+      1 => 1772632079,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_69a831f22bdf50_08671381 (\Smarty\Template $_smarty_tpl) {
+function content_69a839a4a05f07_29023345 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 $_from = $_smarty_tpl->getSmarty()->getRuntime('Foreach')->init($_smarty_tpl, $_smarty_tpl->getValue('sync_missing_items'), 'item');
 $foreach0DoElse = true;
@@ -36,8 +36,15 @@ $foreach0DoElse = false;
 </td>
     <td><?php echo (($tmp = $_smarty_tpl->getValue('item')['cell_address'] ?? null)===null||$tmp==='' ? '—' ?? null : $tmp);?>
 </td>
-    <td><code><?php echo (($tmp = $_smarty_tpl->getValue('item')['report_table'] ?? null)===null||$tmp==='' ? '—' ?? null : $tmp);?>
-</code></td>
+    <td>
+      <code><?php echo (($tmp = $_smarty_tpl->getValue('item')['report_table'] ?? null)===null||$tmp==='' ? '—' ?? null : $tmp);?>
+</code>
+      <?php if ($_smarty_tpl->getValue('item')['sync_status_label']) {?>
+        <div class="small <?php echo (($tmp = $_smarty_tpl->getValue('item')['sync_status_class'] ?? null)===null||$tmp==='' ? 'text-muted' ?? null : $tmp);?>
+"><?php echo htmlspecialchars((string)$_smarty_tpl->getValue('item')['sync_status_label'], ENT_QUOTES, 'UTF-8', true);?>
+</div>
+      <?php }?>
+    </td>
   </tr>
 <?php
 }

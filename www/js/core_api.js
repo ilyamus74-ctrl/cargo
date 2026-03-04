@@ -1696,6 +1696,47 @@ const CoreAPI = {
         }
     },
 
+
+    warehouseSyncReports: {
+        root: null,
+        tbody: null,
+        total: null,
+        initialized: false,
+        init() {
+            const root = document.getElementById('warehouse-sync-reports');
+            if (!root) return;
+            this.root = root;
+            this.tbody = root.querySelector('#warehouse-sync-reports-tbody');
+            this.total = root.querySelector('#warehouse-sync-reports-total');
+            if (!this.tbody || !this.total) {
+                return;
+            }
+            this.load();
+            this.initialized = true;
+        },
+        async load() {
+            this.tbody.innerHTML = `
+                <tr>
+                    <td colspan="6" class="text-center text-muted">Загрузка...</td>
+                </tr>
+            `;
+            const fd = new FormData();
+            fd.append('action', 'warehouse_sync_reports');
+            try {
+                const data = await CoreAPI.client.call(fd);
+                if (!data || data.status !== 'ok') {
+                    console.error('core_api error (warehouse_sync_reports):', data);
+                    return;
+                }
+                this.tbody.innerHTML = data.html || '';
+                this.total.textContent = String(data.total ?? 0);
+            } catch (err) {
+                console.error('core_api fetch error (warehouse_sync_reports):', err);
+            }
+        }
+    },
+
+
     // ====================================
     // WAREHOUSE - Move (scanner search)
     // ====================================
@@ -2038,6 +2079,9 @@ const CoreAPI = {
             if (event?.target?.id === 'warehouse-sync-missing-tab') {
                 this.warehouseSync.init();
             }
+            if (event?.target?.id === 'warehouse-sync-reports-tab') {
+                this.warehouseSyncReports.init();
+            }
         });
         // Ensure page init handlers run on full page load (not only via loadMain).
         try {
@@ -2053,6 +2097,7 @@ const CoreAPI = {
         this.warehouseWithoutAddons.init();
         this.warehouseInStorage.init();
         this.warehouseSync.init();
+        this.warehouseSyncReports.init();
         this.warehouseMove.init();
         this.warehouseMoveBatch.init();
         this.warehouseMoveBox.init();

@@ -99,6 +99,49 @@ if (!function_exists('warehouse_sync_report_identifiers')) {
     }
 }
 
+
+if (!function_exists('warehouse_sync_table_columns')) {
+    function warehouse_sync_table_columns(mysqli $dbcnx, string $tableName): array
+    {
+        static $cache = [];
+        if (isset($cache[$tableName])) {
+            return $cache[$tableName];
+        }
+
+        if (!warehouse_sync_table_exists($dbcnx, $tableName)) {
+            $cache[$tableName] = [];
+            return [];
+        }
+
+        $safeTable = '`' . str_replace('`', '``', $tableName) . '`';
+        $columns = [];
+        if ($res = $dbcnx->query("SHOW COLUMNS FROM {$safeTable}")) {
+            while ($row = $res->fetch_assoc()) {
+                $field = strtolower(trim((string)($row['Field'] ?? '')));
+                if ($field !== '') {
+                    $columns[] = $field;
+                }
+            }
+            $res->free();
+        }
+
+        $cache[$tableName] = $columns;
+        return $columns;
+    }
+}
+
+if (!function_exists('warehouse_sync_find_column')) {
+    function warehouse_sync_find_column(array $availableColumns, array $candidates): string
+    {
+        foreach ($candidates as $candidate) {
+            if (in_array($candidate, $availableColumns, true)) {
+                return $candidate;
+            }
+        }
+        return '';
+    }
+}
+
 if ($action === 'warehouse_sync' || $action === 'warehouse.sync') {
     auth_require_login();
     $current = $user;
@@ -146,6 +189,8 @@ if ($action === 'warehouse_sync_missing') {
 
     $conditions = [
         'wi.cell_id IS NOT NULL',
+        'wi.receiver_company IS NOT NULL',
+        "TRIM(wi.receiver_company) <> ''",
     ];
     $params = [];
     $types = '';
@@ -207,17 +252,32 @@ if ($action === 'warehouse_sync_missing') {
     foreach ($rows as $row) {
         $forwarder = warehouse_sync_normalize_key((string)($row['receiver_company'] ?? ''));
         $country = warehouse_sync_normalize_key((string)($row['receiver_country_code'] ?? ''));
-        if ($forwarder === '' || $country === '') {
+        if ($forwarder === '') {
             continue;
         }
 
         $reportTable = 'connector_report_' . strtolower($forwarder . '_' . $country);
+        $row['report_table'] = $reportTable;
+
+        if ($country === '') {
+            $row['sync_status_class'] = 'text-warning';
+            $row['sync_status_label'] = 'Предупреждение: не указана страна назначения';
+            $missing[] = $row;
+            continue;
+        }
+
         if (!warehouse_sync_table_exists($dbcnx, $reportTable)) {
+            $row['sync_status_class'] = 'text-warning';
+            $row['sync_status_label'] = 'Предупреждение: таблица форварда не найдена';
+            $missing[] = $row;
             continue;
         }
 
         $reportIdentifiers = warehouse_sync_report_identifiers($dbcnx, $reportTable);
         if (empty($reportIdentifiers)) {
+            $row['sync_status_class'] = 'text-success';
+            $row['sync_status_label'] = 'Готов к синхронизации';
+            $missing[] = $row;
             continue;
         }
 
@@ -236,7 +296,8 @@ if ($action === 'warehouse_sync_missing') {
         }
 
         if (!$found) {
-            $row['report_table'] = $reportTable;
+            $row['sync_status_class'] = 'text-success';
+            $row['sync_status_label'] = 'Готов к синхронизации';
             $missing[] = $row;
         }
     }
@@ -263,5 +324,108 @@ if ($action === 'warehouse_sync_missing') {
         'total' => $total,
         'items_count' => count($paged),
         'has_more' => $limit !== null ? ($offset + count($paged) < $total) : false,
+    ];
+}
+
+
+if ($action === 'warehouse_sync_reports') {
+    auth_require_login();
+
+    $tableName = 'connector_report_colibri_az';
+    $items = [];
+
+    if (warehouse_sync_table_exists($dbcnx, $tableName)) {
+        $columns = warehouse_sync_table_columns($dbcnx, $tableName);
+        $trackingColumn = warehouse_sync_find_column($columns, ['tracking_no', 'tracking_number', 'tracking', 'track_no', 'track_number', 'tuid']);
+        $countryColumn = warehouse_sync_find_column($columns, ['receiver_country_code', 'country_code', 'country', 'destination_country']);
+        $dateColumn = warehouse_sync_find_column($columns, ['created_at', 'date_created', 'datetime_created', 'updated_at']);
+
+        if ($trackingColumn !== '' && $countryColumn !== '') {
+            $safeTable = '`' . str_replace('`', '``', $tableName) . '`';
+            $safeTracking = '`' . str_replace('`', '``', $trackingColumn) . '`';
+            $safeCountry = '`' . str_replace('`', '``', $countryColumn) . '`';
+            $safeDate = $dateColumn !== '' ? ('`' . str_replace('`', '``', $dateColumn) . '`') : 'NULL';
+
+            $reportMap = [];
+            $sql = "
+                SELECT {$safeTracking} AS tracking_no, {$safeCountry} AS country_code, {$safeDate} AS report_created_at
+                FROM {$safeTable}
+                WHERE {$safeTracking} IS NOT NULL AND TRIM({$safeTracking}) <> ''
+                  AND {$safeCountry} IS NOT NULL AND TRIM({$safeCountry}) <> ''
+                ORDER BY " . ($dateColumn !== '' ? "{$safeDate} DESC" : "1") . "
+            ";
+            if ($res = $dbcnx->query($sql)) {
+                while ($row = $res->fetch_assoc()) {
+                    $trackingNo = strtoupper(trim((string)($row['tracking_no'] ?? '')));
+                    $countryCode = warehouse_sync_normalize_key((string)($row['country_code'] ?? ''));
+                    if ($trackingNo === '' || $countryCode === '') {
+                        continue;
+                    }
+                    $key = $trackingNo . '|' . $countryCode;
+                    if (!isset($reportMap[$key])) {
+                        $reportMap[$key] = [
+                            'tracking_no' => $trackingNo,
+                            'country_code' => $countryCode,
+                            'report_created_at' => (string)($row['report_created_at'] ?? ''),
+                        ];
+                    }
+                }
+                $res->free();
+            }
+
+            if (!empty($reportMap)) {
+                $sqlWarehouse = "
+                    SELECT
+                        wi.tuid,
+                        wi.tracking_no,
+                        wi.receiver_name,
+                        wi.receiver_country_code,
+                        wi.receiver_company,
+                        wi.created_at,
+                        c.code AS cell_address,
+                        COALESCE(NULLIF(wi.tuid, ''), NULLIF(wi.tracking_no, ''), wi.uid_created) AS parcel_uid
+                    FROM warehouse_item_stock wi
+                    LEFT JOIN cells c ON c.id = wi.cell_id
+                    WHERE wi.cell_id IS NOT NULL
+                      AND wi.receiver_company IS NOT NULL
+                      AND TRIM(wi.receiver_company) <> ''
+                    ORDER BY wi.created_at DESC
+                ";
+                if ($res = $dbcnx->query($sqlWarehouse)) {
+                    while ($row = $res->fetch_assoc()) {
+                        $countryCode = warehouse_sync_normalize_key((string)($row['receiver_country_code'] ?? ''));
+                        $candidateIds = [
+                            strtoupper(trim((string)($row['tracking_no'] ?? ''))),
+                            strtoupper(trim((string)($row['tuid'] ?? ''))),
+                            strtoupper(trim((string)($row['parcel_uid'] ?? ''))),
+                        ];
+                        foreach ($candidateIds as $candidateId) {
+                            if ($candidateId === '' || $countryCode === '') {
+                                continue;
+                            }
+                            $key = $candidateId . '|' . $countryCode;
+                            if (isset($reportMap[$key])) {
+                                $row['report_table'] = $tableName;
+                                $row['report_created_at'] = $reportMap[$key]['report_created_at'];
+                                $items[] = $row;
+                                break;
+                            }
+                        }
+                    }
+                    $res->free();
+                }
+            }
+        }
+    }
+
+    $smarty->assign('sync_reported_items', $items);
+    ob_start();
+    $smarty->display('cells_NA_API_warehouse_sync_reports_rows.html');
+    $html = ob_get_clean();
+
+    $response = [
+        'status' => 'ok',
+        'html' => $html,
+        'total' => count($items),
     ];
 }

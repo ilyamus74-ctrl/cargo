@@ -4,7 +4,12 @@
     <td>{$item.receiver_company|default:'—'}</td>
     <td>{$item.receiver_country_code|default:'—'}</td>
     <td>{$item.cell_address|default:'—'}</td>
-    <td><code>{$item.report_table|default:'—'}</code></td>
+    <td>
+      <code>{$item.report_table|default:'—'}</code>
+      {if $item.sync_status_label}
+        <div class="small {$item.sync_status_class|default:'text-muted'}">{$item.sync_status_label|escape}</div>
+      {/if}
+    </td>
   </tr>
 {/foreach}
 {if !$sync_missing_items && $show_empty}
