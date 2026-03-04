@@ -261,6 +261,7 @@ if ($action === 'warehouse_sync_missing') {
         if ($country === '') {
             $row['sync_status_class'] = 'text-warning';
             $row['sync_status_label'] = 'Предупреждение: не указана страна назначения';
+            $row['can_sync'] = 0;
             $missing[] = $row;
             continue;
         }
@@ -268,6 +269,7 @@ if ($action === 'warehouse_sync_missing') {
         if (!warehouse_sync_table_exists($dbcnx, $reportTable)) {
             $row['sync_status_class'] = 'text-warning';
             $row['sync_status_label'] = 'Предупреждение: таблица форварда не найдена';
+            $row['can_sync'] = 0;
             $missing[] = $row;
             continue;
         }
@@ -276,6 +278,7 @@ if ($action === 'warehouse_sync_missing') {
         if (empty($reportIdentifiers)) {
             $row['sync_status_class'] = 'text-success';
             $row['sync_status_label'] = 'Готов к синхронизации';
+            $row['can_sync'] = 1;
             $missing[] = $row;
             continue;
         }
@@ -297,6 +300,7 @@ if ($action === 'warehouse_sync_missing') {
         if (!$found) {
             $row['sync_status_class'] = 'text-success';
             $row['sync_status_label'] = 'Готов к синхронизации';
+            $row['can_sync'] = 1;
             $missing[] = $row;
         }
     }

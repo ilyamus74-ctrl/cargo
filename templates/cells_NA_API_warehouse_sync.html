@@ -63,6 +63,11 @@
                     <option value="all">Все</option>
                   </select>
                 </div>
+                <div class="col-6 col-md-3">
+                  <button type="button" id="warehouse-sync-all-sync-btn" class="btn btn-sm btn-primary w-100">
+                    all_sync
+                  </button>
+                </div>
               </div>
 
               <div class="table-responsive">
@@ -74,11 +79,12 @@
                       <th scope="col">Страна</th>
                       <th scope="col">Ячейка</th>
                       <th scope="col">Таблица отчета</th>
+                      <th scope="col">Синхронизация</th>
                     </tr>
                   </thead>
                   <tbody id="warehouse-sync-missing-tbody">
                     <tr>
-                      <td colspan="5" class="text-center text-muted">Загрузка...</td>
+                      <td colspan="6" class="text-center text-muted">Загрузка...</td>
                     </tr>
                   </tbody>
                 </table>
