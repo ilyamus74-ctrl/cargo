@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-03-04 15:41:59
+/* Smarty version 5.3.1, created on 2026-03-04 19:10:13
   from 'file:cells_NA_API_connector_operations_modal.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_69a852c75b4614_69052428',
+  'unifunc' => 'content_69a88395550431_85048916',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '4e0cfb81384357625659d5eca445a63482fe7323' => 
     array (
       0 => 'cells_NA_API_connector_operations_modal.html',
-      1 => 1772638912,
+      1 => 1772651396,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_69a852c75b4614_69052428 (\Smarty\Template $_smarty_tpl) {
+function content_69a88395550431_85048916 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>
 <section class="section">
@@ -332,25 +332,35 @@ $_smarty_current_dir = '/home/cells/web/templates';
                               placeholder="JSON шагов browser-автоматизации"><?php echo htmlspecialchars((string)$_smarty_tpl->getValue('operations')['submission']['steps_json'], ENT_QUOTES, 'UTF-8', true);?>
 </textarea>
                     <div class="form-text">JSON-массив шагов для формы: goto/fill/click/wait_for. Можно использовать переменные из scenario_json: ${login}, ${password}, ${tracking_number}, ${suite}, ${length}, ${width}, ${height}, ${gross_weight}, ${quantity}, ${category}, ${seller}, ${title}, ${description}, ${invoice}.</div>
-                    <pre class="form-text mb-0">[
+                    <pre class="form-text mb-0">
+[
   {"action":"goto","url":"https://dev-backend.colibri.az/login"},
   {"action":"fill","selector":"input[name=\"username\"]","value":"${login}"},
   {"action":"fill","selector":"input[name=\"password\"]","value":"${password}"},
   {"action":"click","selector":"button[type=\"submit\"]"},
+
+  {"action":"goto","url":"https://dev-backend.colibri.az/collector"},
   {"action":"wait_for","selector":"#number","timeout_ms":20000},
+
   {"action":"fill","selector":"#number","value":"${tracking_number}"},
   {"action":"fill","selector":"#client","value":"${suite}"},
-  {"action":"fill","selector":"#length","value":"${length}"},
-  {"action":"fill","selector":"#width","value":"${width}"},
-  {"action":"fill","selector":"#height","value":"${height}"},
+  {"action":"press","selector":"#client","key":"Enter"},
+
+  {"action":"wait_for","selector":"#client_name","timeout_ms":10000},
+  {"action":"fill","selector":"#client_name","value":"${client_name_surname}"},
+
   {"action":"fill","selector":"#gross_weight","value":"${gross_weight}"},
-  {"action":"fill","selector":"#quantity","value":"${quantity}"},
-  {"action":"fill","selector":"#title","value":"${title}"},
-  {"action":"fill","selector":"#description","value":"${description}"},
-  {"action":"fill","selector":"#invoice","value":"${invoice}"},
+  {"action":"select","selector":"#tariff_type","value":"${tariff_type}"},
+  {"action":"select","selector":"#category","value":"${category}"},
+  {"action":"fill","selector":"#subCat","value":"${sub_category}"},
+
   {"action":"click","selector":"#save-btn"},
-  {"action":"wait_for","selector":"#save-btn","timeout_ms":10000}
-]</pre>
+
+  {"action":"wait_for","selector":"#tables #item-list tr[ondblclick*=\"${tracking_number}\"]","timeout_ms":15000}
+]
+</pre>
+                    <div class="form-text">Если после Enter поле #client_name уже содержит имя от форварда, сверяем с &#36;&#123;client_name_surname&#125;. На первом этапе расхождения сохраняем в локальную таблицу сверки (без авто-обновления имени клиента).</div>
+                    <div class="form-text">Защита от дублей: один запуск = одна посылка (lock по tracking_number), кнопку Save жмем строго один раз, повторный запуск только после операции #1 (отчет XLSX) и проверки отсутствия трека у форварда.</div>
                   </div>
                 </div>
 
@@ -387,7 +397,7 @@ $_smarty_current_dir = '/home/cells/web/templates';
                            name="submission_success_selector"
                            value="<?php echo htmlspecialchars((string)$_smarty_tpl->getValue('operations')['submission']['success_selector'], ENT_QUOTES, 'UTF-8', true);?>
 "
-                           placeholder=".alert-success, table#changes tbody tr:first-child">
+                           placeholder="#tables #item-list tr[ondblclick*=&quot;&#36;&#123;tracking_number&#125;&quot;]">
                     <input type="text"
                            class="form-control"
                            id="submission_success_text"
@@ -395,9 +405,17 @@ $_smarty_current_dir = '/home/cells/web/templates';
                            value="<?php echo htmlspecialchars((string)$_smarty_tpl->getValue('operations')['submission']['success_text'], ENT_QUOTES, 'UTF-8', true);?>
 "
                            placeholder="Expected success text (optional)">
-                    <div class="form-text">Селектор и/или текст для валидации успешной отправки формы.</div>
+                    <div class="form-text">Для DEV COLIBRI рекомендуем проверять строку трека в Last changes, пример: #tables #item-list tr[ondblclick*=&quot;&#36;&#123;tracking_number&#125;&quot;].</div>
                   </div>
                 </div>
+
+                <div class="d-flex gap-2 mb-2">
+                  <button type="button" class="btn btn-outline-primary js-core-link" data-core-action="test_connector_operations" data-test-operation="submission" data-open-tab="op2-pane">
+                    test_sync (Операция #2)
+                  </button>
+                </div>
+
+                <div id="submission-test-report" class="small border rounded p-2 bg-light" style="display: none;"></div>
               </div>
 
               <div class="tab-pane fade" id="op3-pane" role="tabpanel" aria-labelledby="op3-tab" tabindex="0">

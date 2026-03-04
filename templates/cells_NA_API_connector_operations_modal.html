@@ -323,7 +323,7 @@
   {"action":"wait_for","selector":"#tables #item-list tr[ondblclick*=\"${tracking_number}\"]","timeout_ms":15000}
 ]
 {/literal}</pre>
-                    <div class="form-text">Если после Enter поле #client_name уже содержит имя от форварда, сверяем с ${client_name_surname}. На первом этапе расхождения сохраняем в локальную таблицу сверки (без авто-обновления имени клиента).</div>
+                    <div class="form-text">Если после Enter поле #client_name уже содержит имя от форварда, сверяем с &#36;&#123;client_name_surname&#125;. На первом этапе расхождения сохраняем в локальную таблицу сверки (без авто-обновления имени клиента).</div>
                     <div class="form-text">Защита от дублей: один запуск = одна посылка (lock по tracking_number), кнопку Save жмем строго один раз, повторный запуск только после операции #1 (отчет XLSX) и проверки отсутствия трека у форварда.</div>
                   </div>
                 </div>
@@ -359,14 +359,14 @@
                            id="submission_success_selector"
                            name="submission_success_selector"
                            value="{$operations.submission.success_selector|escape}"
-                           placeholder="#tables #item-list tr[ondblclick*=&quot;${tracking_number}&quot;]">
+                           placeholder="#tables #item-list tr[ondblclick*=&quot;&#36;&#123;tracking_number&#125;&quot;]">
                     <input type="text"
                            class="form-control"
                            id="submission_success_text"
                            name="submission_success_text"
                            value="{$operations.submission.success_text|escape}"
                            placeholder="Expected success text (optional)">
-                    <div class="form-text">Для DEV COLIBRI рекомендуем проверять строку трека в Last changes, пример: #tables #item-list tr[ondblclick*=&quot;${tracking_number}&quot;].</div>
+                    <div class="form-text">Для DEV COLIBRI рекомендуем проверять строку трека в Last changes, пример: #tables #item-list tr[ondblclick*=&quot;&#36;&#123;tracking_number&#125;&quot;].</div>
                   </div>
                 </div>
 
