@@ -307,7 +307,35 @@ if (!function_exists('warehouse_sync_submission_steps')) {
         $decoded = json_decode($raw, true);
         if (!is_array($decoded)) return [];
         $submission = isset($decoded['submission']) && is_array($decoded['submission']) ? $decoded['submission'] : [];
-        return isset($submission['steps']) && is_array($submission['steps']) ? $submission['steps'] : [];
+
+
+        if (isset($submission['steps']) && is_array($submission['steps'])) {
+            return $submission['steps'];
+        }
+
+        $submissionStepsJson = trim((string)($submission['steps_json'] ?? ''));
+        if ($submissionStepsJson !== '') {
+            $legacySteps = json_decode($submissionStepsJson, true);
+            if (is_array($legacySteps)) {
+                return $legacySteps;
+            }
+        }
+
+        if (isset($decoded['operation_2']) && is_array($decoded['operation_2'])) {
+            $operation2 = $decoded['operation_2'];
+            if (isset($operation2['steps']) && is_array($operation2['steps'])) {
+                return $operation2['steps'];
+            }
+            $operation2StepsJson = trim((string)($operation2['steps_json'] ?? ''));
+            if ($operation2StepsJson !== '') {
+                $legacySteps = json_decode($operation2StepsJson, true);
+                if (is_array($legacySteps)) {
+                    return $legacySteps;
+                }
+            }
+        }
+
+        return [];
     }
 }
 
