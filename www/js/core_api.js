@@ -2030,9 +2030,9 @@ function initWarehouseStockAddons() {
         select.setAttribute('data-addon-key', addonKey);
 
         var emptyOpt = document.createElement('option');
-        emptyOpt.value = '';
-        emptyOpt.textContent = '— выберите —';
-        select.appendChild(emptyOpt);
+        //emptyOpt.value = '';
+        //emptyOpt.textContent = '— выберите —';
+        //select.appendChild(emptyOpt);
 
         Object.keys(optionsMap || {}).forEach(function (valueKey) {
             var opt = document.createElement('option');

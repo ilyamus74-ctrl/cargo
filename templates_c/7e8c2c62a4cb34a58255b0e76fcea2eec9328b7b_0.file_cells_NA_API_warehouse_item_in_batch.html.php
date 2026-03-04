@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-03-04 12:29:20
+/* Smarty version 5.3.1, created on 2026-03-04 12:58:18
   from 'file:cells_NA_API_warehouse_item_in_batch.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_69a825a0c40452_71003349',
+  'unifunc' => 'content_69a82c6a8f8c55_09208280',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '7e8c2c62a4cb34a58255b0e76fcea2eec9328b7b' => 
     array (
       0 => 'cells_NA_API_warehouse_item_in_batch.html',
-      1 => 1772627053,
+      1 => 1772628868,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_69a825a0c40452_71003349 (\Smarty\Template $_smarty_tpl) {
+function content_69a82c6a8f8c55_09208280 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>
 

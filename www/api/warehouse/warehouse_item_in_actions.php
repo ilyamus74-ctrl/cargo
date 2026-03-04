@@ -30,6 +30,42 @@ function warehouse_item_in_ensure_addons_columns(mysqli $dbcnx): void
     }
 }
 
+
+function warehouse_item_in_ensure_cell_columns(mysqli $dbcnx): void
+{
+    $checkIn = $dbcnx->query("SHOW COLUMNS FROM warehouse_item_in LIKE 'cell_id'");
+    if ($checkIn instanceof mysqli_result) {
+        $existsIn = $checkIn->num_rows > 0;
+        $checkIn->free();
+        if (!$existsIn) {
+            $dbcnx->query("ALTER TABLE warehouse_item_in ADD COLUMN cell_id INT NULL AFTER receiver_address");
+        }
+    }
+
+    $checkStock = $dbcnx->query("SHOW COLUMNS FROM warehouse_item_stock LIKE 'cell_id'");
+    if ($checkStock instanceof mysqli_result) {
+        $existsStock = $checkStock->num_rows > 0;
+        $checkStock->free();
+        if (!$existsStock) {
+            $dbcnx->query("ALTER TABLE warehouse_item_stock ADD COLUMN cell_id INT NULL AFTER receiver_address");
+        }
+    }
+}
+
+function warehouse_item_in_load_cells(mysqli $dbcnx): array
+{
+    $cells = [];
+    $sql = "SELECT id, code FROM cells ORDER BY code ASC";
+    if ($resCells = $dbcnx->query($sql)) {
+        while ($row = $resCells->fetch_assoc()) {
+            $cells[] = $row;
+        }
+        $resCells->free();
+    }
+
+    return $cells;
+}
+
 function warehouse_item_in_load_addons_map(mysqli $dbcnx): array
 {
     $addonsMap = [];
@@ -361,6 +397,7 @@ switch ($action) {
     case 'open_item_in_batch':
         auth_require_login();
         warehouse_item_in_ensure_addons_columns($dbcnx);
+        warehouse_item_in_ensure_cell_columns($dbcnx);
         $current = $user;
         $userId  = (int)$current['id'];
         $batchUid = isset($_POST['batch_uid']) ? (int)$_POST['batch_uid'] : 0;
@@ -451,6 +488,7 @@ switch ($action) {
             $resStand->free();
         }
         $smarty->assign('stand_devices', $stand_devices);
+        $smarty->assign('cells', warehouse_item_in_load_cells($dbcnx));
         [$addonsMap, $addonsRawMap] = warehouse_item_in_load_addons_map($dbcnx);
         $smarty->assign('addons_map', $addonsMap);
         $smarty->assign('addons_raw_map', $addonsRawMap);
@@ -468,6 +506,7 @@ switch ($action) {
     case 'add_new_item_in':
         auth_require_login();
         warehouse_item_in_ensure_addons_columns($dbcnx);
+        warehouse_item_in_ensure_cell_columns($dbcnx);
         $current = $user;
         // Кто сейчас залогинен — ОПЕРАТОР
         $operatorUserId = (int)$current['id'];
@@ -509,6 +548,11 @@ switch ($action) {
         $rcName        = trim($_POST['receiver_name']    ?? '');
         $rcCompany     = trim($_POST['receiver_company'] ?? '');
         $rcAddress     = trim($_POST['receiver_address'] ?? '');
+        $cellIdRaw     = trim((string)($_POST['cell_id'] ?? ''));
+        $cellId        = $cellIdRaw !== '' ? (int)$cellIdRaw : null;
+        if ($cellId !== null && $cellId <= 0) {
+            $cellId = null;
+        }
         $sndName       = trim($_POST['sender_name']    ?? '');
         $sndCompany    = trim($_POST['sender_company'] ?? '');
         // вес и габариты: если пусто → 0
@@ -561,6 +605,7 @@ switch ($action) {
                         receiver_name = ?,
                         receiver_company = ?,
                         receiver_address = ?,
+                        cell_id = ?,
                         sender_name = ?,
                         sender_company = ?,
                         weight_kg = ?,
@@ -583,7 +628,7 @@ switch ($action) {
                 break;
             }
             $stmt->bind_param(
-                'sssssssssssddddsssii',
+                'sssssssssssisddddsssii',
                 $tuid,
                 $tracking,
                 $carrierCode,
@@ -593,6 +638,7 @@ switch ($action) {
                 $rcName,
                 $rcCompany,
                 $rcAddress,
+                $cellId,
                 $sndName,
                 $sndCompany,
                 $weightKg,
@@ -620,7 +666,7 @@ switch ($action) {
                         batch_uid, uid_created, user_id, device_id, committed,
                         tuid, tracking_no, carrier_code, carrier_name,
                         receiver_country_code, receiver_country_name,
-                        receiver_name, receiver_company, receiver_address,
+                        receiver_name, receiver_company, receiver_address, cell_id,
                         sender_name, sender_company,
                         weight_kg, size_l_cm, size_w_cm, size_h_cm,
                         label_image, box_image, addons_json
@@ -628,7 +674,7 @@ switch ($action) {
                         ?, ?, ?, ?, 0,
                         ?, ?, ?, ?,
                         ?, ?,
-                        ?, ?, ?,
+                        ?, ?, ?, ?,
                         ?, ?,
                         ?, ?, ?, ?,
                         ?, ?, ?
@@ -642,7 +688,7 @@ switch ($action) {
                 break;
             }
             $stmt->bind_param(
-                "iiiisssssssssssddddsss",
+                "iiiissssssssssssddddsss",
                 $batchUid,
                 $uidCreated,
                 $ownerUserId,
@@ -656,6 +702,7 @@ switch ($action) {
                 $rcName,
                 $rcCompany,
                 $rcAddress,
+                $cellId,
                 $sndName,
                 $sndCompany,
                 $weightKg,
@@ -696,6 +743,7 @@ switch ($action) {
     case 'save_item_in_draft':
         auth_require_login();
         warehouse_item_in_ensure_addons_columns($dbcnx);
+        warehouse_item_in_ensure_cell_columns($dbcnx);
         $current = $user;
         $operatorUserId = (int)$current['id'];
 
@@ -997,6 +1045,7 @@ switch ($action) {
     case 'delete_item_in':
         auth_require_login();
         warehouse_item_in_ensure_addons_columns($dbcnx);
+        warehouse_item_in_ensure_cell_columns($dbcnx);
         $current = $user;
         $userId  = (int)$current['id'];
         $isAdmin = auth_has_permission('warehouse.in.manage_all') || auth_has_role('ADMIN');
@@ -1163,6 +1212,7 @@ switch ($action) {
             $resStand->free();
         }
         $smarty->assign('stand_devices', $stand_devices);
+        $smarty->assign('cells', warehouse_item_in_load_cells($dbcnx));
 
         [$addonsMap, $addonsRawMap] = warehouse_item_in_load_addons_map($dbcnx);
         $smarty->assign('addons_map', $addonsMap);
@@ -1181,6 +1231,7 @@ switch ($action) {
     case 'commit_item_in_batch':
         auth_require_login();
         warehouse_item_in_ensure_addons_columns($dbcnx);
+        warehouse_item_in_ensure_cell_columns($dbcnx);
         $current  = $user;
         $userId   = (int)$current['id'];
         $batchUid = (int)($_POST['batch_uid'] ?? 0);
@@ -1224,7 +1275,7 @@ switch ($action) {
                         batch_uid, uid_created, user_id, device_id, created_at,
                         tuid, tracking_no, carrier_code, carrier_name,
                         receiver_country_code, receiver_country_name,
-                        receiver_name, receiver_company, receiver_address,
+                        receiver_name, receiver_company, receiver_address, cell_id,
                         sender_name, sender_company,
                         weight_kg, size_l_cm, size_w_cm, size_h_cm,
                         label_image, box_image, addons_json
@@ -1233,7 +1284,7 @@ switch ($action) {
                         batch_uid, uid_created, user_id, device_id, created_at,
                         tuid, tracking_no, carrier_code, carrier_name,
                         receiver_country_code, receiver_country_name,
-                        receiver_name, receiver_company, receiver_address,
+                        receiver_name, receiver_company, receiver_address, cell_id,
                         sender_name, sender_company,
                         weight_kg, size_l_cm, size_w_cm, size_h_cm,
                         label_image, box_image, addons_json
