@@ -295,12 +295,25 @@
                               name="submission_steps_json"
                               rows="10"
                               placeholder="JSON шагов browser-автоматизации">{$operations.submission.steps_json|escape}</textarea>
-                    <div class="form-text">{literal}JSON-массив шагов для формы: goto/fill/click/wait_for. Можно использовать переменные из scenario_json: ${login}, ${password}, ${date_from}, ${date_to}.{/literal}</div>
+                    <div class="form-text">{literal}JSON-массив шагов для формы: goto/fill/click/wait_for. Можно использовать переменные из scenario_json: ${login}, ${password}, ${tracking_number}, ${suite}, ${length}, ${width}, ${height}, ${gross_weight}, ${quantity}, ${category}, ${seller}, ${title}, ${description}, ${invoice}.{/literal}</div>
                     <pre class="form-text mb-0">{literal}[
-  {"action":"goto","url":"https://dev-backend.colibri.az/collector"},
-  {"action":"fill","selector":"input[name=\"tracking\"]","value":"${tracking_number}"},
+  {"action":"goto","url":"https://dev-backend.colibri.az/login"},
+  {"action":"fill","selector":"input[name=\"username\"]","value":"${login}"},
+  {"action":"fill","selector":"input[name=\"password\"]","value":"${password}"},
   {"action":"click","selector":"button[type=\"submit\"]"},
-  {"action":"wait_for","selector":".alert-success","timeout_ms":10000}
+  {"action":"wait_for","selector":"#number","timeout_ms":20000},
+  {"action":"fill","selector":"#number","value":"${tracking_number}"},
+  {"action":"fill","selector":"#client","value":"${suite}"},
+  {"action":"fill","selector":"#length","value":"${length}"},
+  {"action":"fill","selector":"#width","value":"${width}"},
+  {"action":"fill","selector":"#height","value":"${height}"},
+  {"action":"fill","selector":"#gross_weight","value":"${gross_weight}"},
+  {"action":"fill","selector":"#quantity","value":"${quantity}"},
+  {"action":"fill","selector":"#title","value":"${title}"},
+  {"action":"fill","selector":"#description","value":"${description}"},
+  {"action":"fill","selector":"#invoice","value":"${invoice}"},
+  {"action":"click","selector":"#save-btn"},
+  {"action":"wait_for","selector":"#save-btn","timeout_ms":10000}
 ]{/literal}</pre>
                   </div>
                 </div>
