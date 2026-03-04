@@ -188,7 +188,6 @@ if ($action === 'warehouse_sync_missing') {
     $offset = max(0, (int)($_POST['offset'] ?? 0));
 
     $conditions = [
-        'wi.cell_id IS NOT NULL',
         'wi.receiver_company IS NOT NULL',
         "TRIM(wi.receiver_company) <> ''",
     ];
