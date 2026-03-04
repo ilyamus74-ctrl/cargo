@@ -102,6 +102,10 @@ $routes = [
     'warehouse_move_batch_assign' => 'api/warehouse/warehouse_move.php',
     'warehouse_move_box_assign' => 'api/warehouse/warehouse_move.php',
     'warehouse_move_save_cell'  => 'api/warehouse/warehouse_move.php',
+    // ========== WAREHOUSE - Sync ==========
+    'warehouse_sync'            => 'api/warehouse/warehouse_sync_actions.php',
+    'warehouse.sync'            => 'api/warehouse/warehouse_sync_actions.php',
+    'warehouse_sync_missing'    => 'api/warehouse/warehouse_sync_actions.php',
 ];
 
 if (!isset($routes[$action])) {

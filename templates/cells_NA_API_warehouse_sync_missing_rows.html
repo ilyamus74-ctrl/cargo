@@ -1,0 +1,14 @@
+{foreach $sync_missing_items as $item}
+  <tr>
+    <td>{$item.parcel_uid|default:'—'}</td>
+    <td>{$item.receiver_company|default:'—'}</td>
+    <td>{$item.receiver_country_code|default:'—'}</td>
+    <td>{$item.cell_address|default:'—'}</td>
+    <td><code>{$item.report_table|default:'—'}</code></td>
+  </tr>
+{/foreach}
+{if !$sync_missing_items && $show_empty}
+  <tr>
+    <td colspan="5" class="text-center text-muted">Нет посылок для сравнения</td>
+  </tr>
+{/if}

@@ -224,6 +224,9 @@ const CoreAPI = {
                 if (CoreAPI.warehouseInStorage?.init) {
                     CoreAPI.warehouseInStorage.init();
                 }
+                if (CoreAPI.warehouseSync?.init) {
+                    CoreAPI.warehouseSync.init();
+                }
                 if (CoreAPI.warehouseMove?.init) {
                     CoreAPI.warehouseMove.init();
                 }
@@ -1544,8 +1547,156 @@ const CoreAPI = {
             }
         }
     },
-    // ====================================
 
+
+    // ====================================
+    // WAREHOUSE - Sync with forwarders
+    // ====================================
+    warehouseSync: {
+        root: null,
+        tbody: null,
+        total: null,
+        searchInput: null,
+        limitSelect: null,
+        forwarderSelect: null,
+        sentinel: null,
+        observer: null,
+        searchTimer: null,
+        initialized: false,
+        state: {
+            limit: '50',
+            offset: 0,
+            search: '',
+            forwarder: 'ALL',
+            loading: false,
+            done: false
+        },
+        init() {
+            const root = document.getElementById('warehouse-sync-missing');
+            if (!root) return;
+            if (this.initialized && this.root === root) {
+                this.resetAndLoad();
+                return;
+            }
+            if (this.observer) {
+                this.observer.disconnect();
+            }
+            this.root = root;
+            this.tbody = root.querySelector('#warehouse-sync-missing-tbody');
+            this.total = root.querySelector('#warehouse-sync-missing-total');
+            this.searchInput = root.querySelector('#warehouse-sync-search');
+            this.limitSelect = root.querySelector('#warehouse-sync-limit');
+            this.forwarderSelect = root.querySelector('#warehouse-sync-forwarder');
+            this.sentinel = root.querySelector('#warehouse-sync-missing-sentinel');
+
+            if (!this.tbody || !this.total || !this.searchInput || !this.limitSelect || !this.forwarderSelect || !this.sentinel) {
+                return;
+            }
+
+            this.state.limit = this.limitSelect.value || '50';
+            this.state.forwarder = this.forwarderSelect.value || 'ALL';
+            this.state.search = '';
+            this.state.offset = 0;
+            this.state.done = false;
+
+            this.bindEvents();
+            this.setupObserver();
+            this.resetAndLoad();
+            this.initialized = true;
+        },
+        bindEvents() {
+            this.limitSelect.addEventListener('change', () => {
+                this.state.limit = this.limitSelect.value || '50';
+                this.resetAndLoad();
+            });
+
+            this.forwarderSelect.addEventListener('change', () => {
+                this.state.forwarder = this.forwarderSelect.value || 'ALL';
+                this.resetAndLoad();
+            });
+
+            this.searchInput.addEventListener('input', () => {
+                if (this.searchTimer) {
+                    clearTimeout(this.searchTimer);
+                }
+                this.searchTimer = setTimeout(() => {
+                    this.state.search = this.searchInput.value.trim();
+                    this.resetAndLoad();
+                }, 300);
+            });
+        },
+        setupObserver() {
+            if (this.observer) {
+                this.observer.disconnect();
+            }
+            this.observer = new IntersectionObserver((entries) => {
+                const entry = entries[0];
+                if (entry?.isIntersecting) {
+                    this.loadNext();
+                }
+            }, { rootMargin: '200px' });
+            this.observer.observe(this.sentinel);
+        },
+        resetAndLoad() {
+            this.state.offset = 0;
+            this.state.done = false;
+            this.tbody.innerHTML = `
+                <tr>
+                    <td colspan="5" class="text-center text-muted">Загрузка...</td>
+                </tr>
+            `;
+            if (this.total) {
+                this.total.textContent = '0';
+            }
+            this.loadNext();
+        },
+        setLoading(isLoading) {
+            this.state.loading = isLoading;
+            if (this.sentinel) {
+                this.sentinel.textContent = isLoading ? 'Загрузка...' : '';
+            }
+        },
+        async loadNext() {
+            if (this.state.loading || this.state.done) return;
+            if (this.state.limit === 'all' && this.state.offset > 0) return;
+            this.setLoading(true);
+            const fd = new FormData();
+            fd.append('action', 'warehouse_sync_missing');
+            fd.append('limit', this.state.limit);
+            fd.append('offset', String(this.state.offset));
+            fd.append('search', this.state.search);
+            fd.append('forwarder', this.state.forwarder);
+            try {
+                const data = await CoreAPI.client.call(fd);
+                if (!data || data.status !== 'ok') {
+                    console.error('core_api error (warehouse_sync_missing):', data);
+                    this.setLoading(false);
+                    return;
+                }
+                if (this.state.offset === 0) {
+                    this.tbody.innerHTML = data.html || '';
+                } else if (data.html) {
+                    this.tbody.insertAdjacentHTML('beforeend', data.html);
+                }
+                if (this.total) {
+                    this.total.textContent = String(data.total ?? 0);
+                }
+                const loaded = Number(data.items_count ?? 0);
+                this.state.offset += loaded;
+                if (this.state.limit === 'all') {
+                    this.state.done = true;
+                } else {
+                    this.state.done = loaded === 0 || data.has_more === false;
+                }
+            } catch (err) {
+                console.error('core_api fetch error (warehouse_sync_missing):', err);
+            } finally {
+                this.setLoading(false);
+            }
+        }
+    },
+
+    // ====================================
     // WAREHOUSE - Move (scanner search)
     // ====================================
     toolsManagement: {
@@ -1884,6 +2035,9 @@ const CoreAPI = {
             if (event?.target?.id === 'warehouse-without-addons-tab') {
                 this.warehouseWithoutAddons.init();
             }
+            if (event?.target?.id === 'warehouse-sync-missing-tab') {
+                this.warehouseSync.init();
+            }
         });
         // Ensure page init handlers run on full page load (not only via loadMain).
         try {
@@ -1898,6 +2052,7 @@ const CoreAPI = {
         this.warehouseWithoutCells.init();
         this.warehouseWithoutAddons.init();
         this.warehouseInStorage.init();
+        this.warehouseSync.init();
         this.warehouseMove.init();
         this.warehouseMoveBatch.init();
         this.warehouseMoveBox.init();
