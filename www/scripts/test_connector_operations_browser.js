@@ -874,8 +874,15 @@ function persistDownloadedFileIfNeeded(downloaded, runtimeHomeDir, stableDownloa
             await page.keyboard.press('Backspace');
           }
           await page.$eval(matchedSelector, (el) => {
-            if (typeof el.setSelectionRange === 'function') {
-              el.setSelectionRange(0, 0);
+            const node = el;
+            const tagName = String(node?.tagName || '').toLowerCase();
+            const type = String(node?.getAttribute?.('type') || '').toLowerCase();
+            const unsupportedTypes = new Set(['number', 'date', 'time', 'datetime-local', 'month', 'week']);
+            if (tagName === 'input' && unsupportedTypes.has(type)) {
+              return;
+            }
+            if (typeof node.setSelectionRange === 'function') {
+              node.setSelectionRange(0, 0);
             }
           });
 
@@ -947,6 +954,78 @@ function persistDownloadedFileIfNeeded(downloaded, runtimeHomeDir, stableDownloa
         continue;
       }
 
+      if (action === 'wait_for_hidden' || action === 'wait_hidden') {
+        const selector = applyVars(step.selector || '', vars);
+        const timeout = Number(step.timeout_ms || 10000);
+        if (!selector) throw new Error(`${action}.selector is required`);
+
+        await runWithTransientRetry(async () => {
+          const candidates = selectorCandidates(selector);
+          let lastErr = null;
+          for (const candidate of candidates) {
+            try {
+              await page.waitForSelector(candidate, { timeout, hidden: true });
+              return;
+            } catch (err) {
+              lastErr = err;
+            }
+          }
+          const finalErr = new Error(`Element still visible for selector: ${selector}`);
+          finalErr.cause = lastErr;
+          throw finalErr;
+        });
+
+        const shot = captureScreenshots ? await saveStepScreenshot(page, artifactsDir, stepNo, action) : null;
+        stepLog.push({ time: new Date().toISOString(), step: stepNo, action, status: 'ok', screenshot: shot || undefined, meta: { selector, timeout } });
+        continue;
+      }
+
+      if (action === 'wait_for_regex' || action === 'wait_match') {
+        const selector = applyVars(step.selector || '', vars);
+        const timeout = Number(step.timeout_ms || 10000);
+        const patternRaw = applyVars(String(step.pattern || step.regex || ''), vars);
+        const flagsRaw = String(step.flags || '').trim();
+        const source = String(step.source || 'html').trim().toLowerCase();
+        if (!patternRaw) throw new Error(`${action}.pattern (or regex) is required`);
+
+        await runWithTransientRetry(async () => {
+          const candidates = selector ? selectorCandidates(selector) : [null];
+          let lastErr = null;
+          for (const candidate of candidates) {
+            try {
+              await page.waitForFunction(
+                ({ sel, pattern, flags, sourceMode }) => {
+                  const target = sel ? document.querySelector(sel) : document.body;
+                  if (!target) return false;
+                  const haystack = sourceMode === 'text'
+                    ? String(target.textContent || '')
+                    : String(target.innerHTML || '');
+                  try {
+                    const re = new RegExp(pattern, flags);
+                    return re.test(haystack);
+                  } catch (_) {
+                    return false;
+                  }
+                },
+                { timeout },
+                { sel: candidate, pattern: patternRaw, flags: flagsRaw, sourceMode: source }
+              );
+              return;
+            } catch (err) {
+              lastErr = err;
+            }
+          }
+          const finalErr = new Error(`Regex not matched for selector: ${selector || '<document>'}`);
+          finalErr.cause = lastErr;
+          throw finalErr;
+        });
+
+        const shot = captureScreenshots ? await saveStepScreenshot(page, artifactsDir, stepNo, action) : null;
+        stepLog.push({ time: new Date().toISOString(), step: stepNo, action, status: 'ok', screenshot: shot || undefined, meta: { selector: selector || undefined, pattern: patternRaw, flags: flagsRaw || undefined, source } });
+        continue;
+      }
+
+
       if (action === 'download') {
         const timeoutMs = Number(step.timeout_ms || 30000);
         const effectiveMinSizeBytes = Math.max(
@@ -991,7 +1070,7 @@ function persistDownloadedFileIfNeeded(downloaded, runtimeHomeDir, stableDownloa
         process.exit(0);
       }
 
-      throw new Error(`Unsupported action: ${action} (supported: goto/click/fill/type/press/select/wait_for/download)`);
+      throw new Error(`Unsupported action: ${action} (supported: goto/click/fill/type/press/select/wait_for/wait_for_hidden/wait_for_regex/download)`);
     }
 
     if (!expectDownload) {
