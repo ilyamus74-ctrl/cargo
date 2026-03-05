@@ -906,19 +906,11 @@ if ($action === 'warehouse_sync_missing') {
         foreach ($missing as $row) {
             $tracking = strtoupper(trim((string)($row['tracking_no'] ?? '')));
             $confirm = $tracking !== '' ? ($confirmMap[$tracking] ?? null) : null;
-            if (is_array($confirm) && !empty($confirm['found']) && !empty($confirm['is_final'])) {
+            if (is_array($confirm) && !empty($confirm['found'])) {
                 continue;
             }
 
-            if (is_array($confirm) && !empty($confirm['found'])) {
-                $status = trim((string)($confirm['status'] ?? ''));
-                $row['report_confirmation_label'] = $status !== ''
-                    ? ('Промежуточная синхронизация: ожидаем финальный отчет (' . $status . ')')
-                    : 'Промежуточная синхронизация: отчет получен, финальный статус не определен';
-            } else {
-                $row['report_confirmation_label'] = 'Промежуточная синхронизация: ожидаем обратный отчет';
-            }
-
+            $row['report_confirmation_label'] = 'Промежуточная синхронизация: ожидаем обратный отчет';
             $filteredMissing[] = $row;
         }
         $missing = $filteredMissing;
