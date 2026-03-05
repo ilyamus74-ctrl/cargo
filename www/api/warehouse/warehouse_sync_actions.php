@@ -248,10 +248,13 @@ if (!function_exists('warehouse_sync_fetch_item')) {
 if (!function_exists('warehouse_sync_fetch_connector')) {
     function warehouse_sync_fetch_connector(mysqli $dbcnx, string $forwarder, string $country): ?array
     {
-        $forwarder = strtoupper(trim($forwarder));
-        $forwarderCandidates = [$forwarder];
-        if (strpos($forwarder, 'DEV_') === 0) {
-            $forwarderCandidates[] = substr($forwarder, 4);
+        $forwarderNorm = warehouse_sync_normalize_key($forwarder);
+        $forwarderCandidates = [];
+        if ($forwarderNorm !== '') {
+            $forwarderCandidates[] = $forwarderNorm;
+            if (strpos($forwarderNorm, 'DEV_') === 0) {
+                $forwarderCandidates[] = substr($forwarderNorm, 4);
+            }
         }
 
         $sql = "SELECT id, name, countries, auth_username, auth_password, auth_token, auth_cookies, base_url, ssl_ignore, scenario_json, operations_json, is_active
@@ -259,9 +262,9 @@ if (!function_exists('warehouse_sync_fetch_connector')) {
             . "FROM connectors WHERE UPPER(TRIM(name)) = ? AND is_active = 1 ORDER BY id DESC";
         $rows = [];
 
-        foreach ($forwarderCandidates as $candidate) {
-            $candidate = strtoupper(trim((string)$candidate));
-            if ($candidate === '') {
+        foreach ($forwarderCandidates as $candidateNorm) {
+            $candidateRaw = strtoupper(trim(str_replace('_', ' ', $candidateNorm)));
+            if ($candidateRaw === '') {
                 continue;
             }
 
@@ -269,7 +272,7 @@ if (!function_exists('warehouse_sync_fetch_connector')) {
             if (!$stmt) {
                 continue;
             }
-            $stmt->bind_param('s', $candidate);
+            $stmt->bind_param('s', $candidateRaw);
             $stmt->execute();
             $res = $stmt->get_result();
             while ($res && ($row = $res->fetch_assoc())) {
@@ -279,6 +282,32 @@ if (!function_exists('warehouse_sync_fetch_connector')) {
 
             if (!empty($rows)) {
                 break;
+            }
+        }
+
+        if (empty($rows) && !empty($forwarderCandidates)) {
+            $sqlFallback = "SELECT id, name, countries, auth_username, auth_password, auth_token, auth_cookies, base_url, ssl_ignore, scenario_json, operations_json, is_active
+"
+                . "FROM connectors WHERE is_active = 1 ORDER BY id DESC";
+            if ($resAll = $dbcnx->query($sqlFallback)) {
+                while ($row = $resAll->fetch_assoc()) {
+                    $nameNorm = warehouse_sync_normalize_key((string)($row['name'] ?? ''));
+                    if ($nameNorm === '') {
+                        continue;
+                    }
+                    foreach ($forwarderCandidates as $candidateNorm) {
+                        if ($candidateNorm === '') {
+                            continue;
+                        }
+                        $namePlain = (strpos($nameNorm, 'DEV_') === 0) ? substr($nameNorm, 4) : $nameNorm;
+                        $candidatePlain = (strpos($candidateNorm, 'DEV_') === 0) ? substr($candidateNorm, 4) : $candidateNorm;
+                        if ($nameNorm === $candidateNorm || $namePlain === $candidateNorm || $nameNorm === $candidatePlain || $namePlain === $candidatePlain) {
+                            $rows[] = $row;
+                            break;
+                        }
+                    }
+                }
+                $resAll->free();
             }
         }
         if (empty($rows)) return null;
@@ -626,9 +655,26 @@ if ($action === 'warehouse_sync_missing') {
 
         $reportIdentifiers = warehouse_sync_report_identifiers($dbcnx, $reportTable);
         if (empty($reportIdentifiers)) {
-            $row['sync_status_class'] = 'text-success';
-            $row['sync_status_label'] = 'Готов к синхронизации';
-            $row['can_sync'] = 1;
+            $cacheKey = $forwarder . '|' . $country;
+            if (!array_key_exists($cacheKey, $connectorCache)) {
+                $connectorCache[$cacheKey] = warehouse_sync_fetch_connector($dbcnx, $forwarder, $country);
+            }
+            $connector = $connectorCache[$cacheKey];
+
+            if (!$connector) {
+                $row['sync_status_class'] = 'text-warning';
+                $row['sync_status_label'] = 'Предупреждение: не найден активный коннектор';
+                $row['can_sync'] = 0;
+            } elseif (!warehouse_sync_has_submission_steps($connector)) {
+                $row['sync_status_class'] = 'text-warning';
+                $row['sync_status_label'] = 'Предупреждение: у коннектора не заполнены шаги операции #2';
+                $row['can_sync'] = 0;
+            } else {
+                $row['sync_status_class'] = 'text-success';
+                $row['sync_status_label'] = 'Готов к синхронизации';
+                $row['can_sync'] = 1;
+                $row['connector_id'] = (int)($connector['id'] ?? 0);
+            }
             $missing[] = $row;
             continue;
         }
@@ -666,6 +712,7 @@ if ($action === 'warehouse_sync_missing') {
                 $row['sync_status_class'] = 'text-success';
                 $row['sync_status_label'] = 'Готов к синхронизации';
                 $row['can_sync'] = 1;
+                $row['connector_id'] = (int)($connector['id'] ?? 0);
             }
             $missing[] = $row;
         }
@@ -710,6 +757,8 @@ if ($action === 'warehouse_sync_item') {
         return;
     }
 
+    $connectorId = (int)($_POST['connector_id'] ?? 0);
+
     $item = warehouse_sync_fetch_item($dbcnx, $itemId);
     if (!$item) {
         $response = ['status' => 'error', 'message' => 'Посылка не найдена', 'item_id' => $itemId];
@@ -721,7 +770,23 @@ if ($action === 'warehouse_sync_item') {
     $tracking = trim((string)($item['tracking_no'] ?? ''));
 
     try {
-        $connector = warehouse_sync_fetch_connector($dbcnx, $forwarder, $country);
+        $connector = null;
+        if ($connectorId > 0) {
+            $stmtConnector = $dbcnx->prepare("SELECT id, name, countries, auth_username, auth_password, auth_token, auth_cookies, base_url, ssl_ignore, scenario_json, operations_json, is_active FROM connectors WHERE id = ? AND is_active = 1 LIMIT 1");
+            if ($stmtConnector) {
+                $stmtConnector->bind_param('i', $connectorId);
+                $stmtConnector->execute();
+                $resConnector = $stmtConnector->get_result();
+                if ($resConnector && ($connectorRow = $resConnector->fetch_assoc())) {
+                    $connector = $connectorRow;
+                }
+                $stmtConnector->close();
+            }
+        }
+
+        if (!$connector) {
+            $connector = warehouse_sync_fetch_connector($dbcnx, $forwarder, $country);
+        }
         if (!$connector) {
             throw new RuntimeException('Не найден активный коннектор для форварда ' . $forwarder);
         }

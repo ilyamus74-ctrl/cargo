@@ -1686,6 +1686,7 @@ const CoreAPI = {
                 const btn = event.target.closest('.warehouse-sync-row-btn');
                 if (!btn) return;
                 const itemId = btn.dataset.itemId || '';
+                const connectorId = btn.dataset.connectorId || '';
                 if (!itemId) return;
 
                 btn.disabled = true;
@@ -1695,6 +1696,9 @@ const CoreAPI = {
                     const fd = new FormData();
                     fd.append('action', 'warehouse_sync_item');
                     fd.append('item_id', itemId);
+                    if (connectorId) {
+                        fd.append('connector_id', connectorId);
+                    }
                     const data = await CoreAPI.client.call(fd);
                     if (!data || data.status !== 'ok') {
                         console.log('[warehouse_sync_item][single][node_payload]', data?.node_payload || null);
@@ -1734,6 +1738,7 @@ const CoreAPI = {
                 let fail = 0;
                 for (const btn of buttons) {
                     const itemId = btn.dataset.itemId || '';
+                    const connectorId = btn.dataset.connectorId || '';
                     if (!itemId) continue;
                     btn.disabled = true;
                     const prev = btn.textContent;
@@ -1742,6 +1747,9 @@ const CoreAPI = {
                         const fd = new FormData();
                         fd.append('action', 'warehouse_sync_item');
                         fd.append('item_id', itemId);
+                        if (connectorId) {
+                            fd.append('connector_id', connectorId);
+                        }
                         const data = await CoreAPI.client.call(fd);
                         if (!data || data.status !== 'ok') {
                             console.log('[warehouse_sync_item][batch][node_payload]', data?.node_payload || null);
