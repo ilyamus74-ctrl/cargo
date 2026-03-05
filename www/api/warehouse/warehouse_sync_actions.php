@@ -536,6 +536,37 @@ if (!function_exists('warehouse_sync_submission_steps')) {
 
 
 
+if (!function_exists('warehouse_sync_submission_error_selector')) {
+    function warehouse_sync_submission_error_selector(array $connector): string
+    {
+        $raw = trim((string)($connector['operations_json'] ?? ''));
+        if ($raw === '') return '';
+        $decoded = json_decode($raw, true);
+        if (!is_array($decoded)) return '';
+
+        $submission = isset($decoded['submission']) && is_array($decoded['submission']) ? $decoded['submission'] : [];
+        if (!empty($submission['error_selector'])) {
+            return trim((string)$submission['error_selector']);
+        }
+
+        if (isset($decoded['operation_2']) && is_array($decoded['operation_2']) && !empty($decoded['operation_2']['error_selector'])) {
+            return trim((string)$decoded['operation_2']['error_selector']);
+        }
+
+        if (isset($decoded['operation2']) && is_array($decoded['operation2']) && !empty($decoded['operation2']['error_selector'])) {
+            return trim((string)$decoded['operation2']['error_selector']);
+        }
+
+        if (isset($decoded[2]) && is_array($decoded[2]) && !empty($decoded[2]['error_selector'])) {
+            return trim((string)$decoded[2]['error_selector']);
+        }
+
+        return '';
+    }
+}
+
+
+
 if (!function_exists('warehouse_sync_has_submission_steps')) {
     function warehouse_sync_has_submission_steps(?array $connector): bool
     {
@@ -629,6 +660,8 @@ if (!function_exists('warehouse_sync_run_submission')) {
                 'auth_token' => (string)($connector['auth_token'] ?? ''),
                 'temp_dir' => realpath($tempDir) ?: $tempDir,
                 'expect_download' => false,
+                'error_selector' => warehouse_sync_submission_error_selector($connector),
+                'error_wait_ms' => 1800,
             ];
         }
 
@@ -649,6 +682,11 @@ if (!function_exists('warehouse_sync_run_submission')) {
             $msg = trim((string)($decoded['message'] ?? 'Sync failed'));
             throw new RuntimeException($msg !== '' ? $msg : 'Sync failed');
         }
+        $capturedErrorText = trim((string)($decoded['captured_error_text'] ?? ''));
+        if ($capturedErrorText !== '') {
+            throw new RuntimeException($capturedErrorText);
+        }
+
 
         return [
             'vars' => $vars,
@@ -967,6 +1005,8 @@ if ($action === 'warehouse_sync_item') {
             'auth_token' => (string)($connector['auth_token'] ?? ''),
             'temp_dir' => realpath(__DIR__ . '/../../scripts/_tmp') ?: (__DIR__ . '/../../scripts/_tmp'),
             'expect_download' => false,
+            'error_selector' => warehouse_sync_submission_error_selector($connector),
+            'error_wait_ms' => 1800,
         ];
 
         $result = warehouse_sync_run_submission($connector, $item, $debugNodePayload);
