@@ -1,35 +1,10 @@
-<?php
-/* Smarty version 5.3.1, created on 2026-03-05 09:41:30
-  from 'file:cells_NA_API_connector_operations_modal.html' */
 
-/* @var \Smarty\Template $_smarty_tpl */
-if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
-  'version' => '5.3.1',
-  'unifunc' => 'content_69a94fcae5e502_58043329',
-  'has_nocache_code' => false,
-  'file_dependency' => 
-  array (
-    '4e0cfb81384357625659d5eca445a63482fe7323' => 
-    array (
-      0 => 'cells_NA_API_connector_operations_modal.html',
-      1 => 1772703627,
-      2 => 'file',
-    ),
-  ),
-  'includes' => 
-  array (
-  ),
-))) {
-function content_69a94fcae5e502_58043329 (\Smarty\Template $_smarty_tpl) {
-$_smarty_current_dir = '/home/cells/web/templates';
-?>
 <section class="section">
   <div class="row">
     <div class="col-lg-10">
       <div class="card">
         <div class="card-body pt-3">
-          <h5 class="card-title">Операции коннектора: <?php echo htmlspecialchars((string)$_smarty_tpl->getValue('connector')['name'], ENT_QUOTES, 'UTF-8', true);?>
-</h5>
+          <h5 class="card-title">Операции коннектора: {$connector.name|escape}</h5>
 
 
           <ul class="nav nav-tabs mb-3" id="connector-operations-tabs" role="tablist">
@@ -77,8 +52,7 @@ $_smarty_current_dir = '/home/cells/web/templates';
 
 
           <form id="connector-operations-form" autocomplete="off">
-            <input type="hidden" name="connector_id" value="<?php echo (($tmp = $_smarty_tpl->getValue('connector')['id'] ?? null)===null||$tmp==='' ? 0 ?? null : $tmp);?>
-">
+            <input type="hidden" name="connector_id" value="{$connector.id|default:0}">
 
             <div class="tab-content" id="connector-operations-tab-content">
               <div class="tab-pane fade show active" id="op1-pane" role="tabpanel" aria-labelledby="op1-tab" tabindex="0">
@@ -99,7 +73,7 @@ $_smarty_current_dir = '/home/cells/web/templates';
                          id="report_enabled"
                          name="report_enabled"
                          value="1"
-                         <?php if ($_smarty_tpl->getValue('operations')['report']['enabled'] == 1) {?>checked<?php }?>>
+                         {if $operations.report.enabled == 1}checked{/if}>
                   <label class="form-check-label" for="report_enabled">Использовать операцию отчета</label>
                 </div>
               </div>
@@ -112,8 +86,7 @@ $_smarty_current_dir = '/home/cells/web/templates';
                        class="form-control"
                        id="report_page_url"
                        name="report_page_url"
-                       value="<?php echo htmlspecialchars((string)$_smarty_tpl->getValue('operations')['report']['page_url'], ENT_QUOTES, 'UTF-8', true);?>
-"
+                       value="{$operations.report.page_url|escape}"
                        placeholder="https://portal.forwarder.com/reports">
               </div>
             </div>
@@ -125,8 +98,7 @@ $_smarty_current_dir = '/home/cells/web/templates';
                        class="form-control"
                        id="report_file_extension"
                        name="report_file_extension"
-                       value="<?php echo htmlspecialchars((string)(($tmp = $_smarty_tpl->getValue('operations')['report']['file_extension'] ?? null)===null||$tmp==='' ? 'xlsx' ?? null : $tmp), ENT_QUOTES, 'UTF-8', true);?>
-"
+                       value="{$operations.report.file_extension|default:'xlsx'|escape}"
                        placeholder="xlsx">
                 <div class="form-text">Сейчас основной формат: xlsx.</div>
               </div>
@@ -136,10 +108,10 @@ $_smarty_current_dir = '/home/cells/web/templates';
               <label for="report_download_mode" class="col-md-4 col-lg-3 col-form-label">Режим загрузки</label>
               <div class="col-md-8 col-lg-9">
                 <select class="form-select" id="report_download_mode" name="report_download_mode">
-                  <option value="browser" <?php if ($_smarty_tpl->getValue('operations')['report']['download_mode'] == 'browser') {?>selected<?php }?>>Через браузерные шаги</option>
-                  <?php if (!$_smarty_tpl->getValue('node_runtime_available')) {?>
-                  <option value="curl" <?php if ($_smarty_tpl->getValue('operations')['report']['download_mode'] == 'curl') {?>selected<?php }?>>Через PHP cURL</option>
-                  <?php }?>
+                  <option value="browser" {if $operations.report.download_mode == 'browser'}selected{/if}>Через браузерные шаги</option>
+                  {if !$node_runtime_available}
+                  <option value="curl" {if $operations.report.download_mode == 'curl'}selected{/if}>Через PHP cURL</option>
+                  {/if}
                 </select>
               </div>
             </div>
@@ -155,7 +127,7 @@ $_smarty_current_dir = '/home/cells/web/templates';
                          id="report_log_steps"
                          name="report_log_steps"
                          value="1"
-                         <?php if ($_smarty_tpl->getValue('operations')['report']['log_steps'] == 1) {?>checked<?php }?>>
+                         {if $operations.report.log_steps == 1}checked{/if}>
                   <label class="form-check-label" for="report_log_steps">Писать в лог шаги сценария (только при включении)</label>
                 </div>
               </div>
@@ -169,14 +141,13 @@ $_smarty_current_dir = '/home/cells/web/templates';
                           id="report_steps_json"
                           name="report_steps_json"
                           rows="9"
-                          placeholder="JSON шагов browser-автоматизации"><?php echo htmlspecialchars((string)$_smarty_tpl->getValue('operations')['report']['steps_json'], ENT_QUOTES, 'UTF-8', true);?>
-</textarea>
-                <div class="form-text">JSON-массив шагов: goto/fill/click/wait_for/download. Доступные переменные: ${date_from}/${test_period_from}, ${date_to}/${test_period_to}, ${today}, ${today_minus_2y}. Если период теста не задан — берется today_minus_2y → today. Перед шагами автоматически выполнятся login.browser_steps (или browser_login_steps) из scenario_json коннектора. Тайминги можно настраивать прямо в шагах (например: post_goto_wait_ms, before_click_wait_ms, before_export_click_wait_ms, timeout_ms), чтобы каждый сценарий жил со своими задержками.</div>
-                <pre class="form-text mb-0">[{"action":"goto","url":"https://portal.example.com/reports"},{"action":"click","selector":"#period_today"},{"action":"click","selector":"button.export-xlsx"}]</pre>
+                          placeholder="JSON шагов browser-автоматизации">{$operations.report.steps_json|escape}</textarea>
+                <div class="form-text">{literal}JSON-массив шагов: goto/fill/click/wait_for/download. Доступные переменные: ${date_from}/${test_period_from}, ${date_to}/${test_period_to}, ${today}, ${today_minus_2y}. Если период теста не задан — берется today_minus_2y → today. Перед шагами автоматически выполнятся login.browser_steps (или browser_login_steps) из scenario_json коннектора. Тайминги можно настраивать прямо в шагах (например: post_goto_wait_ms, before_click_wait_ms, before_export_click_wait_ms, timeout_ms), чтобы каждый сценарий жил со своими задержками.{/literal}</div>
+                <pre class="form-text mb-0">{literal}[{"action":"goto","url":"https://portal.example.com/reports"},{"action":"click","selector":"#period_today"},{"action":"click","selector":"button.export-xlsx"}]{/literal}</pre>
               </div>
             </div>
 
-            <?php if (!$_smarty_tpl->getValue('node_runtime_available')) {?>
+            {if !$node_runtime_available}
             <div class="row mb-3">
               <label for="report_curl_config_json" class="col-md-4 col-lg-3 col-form-label">PHP cURL конфиг</label>
               <div class="col-md-8 col-lg-9">
@@ -184,10 +155,9 @@ $_smarty_current_dir = '/home/cells/web/templates';
                           id="report_curl_config_json"
                           name="report_curl_config_json"
                           rows="8"
-                          placeholder="JSON конфиг для PHP cURL режима"><?php echo htmlspecialchars((string)$_smarty_tpl->getValue('operations')['report']['curl_config_json'], ENT_QUOTES, 'UTF-8', true);?>
-</textarea>
+                          placeholder="JSON конфиг для PHP cURL режима">{$operations.report.curl_config_json|escape}</textarea>
                 <div class="form-text">Используется, если выбран режим "Через PHP cURL".</div>
-                <pre class="form-text mb-0">{
+                <pre class="form-text mb-0">{literal}{
   "login": {
     "url": "https://backend.colibri.az/login",
     "method": "POST",
@@ -202,13 +172,12 @@ $_smarty_current_dir = '/home/cells/web/templates';
     "from_date": "${date_from}",
     "to_date": "${date_to}"
   }
-}</pre>
+}{/literal}</pre>
               </div>
             </div>
-            <?php } else { ?>
-            <input type="hidden" name="report_curl_config_json" value="<?php echo htmlspecialchars((string)$_smarty_tpl->getValue('operations')['report']['curl_config_json'], ENT_QUOTES, 'UTF-8', true);?>
-">
-            <?php }?>
+            {else}
+            <input type="hidden" name="report_curl_config_json" value="{$operations.report.curl_config_json|escape}">
+            {/if}
 
             <div class="row mb-3">
               <label class="col-md-4 col-lg-3 col-form-label">Период теста</label>
@@ -216,11 +185,11 @@ $_smarty_current_dir = '/home/cells/web/templates';
                 <div class="row g-2">
                   <div class="col-md-6">
                     <input type="date" class="form-control" name="test_period_from" id="test_period_from">
-                    <div class="form-text">Дата начала теста (подставляется в ${test_period_from}/${date_from}; если пусто — сегодня минус 2 года)</div>
+                    <div class="form-text">{literal}Дата начала теста (подставляется в ${test_period_from}/${date_from}; если пусто — сегодня минус 2 года){/literal}</div>
                   </div>
                   <div class="col-md-6">
                     <input type="date" class="form-control" name="test_period_to" id="test_period_to">
-                    <div class="form-text">Дата окончания теста (подставляется в ${test_period_to}/${date_to}; если пусто — сегодня)</div>
+                    <div class="form-text">{literal}Дата окончания теста (подставляется в ${test_period_to}/${date_to}; если пусто — сегодня){/literal}</div>
                   </div>
                 </div>
               </div>
@@ -234,10 +203,9 @@ $_smarty_current_dir = '/home/cells/web/templates';
                           id="report_field_mapping_json"
                           name="report_field_mapping_json"
                           rows="6"
-                          placeholder="JSON маппинга полей (для CSV авто-импорта)"><?php echo htmlspecialchars((string)$_smarty_tpl->getValue('operations')['report']['field_mapping_json'], ENT_QUOTES, 'UTF-8', true);?>
-</textarea>
+                          placeholder="JSON маппинга полей (для CSV авто-импорта)">{$operations.report.field_mapping_json|escape}</textarea>
                 <div class="form-text">Где указывать, какие поля куда кладем. Формат: target_field: csv_column_name.</div>
-                <pre class="form-text mb-0">{"tracking_number":"Tracking Number","shipment_status":"Status","updated_at":"Updated At"}</pre>
+                <pre class="form-text mb-0">{literal}{"tracking_number":"Tracking Number","shipment_status":"Status","updated_at":"Updated At"}{/literal}</pre>
               </div>
             </div>
 
@@ -250,8 +218,7 @@ $_smarty_current_dir = '/home/cells/web/templates';
                        class="form-control"
                        id="report_target_table"
                        name="report_target_table"
-                       value="<?php echo htmlspecialchars((string)$_smarty_tpl->getValue('operations')['report']['target_table'], ENT_QUOTES, 'UTF-8', true);?>
-"
+                       value="{$operations.report.target_table|escape}"
                        placeholder="forward_company_us">
                 <div class="form-text">Например: forward_name_country (латиница, цифры, underscore).</div>
               </div>
@@ -261,8 +228,7 @@ $_smarty_current_dir = '/home/cells/web/templates';
               <button type="button" class="btn btn-primary js-core-link" data-core-action="save_connector_operations">
                 Сохранить операции
               </button>
-              <button type="button" class="btn btn-outline-secondary js-core-link" data-core-action="test_connector_operations" data-connector-id="<?php echo $_smarty_tpl->getValue('connector')['id'];?>
-">
+              <button type="button" class="btn btn-outline-secondary js-core-link" data-core-action="test_connector_operations" data-connector-id="{$connector.id}">
                 Тест операции #1
               </button>
             </div>
@@ -288,7 +254,7 @@ $_smarty_current_dir = '/home/cells/web/templates';
                              id="submission_enabled"
                              name="submission_enabled"
                              value="1"
-                             <?php if ($_smarty_tpl->getValue('operations')['submission']['enabled'] == 1) {?>checked<?php }?>>
+                             {if $operations.submission.enabled == 1}checked{/if}>
                       <label class="form-check-label" for="submission_enabled">Использовать операцию отправки</label>
                     </div>
                   </div>
@@ -301,8 +267,7 @@ $_smarty_current_dir = '/home/cells/web/templates';
                            class="form-control"
                            id="submission_page_url"
                            name="submission_page_url"
-                           value="<?php echo htmlspecialchars((string)$_smarty_tpl->getValue('operations')['submission']['page_url'], ENT_QUOTES, 'UTF-8', true);?>
-"
+                           value="{$operations.submission.page_url|escape}"
                            placeholder="https://dev-backend.colibri.az/collector">
                   </div>
                 </div>
@@ -316,7 +281,7 @@ $_smarty_current_dir = '/home/cells/web/templates';
                              id="submission_log_steps"
                              name="submission_log_steps"
                              value="1"
-                             <?php if ($_smarty_tpl->getValue('operations')['submission']['log_steps'] == 1) {?>checked<?php }?>>
+                             {if $operations.submission.log_steps == 1}checked{/if}>
                       <label class="form-check-label" for="submission_log_steps">Писать в лог шаги сценария операции #2</label>
                     </div>
                   </div>
@@ -329,10 +294,9 @@ $_smarty_current_dir = '/home/cells/web/templates';
                               id="submission_steps_json"
                               name="submission_steps_json"
                               rows="10"
-                              placeholder="JSON шагов browser-автоматизации"><?php echo htmlspecialchars((string)$_smarty_tpl->getValue('operations')['submission']['steps_json'], ENT_QUOTES, 'UTF-8', true);?>
-</textarea>
-                    <div class="form-text">JSON-массив шагов для формы: goto/fill/click/press/select/wait_for/wait_for_hidden/wait_for_regex. Для DEV COLIBRI используем #number и #client + Enter. Переменные из scenario_json: ${login}, ${password}, ${tracking_number}, ${suite}, ${client_name_surname}, ${gross_weight}, ${tariff_type}, ${category}, ${sub_category}.</div>
-                    <pre class="form-text mb-0">
+                              placeholder="JSON шагов browser-автоматизации">{$operations.submission.steps_json|escape}</textarea>
+                    <div class="form-text">{literal}JSON-массив шагов для формы: goto/fill/click/press/select/wait_for/wait_for_hidden/wait_for_regex. Для DEV COLIBRI используем #number и #client + Enter. Переменные из scenario_json: ${login}, ${password}, ${tracking_number}, ${suite}, ${client_name_surname}, ${gross_weight}, ${tariff_type}, ${category}, ${sub_category}.{/literal}</div>
+                    <pre class="form-text mb-0">{literal}
 [
   {"action":"goto","url":"https://dev-backend.colibri.az/login"},
   {"action":"fill","selector":"input[name=\"username\"]","value":"${login}"},
@@ -346,8 +310,8 @@ $_smarty_current_dir = '/home/cells/web/templates';
   {"action":"fill","selector":"#client","value":"${suite}"},
   {"action":"press","selector":"#client","key":"Enter"},
 
-  {"action":"wait_for","selector":"#client_name, input[name=\"client_name_surname\"]","timeout_ms":10000},
-  {"action":"fill","selector":"#client_name, input[name=\"client_name_surname\"]","value":"${client_name_surname}"},
+  {"action":"wait_for","selector":"#client_name","timeout_ms":10000},
+  {"action":"fill","selector":"#client_name","value":"${client_name_surname}"},
 
   {"action":"fill","selector":"#gross_weight","value":"${gross_weight}"},
   {"action":"select","selector":"#tariff_type","value":"${tariff_type}"},
@@ -358,8 +322,8 @@ $_smarty_current_dir = '/home/cells/web/templates';
 
   {"action":"wait_for","selector":"#tables #item-list tr[ondblclick*=\"${tracking_number}\"]","timeout_ms":15000}
 ]
-</pre>
-                    <div class="form-text">Если после Enter поле #client_name (или input[name="client_name_surname"]) уже содержит имя от форварда, сверяем с &#36;&#123;client_name_surname&#125;. На первом этапе расхождения сохраняем в локальную таблицу сверки (без авто-обновления имени клиента).</div>
+{/literal}</pre>
+                    <div class="form-text">Если после Enter поле #client_name уже содержит имя от форварда, сверяем с &#36;&#123;client_name_surname&#125;. На первом этапе расхождения сохраняем в локальную таблицу сверки (без авто-обновления имени клиента).</div>
                     <div class="form-text">Защита от дублей: один запуск = одна посылка (lock по tracking_number), кнопку Save жмем строго один раз, повторный запуск только после операции #1 (отчет XLSX) и проверки отсутствия трека у форварда.</div>
                   </div>
                 </div>
@@ -371,10 +335,9 @@ $_smarty_current_dir = '/home/cells/web/templates';
                               id="submission_request_config_json"
                               name="submission_request_config_json"
                               rows="8"
-                              placeholder="JSON для ajax/fetch запроса формы"><?php echo htmlspecialchars((string)$_smarty_tpl->getValue('operations')['submission']['request_config_json'], ENT_QUOTES, 'UTF-8', true);?>
-</textarea>
+                              placeholder="JSON для ajax/fetch запроса формы">{$operations.submission.request_config_json|escape}</textarea>
                     <div class="form-text">Опционально: параметры XHR/fetch, если нужно отправлять форму без клика по кнопке.</div>
-                    <pre class="form-text mb-0">{
+                    <pre class="form-text mb-0">{literal}{
   "url": "https://dev-backend.colibri.az/collector/store",
   "method": "POST",
   "headers": {
@@ -384,7 +347,7 @@ $_smarty_current_dir = '/home/cells/web/templates';
     "tracking": "${tracking_number}",
     "suite": "${suite}"
   }
-}</pre>
+}{/literal}</pre>
                   </div>
                 </div>
 
@@ -395,15 +358,13 @@ $_smarty_current_dir = '/home/cells/web/templates';
                            class="form-control mb-2"
                            id="submission_success_selector"
                            name="submission_success_selector"
-                           value="<?php echo htmlspecialchars((string)$_smarty_tpl->getValue('operations')['submission']['success_selector'], ENT_QUOTES, 'UTF-8', true);?>
-"
+                           value="{$operations.submission.success_selector|escape}"
                            placeholder="#tables #item-list tr[ondblclick*=&quot;&#36;&#123;tracking_number&#125;&quot;]">
                     <input type="text"
                            class="form-control"
                            id="submission_success_text"
                            name="submission_success_text"
-                           value="<?php echo htmlspecialchars((string)$_smarty_tpl->getValue('operations')['submission']['success_text'], ENT_QUOTES, 'UTF-8', true);?>
-"
+                           value="{$operations.submission.success_text|escape}"
                            placeholder="Expected success text (optional)">
                     <div class="form-text">Для DEV COLIBRI рекомендуем проверять строку трека в Last changes, пример: #tables #item-list tr[ondblclick*=&quot;&#36;&#123;tracking_number&#125;&quot;].</div>
                   </div>
@@ -443,10 +404,9 @@ $_smarty_current_dir = '/home/cells/web/templates';
                               id="addon_extra_json"
                               name="addon_extra_json"
                               rows="6"
-                              placeholder='[{"tariff_type":{"1":"General","2":"Liquid","3":"Promotions"}},{"category":{"50% school":"50% school","adapter (kompyuter)":"Adapter (Kompyuter)","animal accessories":"Animal Accessories"}}]'><?php echo htmlspecialchars((string)$_smarty_tpl->getValue('addons')['extra_json'], ENT_QUOTES, 'UTF-8', true);?>
-</textarea>
+                              placeholder='{literal}[{"tariff_type":{"1":"General","2":"Liquid","3":"Promotions"}},{"category":{"50% school":"50% school","adapter (kompyuter)":"Adapter (Kompyuter)","animal accessories":"Animal Accessories"}}]{/literal}'>{$addons.extra_json|escape}</textarea>
                     <div class="form-text">JSON со справочниками по типу и категории. Пример:</div>
-                    <pre class="form-text mb-0">[
+                    <pre class="form-text mb-0">{literal}[
   {
     "tariff_type": {
       "1": "General",
@@ -461,7 +421,7 @@ $_smarty_current_dir = '/home/cells/web/templates';
       "animal accessories": "Animal Accessories"
     }
   }
-]</pre>
+]{/literal}</pre>
                   </div>
                 </div>
 
@@ -472,8 +432,7 @@ $_smarty_current_dir = '/home/cells/web/templates';
                               id="addon_node_mapping_json"
                               name="addon_node_mapping_json"
                               rows="6"
-                              placeholder='{"forwarder_field":"node_field"}'><?php echo htmlspecialchars((string)$_smarty_tpl->getValue('addons')['node_mapping_json'], ENT_QUOTES, 'UTF-8', true);?>
-</textarea>
+                              placeholder='{literal}{"forwarder_field":"node_field"}{/literal}'>{$addons.node_mapping_json|escape}</textarea>
                     <div class="form-text">Маппинг для заполнения через node-сценарий по конкретному форварду.</div>
                   </div>
                 </div>
@@ -493,24 +452,17 @@ $_smarty_current_dir = '/home/cells/web/templates';
   </div>
 
 
-<?php if ((($tmp = $_smarty_tpl->getValue('open_tab') ?? null)===null||$tmp==='' ? '' ?? null : $tmp) != '') {
-echo '<script'; ?>
->
+{if $open_tab|default:'' != ''}
+<script>
   (function() {
-    var tabTrigger = document.querySelector('[data-bs-target="#<?php echo strtr((string)$_smarty_tpl->getValue('open_tab'), array("\\" => "\\\\", "'" => "\\'", "\"" => "\\\"", "\r" => "\\r", 
-						"\n" => "\\n", "</" => "<\/", "<!--" => "<\!--", "<s" => "<\s", "<S" => "<\S",
-						"`" => "\\`", "\${" => "\\\$\{"));?>
-"]');
+    var tabTrigger = document.querySelector('[data-bs-target="#{$open_tab|escape:'javascript'}"]');
     if (!tabTrigger || !window.bootstrap || !window.bootstrap.Tab) {
       return;
     }
     window.bootstrap.Tab.getOrCreateInstance(tabTrigger).show();
   })();
-<?php echo '</script'; ?>
->
-<?php }?>
+</script>
+{/if}
 
 
 </section>
-<?php }
-}

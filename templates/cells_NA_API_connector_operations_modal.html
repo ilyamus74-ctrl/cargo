@@ -310,8 +310,8 @@
   {"action":"fill","selector":"#client","value":"${suite}"},
   {"action":"press","selector":"#client","key":"Enter"},
 
-  {"action":"wait_for","selector":"#client_name","timeout_ms":10000},
-  {"action":"fill","selector":"#client_name","value":"${client_name_surname}"},
+  {"action":"wait_for","selector":"#client_name, input[name=\"client_name_surname\"]","timeout_ms":10000},
+  {"action":"fill","selector":"#client_name, input[name=\"client_name_surname\"]","value":"${client_name_surname}"},
 
   {"action":"fill","selector":"#gross_weight","value":"${gross_weight}"},
   {"action":"select","selector":"#tariff_type","value":"${tariff_type}"},
@@ -323,7 +323,7 @@
   {"action":"wait_for","selector":"#tables #item-list tr[ondblclick*=\"${tracking_number}\"]","timeout_ms":15000}
 ]
 {/literal}</pre>
-                    <div class="form-text">Если после Enter поле #client_name уже содержит имя от форварда, сверяем с &#36;&#123;client_name_surname&#125;. На первом этапе расхождения сохраняем в локальную таблицу сверки (без авто-обновления имени клиента).</div>
+                    <div class="form-text">Если после Enter поле #client_name (или input[name="client_name_surname"]) уже содержит имя от форварда, сверяем с &#36;&#123;client_name_surname&#125;. На первом этапе расхождения сохраняем в локальную таблицу сверки (без авто-обновления имени клиента).</div>
                     <div class="form-text">Защита от дублей: один запуск = одна посылка (lock по tracking_number), кнопку Save жмем строго один раз, повторный запуск только после операции #1 (отчет XLSX) и проверки отсутствия трека у форварда.</div>
                   </div>
                 </div>
