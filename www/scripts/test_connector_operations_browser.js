@@ -822,6 +822,9 @@ function persistDownloadedFileIfNeeded(downloaded, runtimeHomeDir, stableDownloa
         const selector = applyVars(step.selector || '', vars);
         if (!selector) throw new Error(`${action}.selector is required`);
         const requireVisible = step.visible !== false;
+        const ignoreReadonly = step.ignore_readonly !== false;
+        const ignoreDisabled = step.ignore_disabled !== false;
+        const ignoreMissing = step.ignore_missing === true || step.optional === true;
 
         // поддержка: step.text / step.value / step.var
         let text = '';
@@ -830,8 +833,34 @@ function persistDownloadedFileIfNeeded(downloaded, runtimeHomeDir, stableDownloa
         else if (typeof step.var === 'string') text = String(vars[step.var] ?? '');
         text = applyVars(text, vars);
 
+        let skippedReason = '';
         await runWithTransientRetry(async () => {
-          const matchedSelector = await findSelectorWithFallback(page, selector, { visible: requireVisible });
+          let matchedSelector = '';
+          try {
+            matchedSelector = await findSelectorWithFallback(page, selector, { visible: requireVisible });
+          } catch (err) {
+            if (!ignoreMissing) {
+              throw err;
+            }
+            skippedReason = `selector_not_found:${selector}`;
+            return;
+          }
+
+          const editabilityMeta = await page.$eval(matchedSelector, (el) => {
+            const element = el;
+            const readOnly = !!element?.readOnly || element?.hasAttribute?.('readonly') === true;
+            const disabled = !!element?.disabled || element?.hasAttribute?.('disabled') === true;
+            return { readOnly, disabled };
+          });
+
+          if (editabilityMeta?.readOnly && ignoreReadonly) {
+            skippedReason = `readonly:${matchedSelector}`;
+            return;
+          }
+          if (editabilityMeta?.disabled && ignoreDisabled) {
+            skippedReason = `disabled:${matchedSelector}`;
+            return;
+          }
 
           const fieldMeta = await page.$eval(matchedSelector, (el) => {
             const element = el;
@@ -896,6 +925,17 @@ function persistDownloadedFileIfNeeded(downloaded, runtimeHomeDir, stableDownloa
             await clickNearExportButton(page, blurOffsetX, blurOffsetY);
           }
         });
+
+        if (skippedReason) {
+          stepLog.push({
+            time: new Date().toISOString(),
+            step: stepNo,
+            action,
+            status: 'skip',
+            meta: { selector, reason: skippedReason, ignoreReadonly, ignoreDisabled, ignoreMissing },
+          });
+          continue;
+        }
 
         const shot = captureScreenshots ? await saveStepScreenshot(page, artifactsDir, stepNo, action) : null;
         stepLog.push({ time: new Date().toISOString(), step: stepNo, action, status: 'ok', screenshot: shot || undefined, meta: { selector } });
