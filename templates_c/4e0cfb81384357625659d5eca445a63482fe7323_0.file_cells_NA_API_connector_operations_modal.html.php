@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-03-05 09:41:30
+/* Smarty version 5.3.1, created on 2026-03-05 16:58:34
   from 'file:cells_NA_API_connector_operations_modal.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_69a94fcae5e502_58043329',
+  'unifunc' => 'content_69a9b63a7e9839_63059830',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '4e0cfb81384357625659d5eca445a63482fe7323' => 
     array (
       0 => 'cells_NA_API_connector_operations_modal.html',
-      1 => 1772703627,
+      1 => 1772729543,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_69a94fcae5e502_58043329 (\Smarty\Template $_smarty_tpl) {
+function content_69a9b63a7e9839_63059830 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>
 <section class="section">
@@ -406,6 +406,20 @@ $_smarty_current_dir = '/home/cells/web/templates';
 "
                            placeholder="Expected success text (optional)">
                     <div class="form-text">Для DEV COLIBRI рекомендуем проверять строку трека в Last changes, пример: #tables #item-list tr[ondblclick*=&quot;&#36;&#123;tracking_number&#125;&quot;].</div>
+                  </div>
+                </div>
+
+                <div class="row mb-3">
+                  <label for="submission_error_selector" class="col-md-4 col-lg-3 col-form-label">Ошибки / Alerts</label>
+                  <div class="col-md-8 col-lg-9">
+                    <input type="text"
+                           class="form-control"
+                           id="submission_error_selector"
+                           name="submission_error_selector"
+                           value="<?php echo htmlspecialchars((string)$_smarty_tpl->getValue('operations')['submission']['error_selector'], ENT_QUOTES, 'UTF-8', true);?>
+"
+                           placeholder="#response_alert_message .alert, #response_alert_message">
+                    <div class="form-text">Селектор блока с ошибкой после сохранения. Для COLIBRI можно использовать <code>#response_alert_message .alert</code> для захвата текста вроде &quot;Client not exist!&quot;.</div>
                   </div>
                 </div>
 
