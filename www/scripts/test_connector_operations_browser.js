@@ -1143,6 +1143,7 @@ function persistDownloadedFileIfNeeded(downloaded, runtimeHomeDir, stableDownloa
       await safeRm(userDataDir);
       await safeRm(runtimeHomeDir);
       process.exit(0);
+}
 
     // если не было явного download step — попробуем найти файл в конце
     const downloaded = await waitForStableDownloadedFileInDirs([downloadDir, fallbackDownloadDir], fileExtension, 30000, {

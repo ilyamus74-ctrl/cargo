@@ -306,9 +306,23 @@ if (!function_exists('warehouse_sync_submission_steps')) {
         if ($raw === '') return [];
         $decoded = json_decode($raw, true);
         if (!is_array($decoded)) return [];
+        if (isset($decoded[0]) && is_array($decoded[0]) && isset($decoded[0]['action'])) {
+            return $decoded;
+        }
+
+        if (isset($decoded['steps']) && is_array($decoded['steps'])) {
+            return $decoded['steps'];
+        }
+
+        if (isset($decoded[0]) && is_array($decoded[0]) && isset($decoded[0]['action'])) {
+            return $decoded;
+        }
+
+        if (isset($decoded['steps']) && is_array($decoded['steps'])) {
+            return $decoded['steps'];
+        }
+
         $submission = isset($decoded['submission']) && is_array($decoded['submission']) ? $decoded['submission'] : [];
-
-
         if (isset($submission['steps']) && is_array($submission['steps'])) {
             return $submission['steps'];
         }
@@ -334,11 +348,42 @@ if (!function_exists('warehouse_sync_submission_steps')) {
                 }
             }
         }
+        if (isset($decoded['operation2']) && is_array($decoded['operation2'])) {
+            $operation2 = $decoded['operation2'];
+            if (isset($operation2['steps']) && is_array($operation2['steps'])) {
+                return $operation2['steps'];
+            }
+            $operation2StepsJson = trim((string)($operation2['steps_json'] ?? ''));
+            if ($operation2StepsJson !== '') {
+                $legacySteps = json_decode($operation2StepsJson, true);
+                if (is_array($legacySteps)) {
+                    return $legacySteps;
+                }
+            }
+        }
+
+        if (isset($decoded[2]) && is_array($decoded[2])) {
+            $operation2 = $decoded[2];
+            if (isset($operation2['steps']) && is_array($operation2['steps'])) {
+                return $operation2['steps'];
+            }
+        }
 
         return [];
     }
 }
 
+
+
+if (!function_exists('warehouse_sync_has_submission_steps')) {
+    function warehouse_sync_has_submission_steps(?array $connector): bool
+    {
+        if (!$connector) {
+            return false;
+        }
+        return !empty(warehouse_sync_submission_steps($connector));
+    }
+}
 if (!function_exists('warehouse_sync_build_vars')) {
     function warehouse_sync_build_vars(array $connector, array $item): array
     {
@@ -395,12 +440,8 @@ if (!function_exists('warehouse_sync_build_vars')) {
 }
 
 if (!function_exists('warehouse_sync_run_submission')) {
-    function warehouse_sync_run_submission(array $connector, array $item): array
+    function warehouse_sync_run_submission(array $connector, array $item, ?array $preparedPayload = null): array
     {
-        $steps = warehouse_sync_submission_steps($connector);
-        if (empty($steps)) {
-            throw new RuntimeException('У коннектора не заполнены steps для Операции #2');
-        }
 
         $scriptPath = realpath(__DIR__ . '/../../scripts/test_connector_operations_browser.js');
         if (!$scriptPath) {
@@ -412,16 +453,28 @@ if (!function_exists('warehouse_sync_run_submission')) {
             @mkdir($tempDir, 0775, true);
         }
 
-        $vars = warehouse_sync_build_vars($connector, $item);
-        $payload = [
-            'steps' => $steps,
-            'vars' => $vars,
-            'ssl_ignore' => !empty($connector['ssl_ignore']),
-            'cookies' => (string)($connector['auth_cookies'] ?? ''),
-            'auth_token' => (string)($connector['auth_token'] ?? ''),
-            'temp_dir' => realpath($tempDir) ?: $tempDir,
-            'expect_download' => false,
-        ];
+        if (is_array($preparedPayload)) {
+            $payload = $preparedPayload;
+        } else {
+            $steps = warehouse_sync_submission_steps($connector);
+            $vars = warehouse_sync_build_vars($connector, $item);
+            $payload = [
+                'steps' => $steps,
+                'vars' => $vars,
+                'ssl_ignore' => !empty($connector['ssl_ignore']),
+                'cookies' => (string)($connector['auth_cookies'] ?? ''),
+                'auth_token' => (string)($connector['auth_token'] ?? ''),
+                'temp_dir' => realpath($tempDir) ?: $tempDir,
+                'expect_download' => false,
+            ];
+        }
+
+        $steps = isset($payload['steps']) && is_array($payload['steps']) ? $payload['steps'] : [];
+        if (empty($steps)) {
+            throw new RuntimeException('У коннектора не заполнены steps для Операции #2');
+        }
+
+        $vars = isset($payload['vars']) && is_array($payload['vars']) ? $payload['vars'] : [];
 
         $cmd = 'node ' . escapeshellarg($scriptPath) . ' ' . escapeshellarg((string)json_encode($payload, JSON_UNESCAPED_UNICODE));
         $output = shell_exec($cmd . ' 2>&1');
@@ -440,6 +493,7 @@ if (!function_exists('warehouse_sync_run_submission')) {
             'artifacts_dir' => trim((string)($decoded['artifacts_dir'] ?? '')),
             'message' => trim((string)($decoded['message'] ?? '')),
             'raw' => $decoded,
+            'node_payload' => $payload,
         ];
     }
 }
@@ -551,6 +605,7 @@ if ($action === 'warehouse_sync_missing') {
     }
 
     $missing = [];
+    $connectorCache = [];
     foreach ($rows as $row) {
         $forwarder = warehouse_sync_normalize_key((string)($row['receiver_company'] ?? ''));
         $country = warehouse_sync_normalize_key((string)($row['receiver_country_code'] ?? ''));
@@ -601,9 +656,25 @@ if ($action === 'warehouse_sync_missing') {
         }
 
         if (!$found) {
-            $row['sync_status_class'] = 'text-success';
-            $row['sync_status_label'] = 'Готов к синхронизации';
-            $row['can_sync'] = 1;
+            $cacheKey = $forwarder . '|' . $country;
+            if (!array_key_exists($cacheKey, $connectorCache)) {
+                $connectorCache[$cacheKey] = warehouse_sync_fetch_connector($dbcnx, $forwarder, $country);
+            }
+            $connector = $connectorCache[$cacheKey];
+
+            if (!$connector) {
+                $row['sync_status_class'] = 'text-warning';
+                $row['sync_status_label'] = 'Предупреждение: не найден активный коннектор';
+                $row['can_sync'] = 0;
+            } elseif (!warehouse_sync_has_submission_steps($connector)) {
+                $row['sync_status_class'] = 'text-warning';
+                $row['sync_status_label'] = 'Предупреждение: у коннектора не заполнены шаги операции #2';
+                $row['can_sync'] = 0;
+            } else {
+                $row['sync_status_class'] = 'text-success';
+                $row['sync_status_label'] = 'Готов к синхронизации';
+                $row['can_sync'] = 1;
+            }
             $missing[] = $row;
         }
     }
@@ -663,14 +734,24 @@ if ($action === 'warehouse_sync_item') {
             throw new RuntimeException('Не найден активный коннектор для форварда ' . $forwarder);
         }
 
-        $result = warehouse_sync_run_submission($connector, $item);
+        $debugNodePayload = [
+            'steps' => warehouse_sync_submission_steps($connector),
+            'vars' => warehouse_sync_build_vars($connector, $item),
+            'ssl_ignore' => !empty($connector['ssl_ignore']),
+            'cookies' => (string)($connector['auth_cookies'] ?? ''),
+            'auth_token' => (string)($connector['auth_token'] ?? ''),
+            'temp_dir' => realpath(__DIR__ . '/../../scripts/_tmp') ?: (__DIR__ . '/../../scripts/_tmp'),
+            'expect_download' => false,
+        ];
 
+        $result = warehouse_sync_run_submission($connector, $item, $debugNodePayload);
         $responsePayload = [
             'message' => $result['message'],
             'connector_id' => (int)($connector['id'] ?? 0),
             'step_log' => $result['step_log'],
             'artifacts_dir' => $result['artifacts_dir'],
             'vars' => $result['vars'],
+            'node_payload' => isset($result['node_payload']) && is_array($result['node_payload']) ? $result['node_payload'] : $debugNodePayload,
         ];
         $responseJson = json_encode($responsePayload, JSON_UNESCAPED_UNICODE);
         warehouse_sync_audit_log($dbcnx, [
@@ -701,9 +782,13 @@ if ($action === 'warehouse_sync_item') {
             'message' => 'sync выполнен успешно',
             'step_log' => $result['step_log'],
             'artifacts_dir' => $result['artifacts_dir'],
+            'node_payload' => isset($result['node_payload']) && is_array($result['node_payload']) ? $result['node_payload'] : $debugNodePayload,
         ];
     } catch (Throwable $e) {
         $errorPayload = ['error' => $e->getMessage()];
+        if (isset($debugNodePayload) && is_array($debugNodePayload)) {
+            $errorPayload['node_payload'] = $debugNodePayload;
+        }
         $errorJson = json_encode($errorPayload, JSON_UNESCAPED_UNICODE);
         warehouse_sync_audit_log($dbcnx, [
             'item_id' => $itemId,
@@ -729,6 +814,7 @@ if ($action === 'warehouse_sync_item') {
             'item_id' => $itemId,
             'tracking_no' => $tracking,
             'message' => 'sync ошибка: ' . $e->getMessage(),
+            'node_payload' => isset($debugNodePayload) && is_array($debugNodePayload) ? $debugNodePayload : null,
         ];
     }
 }

@@ -1196,6 +1196,7 @@ function connectors_run_submission_test(array $connector, array $submissionCfg):
         'resolved_success_text' => $resolvedSuccessText,
         'tracking_number' => $tracking,
         'message' => trim((string)($decoded['message'] ?? '')),
+        'node_payload' => $payload,
     ];
 }
 
@@ -1916,6 +1917,7 @@ switch ($normalizedAction) {
                     'resolved_success_text' => (string)($submissionResult['resolved_success_text'] ?? ''),
                     'step_log' => isset($submissionResult['step_log']) && is_array($submissionResult['step_log']) ? $submissionResult['step_log'] : [],
                     'artifacts_dir' => (string)($submissionResult['artifacts_dir'] ?? ''),
+                    'node_payload' => isset($submissionResult['node_payload']) && is_array($submissionResult['node_payload']) ? $submissionResult['node_payload'] : null,
                 ];
                 break;
             }

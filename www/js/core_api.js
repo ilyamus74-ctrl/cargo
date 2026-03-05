@@ -522,6 +522,7 @@ const CoreAPI = {
 
             const testOperation = String(data?.test_operation || '').trim();
             if (testOperation === 'submission') {
+                console.log('[test_connector_operations][submission][node_payload]', data?.node_payload || null);
                 const box = document.getElementById('submission-test-report');
                 if (box) {
                     const stepLog = Array.isArray(data?.step_log) ? data.step_log : [];
@@ -1696,8 +1697,10 @@ const CoreAPI = {
                     fd.append('item_id', itemId);
                     const data = await CoreAPI.client.call(fd);
                     if (!data || data.status !== 'ok') {
+                        console.log('[warehouse_sync_item][single][node_payload]', data?.node_payload || null);
                         throw new Error(data?.message || 'sync error');
                     }
+                    console.log('[warehouse_sync_item][single][node_payload]', data?.node_payload || null);
                     btn.classList.remove('btn-outline-primary');
                     btn.classList.add('btn-outline-success');
                     btn.textContent = 'synced';
@@ -1741,8 +1744,10 @@ const CoreAPI = {
                         fd.append('item_id', itemId);
                         const data = await CoreAPI.client.call(fd);
                         if (!data || data.status !== 'ok') {
+                            console.log('[warehouse_sync_item][batch][node_payload]', data?.node_payload || null);
                             throw new Error(data?.message || 'sync error');
                         }
+                        console.log('[warehouse_sync_item][batch][node_payload]', data?.node_payload || null);
                         ok += 1;
                         btn.classList.remove('btn-outline-primary');
                         btn.classList.add('btn-outline-success');
