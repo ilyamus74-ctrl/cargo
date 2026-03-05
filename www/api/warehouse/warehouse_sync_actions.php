@@ -166,6 +166,37 @@ if (!function_exists('warehouse_sync_apply_vars')) {
     }
 }
 
+if (!function_exists('warehouse_sync_clear_directory')) {
+    function warehouse_sync_clear_directory(string $directory): void
+    {
+        if (!is_dir($directory)) {
+            return;
+        }
+
+        $items = @scandir($directory);
+        if (!is_array($items)) {
+            return;
+        }
+
+        foreach ($items as $item) {
+            if ($item === '.' || $item === '..') {
+                continue;
+            }
+
+            $path = $directory . DIRECTORY_SEPARATOR . $item;
+            if (is_dir($path)) {
+                warehouse_sync_clear_directory($path);
+                @rmdir($path);
+                continue;
+            }
+
+            if (is_file($path) || is_link($path)) {
+                @unlink($path);
+            }
+        }
+    }
+}
+
 if (!function_exists('warehouse_sync_ensure_audit_table')) {
     function warehouse_sync_ensure_audit_table(mysqli $dbcnx): void
     {
@@ -231,9 +262,7 @@ if (!function_exists('warehouse_sync_audit_log')) {
 if (!function_exists('warehouse_sync_fetch_item')) {
     function warehouse_sync_fetch_item(mysqli $dbcnx, int $itemId): ?array
     {
-        $sql = "SELECT id, tuid, tracking_no, receiver_name, receiver_country_code, receiver_company, uid_created, weight_kg, addons_json
-"
-            . "FROM warehouse_item_stock WHERE id = ? LIMIT 1";
+        $sql = "SELECT id, tuid, tracking_no, receiver_name, receiver_address, receiver_country_code, receiver_company, uid_created, weight_kg, addons_json FROM warehouse_item_stock WHERE id = ? LIMIT 1";
         $stmt = $dbcnx->prepare($sql);
         if (!$stmt) return null;
         $stmt->bind_param('i', $itemId);
@@ -415,6 +444,7 @@ if (!function_exists('warehouse_sync_build_vars')) {
             'tracking_number' => trim((string)($item['tracking_no'] ?? '')),
             'suite' => trim((string)($item['tuid'] ?? '')),
             'client_name_surname' => trim((string)($item['receiver_name'] ?? '')),
+            'receiver_address' => trim((string)($item['receiver_address'] ?? '')),
             'gross_weight' => trim((string)($item['weight_kg'] ?? '')),
         ];
 
@@ -473,6 +503,7 @@ if (!function_exists('warehouse_sync_run_submission')) {
         if (!is_dir($tempDir)) {
             @mkdir($tempDir, 0775, true);
         }
+        warehouse_sync_clear_directory($tempDir);
 
         if (is_array($preparedPayload)) {
             $payload = $preparedPayload;
