@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-03-04 19:17:58
+/* Smarty version 5.3.1, created on 2026-03-05 07:58:51
   from 'file:cells_NA_API_connector_operations_modal.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_69a885663a1cc4_15036002',
+  'unifunc' => 'content_69a937bb7aa491_86489320',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '4e0cfb81384357625659d5eca445a63482fe7323' => 
     array (
       0 => 'cells_NA_API_connector_operations_modal.html',
-      1 => 1772651710,
+      1 => 1772660782,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_69a885663a1cc4_15036002 (\Smarty\Template $_smarty_tpl) {
+function content_69a937bb7aa491_86489320 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>
 <section class="section">
@@ -331,7 +331,7 @@ $_smarty_current_dir = '/home/cells/web/templates';
                               rows="10"
                               placeholder="JSON шагов browser-автоматизации"><?php echo htmlspecialchars((string)$_smarty_tpl->getValue('operations')['submission']['steps_json'], ENT_QUOTES, 'UTF-8', true);?>
 </textarea>
-                    <div class="form-text">JSON-массив шагов для формы: goto/fill/click/wait_for. Можно использовать переменные из scenario_json: ${login}, ${password}, ${tracking_number}, ${suite}, ${length}, ${width}, ${height}, ${gross_weight}, ${quantity}, ${category}, ${seller}, ${title}, ${description}, ${invoice}.</div>
+                    <div class="form-text">JSON-массив шагов для формы: goto/fill/click/press/select/wait_for/wait_for_hidden/wait_for_regex. Для DEV COLIBRI используем #number и #client + Enter. Переменные из scenario_json: ${login}, ${password}, ${tracking_number}, ${suite}, ${client_name_surname}, ${gross_weight}, ${tariff_type}, ${category}, ${sub_category}.</div>
                     <pre class="form-text mb-0">
 [
   {"action":"goto","url":"https://dev-backend.colibri.az/login"},
