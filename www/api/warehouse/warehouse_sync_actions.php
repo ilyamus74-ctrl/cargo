@@ -314,14 +314,6 @@ if (!function_exists('warehouse_sync_submission_steps')) {
             return $decoded['steps'];
         }
 
-        if (isset($decoded[0]) && is_array($decoded[0]) && isset($decoded[0]['action'])) {
-            return $decoded;
-        }
-
-        if (isset($decoded['steps']) && is_array($decoded['steps'])) {
-            return $decoded['steps'];
-        }
-
         $submission = isset($decoded['submission']) && is_array($decoded['submission']) ? $decoded['submission'] : [];
         if (isset($submission['steps']) && is_array($submission['steps'])) {
             return $submission['steps'];
