@@ -370,6 +370,19 @@
                   </div>
                 </div>
 
+                <div class="row mb-3">
+                  <label for="submission_error_selector" class="col-md-4 col-lg-3 col-form-label">Ошибки / Alerts</label>
+                  <div class="col-md-8 col-lg-9">
+                    <input type="text"
+                           class="form-control"
+                           id="submission_error_selector"
+                           name="submission_error_selector"
+                           value="{$operations.submission.error_selector|escape}"
+                           placeholder="#response_alert_message .alert, #response_alert_message">
+                    <div class="form-text">Селектор блока с ошибкой после сохранения. Для COLIBRI можно использовать <code>#response_alert_message .alert</code> для захвата текста вроде &quot;Client not exist!&quot;.</div>
+                  </div>
+                </div>
+
                 <div class="d-flex gap-2 mb-2">
                   <button type="button" class="btn btn-primary js-core-link" data-core-action="save_connector_operations" data-open-tab="op2-pane">
                     Сохранить операции #2

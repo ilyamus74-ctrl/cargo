@@ -317,6 +317,7 @@ function connectors_default_operations(array $connector): array
             'request_config_json' => '',
             'success_selector' => '',
             'success_text' => '',
+            'error_selector' => '',
         ],
     ];
 }
@@ -365,6 +366,7 @@ function connectors_decode_operations(array $connector): array
         $operations['submission']['log_steps'] = !empty($submission['log_steps']) ? 1 : 0;
         $operations['submission']['success_selector'] = trim((string)($submission['success_selector'] ?? ''));
         $operations['submission']['success_text'] = trim((string)($submission['success_text'] ?? ''));
+        $operations['submission']['error_selector'] = trim((string)($submission['error_selector'] ?? ''));
 
         if (isset($submission['steps'])) {
             $operations['submission']['steps_json'] = json_encode($submission['steps'], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT) ?: '';
@@ -1168,6 +1170,8 @@ function connectors_run_submission_test(array $connector, array $submissionCfg):
         'auth_token' => (string)($connector['auth_token'] ?? ''),
         'temp_dir' => realpath($tempDir) ?: $tempDir,
         'expect_download' => false,
+        'error_selector' => trim((string)($submissionCfg['error_selector'] ?? '')),
+        'error_wait_ms' => 1800,
     ];
 
     $cmd = 'node ' . escapeshellarg($scriptPath) . ' ' . escapeshellarg((string)json_encode($payload, JSON_UNESCAPED_UNICODE));
@@ -1187,6 +1191,7 @@ function connectors_run_submission_test(array $connector, array $submissionCfg):
 
     $resolvedSuccessSelector = trim((string)connectors_apply_vars((string)($submissionCfg['success_selector'] ?? ''), $vars));
     $resolvedSuccessText = trim((string)connectors_apply_vars((string)($submissionCfg['success_text'] ?? ''), $vars));
+    $resolvedErrorSelector = trim((string)connectors_apply_vars((string)($submissionCfg['error_selector'] ?? ''), $vars));
     $tracking = trim((string)($vars['tracking_number'] ?? ''));
 
     return [
@@ -1194,6 +1199,8 @@ function connectors_run_submission_test(array $connector, array $submissionCfg):
         'artifacts_dir' => trim((string)($decoded['artifacts_dir'] ?? '')),
         'resolved_success_selector' => $resolvedSuccessSelector,
         'resolved_success_text' => $resolvedSuccessText,
+        'resolved_error_selector' => $resolvedErrorSelector,
+        'captured_error_text' => trim((string)($decoded['captured_error_text'] ?? '')),
         'tracking_number' => $tracking,
         'message' => trim((string)($decoded['message'] ?? '')),
         'node_payload' => $payload,
@@ -1221,6 +1228,7 @@ function connectors_build_operations_payload_from_post(): array
     $submissionRequestConfigJson = trim((string)($_POST['submission_request_config_json'] ?? ''));
     $submissionSuccessSelector = trim((string)($_POST['submission_success_selector'] ?? ''));
     $submissionSuccessText = trim((string)($_POST['submission_success_text'] ?? ''));
+    $submissionErrorSelector = trim((string)($_POST['submission_error_selector'] ?? ''));
 
     $targetTable = preg_replace('/[^a-z0-9_]+/', '_', $targetTable ?? '');
     if ($targetTable !== '') {
@@ -1310,6 +1318,7 @@ function connectors_build_operations_payload_from_post(): array
             'request_config' => $submissionRequestConfig,
             'success_selector' => $submissionSuccessSelector,
             'success_text' => $submissionSuccessText,
+            'error_selector' => $submissionErrorSelector,
         ],
     ];
 }
@@ -1915,6 +1924,8 @@ switch ($normalizedAction) {
                     'submission_tracking' => $tracking,
                     'resolved_success_selector' => (string)($submissionResult['resolved_success_selector'] ?? ''),
                     'resolved_success_text' => (string)($submissionResult['resolved_success_text'] ?? ''),
+                    'resolved_error_selector' => (string)($submissionResult['resolved_error_selector'] ?? ''),
+                    'captured_error_text' => (string)($submissionResult['captured_error_text'] ?? ''),
                     'step_log' => isset($submissionResult['step_log']) && is_array($submissionResult['step_log']) ? $submissionResult['step_log'] : [],
                     'artifacts_dir' => (string)($submissionResult['artifacts_dir'] ?? ''),
                     'node_payload' => isset($submissionResult['node_payload']) && is_array($submissionResult['node_payload']) ? $submissionResult['node_payload'] : null,

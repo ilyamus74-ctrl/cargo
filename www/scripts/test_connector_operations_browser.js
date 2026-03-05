@@ -673,6 +673,8 @@ function persistDownloadedFileIfNeeded(downloaded, runtimeHomeDir, stableDownloa
   const minFileSizeBytes = Math.max(0, readNumberOption(payload, 'min_file_size_bytes', 'CONNECTOR_MIN_FILE_SIZE_BYTES', 1));
   const debugDownloadNetwork = readBoolOption(payload, 'debug_download_network', 'CONNECTOR_DEBUG_DOWNLOAD_NETWORK', false);
   const expectDownload = readBoolOption(payload, 'expect_download', 'EXPECT_DOWNLOAD', true);
+  const errorSelector = applyVars(String(payload.error_selector || ''), vars).trim();
+  const errorWaitMs = Math.max(0, Number(payload.error_wait_ms ?? 1500));
 
   if (steps.length === 0) {
     process.stdout.write(JSON.stringify({ ok: false, message: 'No steps provided' }) + '\n');
@@ -1163,7 +1165,20 @@ function persistDownloadedFileIfNeeded(downloaded, runtimeHomeDir, stableDownloa
       throw new Error(`Unsupported action: ${action} (supported: goto/click/fill/type/press/select/wait_for/wait_for_hidden/wait_for_regex/download)`);
     }
 
+    async function collectErrorTextIfAny() {
+      if (!errorSelector) return '';
+      try {
+        const handle = await page.waitForSelector(errorSelector, { timeout: errorWaitMs });
+        if (!handle) return '';
+        const txt = await page.$eval(errorSelector, (el) => String(el?.innerText || el?.textContent || '').trim());
+        return String(txt || '').trim();
+      } catch (_) {
+        return '';
+      }
+    }
+
     if (!expectDownload) {
+      const capturedErrorText = await collectErrorTextIfAny();
       const finalShot = captureScreenshots ? await saveStepScreenshot(page, artifactsDir, stepNo + 1, 'final') : null;
       stepLog.push({ time: new Date().toISOString(), step: stepNo + 1, action: 'final_no_download', status: 'ok', screenshot: finalShot || undefined });
 
@@ -1173,6 +1188,8 @@ function persistDownloadedFileIfNeeded(downloaded, runtimeHomeDir, stableDownloa
           message: 'Сценарий выполнен без скачивания файла',
           executable_path: executablePath,
           browser_product: resolvedBrowserProduct,
+          resolved_error_selector: errorSelector || undefined,
+          captured_error_text: capturedErrorText || undefined,
           step_log: stepLog,
           artifacts_dir: artifactsDir,
           network_log: debugDownloadNetwork ? downloadNetworkLog : undefined,

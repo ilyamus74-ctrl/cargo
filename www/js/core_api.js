@@ -528,10 +528,18 @@ const CoreAPI = {
                     const stepLog = Array.isArray(data?.step_log) ? data.step_log : [];
                     const safeMessage = String(data?.message || 'Тест операции #2 выполнен');
                     const safeTracking = String(data?.submission_tracking || '').trim();
+                    const safeErrorText = String(data?.captured_error_text || '').trim();
+                    const safeErrorSelector = String(data?.resolved_error_selector || '').trim();
                     const lines = [];
                     lines.push(`<div><strong>${safeMessage.replace(/[<>&]/g, '')}</strong></div>`);
                     if (safeTracking) {
                         lines.push(`<div class="mt-1">tracking: <code>${safeTracking.replace(/[<>&]/g, '')}</code></div>`);
+                    }
+                    if (safeErrorSelector) {
+                        lines.push(`<div class="mt-1">error selector: <code>${safeErrorSelector.replace(/[<>&]/g, '')}</code></div>`);
+                    }
+                    if (safeErrorText) {
+                        lines.push(`<div class="mt-1 text-warning"><strong>Forwarder alert:</strong> ${safeErrorText.replace(/[<>&]/g, '')}</div>`);
                     }
                     if (stepLog.length > 0) {
                         lines.push('<div class="mt-2"><strong>step_log</strong></div>');
