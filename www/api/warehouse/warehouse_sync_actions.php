@@ -166,6 +166,117 @@ if (!function_exists('warehouse_sync_apply_vars')) {
     }
 }
 
+
+if (!function_exists('warehouse_sync_extract_report_status')) {
+    function warehouse_sync_extract_report_status(string $payloadJson): string
+    {
+        $payloadJson = trim($payloadJson);
+        if ($payloadJson === '') {
+            return '';
+        }
+
+        $decoded = json_decode($payloadJson, true);
+        if (is_array($decoded)) {
+            $queue = [$decoded];
+            while (!empty($queue)) {
+                $node = array_shift($queue);
+                if (!is_array($node)) {
+                    continue;
+                }
+                foreach ($node as $key => $value) {
+                    if (is_array($value)) {
+                        $queue[] = $value;
+                        continue;
+                    }
+                    if (!is_scalar($value)) {
+                        continue;
+                    }
+                    $normalizedKey = strtolower(trim((string)$key));
+                    if (in_array($normalizedKey, ['status', 'state', 'parcel_status', 'shipment_status'], true)) {
+                        $status = trim((string)$value);
+                        if ($status !== '') {
+                            return $status;
+                        }
+                    }
+                }
+            }
+        }
+
+        if (preg_match('/"(?:status|state|parcel_status|shipment_status)"\s*:\s*"([^"]+)"/iu', $payloadJson, $m)) {
+            return trim((string)($m[1] ?? ''));
+        }
+
+        return '';
+    }
+}
+
+if (!function_exists('warehouse_sync_is_final_report_status')) {
+    function warehouse_sync_is_final_report_status(string $status): bool
+    {
+        $normalized = strtolower(trim($status));
+        if ($normalized === '') {
+            return false;
+        }
+
+        $finalStatuses = [
+            'received', 'delivered', 'accepted', 'done', 'complete', 'completed', 'success', 'ok',
+            'получено', 'доставлено', 'принято', 'успешно', 'завершено',
+        ];
+
+        return in_array($normalized, $finalStatuses, true);
+    }
+}
+
+if (!function_exists('warehouse_sync_report_confirmation_by_tracking')) {
+    function warehouse_sync_report_confirmation_by_tracking(mysqli $dbcnx, array $trackingList): array
+    {
+        $result = [];
+        $trackingList = array_values(array_unique(array_filter(array_map(static function ($tracking) {
+            return strtoupper(trim((string)$tracking));
+        }, $trackingList), static function ($tracking) {
+            return $tracking !== '';
+        })));
+
+        if (empty($trackingList)) {
+            return $result;
+        }
+
+        $tableName = 'connector_report_dev_colibri_az';
+        if (!warehouse_sync_table_exists($dbcnx, $tableName)) {
+            foreach ($trackingList as $tracking) {
+                $result[$tracking] = ['found' => false, 'status' => '', 'is_final' => false];
+            }
+            return $result;
+        }
+
+        $safeTable = '`' . str_replace('`', '``', $tableName) . '`';
+        foreach ($trackingList as $tracking) {
+            $safeTracking = $dbcnx->real_escape_string($tracking);
+            $sql = "SELECT payload_json FROM {$safeTable} WHERE payload_json IS NOT NULL AND payload_json <> '' AND UPPER(payload_json) LIKE '%{$safeTracking}%' ORDER BY id DESC LIMIT 1";
+            $row = null;
+            if ($res = $dbcnx->query($sql)) {
+                $row = $res->fetch_assoc() ?: null;
+                $res->free();
+            }
+
+            if (!$row) {
+                $result[$tracking] = ['found' => false, 'status' => '', 'is_final' => false];
+                continue;
+            }
+
+            $status = warehouse_sync_extract_report_status((string)($row['payload_json'] ?? ''));
+            $result[$tracking] = [
+                'found' => true,
+                'status' => $status,
+                'is_final' => warehouse_sync_is_final_report_status($status),
+            ];
+        }
+
+        return $result;
+    }
+}
+
+
 if (!function_exists('warehouse_sync_clear_directory')) {
     function warehouse_sync_clear_directory(string $directory): void
     {
@@ -657,8 +768,10 @@ if ($action === 'warehouse_sync_missing') {
     }
 
     $missing = [];
+    $trackingCandidates = [];
     $connectorCache = [];
     foreach ($rows as $row) {
+        $trackingCandidates[] = strtoupper(trim((string)($row['tracking_no'] ?? '')));
         $forwarder = warehouse_sync_normalize_key((string)($row['receiver_company'] ?? ''));
         $country = warehouse_sync_normalize_key((string)($row['receiver_country_code'] ?? ''));
         if ($forwarder === '') {
@@ -747,6 +860,30 @@ if ($action === 'warehouse_sync_missing') {
             }
             $missing[] = $row;
         }
+    }
+
+    if (!empty($missing)) {
+        $confirmMap = warehouse_sync_report_confirmation_by_tracking($dbcnx, $trackingCandidates);
+        $filteredMissing = [];
+        foreach ($missing as $row) {
+            $tracking = strtoupper(trim((string)($row['tracking_no'] ?? '')));
+            $confirm = $tracking !== '' ? ($confirmMap[$tracking] ?? null) : null;
+            if (is_array($confirm) && !empty($confirm['found']) && !empty($confirm['is_final'])) {
+                continue;
+            }
+
+            if (is_array($confirm) && !empty($confirm['found'])) {
+                $status = trim((string)($confirm['status'] ?? ''));
+                $row['report_confirmation_label'] = $status !== ''
+                    ? ('Промежуточная синхронизация: ожидаем финальный отчет (' . $status . ')')
+                    : 'Промежуточная синхронизация: отчет получен, финальный статус не определен';
+            } else {
+                $row['report_confirmation_label'] = 'Промежуточная синхронизация: ожидаем обратный отчет';
+            }
+
+            $filteredMissing[] = $row;
+        }
+        $missing = $filteredMissing;
     }
 
     $total = count($missing);
@@ -911,6 +1048,32 @@ if ($action === 'warehouse_sync_history') {
     auth_require_login();
     warehouse_sync_ensure_audit_table($dbcnx);
 
+
+    $statusFilter = strtolower(trim((string)($_POST['status_filter'] ?? 'all')));
+    $trackingFilter = strtoupper(trim((string)($_POST['tracking_no'] ?? '')));
+
+    $conditions = [];
+    $params = [];
+    $types = '';
+
+    if ($statusFilter === 'success' || $statusFilter === 'error') {
+        $conditions[] = 'a.status = ?';
+        $types .= 's';
+        $params[] = $statusFilter;
+    }
+
+    if ($trackingFilter !== '') {
+        $conditions[] = 'UPPER(a.tracking_no) LIKE ?';
+        $types .= 's';
+        $params[] = '%' . $trackingFilter . '%';
+    }
+
+    $whereSql = '';
+    if (!empty($conditions)) {
+        $whereSql = 'WHERE ' . implode(' AND ', $conditions);
+    }
+
+
     $rows = [];
     $sql = "SELECT a.id, a.item_id, a.tracking_no, a.forwarder, a.country_code, a.status, a.message, a.created_at, u.full_name AS user_name
 "
@@ -918,14 +1081,30 @@ if ($action === 'warehouse_sync_history') {
 "
         . "LEFT JOIN users u ON u.id = a.created_by
 "
+        . "{$whereSql}
+"
         . "ORDER BY a.id DESC
 "
         . "LIMIT 200";
-    if ($res = $dbcnx->query($sql)) {
-        while ($row = $res->fetch_assoc()) {
-            $rows[] = $row;
+
+    if ($types === '') {
+        if ($res = $dbcnx->query($sql)) {
+            while ($row = $res->fetch_assoc()) {
+                $rows[] = $row;
+            }
+            $res->free();
         }
-        $res->free();
+    } else {
+        $stmt = $dbcnx->prepare($sql);
+        if ($stmt) {
+            $stmt->bind_param($types, ...$params);
+            $stmt->execute();
+            $res = $stmt->get_result();
+            while ($row = $res->fetch_assoc()) {
+                $rows[] = $row;
+            }
+            $stmt->close();
+        }
     }
 
     $response = [

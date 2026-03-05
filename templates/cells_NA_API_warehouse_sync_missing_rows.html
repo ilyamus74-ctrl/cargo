@@ -9,6 +9,9 @@
       {if $item.sync_status_label}
         <div class="small {$item.sync_status_class|default:'text-muted'}">{$item.sync_status_label|escape}</div>
       {/if}
+      {if $item.report_confirmation_label}
+        <div class="small text-muted">{$item.report_confirmation_label|escape}</div>
+      {/if}
     </td>
     <td>
       {if $item.can_sync|default:0}

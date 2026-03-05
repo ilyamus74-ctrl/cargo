@@ -1899,6 +1899,9 @@ const CoreAPI = {
         root: null,
         tbody: null,
         total: null,
+        statusFilter: null,
+        trackingFilter: null,
+        searchTimer: null,
         initialized: false,
         init() {
             const root = document.getElementById('warehouse-sync-history');
@@ -1906,11 +1909,25 @@ const CoreAPI = {
             this.root = root;
             this.tbody = root.querySelector('#warehouse-sync-history-tbody');
             this.total = root.querySelector('#warehouse-sync-history-total');
-            if (!this.tbody || !this.total) {
+            this.statusFilter = root.querySelector('#warehouse-sync-history-status-filter');
+            this.trackingFilter = root.querySelector('#warehouse-sync-history-tracking-filter');
+            if (!this.tbody || !this.total || !this.statusFilter || !this.trackingFilter) {
                 return;
+            }
+            if (!this.initialized) {
+                this.bindEvents();
             }
             this.load();
             this.initialized = true;
+        },
+        bindEvents() {
+            this.statusFilter.addEventListener('change', () => this.load());
+            this.trackingFilter.addEventListener('input', () => {
+                if (this.searchTimer) {
+                    clearTimeout(this.searchTimer);
+                }
+                this.searchTimer = setTimeout(() => this.load(), 300);
+            });
         },
         async load() {
             if (!this.tbody || !this.total) return;
@@ -1921,6 +1938,8 @@ const CoreAPI = {
             `;
             const fd = new FormData();
             fd.append('action', 'warehouse_sync_history');
+            fd.append('status_filter', this.statusFilter?.value || 'all');
+            fd.append('tracking_no', (this.trackingFilter?.value || '').trim());
             try {
                 const data = await CoreAPI.client.call(fd);
                 if (!data || data.status !== 'ok') {
