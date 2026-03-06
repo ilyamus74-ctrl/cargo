@@ -79,4 +79,14 @@ tail -f /var/log/system_tasks_runner.log
 - `payload_json` (опционально): `{"limit":200}`
 
 Важно: сам `system_tasks_runner.php` должен оставаться в cron **каждую минуту**.
-Период в 30 минут контролируется полем `interval_minutes` у задачи, а не расписанием cron
+Период в 30 минут контролируется полем `interval_minutes` у задачи, а не расписанием cron.
+
+
+## Реестр endpoint_action
+
+Список допустимых `endpoint_action` централизован в `system_tasks_endpoint_registry()`.
+
+- Файл: `www/api/system/system_tasks_lib.php`
+- Добавление нового endpoint: дописать его в реестр + обработку в `system_tasks_execute()`.
+- UI формы (`system_tasks`) использует этот реестр для подсказок.
+- Backend `save_system_task` валидирует значение по реестру, чтобы не сохранять опечатки.

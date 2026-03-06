@@ -35,6 +35,7 @@ if ($action === 'system_tasks') {
     $smarty->assign('tasks', $tasks);
     $smarty->assign('task_runs', $recentRuns);
     $smarty->assign('current_user', $user);
+    $smarty->assign('endpoint_actions', system_tasks_endpoint_registry());
 
     ob_start();
     $smarty->display('cells_NA_API_system_tasks.html');
@@ -54,6 +55,15 @@ if ($action === 'save_system_task') {
 
     if ($code === '' || $name === '' || $endpointAction === '') {
         $response = ['status' => 'error', 'message' => 'code, name и endpoint_action обязательны'];
+        return;
+    }
+
+    if (!system_tasks_is_known_endpoint_action($endpointAction)) {
+        $allowed = array_keys(system_tasks_endpoint_registry());
+        $response = [
+            'status' => 'error',
+            'message' => 'Неизвестный endpoint_action. Доступные: ' . implode(', ', $allowed),
+        ];
         return;
     }
 

@@ -21,7 +21,13 @@
             </div>
             <div class="mb-2">
               <label class="form-label" for="system_task_endpoint">Endpoint action</label>
-              <input type="text" class="form-control form-control-sm" name="endpoint_action" id="system_task_endpoint" placeholder="warehouse_sync_batch_worker">
+              <input type="text" list="system_task_endpoint_list" class="form-control form-control-sm" name="endpoint_action" id="system_task_endpoint" placeholder="warehouse_sync_batch_worker">
+              <datalist id="system_task_endpoint_list">
+                {foreach $endpoint_actions as $endpointCode => $endpointMeta}
+                  <option value="{$endpointCode|escape}">{$endpointMeta.name|default:$endpointCode|escape}</option>
+                {/foreach}
+              </datalist>
+              <small class="text-muted">Поддерживаемые endpoint_action пополняются централизованно в system_tasks_endpoint_registry().</small>
             </div>
             <div class="mb-2">
               <label class="form-label" for="system_task_interval">Интервал (мин.)</label>
@@ -40,6 +46,17 @@
               <button type="button" class="btn btn-sm btn-outline-secondary js-system-task-reset">Очистить</button>
             </div>
           </form>
+        </div>
+      </div>
+
+      <div class="card mt-3">
+        <div class="card-header">Доступные endpoint_action</div>
+        <div class="card-body p-2">
+          <ul class="mb-0 ps-3">
+            {foreach $endpoint_actions as $endpointCode => $endpointMeta}
+              <li><code>{$endpointCode|escape}</code> — {$endpointMeta.name|default:''|escape}</li>
+            {/foreach}
+          </ul>
         </div>
       </div>
     </div>

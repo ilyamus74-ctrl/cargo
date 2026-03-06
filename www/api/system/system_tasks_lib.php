@@ -65,6 +65,48 @@ function system_tasks_ensure_tables(mysqli $dbcnx): void
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 }
 
+
+function system_tasks_endpoint_registry(): array
+{
+    return [
+        'operation_1' => [
+            'group' => 'core',
+            'name' => 'Операция #1 (шаблон)',
+            'description' => 'Плейсхолдер системной задачи.',
+        ],
+        'warehouse_sync_out_backfill' => [
+            'group' => 'warehouse',
+            'name' => 'Backfill warehouse_item_out',
+            'description' => 'Заполняет/обновляет warehouse_item_out из warehouse_item_stock.',
+        ],
+        'connectors_report_operation_1' => [
+            'group' => 'connectors',
+            'name' => 'Коннекторы: операция #1 (репорты)',
+            'description' => 'Скачивает и импортирует репорты активных коннекторов.',
+        ],
+        'warehouse_sync_batch_worker' => [
+            'group' => 'warehouse',
+            'name' => 'Обработчик batch sync',
+            'description' => 'Берет queued/running batch jobs и обрабатывает их в фоне.',
+        ],
+        'warehouse_sync_reconcile' => [
+            'group' => 'warehouse',
+            'name' => 'Reconcile half_sync/error',
+            'description' => 'Перепроверяет статусы half_sync/error в warehouse_item_out.',
+        ],
+    ];
+}
+
+function system_tasks_is_known_endpoint_action(string $action): bool
+{
+    if ($action === '') {
+        return false;
+    }
+
+    $registry = system_tasks_endpoint_registry();
+    return isset($registry[$action]);
+}
+
 function system_tasks_seed_defaults(mysqli $dbcnx): void
 {
     $defaults = [
@@ -95,6 +137,13 @@ function system_tasks_seed_defaults(mysqli $dbcnx): void
             'description' => 'Берет queued/running batch jobs и обрабатывает их в фоне.',
             'endpoint_action' => 'warehouse_sync_batch_worker',
             'interval_minutes' => 1,
+        ],
+        [
+            'code' => 'warehouse_sync_reconcile_half_sync_30m',
+            'name' => 'Reconcile half_sync/error (раз в 30 минут)',
+            'description' => 'Перепроверяет статусы half_sync/error в warehouse_item_out и обновляет до confirmed_sync/error.',
+            'endpoint_action' => 'warehouse_sync_reconcile',
+            'interval_minutes' => 30,
         ],
         [
             'code' => 'warehouse_sync_reconcile_half_sync_30m',
@@ -217,6 +266,13 @@ function system_tasks_execute(mysqli $dbcnx, array $task, int $systemUserId = 0)
         return ['status' => 'error', 'message' => 'Empty endpoint_action'];
     }
 
+    if (!system_tasks_is_known_endpoint_action($action)) {
+        return [
+            'status' => 'error',
+            'message' => 'Unknown endpoint_action: ' . $action,
+        ];
+    }
+
     if ($action === 'operation_1') {
         return [
             'status' => 'ok',
@@ -240,9 +296,51 @@ function system_tasks_execute(mysqli $dbcnx, array $task, int $systemUserId = 0)
     if ($action === 'warehouse_sync_reconcile') {
         return system_tasks_run_warehouse_sync_reconcile($dbcnx, $task, $systemUserId);
     }
+
+    if ($action === 'warehouse_sync_reconcile') {
+        return system_tasks_run_warehouse_sync_reconcile($dbcnx, $task, $systemUserId);
+    }
+
     return [
         'status' => 'error',
-        'message' => 'Unknown endpoint_action: ' . $action,
+
+        'message' => 'Unhandled endpoint_action: ' . $action,
+    ];
+}
+
+function system_tasks_run_warehouse_sync_reconcile(mysqli $dbcnx, array $task, int $systemUserId = 0): array
+{
+    $payloadRaw = (string)($task['payload_json'] ?? '');
+    $payload = $payloadRaw !== '' ? json_decode($payloadRaw, true) : [];
+    if (!is_array($payload)) {
+        $payload = [];
+    }
+
+    $limit = max(1, min(5000, (int)($payload['limit'] ?? 200)));
+
+    if (!function_exists('warehouse_sync_reconcile_half_sync')) {
+        $action = '__system_task_bootstrap__';
+        $user = ['id' => $systemUserId > 0 ? $systemUserId : 1, 'role' => 'ADMIN'];
+        $response = ['status' => 'ok'];
+        require_once __DIR__ . '/../warehouse/warehouse_sync_actions.php';
+    }
+
+    if (!function_exists('warehouse_sync_reconcile_half_sync')) {
+        return ['status' => 'error', 'message' => 'warehouse_sync_reconcile_half_sync not available'];
+    }
+
+    $stats = warehouse_sync_reconcile_half_sync($dbcnx, $limit, $systemUserId > 0 ? $systemUserId : 1);
+
+    return [
+        'status' => 'ok',
+        'message' => 'warehouse_sync_reconcile done',
+        'context' => [
+            'limit' => $limit,
+            'checked' => (int)($stats['checked'] ?? 0),
+            'confirmed_sync' => (int)($stats['confirmed_sync'] ?? 0),
+            'error' => (int)($stats['error'] ?? 0),
+            'unchanged' => (int)($stats['unchanged'] ?? 0),
+        ],
     ];
 }
 
