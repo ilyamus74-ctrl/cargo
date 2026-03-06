@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 $response = ['status' => 'error', 'message' => 'Unknown warehouse sync action'];
+require_once __DIR__ . '/../system/system_tasks_lib.php';
 
 if (!function_exists('warehouse_sync_normalize_key')) {
     function warehouse_sync_normalize_key(string $value): string
@@ -1530,6 +1531,94 @@ if ($action === 'warehouse_sync_item') {
         ];
     }
 }
+
+
+
+if ($action === 'warehouse_sync_batch_enqueue') {
+    auth_require_login();
+    system_tasks_ensure_tables($dbcnx);
+
+    $targetsRaw = (string)($_POST['targets_json'] ?? '[]');
+    $forwarder = strtoupper(trim((string)($_POST['forwarder'] ?? 'ALL')));
+    $requestedBy = (int)($user['id'] ?? 0);
+
+    $targets = json_decode($targetsRaw, true);
+    if (!is_array($targets)) {
+        $response = ['status' => 'error', 'message' => 'targets_json invalid'];
+        return;
+    }
+
+    $items = [];
+    foreach ($targets as $target) {
+        if (!is_array($target)) {
+            continue;
+        }
+        $itemId = (int)($target['itemId'] ?? 0);
+        $connectorId = (int)($target['connectorId'] ?? 0);
+        if ($itemId <= 0) {
+            continue;
+        }
+        $items[] = ['item_id' => $itemId, 'connector_id' => $connectorId > 0 ? $connectorId : null];
+    }
+
+    if (!$items) {
+        $response = ['status' => 'error', 'message' => 'Нет валидных посылок для очереди'];
+        return;
+    }
+
+    $dbcnx->begin_transaction();
+    try {
+        $stmtJob = $dbcnx->prepare("INSERT INTO warehouse_sync_batch_jobs (status, forwarder, requested_by, total_items, message)
+                                    VALUES ('queued', ?, ?, ?, 'queued from UI')");
+        if (!$stmtJob) {
+            throw new RuntimeException('prepare batch job failed');
+        }
+        $total = count($items);
+        $stmtJob->bind_param('sii', $forwarder, $requestedBy, $total);
+        $stmtJob->execute();
+        $jobId = (int)$dbcnx->insert_id;
+        $stmtJob->close();
+
+        $stmtItem = $dbcnx->prepare("INSERT IGNORE INTO warehouse_sync_batch_job_items (job_id, item_id, connector_id, status)
+                                     VALUES (?, ?, ?, 'pending')");
+        if (!$stmtItem) {
+            throw new RuntimeException('prepare batch item failed');
+        }
+
+        $queued = 0;
+        foreach ($items as $row) {
+            $itemId = (int)$row['item_id'];
+            $connectorId = $row['connector_id'];
+            $stmtItem->bind_param('iii', $jobId, $itemId, $connectorId);
+            $stmtItem->execute();
+            if ($stmtItem->affected_rows > 0) {
+                $queued += 1;
+            }
+        }
+        $stmtItem->close();
+
+        $upd = $dbcnx->prepare("UPDATE warehouse_sync_batch_jobs SET total_items = ? WHERE id = ?");
+        if ($upd) {
+            $upd->bind_param('ii', $queued, $jobId);
+            $upd->execute();
+            $upd->close();
+        }
+
+        $dbcnx->commit();
+
+        $response = [
+            'status' => 'ok',
+            'job_id' => $jobId,
+            'queued' => $queued,
+            'skipped' => max(0, count($items) - $queued),
+            'message' => 'Batch job queued',
+        ];
+    } catch (Throwable $e) {
+        $dbcnx->rollback();
+        $response = ['status' => 'error', 'message' => 'queue error: ' . $e->getMessage()];
+    }
+}
+
 
 if ($action === 'warehouse_sync_history') {
     auth_require_login();

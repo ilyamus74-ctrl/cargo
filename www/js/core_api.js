@@ -66,6 +66,8 @@ const CoreAPI = {
                 'save_item_stock': () => this.getFormById('item-stock-modal-form'),
                 'save_permission': () => this.getFormById('permission-form'),
                 'save_menu_item': () => this.getFormById('menu-item-form'),
+                'save_system_task': () => this.getFormById('system-task-form'),
+                'delete_system_task': () => this.withAttribute('task_id', link),
                 'save_connector': (currentLink) => {
                     const fd = this.getFormById('connector-form');
                     if (currentLink && currentLink.getAttribute('data-delete') === '1') {
@@ -372,6 +374,31 @@ const CoreAPI = {
             if (actionInput) actionInput.value = '';
             if (sortInput) sortInput.value = '0';
             if (activeInput) activeInput.checked = true;
+        }
+    },
+
+    systemTasks: {
+        fillForm(button) {
+            const form = document.getElementById('system-task-form');
+            if (!form || !button) return;
+            form.querySelector('[name="task_id"]').value = button.getAttribute('data-task-id') || '';
+            form.querySelector('[name="code"]').value = button.getAttribute('data-task-code') || '';
+            form.querySelector('[name="name"]').value = button.getAttribute('data-task-name') || '';
+            form.querySelector('[name="description"]').value = button.getAttribute('data-task-description') || '';
+            form.querySelector('[name="endpoint_action"]').value = button.getAttribute('data-task-endpoint') || '';
+            form.querySelector('[name="interval_minutes"]').value = button.getAttribute('data-task-interval') || '60';
+            form.querySelector('[name="is_enabled"]').checked = button.getAttribute('data-task-enabled') === '1';
+        },
+        resetForm() {
+            const form = document.getElementById('system-task-form');
+            if (!form) return;
+            form.reset();
+            const idField = form.querySelector('[name="task_id"]');
+            if (idField) idField.value = '';
+            const enabled = form.querySelector('[name="is_enabled"]');
+            if (enabled) enabled.checked = true;
+            const interval = form.querySelector('[name="interval_minutes"]');
+            if (interval) interval.value = '60';
         }
     },
 
@@ -869,6 +896,18 @@ const CoreAPI = {
             alert(data.message || 'Удалено');
             await CoreAPI.ui.reloadList('view_role_permissions');
         },
+        'save_system_task': async (data) => {
+            alert(data.message || 'Сохранено');
+            await CoreAPI.ui.reloadList('system_tasks');
+        },
+        'delete_system_task': async (data) => {
+            alert(data.message || 'Удалено');
+            await CoreAPI.ui.reloadList('system_tasks');
+        },
+        'run_system_tasks_now': async (data) => {
+            alert(data.message || 'Выполнено');
+            await CoreAPI.ui.reloadList('system_tasks');
+        },
         // === DEFAULT - все остальные ===
         'default': (data) => {
             if (data.html) {
@@ -908,6 +947,18 @@ const CoreAPI = {
             if (resetMenuItem) {
                 e.preventDefault();
                 CoreAPI.menuItems.resetForm();
+                return;
+            }
+            const editSystemTask = e.target.closest('.js-system-task-edit');
+            if (editSystemTask) {
+                e.preventDefault();
+                CoreAPI.systemTasks.fillForm(editSystemTask);
+                return;
+            }
+            const resetSystemTask = e.target.closest('.js-system-task-reset');
+            if (resetSystemTask) {
+                e.preventDefault();
+                CoreAPI.systemTasks.resetForm();
                 return;
             }
             const link = e.target.closest('.js-core-link[data-core-action]');
@@ -1812,49 +1863,18 @@ const CoreAPI = {
                         return;
                     }
 
-                    for (const target of targets) {
-                        const itemId = target.itemId || '';
-                        const connectorId = target.connectorId || '';
-                        if (!itemId) continue;
-                        const rowBtn = this.tbody.querySelector(`.warehouse-sync-row-btn[data-item-id="${CSS.escape(itemId)}"]`);
-                        const prev = rowBtn?.textContent || 'sync';
-                        if (rowBtn) {
-                            rowBtn.disabled = true;
-                            rowBtn.textContent = 'sync...';
-                        }
-
-                        try {
-                            const fd = new FormData();
-                            fd.append('action', 'warehouse_sync_item');
-                            fd.append('item_id', itemId);
-                            if (connectorId) {
-                                fd.append('connector_id', connectorId);
-                            }
-                            const data = await CoreAPI.client.call(fd);
-                            if (!data || data.status !== 'ok') {
-                                console.log('[warehouse_sync_item][batch][node_payload]', data?.node_payload || null);
-                                throw new Error(data?.message || 'sync error');
-                            }
-                            console.log('[warehouse_sync_item][batch][node_payload]', data?.node_payload || null);
-                            ok += 1;
-                            if (rowBtn) {
-                                rowBtn.classList.remove('btn-outline-primary');
-                                rowBtn.classList.add('btn-outline-success');
-                                rowBtn.textContent = 'synced';
-                            }
-                        } catch (err) {
-                            fail += 1;
-                            if (rowBtn) {
-                                rowBtn.disabled = false;
-                                rowBtn.textContent = prev;
-                                rowBtn.classList.remove('btn-outline-primary');
-                                rowBtn.classList.add('btn-outline-danger');
-                            }
-                            console.error('warehouse_sync_item error:', err);
-                        }
+                    const fd = new FormData();
+                    fd.append('action', 'warehouse_sync_batch_enqueue');
+                    fd.append('targets_json', JSON.stringify(targets));
+                    fd.append('forwarder', this.state.forwarder || 'ALL'); 
+                    const data = await CoreAPI.client.call(fd);
+                    if (!data || data.status !== 'ok') {
+                        throw new Error(data?.message || 'enqueue error');
                     }
 
-                    alert(`all_sync завершен. Успех: ${ok}, Ошибки: ${fail}`);
+                    ok = Number.parseInt(data?.queued || '0', 10) || 0;
+                    fail = Number.parseInt(data?.skipped || '0', 10) || 0;
+                    alert(`Задача поставлена в background. Job #${data.job_id}. В очереди: ${ok}, пропущено: ${fail}`);
                     await this.resetAndLoad();
                     CoreAPI.warehouseSyncHistory.load();
                 } catch (err) {

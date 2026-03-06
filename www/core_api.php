@@ -32,6 +32,13 @@ $routes = [
     'save_menu_item'        => 'api/users/roles_permissions_actions.php',
     'delete_menu_item'      => 'api/users/roles_permissions_actions.php',
 
+
+    // ========== SYSTEM TASKS ==========
+    'system_tasks'          => 'api/system/system_tasks_actions.php',
+    'save_system_task'      => 'api/system/system_tasks_actions.php',
+    'delete_system_task'    => 'api/system/system_tasks_actions.php',
+    'run_system_tasks_now'  => 'api/system/system_tasks_actions.php',
+
     // ========== CONNECTORS ==========
     'view_connectors'       => 'api/connectors/connector_actions.php',
     'form_new_connector'    => 'api/connectors/connector_actions.php',
@@ -111,6 +118,7 @@ $routes = [
     'warehouse_sync_history'    => 'api/warehouse/warehouse_sync_actions.php',
     'warehouse_sync_out_backfill' => 'api/warehouse/warehouse_sync_actions.php',
     'warehouse_sync_reconcile'  => 'api/warehouse/warehouse_sync_actions.php',
+    'warehouse_sync_batch_enqueue' => 'api/warehouse/warehouse_sync_actions.php',
 ];
 
 if (!isset($routes[$action])) {

@@ -1,0 +1,132 @@
+<div class="container-fluid py-3">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h4 class="mb-0">Задания системы</h4>
+    <button type="button" class="btn btn-sm btn-outline-primary js-core-link" data-core-action="run_system_tasks_now">Выполнить due сейчас</button>
+  </div>
+
+  <div class="row g-3">
+    <div class="col-12 col-xl-4">
+      <div class="card">
+        <div class="card-header">Добавить / редактировать</div>
+        <div class="card-body">
+          <form id="system-task-form" autocomplete="off">
+            <input type="hidden" name="task_id" id="system_task_id" value="">
+            <div class="mb-2">
+              <label class="form-label" for="system_task_code">Code</label>
+              <input type="text" class="form-control form-control-sm" name="code" id="system_task_code" placeholder="warehouse_sync_batch_worker">
+            </div>
+            <div class="mb-2">
+              <label class="form-label" for="system_task_name">Название</label>
+              <input type="text" class="form-control form-control-sm" name="name" id="system_task_name" placeholder="Обработчик синхронизации">
+            </div>
+            <div class="mb-2">
+              <label class="form-label" for="system_task_endpoint">Endpoint action</label>
+              <input type="text" class="form-control form-control-sm" name="endpoint_action" id="system_task_endpoint" placeholder="warehouse_sync_batch_worker">
+            </div>
+            <div class="mb-2">
+              <label class="form-label" for="system_task_interval">Интервал (мин.)</label>
+              <input type="number" min="1" class="form-control form-control-sm" name="interval_minutes" id="system_task_interval" value="60">
+            </div>
+            <div class="mb-2">
+              <label class="form-label" for="system_task_description">Описание</label>
+              <textarea class="form-control form-control-sm" name="description" id="system_task_description" rows="3"></textarea>
+            </div>
+            <div class="form-check mb-3">
+              <input class="form-check-input" type="checkbox" name="is_enabled" id="system_task_enabled" checked>
+              <label class="form-check-label" for="system_task_enabled">Разрешено к выполнению</label>
+            </div>
+            <div class="d-flex gap-2">
+              <button type="button" class="btn btn-sm btn-primary js-core-link" data-core-action="save_system_task">Сохранить</button>
+              <button type="button" class="btn btn-sm btn-outline-secondary js-system-task-reset">Очистить</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <div class="col-12 col-xl-8">
+      <div class="card mb-3">
+        <div class="card-header">Список заданий</div>
+        <div class="table-responsive">
+          <table class="table table-sm align-middle mb-0">
+            <thead>
+            <tr>
+              <th>ID</th>
+              <th>Code</th>
+              <th>Endpoint</th>
+              <th>Every</th>
+              <th>Enabled</th>
+              <th>Last</th>
+              <th>Next</th>
+              <th></th>
+            </tr>
+            </thead>
+            <tbody>
+            {if $tasks|@count > 0}
+              {foreach $tasks as $task}
+                <tr>
+                  <td>{$task.id}</td>
+                  <td><code>{$task.code|escape}</code><br><small>{$task.name|escape}</small></td>
+                  <td><code>{$task.endpoint_action|escape}</code></td>
+                  <td>{$task.interval_minutes}m</td>
+                  <td>{if $task.is_enabled == 1}<span class="badge bg-success">yes</span>{else}<span class="badge bg-secondary">no</span>{/if}</td>
+                  <td><small>{$task.last_run_at|default:'-'}</small><br><small>{$task.last_status|default:''}</small></td>
+                  <td><small>{$task.next_run_at|default:'-'}</small></td>
+                  <td class="text-end">
+                    <button type="button" class="btn btn-sm btn-outline-primary js-system-task-edit"
+                            data-task-id="{$task.id}"
+                            data-task-code="{$task.code|escape}"
+                            data-task-name="{$task.name|escape}"
+                            data-task-description="{$task.description|escape}"
+                            data-task-endpoint="{$task.endpoint_action|escape}"
+                            data-task-interval="{$task.interval_minutes}"
+                            data-task-enabled="{$task.is_enabled}">Edit</button>
+                    <button type="button" class="btn btn-sm btn-outline-danger js-core-link"
+                            data-core-action="delete_system_task"
+                            data-task-id="{$task.id}"
+                            data-confirm="Удалить задание {$task.code|escape}?">Del</button>
+                  </td>
+                </tr>
+              {/foreach}
+            {else}
+              <tr><td colspan="8" class="text-center text-muted py-3">Заданий пока нет</td></tr>
+            {/if}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">Последние запуски</div>
+        <div class="table-responsive">
+          <table class="table table-sm align-middle mb-0">
+            <thead>
+            <tr>
+              <th>ID</th>
+              <th>Task</th>
+              <th>Status</th>
+              <th>Message</th>
+              <th>At</th>
+            </tr>
+            </thead>
+            <tbody>
+            {if $task_runs|@count > 0}
+              {foreach $task_runs as $run}
+                <tr>
+                  <td>{$run.id}</td>
+                  <td><code>{$run.task_code|escape}</code></td>
+                  <td>{if $run.status=='ok'}<span class="badge bg-success">ok</span>{else}<span class="badge bg-danger">error</span>{/if}</td>
+                  <td><small>{$run.message|escape}</small></td>
+                  <td><small>{$run.finished_at|default:$run.started_at}</small></td>
+                </tr>
+              {/foreach}
+            {else}
+              <tr><td colspan="5" class="text-center text-muted py-3">Логов пока нет</td></tr>
+            {/if}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
