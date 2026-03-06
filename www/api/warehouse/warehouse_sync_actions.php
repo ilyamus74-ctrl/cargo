@@ -685,7 +685,7 @@ if (!function_exists('warehouse_sync_find_report_row')) {
                         'payload_json' => (string)($row['payload_json'] ?? ''),
                     ];
                 }
-
+            }
         }
 
 
