@@ -609,6 +609,24 @@ if (!function_exists('warehouse_sync_is_error_report_status')) {
     }
 }
 
+if (!function_exists('warehouse_sync_report_table_for_forwarder')) {
+    function warehouse_sync_report_table_for_forwarder(string $forwarderNorm, string $countryNorm): string
+    {
+        if ($forwarderNorm === '' || $countryNorm === '') {
+            return '';
+        }
+
+        $map = [
+            'colibri' => 'connector_report_colibri_%s',
+            'dev_colibri' => 'connector_report_dev_colibri_%s',
+            'kolli' => 'connector_report_kolli_%s',
+        ];
+
+        $pattern = $map[$forwarderNorm] ?? 'connector_report_' . $forwarderNorm . '_%s';
+        return sprintf($pattern, $countryNorm);
+    }
+}
+
 if (!function_exists('warehouse_sync_find_report_row')) {
     function warehouse_sync_find_report_row(mysqli $dbcnx, string $forwarder, string $countryCode, string $trackingNo): ?array
     {
@@ -619,82 +637,72 @@ if (!function_exists('warehouse_sync_find_report_row')) {
             return null;
         }
 
-        $candidateTables = [
-            'connector_report_' . $forwarderNorm . '_' . $countryNorm,
-            'connector_report_dev_' . $forwarderNorm . '_' . $countryNorm,
-        ];
+        $tableName = warehouse_sync_report_table_for_forwarder($forwarderNorm, $countryNorm);
+        if ($tableName === '' || !warehouse_sync_table_exists($dbcnx, $tableName)) {
+            return null;
+        }
+        $columns = warehouse_sync_table_columns($dbcnx, $tableName);
+        if (empty($columns)) {
+            return null;
+        }
 
-        foreach ($candidateTables as $tableName) {
-            if (!warehouse_sync_table_exists($dbcnx, $tableName)) {
-                continue;
-            }
+        $trackingColumn = warehouse_sync_find_column($columns, ['tracking_no', 'tracking_number', 'tracking', 'track_no', 'track_number', 'tuid']);
+        $statusColumn = warehouse_sync_find_column($columns, ['status', 'state', 'parcel_status', 'shipment_status']);
+        $dateColumn = warehouse_sync_find_column($columns, ['updated_at', 'created_at', 'date_created', 'datetime_created']);
 
-            $columns = warehouse_sync_table_columns($dbcnx, $tableName);
-            if (empty($columns)) {
-                continue;
-            }
+        if ($trackingColumn !== '') {
+            $safeTable = '`' . str_replace('`', '``', $tableName) . '`';
+            $safeTracking = '`' . str_replace('`', '``', $trackingColumn) . '`';
+            $safeStatus = $statusColumn !== '' ? ('`' . str_replace('`', '``', $statusColumn) . '`') : "''";
+            $orderExpr = $dateColumn !== ''
+                ? ('`' . str_replace('`', '``', $dateColumn) . '` DESC')
+                : '1';
 
-            $trackingColumn = warehouse_sync_find_column($columns, ['tracking_no', 'tracking_number', 'tracking', 'track_no', 'track_number', 'tuid']);
-            $statusColumn = warehouse_sync_find_column($columns, ['status', 'state', 'parcel_status', 'shipment_status']);
-            $dateColumn = warehouse_sync_find_column($columns, ['updated_at', 'created_at', 'date_created', 'datetime_created']);
-
-            if ($trackingColumn !== '') {
-                $safeTable = '`' . str_replace('`', '``', $tableName) . '`';
-                $safeTracking = '`' . str_replace('`', '``', $trackingColumn) . '`';
-                $safeStatus = $statusColumn !== '' ? ('`' . str_replace('`', '``', $statusColumn) . '`') : "''";
-                $orderExpr = $dateColumn !== ''
-                    ? ('`' . str_replace('`', '``', $dateColumn) . '` DESC')
-                    : '1';
-
-                $sql = "SELECT {$safeTracking} AS tracking_no, {$safeStatus} AS report_status, payload_json
+            $sql = "SELECT {$safeTracking} AS tracking_no, {$safeStatus} AS report_status, payload_json"
+                . "FROM {$safeTable}
 "
-                    . "FROM {$safeTable}
+                . "WHERE UPPER(TRIM({$safeTracking})) = ?
 "
-                    . "WHERE UPPER(TRIM({$safeTracking})) = ?
+                . "ORDER BY {$orderExpr}
 "
-                    . "ORDER BY {$orderExpr}
-"
-                    . "LIMIT 1";
-                $stmt = $dbcnx->prepare($sql);
-                if (!$stmt) {
-                    continue;
-                }
+                . "LIMIT 1";
+            $stmt = $dbcnx->prepare($sql);
+            if ($stmt) {
                 $stmt->bind_param('s', $trackingNo);
                 $stmt->execute();
                 $res = $stmt->get_result();
                 $row = $res ? ($res->fetch_assoc() ?: null) : null;
                 $stmt->close();
-                if (!$row) {
-                    continue;
-                }
-
-                $status = trim((string)($row['report_status'] ?? ''));
-                if ($status === '') {
-                    $status = warehouse_sync_extract_report_status((string)($row['payload_json'] ?? ''));
-                }
-
-                return [
-                    'table_name' => $tableName,
-                    'report_status' => $status,
-                    'payload_json' => (string)($row['payload_json'] ?? ''),
-                ];
-            }
-
-            if (in_array('payload_json', $columns, true)) {
-                $safeTable = '`' . str_replace('`', '``', $tableName) . '`';
-                $safeTrackingLike = '%' . $dbcnx->real_escape_string($trackingNo) . '%';
-                $sql = "SELECT payload_json FROM {$safeTable} WHERE payload_json IS NOT NULL AND payload_json <> '' AND UPPER(payload_json) LIKE '{$safeTrackingLike}' ORDER BY id DESC LIMIT 1";
-                if ($res = $dbcnx->query($sql)) {
-                    $row = $res->fetch_assoc() ?: null;
-                    $res->free();
-                    if ($row) {
+                if ($row) {
+                    $status = trim((string)($row['report_status'] ?? ''));
+                    if ($status === '') {
                         $status = warehouse_sync_extract_report_status((string)($row['payload_json'] ?? ''));
-                        return [
-                            'table_name' => $tableName,
-                            'report_status' => $status,
-                            'payload_json' => (string)($row['payload_json'] ?? ''),
-                        ];
                     }
+
+                    return [
+                        'table_name' => $tableName,
+                        'report_status' => $status,
+                        'payload_json' => (string)($row['payload_json'] ?? ''),
+                    ];
+                }
+
+        }
+
+
+        if (in_array('payload_json', $columns, true)) {
+            $safeTable = '`' . str_replace('`', '``', $tableName) . '`';
+            $safeTrackingLike = '%' . $dbcnx->real_escape_string($trackingNo) . '%';
+            $sql = "SELECT payload_json FROM {$safeTable} WHERE payload_json IS NOT NULL AND payload_json <> '' AND UPPER(payload_json) LIKE '{$safeTrackingLike}' ORDER BY id DESC LIMIT 1";
+            if ($res = $dbcnx->query($sql)) {
+                $row = $res->fetch_assoc() ?: null;
+                $res->free();
+                if ($row) {
+                    $status = warehouse_sync_extract_report_status((string)($row['payload_json'] ?? ''));
+                    return [
+                        'table_name' => $tableName,
+                        'report_status' => $status,
+                        'payload_json' => (string)($row['payload_json'] ?? ''),
+                    ];
                 }
             }
         }
