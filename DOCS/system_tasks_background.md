@@ -10,9 +10,10 @@
   - `warehouse_sync_batch_job_items`
 - Кнопка `all_sync` теперь ставит пакетную синхронизацию в очередь (`warehouse_sync_batch_enqueue`), а не выполняет цикл в браузере.
 - Добавлен cron-раннер: `www/scripts/cron/system_tasks_runner.php`.
-- Seed по умолчанию создаёт 2 задания:
+- Seed по умолчанию создаёт задания:
   - `operation_1_hourly` (`endpoint_action=operation_1`, 60 мин)
   - `warehouse_sync_batch_worker` (`endpoint_action=warehouse_sync_batch_worker`, 1 мин)
+  - `warehouse_sync_reconcile_half_sync_30m` (`endpoint_action=warehouse_sync_reconcile`, 30 мин)
 
 ## Как включить cron
 
@@ -66,3 +67,16 @@ tail -f /var/log/system_tasks_runner.log
 3. Сохранить.
 
 > Для нового типа endpoint добавьте обработку в `system_tasks_execute()`.
+
+
+### Пример для кнопки `reconcile half_sync`
+
+Чтобы перенести действие кнопки `warehouse_sync_reconcile` в фон:
+
+- `endpoint_action`: `warehouse_sync_reconcile`
+- `interval_minutes`: `30`
+- `is_enabled`: `1`
+- `payload_json` (опционально): `{"limit":200}`
+
+Важно: сам `system_tasks_runner.php` должен оставаться в cron **каждую минуту**.
+Период в 30 минут контролируется полем `interval_minutes` у задачи, а не расписанием cron

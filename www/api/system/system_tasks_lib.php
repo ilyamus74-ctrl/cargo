@@ -96,6 +96,13 @@ function system_tasks_seed_defaults(mysqli $dbcnx): void
             'endpoint_action' => 'warehouse_sync_batch_worker',
             'interval_minutes' => 1,
         ],
+        [
+            'code' => 'warehouse_sync_reconcile_half_sync_30m',
+            'name' => 'Reconcile half_sync/error (раз в 30 минут)',
+            'description' => 'Перепроверяет статусы half_sync/error в warehouse_item_out и обновляет до confirmed_sync/error.',
+            'endpoint_action' => 'warehouse_sync_reconcile',
+            'interval_minutes' => 30,
+        ],
     ];
 
     $sql = "INSERT INTO system_tasks (code, name, description, endpoint_action, interval_minutes, is_enabled, next_run_at)
@@ -230,9 +237,50 @@ function system_tasks_execute(mysqli $dbcnx, array $task, int $systemUserId = 0)
         return system_tasks_run_connectors_report_operation_1($dbcnx, $task);
     }
 
+    if ($action === 'warehouse_sync_reconcile') {
+        return system_tasks_run_warehouse_sync_reconcile($dbcnx, $task, $systemUserId);
+    }
     return [
         'status' => 'error',
         'message' => 'Unknown endpoint_action: ' . $action,
+    ];
+}
+
+
+
+function system_tasks_run_warehouse_sync_reconcile(mysqli $dbcnx, array $task, int $systemUserId = 0): array
+{
+    $payloadRaw = (string)($task['payload_json'] ?? '');
+    $payload = $payloadRaw !== '' ? json_decode($payloadRaw, true) : [];
+    if (!is_array($payload)) {
+        $payload = [];
+    }
+
+    $limit = max(1, min(5000, (int)($payload['limit'] ?? 200)));
+
+    if (!function_exists('warehouse_sync_reconcile_half_sync')) {
+        $action = '__system_task_bootstrap__';
+        $user = ['id' => $systemUserId > 0 ? $systemUserId : 1, 'role' => 'ADMIN'];
+        $response = ['status' => 'ok'];
+        require_once __DIR__ . '/../warehouse/warehouse_sync_actions.php';
+    }
+
+    if (!function_exists('warehouse_sync_reconcile_half_sync')) {
+        return ['status' => 'error', 'message' => 'warehouse_sync_reconcile_half_sync not available'];
+    }
+
+    $stats = warehouse_sync_reconcile_half_sync($dbcnx, $limit, $systemUserId > 0 ? $systemUserId : 1);
+
+    return [
+        'status' => 'ok',
+        'message' => 'warehouse_sync_reconcile done',
+        'context' => [
+            'limit' => $limit,
+            'checked' => (int)($stats['checked'] ?? 0),
+            'confirmed_sync' => (int)($stats['confirmed_sync'] ?? 0),
+            'error' => (int)($stats['error'] ?? 0),
+            'unchanged' => (int)($stats['unchanged'] ?? 0),
+        ],
     ];
 }
 
