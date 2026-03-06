@@ -1963,8 +1963,17 @@ const CoreAPI = {
                 const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (ch) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch] || ch));
                 this.tbody.innerHTML = rows.map((row) => {
                     const status = String(row.status || '').toLowerCase();
-                    const statusClass = status === 'success' ? 'text-success' : 'text-danger';
-                    const statusLabel = status === 'success' ? 'success' : 'error';
+                    const statusStyle = {
+                        error: 'text-danger',
+                        for_sync: 'text-warning',
+                        half_sync: 'text-warning',
+                        confirmed_sync: 'text-success',
+                        to_send: 'text-primary',
+                        sended: 'text-info',
+                        success: 'text-success'
+                    };
+                    const statusClass = statusStyle[status] || 'text-muted';
+                    const statusLabel = status || 'unknown';
                     const createdAt = String(row.created_at || '');
                     const tracking = String(row.tracking_no || '—');
                     const forwarder = String(row.forwarder || '—');

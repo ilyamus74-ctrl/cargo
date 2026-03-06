@@ -370,6 +370,117 @@ if (!function_exists('warehouse_sync_audit_log')) {
     }
 }
 
+
+
+if (!function_exists('warehouse_sync_ensure_out_table')) {
+    function warehouse_sync_ensure_out_table(mysqli $dbcnx): void
+    {
+        $sql = "CREATE TABLE IF NOT EXISTS warehouse_item_out (
+"
+            . " id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+"
+            . " stock_item_id BIGINT UNSIGNED NOT NULL,
+"
+            . " batch_uid BIGINT UNSIGNED NULL,
+"
+            . " uid_created BIGINT UNSIGNED NOT NULL DEFAULT 0,
+"
+            . " tuid VARCHAR(64) NOT NULL DEFAULT '',
+"
+            . " tracking_no VARCHAR(64) NOT NULL DEFAULT '',
+"
+            . " carrier_name VARCHAR(64) NULL,
+"
+            . " receiver_country_code VARCHAR(2) NULL,
+"
+            . " receiver_company VARCHAR(128) NULL,
+"
+            . " receiver_address VARCHAR(255) NULL,
+"
+            . " status VARCHAR(32) NOT NULL DEFAULT 'for_sync',
+"
+            . " status_message TEXT NULL,
+"
+            . " status_updated_at DATETIME NULL,
+"
+            . " created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+"
+            . " updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+"
+            . " PRIMARY KEY (id),
+"
+            . " UNIQUE KEY uq_stock_item_id (stock_item_id),
+"
+            . " KEY idx_status_updated (status, status_updated_at),
+"
+            . " KEY idx_tracking (tracking_no),
+"
+            . " KEY idx_forwarder_country (receiver_company, receiver_country_code)
+"
+            . ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci";
+        $dbcnx->query($sql);
+    }
+}
+
+if (!function_exists('warehouse_sync_out_upsert_from_stock')) {
+    function warehouse_sync_out_upsert_from_stock(mysqli $dbcnx, int $stockItemId): void
+    {
+        warehouse_sync_ensure_out_table($dbcnx);
+
+        $sql = "INSERT INTO warehouse_item_out
+"
+            . "(stock_item_id, batch_uid, uid_created, tuid, tracking_no, carrier_name, receiver_country_code, receiver_company, receiver_address)
+"
+            . "SELECT id, batch_uid, uid_created, tuid, tracking_no, carrier_name, receiver_country_code, receiver_company, receiver_address
+"
+            . "FROM warehouse_item_stock WHERE id = ?
+"
+            . "ON DUPLICATE KEY UPDATE
+"
+            . " batch_uid = VALUES(batch_uid),
+"
+            . " uid_created = VALUES(uid_created),
+"
+            . " tuid = VALUES(tuid),
+"
+            . " tracking_no = VALUES(tracking_no),
+"
+            . " carrier_name = VALUES(carrier_name),
+"
+            . " receiver_country_code = VALUES(receiver_country_code),
+"
+            . " receiver_company = VALUES(receiver_company),
+"
+            . " receiver_address = VALUES(receiver_address)";
+        $stmt = $dbcnx->prepare($sql);
+        if (!$stmt) {
+            return;
+        }
+        $stmt->bind_param('i', $stockItemId);
+        $stmt->execute();
+        $stmt->close();
+    }
+}
+
+if (!function_exists('warehouse_sync_out_set_status')) {
+    function warehouse_sync_out_set_status(mysqli $dbcnx, int $stockItemId, string $status, string $message = ''): void
+    {
+        warehouse_sync_ensure_out_table($dbcnx);
+        warehouse_sync_out_upsert_from_stock($dbcnx, $stockItemId);
+
+        $sql = "UPDATE warehouse_item_out SET status = ?, status_message = ?, status_updated_at = NOW() WHERE stock_item_id = ? LIMIT 1";
+        $stmt = $dbcnx->prepare($sql);
+        if (!$stmt) {
+            return;
+        }
+        $stmt->bind_param('ssi', $status, $message, $stockItemId);
+        $stmt->execute();
+        $stmt->close();
+    }
+}
+
+
+
 if (!function_exists('warehouse_sync_fetch_item')) {
     function warehouse_sync_fetch_item(mysqli $dbcnx, int $itemId): ?array
     {
@@ -786,6 +897,8 @@ if ($action === 'warehouse_sync_missing') {
         ORDER BY wi.created_at DESC
     ";
 
+    warehouse_sync_ensure_out_table($dbcnx);
+
     $rows = [];
     if ($types === '') {
         if ($res = $dbcnx->query($sql)) {
@@ -805,115 +918,68 @@ if ($action === 'warehouse_sync_missing') {
         $stmt->close();
     }
 
-    $missing = [];
-    $trackingCandidates = [];
-    $connectorCache = [];
+    $statusMap = [];
+    $rowIds = [];
     foreach ($rows as $row) {
-        $trackingCandidates[] = strtoupper(trim((string)($row['tracking_no'] ?? '')));
+        $rowIds[] = (int)($row['id'] ?? 0);
+    }
+    $rowIds = array_values(array_filter(array_unique($rowIds)));
+    if (!empty($rowIds)) {
+        $placeholders = implode(',', array_fill(0, count($rowIds), '?'));
+        $sqlOut = "SELECT stock_item_id, status, status_message FROM warehouse_item_out WHERE stock_item_id IN ({$placeholders})";
+        $stmtOut = $dbcnx->prepare($sqlOut);
+        if ($stmtOut) {
+            $typesOut = str_repeat('i', count($rowIds));
+            $stmtOut->bind_param($typesOut, ...$rowIds);
+            $stmtOut->execute();
+            $resOut = $stmtOut->get_result();
+            while ($resOut && ($outRow = $resOut->fetch_assoc())) {
+                $statusMap[(int)$outRow['stock_item_id']] = $outRow;
+            }
+            $stmtOut->close();
+        }
+    }
+
+    $statusClassMap = [
+        'error' => 'text-danger',
+        'for_sync' => 'text-warning',
+        'half_sync' => 'text-warning',
+        'confirmed_sync' => 'text-success',
+        'to_send' => 'text-primary',
+        'sended' => 'text-info',
+    ];
+
+    $missing = [];
+
+    foreach ($rows as $row) {
+        $itemId = (int)($row['id'] ?? 0);
         $forwarder = warehouse_sync_normalize_key((string)($row['receiver_company'] ?? ''));
         $country = warehouse_sync_normalize_key((string)($row['receiver_country_code'] ?? ''));
         if ($forwarder === '') {
             continue;
         }
 
-        $reportTable = 'connector_report_' . strtolower($forwarder . '_' . $country);
-        $row['report_table'] = $reportTable;
+        $row['report_table'] = '—';
+
+        $out = $statusMap[$itemId] ?? null;
+        $status = strtolower(trim((string)($out['status'] ?? 'for_sync')));
+        $statusMessage = trim((string)($out['status_message'] ?? ''));
+
+        $row['sync_status_class'] = $statusClassMap[$status] ?? 'text-muted';
+        $row['sync_status_label'] = $status;
+        if ($statusMessage !== '') {
+            $row['report_confirmation_label'] = $statusMessage;
+        }
 
         if ($country === '') {
             $row['sync_status_class'] = 'text-warning';
-            $row['sync_status_label'] = 'Предупреждение: не указана страна назначения';
+            $row['sync_status_label'] = 'for_sync';
+            $row['report_confirmation_label'] = 'Не указана страна назначения';
             $row['can_sync'] = 0;
-            $missing[] = $row;
-            continue;
+        } else {
+            $row['can_sync'] = !in_array($status, ['half_sync', 'confirmed_sync', 'to_send', 'sended'], true) ? 1 : 0;
         }
-
-        if (!warehouse_sync_table_exists($dbcnx, $reportTable)) {
-            $row['sync_status_class'] = 'text-warning';
-            $row['sync_status_label'] = 'Предупреждение: таблица форварда не найдена';
-            $row['can_sync'] = 0;
-            $missing[] = $row;
-            continue;
-        }
-
-        $reportIdentifiers = warehouse_sync_report_identifiers($dbcnx, $reportTable);
-        if (empty($reportIdentifiers)) {
-            $cacheKey = $forwarder . '|' . $country;
-            if (!array_key_exists($cacheKey, $connectorCache)) {
-                $connectorCache[$cacheKey] = warehouse_sync_fetch_connector($dbcnx, $forwarder, $country);
-            }
-            $connector = $connectorCache[$cacheKey];
-
-            if (!$connector) {
-                $row['sync_status_class'] = 'text-warning';
-                $row['sync_status_label'] = 'Предупреждение: не найден активный коннектор';
-                $row['can_sync'] = 0;
-            } elseif (!warehouse_sync_has_submission_steps($connector)) {
-                $row['sync_status_class'] = 'text-warning';
-                $row['sync_status_label'] = 'Предупреждение: у коннектора не заполнены шаги операции #2';
-                $row['can_sync'] = 0;
-            } else {
-                $row['sync_status_class'] = 'text-success';
-                $row['sync_status_label'] = 'Готов к синхронизации';
-                $row['can_sync'] = 1;
-                $row['connector_id'] = (int)($connector['id'] ?? 0);
-            }
-            $missing[] = $row;
-            continue;
-        }
-
-        $candidateIds = [
-            strtoupper(trim((string)($row['tuid'] ?? ''))),
-            strtoupper(trim((string)($row['tracking_no'] ?? ''))),
-            strtoupper(trim((string)($row['parcel_uid'] ?? ''))),
-        ];
-
-        $found = false;
-        foreach ($candidateIds as $candidateId) {
-            if ($candidateId !== '' && isset($reportIdentifiers[$candidateId])) {
-                $found = true;
-                break;
-            }
-        }
-
-        if (!$found) {
-            $cacheKey = $forwarder . '|' . $country;
-            if (!array_key_exists($cacheKey, $connectorCache)) {
-                $connectorCache[$cacheKey] = warehouse_sync_fetch_connector($dbcnx, $forwarder, $country);
-            }
-            $connector = $connectorCache[$cacheKey];
-
-            if (!$connector) {
-                $row['sync_status_class'] = 'text-warning';
-                $row['sync_status_label'] = 'Предупреждение: не найден активный коннектор';
-                $row['can_sync'] = 0;
-            } elseif (!warehouse_sync_has_submission_steps($connector)) {
-                $row['sync_status_class'] = 'text-warning';
-                $row['sync_status_label'] = 'Предупреждение: у коннектора не заполнены шаги операции #2';
-                $row['can_sync'] = 0;
-            } else {
-                $row['sync_status_class'] = 'text-success';
-                $row['sync_status_label'] = 'Готов к синхронизации';
-                $row['can_sync'] = 1;
-                $row['connector_id'] = (int)($connector['id'] ?? 0);
-            }
-            $missing[] = $row;
-        }
-    }
-
-    if (!empty($missing)) {
-        $confirmMap = warehouse_sync_report_confirmation_by_tracking($dbcnx, $trackingCandidates);
-        $filteredMissing = [];
-        foreach ($missing as $row) {
-            $tracking = strtoupper(trim((string)($row['tracking_no'] ?? '')));
-            $confirm = $tracking !== '' ? ($confirmMap[$tracking] ?? null) : null;
-            if (is_array($confirm) && !empty($confirm['found'])) {
-                continue;
-            }
-
-            $row['report_confirmation_label'] = 'Промежуточная синхронизация: ожидаем обратный отчет';
-            $filteredMissing[] = $row;
-        }
-        $missing = $filteredMissing;
+        $missing[] = $row;
     }
 
     $total = count($missing);
@@ -1016,11 +1082,13 @@ if ($action === 'warehouse_sync_item') {
             'tracking_no' => $tracking,
             'forwarder' => $forwarder,
             'country_code' => $country,
-            'status' => 'success',
-            'message' => 'sync ok',
+            'status' => 'half_sync',
+            'message' => 'sync отправлен, ожидаем подтверждение форварда',
             'response_json' => $responseJson === false ? '' : $responseJson,
             'created_by' => $userId,
         ]);
+
+        warehouse_sync_out_set_status($dbcnx, $itemId, 'half_sync', 'sync отправлен, ожидаем подтверждение форварда');
 
         audit_log($userId, 'WAREHOUSE_SYNC_ITEM_SUCCESS', 'warehouse_item_stock', $itemId, 'Синхронизация посылки выполнена', [
             'item_id' => $itemId,
@@ -1057,7 +1125,7 @@ if ($action === 'warehouse_sync_item') {
             'response_json' => $errorJson === false ? '' : $errorJson,
             'created_by' => $userId,
         ]);
-
+        warehouse_sync_out_set_status($dbcnx, $itemId, 'error', $e->getMessage());
         audit_log($userId, 'WAREHOUSE_SYNC_ITEM_ERROR', 'warehouse_item_stock', $itemId, 'Ошибка синхронизации посылки', [
             'item_id' => $itemId,
             'tracking_no' => $tracking,
@@ -1088,7 +1156,8 @@ if ($action === 'warehouse_sync_history') {
     $params = [];
     $types = '';
 
-    if ($statusFilter === 'success' || $statusFilter === 'error') {
+    $allowedStatuses = ['error', 'for_sync', 'half_sync', 'confirmed_sync', 'to_send', 'sended', 'success'];
+    if (in_array($statusFilter, $allowedStatuses, true)) {
         $conditions[] = 'a.status = ?';
         $types .= 's';
         $params[] = $statusFilter;

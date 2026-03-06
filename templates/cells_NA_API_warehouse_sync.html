@@ -78,7 +78,7 @@
                       <th scope="col">Форвард</th>
                       <th scope="col">Страна</th>
                       <th scope="col">Ячейка</th>
-                      <th scope="col">Таблица отчета</th>
+                      <th scope="col">Статус sync (warehouse_item_out)</th>
                       <th scope="col">Синхронизация</th>
                     </tr>
                   </thead>
@@ -125,7 +125,11 @@
                   <label class="form-label small mb-1" for="warehouse-sync-history-status-filter">Статус</label>
                   <select id="warehouse-sync-history-status-filter" class="form-select form-select-sm">
                     <option value="all" selected>Все</option>
-                    <option value="success">success</option>
+                    <option value="for_sync">for_sync</option>
+                    <option value="half_sync">half_sync</option>
+                    <option value="confirmed_sync">confirmed_sync</option>
+                    <option value="to_send">to_send</option>
+                    <option value="sended">sended</option>
                     <option value="error">error</option>
                   </select>
                 </div>
