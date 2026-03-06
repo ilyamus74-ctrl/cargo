@@ -418,6 +418,56 @@ if (!function_exists('warehouse_sync_ensure_out_table')) {
 "
             . ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci";
         $dbcnx->query($sql);
+
+        $columns = [];
+        if ($res = $dbcnx->query("SHOW COLUMNS FROM warehouse_item_out")) {
+            while ($row = $res->fetch_assoc()) {
+                $field = strtolower(trim((string)($row['Field'] ?? '')));
+                if ($field !== '') {
+                    $columns[$field] = true;
+                }
+            }
+            $res->free();
+        }
+
+        $missingColumnsSql = [
+            'stock_item_id' => "ALTER TABLE warehouse_item_out ADD COLUMN stock_item_id BIGINT UNSIGNED NOT NULL",
+            'batch_uid' => "ALTER TABLE warehouse_item_out ADD COLUMN batch_uid BIGINT UNSIGNED NULL",
+            'uid_created' => "ALTER TABLE warehouse_item_out ADD COLUMN uid_created BIGINT UNSIGNED NOT NULL DEFAULT 0",
+            'tuid' => "ALTER TABLE warehouse_item_out ADD COLUMN tuid VARCHAR(64) NOT NULL DEFAULT ''",
+            'tracking_no' => "ALTER TABLE warehouse_item_out ADD COLUMN tracking_no VARCHAR(64) NOT NULL DEFAULT ''",
+            'carrier_name' => "ALTER TABLE warehouse_item_out ADD COLUMN carrier_name VARCHAR(64) NULL",
+            'receiver_country_code' => "ALTER TABLE warehouse_item_out ADD COLUMN receiver_country_code VARCHAR(2) NULL",
+            'receiver_company' => "ALTER TABLE warehouse_item_out ADD COLUMN receiver_company VARCHAR(128) NULL",
+            'receiver_address' => "ALTER TABLE warehouse_item_out ADD COLUMN receiver_address VARCHAR(255) NULL",
+            'status' => "ALTER TABLE warehouse_item_out ADD COLUMN status VARCHAR(32) NOT NULL DEFAULT 'for_sync'",
+            'status_message' => "ALTER TABLE warehouse_item_out ADD COLUMN status_message TEXT NULL",
+            'status_updated_at' => "ALTER TABLE warehouse_item_out ADD COLUMN status_updated_at DATETIME NULL",
+            'created_at' => "ALTER TABLE warehouse_item_out ADD COLUMN created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
+            'updated_at' => "ALTER TABLE warehouse_item_out ADD COLUMN updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP",
+        ];
+
+        foreach ($missingColumnsSql as $columnName => $alterSql) {
+            if (!isset($columns[$columnName])) {
+                $dbcnx->query($alterSql);
+            }
+        }
+
+        if ($res = $dbcnx->query("SHOW INDEX FROM warehouse_item_out WHERE Key_name = 'uq_stock_item_id'")) {
+            $hasUnique = $res->num_rows > 0;
+            $res->free();
+            if (!$hasUnique) {
+                $dbcnx->query("ALTER TABLE warehouse_item_out ADD UNIQUE KEY uq_stock_item_id (stock_item_id)");
+            }
+        }
+
+        if ($res = $dbcnx->query("SHOW INDEX FROM warehouse_item_out WHERE Key_name = 'idx_status_updated'")) {
+            $hasIndex = $res->num_rows > 0;
+            $res->free();
+            if (!$hasIndex) {
+                $dbcnx->query("ALTER TABLE warehouse_item_out ADD KEY idx_status_updated (status, status_updated_at)");
+            }
+        }
     }
 }
 
