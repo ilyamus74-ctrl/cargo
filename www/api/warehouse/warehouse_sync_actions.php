@@ -1317,6 +1317,9 @@ if ($action === 'warehouse_sync_missing') {
         } else {
             $row['can_sync'] = !in_array($status, ['half_sync', 'confirmed_sync', 'to_send', 'sended'], true) ? 1 : 0;
         }
+        if (!in_array($status, ['for_sync', 'error'], true)) {
+            continue;
+        }
         $missing[] = $row;
     }
 
@@ -1519,6 +1522,8 @@ if ($action === 'warehouse_sync_history') {
     $whereSql = '';
     if (!empty($conditions)) {
         $whereSql = 'WHERE ' . implode(' AND ', $conditions);
+    } elseif ($statusFilter === 'all') {
+        $whereSql = "WHERE a.status <> 'for_sync'";
     }
 
 
