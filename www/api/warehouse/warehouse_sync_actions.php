@@ -371,7 +371,6 @@ if (!function_exists('warehouse_sync_audit_log')) {
 }
 
 
-
 if (!function_exists('warehouse_sync_ensure_out_table')) {
     function warehouse_sync_ensure_out_table(mysqli $dbcnx): void
     {
@@ -479,6 +478,264 @@ if (!function_exists('warehouse_sync_out_set_status')) {
     }
 }
 
+
+if (!function_exists('warehouse_sync_out_backfill_from_stock')) {
+    function warehouse_sync_out_backfill_from_stock(mysqli $dbcnx, int $limit = 500): array
+    {
+        warehouse_sync_ensure_out_table($dbcnx);
+
+        $limit = max(1, min(5000, $limit));
+        $inserted = 0;
+
+        $sql = "INSERT INTO warehouse_item_out
+"
+            . "(stock_item_id, batch_uid, uid_created, tuid, tracking_no, carrier_name, receiver_country_code, receiver_company, receiver_address)
+"
+            . "SELECT wi.id, wi.batch_uid, wi.uid_created, wi.tuid, wi.tracking_no, wi.carrier_name, wi.receiver_country_code, wi.receiver_company, wi.receiver_address
+"
+            . "FROM warehouse_item_stock wi
+"
+            . "LEFT JOIN warehouse_item_out wo ON wo.stock_item_id = wi.id
+"
+            . "WHERE wo.stock_item_id IS NULL
+"
+            . "ORDER BY wi.id ASC
+"
+            . "LIMIT {$limit}";
+        if ($dbcnx->query($sql)) {
+            $inserted = (int)$dbcnx->affected_rows;
+        }
+
+        $updated = 0;
+        $sqlUpdate = "UPDATE warehouse_item_out wo
+"
+            . "JOIN warehouse_item_stock wi ON wi.id = wo.stock_item_id
+"
+            . "SET wo.batch_uid = wi.batch_uid,
+"
+            . "    wo.uid_created = wi.uid_created,
+"
+            . "    wo.tuid = wi.tuid,
+"
+            . "    wo.tracking_no = wi.tracking_no,
+"
+            . "    wo.carrier_name = wi.carrier_name,
+"
+            . "    wo.receiver_country_code = wi.receiver_country_code,
+"
+            . "    wo.receiver_company = wi.receiver_company,
+"
+            . "    wo.receiver_address = wi.receiver_address
+"
+            . "WHERE wo.status IN ('for_sync', '')
+"
+            . "LIMIT {$limit}";
+        if ($dbcnx->query($sqlUpdate)) {
+            $updated = (int)$dbcnx->affected_rows;
+        }
+
+        return [
+            'inserted' => $inserted,
+            'updated' => $updated,
+            'processed' => $inserted + $updated,
+        ];
+    }
+}
+
+if (!function_exists('warehouse_sync_is_error_report_status')) {
+    function warehouse_sync_is_error_report_status(string $status): bool
+    {
+        $normalized = strtolower(trim($status));
+        if ($normalized === '') {
+            return false;
+        }
+
+        $errorStatuses = [
+            'error', 'failed', 'fail', 'rejected', 'declined', 'cancelled', 'canceled',
+            'ошибка', 'отклонено', 'отменено', 'не принято',
+        ];
+
+        return in_array($normalized, $errorStatuses, true);
+    }
+}
+
+if (!function_exists('warehouse_sync_find_report_row')) {
+    function warehouse_sync_find_report_row(mysqli $dbcnx, string $forwarder, string $countryCode, string $trackingNo): ?array
+    {
+        $forwarderNorm = strtolower(warehouse_sync_normalize_key($forwarder));
+        $countryNorm = strtolower(warehouse_sync_normalize_key($countryCode));
+        $trackingNo = strtoupper(trim($trackingNo));
+        if ($forwarderNorm === '' || $countryNorm === '' || $trackingNo === '') {
+            return null;
+        }
+
+        $candidateTables = [
+            'connector_report_' . $forwarderNorm . '_' . $countryNorm,
+            'connector_report_dev_' . $forwarderNorm . '_' . $countryNorm,
+        ];
+
+        foreach ($candidateTables as $tableName) {
+            if (!warehouse_sync_table_exists($dbcnx, $tableName)) {
+                continue;
+            }
+
+            $columns = warehouse_sync_table_columns($dbcnx, $tableName);
+            if (empty($columns)) {
+                continue;
+            }
+
+            $trackingColumn = warehouse_sync_find_column($columns, ['tracking_no', 'tracking_number', 'tracking', 'track_no', 'track_number', 'tuid']);
+            $statusColumn = warehouse_sync_find_column($columns, ['status', 'state', 'parcel_status', 'shipment_status']);
+            $dateColumn = warehouse_sync_find_column($columns, ['updated_at', 'created_at', 'date_created', 'datetime_created']);
+
+            if ($trackingColumn !== '') {
+                $safeTable = '`' . str_replace('`', '``', $tableName) . '`';
+                $safeTracking = '`' . str_replace('`', '``', $trackingColumn) . '`';
+                $safeStatus = $statusColumn !== '' ? ('`' . str_replace('`', '``', $statusColumn) . '`') : "''";
+                $orderExpr = $dateColumn !== ''
+                    ? ('`' . str_replace('`', '``', $dateColumn) . '` DESC')
+                    : '1';
+
+                $sql = "SELECT {$safeTracking} AS tracking_no, {$safeStatus} AS report_status, payload_json
+"
+                    . "FROM {$safeTable}
+"
+                    . "WHERE UPPER(TRIM({$safeTracking})) = ?
+"
+                    . "ORDER BY {$orderExpr}
+"
+                    . "LIMIT 1";
+                $stmt = $dbcnx->prepare($sql);
+                if (!$stmt) {
+                    continue;
+                }
+                $stmt->bind_param('s', $trackingNo);
+                $stmt->execute();
+                $res = $stmt->get_result();
+                $row = $res ? ($res->fetch_assoc() ?: null) : null;
+                $stmt->close();
+                if (!$row) {
+                    continue;
+                }
+
+                $status = trim((string)($row['report_status'] ?? ''));
+                if ($status === '') {
+                    $status = warehouse_sync_extract_report_status((string)($row['payload_json'] ?? ''));
+                }
+
+                return [
+                    'table_name' => $tableName,
+                    'report_status' => $status,
+                    'payload_json' => (string)($row['payload_json'] ?? ''),
+                ];
+            }
+
+            if (in_array('payload_json', $columns, true)) {
+                $safeTable = '`' . str_replace('`', '``', $tableName) . '`';
+                $safeTrackingLike = '%' . $dbcnx->real_escape_string($trackingNo) . '%';
+                $sql = "SELECT payload_json FROM {$safeTable} WHERE payload_json IS NOT NULL AND payload_json <> '' AND UPPER(payload_json) LIKE '{$safeTrackingLike}' ORDER BY id DESC LIMIT 1";
+                if ($res = $dbcnx->query($sql)) {
+                    $row = $res->fetch_assoc() ?: null;
+                    $res->free();
+                    if ($row) {
+                        $status = warehouse_sync_extract_report_status((string)($row['payload_json'] ?? ''));
+                        return [
+                            'table_name' => $tableName,
+                            'report_status' => $status,
+                            'payload_json' => (string)($row['payload_json'] ?? ''),
+                        ];
+                    }
+                }
+            }
+        }
+
+        return null;
+    }
+}
+
+if (!function_exists('warehouse_sync_reconcile_half_sync')) {
+    function warehouse_sync_reconcile_half_sync(mysqli $dbcnx, int $limit = 200, int $createdBy = 0): array
+    {
+        warehouse_sync_ensure_out_table($dbcnx);
+        warehouse_sync_ensure_audit_table($dbcnx);
+
+        $limit = max(1, min(2000, $limit));
+        $rows = [];
+        $sql = "SELECT stock_item_id, tracking_no, receiver_company, receiver_country_code, status
+"
+            . "FROM warehouse_item_out
+"
+            . "WHERE status = 'half_sync'
+"
+            . "ORDER BY status_updated_at ASC, id ASC
+"
+            . "LIMIT {$limit}";
+        if ($res = $dbcnx->query($sql)) {
+            while ($row = $res->fetch_assoc()) {
+                $rows[] = $row;
+            }
+            $res->free();
+        }
+
+        $stats = [
+            'checked' => count($rows),
+            'confirmed_sync' => 0,
+            'error' => 0,
+            'unchanged' => 0,
+        ];
+
+        foreach ($rows as $row) {
+            $itemId = (int)($row['stock_item_id'] ?? 0);
+            $trackingNo = trim((string)($row['tracking_no'] ?? ''));
+            $forwarder = strtoupper(trim((string)($row['receiver_company'] ?? '')));
+            $countryCode = strtoupper(trim((string)($row['receiver_country_code'] ?? '')));
+
+            if ($itemId <= 0 || $trackingNo === '' || $forwarder === '' || $countryCode === '') {
+                $stats['unchanged']++;
+                continue;
+            }
+
+            $report = warehouse_sync_find_report_row($dbcnx, $forwarder, $countryCode, $trackingNo);
+            if (!$report) {
+                $stats['unchanged']++;
+                continue;
+            }
+
+            $reportStatus = trim((string)($report['report_status'] ?? ''));
+            $nextStatus = '';
+            if (warehouse_sync_is_error_report_status($reportStatus)) {
+                $nextStatus = 'error';
+            } elseif (warehouse_sync_is_final_report_status($reportStatus) || $reportStatus !== '') {
+                $nextStatus = 'confirmed_sync';
+            }
+
+            if ($nextStatus === '') {
+                $stats['unchanged']++;
+                continue;
+            }
+
+            $message = $reportStatus !== ''
+                ? ('report status: ' . $reportStatus)
+                : ('report matched in ' . (string)($report['table_name'] ?? 'connector_report'));
+
+            warehouse_sync_out_set_status($dbcnx, $itemId, $nextStatus, $message);
+            warehouse_sync_audit_log($dbcnx, [
+                'item_id' => $itemId,
+                'tracking_no' => $trackingNo,
+                'forwarder' => $forwarder,
+                'country_code' => $countryCode,
+                'status' => $nextStatus,
+                'message' => $message,
+                'response_json' => json_encode($report, JSON_UNESCAPED_UNICODE) ?: '',
+                'created_by' => $createdBy,
+            ]);
+
+            $stats[$nextStatus]++;
+        }
+
+        return $stats;
+    }
+}
 
 
 if (!function_exists('warehouse_sync_fetch_item')) {
@@ -1217,6 +1474,56 @@ if ($action === 'warehouse_sync_history') {
 
 
 
+
+
+if ($action === 'warehouse_sync_out_backfill') {
+    auth_require_login();
+
+    $current = $user;
+    $userId = (int)($current['id'] ?? 0);
+    $limit = max(1, (int)($_POST['limit'] ?? 500));
+
+    $result = warehouse_sync_out_backfill_from_stock($dbcnx, $limit);
+
+    audit_log($userId, 'WAREHOUSE_SYNC_OUT_BACKFILL', 'warehouse_item_out', 0, 'Backfill warehouse_item_out выполнен', [
+        'limit' => $limit,
+        'inserted' => (int)($result['inserted'] ?? 0),
+        'updated' => (int)($result['updated'] ?? 0),
+        'processed' => (int)($result['processed'] ?? 0),
+    ]);
+
+    $response = [
+        'status' => 'ok',
+        'limit' => $limit,
+        'inserted' => (int)($result['inserted'] ?? 0),
+        'updated' => (int)($result['updated'] ?? 0),
+        'processed' => (int)($result['processed'] ?? 0),
+    ];
+}
+
+if ($action === 'warehouse_sync_reconcile') {
+    auth_require_login();
+
+    $current = $user;
+    $userId = (int)($current['id'] ?? 0);
+    $limit = max(1, (int)($_POST['limit'] ?? 200));
+
+    $stats = warehouse_sync_reconcile_half_sync($dbcnx, $limit, $userId);
+
+    audit_log($userId, 'WAREHOUSE_SYNC_RECONCILE', 'warehouse_item_out', 0, 'Reconcile статусов warehouse_item_out выполнен', [
+        'limit' => $limit,
+        'checked' => (int)($stats['checked'] ?? 0),
+        'confirmed_sync' => (int)($stats['confirmed_sync'] ?? 0),
+        'error' => (int)($stats['error'] ?? 0),
+        'unchanged' => (int)($stats['unchanged'] ?? 0),
+    ]);
+
+    $response = [
+        'status' => 'ok',
+        'limit' => $limit,
+        'stats' => $stats,
+    ];
+}
 
 if ($action === 'warehouse_sync_reports') {
     auth_require_login();
