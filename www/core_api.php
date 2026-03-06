@@ -109,6 +109,8 @@ $routes = [
     'warehouse_sync_reports'    => 'api/warehouse/warehouse_sync_actions.php',
     'warehouse_sync_item'       => 'api/warehouse/warehouse_sync_actions.php',
     'warehouse_sync_history'    => 'api/warehouse/warehouse_sync_actions.php',
+    'warehouse_sync_out_backfill' => 'api/warehouse/warehouse_sync_actions.php',
+    'warehouse_sync_reconcile'  => 'api/warehouse/warehouse_sync_actions.php',
 ];
 
 if (!isset($routes[$action])) {

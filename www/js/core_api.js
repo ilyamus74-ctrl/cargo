@@ -1623,6 +1623,8 @@ const CoreAPI = {
         limitSelect: null,
         forwarderSelect: null,
         allSyncBtn: null,
+        backfillBtn: null,
+        reconcileBtn: null,
         sentinel: null,
         observer: null,
         searchTimer: null,
@@ -1652,9 +1654,11 @@ const CoreAPI = {
             this.limitSelect = root.querySelector('#warehouse-sync-limit');
             this.forwarderSelect = root.querySelector('#warehouse-sync-forwarder');
             this.allSyncBtn = root.querySelector('#warehouse-sync-all-sync-btn');
+            this.backfillBtn = root.querySelector('#warehouse-sync-backfill-btn');
+            this.reconcileBtn = root.querySelector('#warehouse-sync-reconcile-btn');
             this.sentinel = root.querySelector('#warehouse-sync-missing-sentinel');
 
-            if (!this.tbody || !this.total || !this.searchInput || !this.limitSelect || !this.forwarderSelect || !this.allSyncBtn || !this.sentinel) {
+            if (!this.tbody || !this.total || !this.searchInput || !this.limitSelect || !this.forwarderSelect || !this.allSyncBtn || !this.backfillBtn || !this.reconcileBtn || !this.sentinel) {
                 return;
             }
 
@@ -1725,6 +1729,64 @@ const CoreAPI = {
                     btn.textContent = prev;
                     alert(`sync ошибка: ${err?.message || err}`);
                     CoreAPI.warehouseSyncHistory.load();
+                }
+            });
+
+
+            this.backfillBtn.addEventListener('click', async () => {
+                const limitRaw = prompt('Backfill limit (1..5000)', '1000');
+                if (limitRaw === null) return;
+                const limit = Math.max(1, Math.min(5000, Number.parseInt(limitRaw, 10) || 1000));
+
+                this.backfillBtn.disabled = true;
+                const prevText = this.backfillBtn.textContent;
+                this.backfillBtn.textContent = 'backfill...';
+                try {
+                    const fd = new FormData();
+                    fd.append('action', 'warehouse_sync_out_backfill');
+                    fd.append('limit', String(limit));
+                    const data = await CoreAPI.client.call(fd);
+                    if (!data || data.status !== 'ok') {
+                        throw new Error(data?.message || 'backfill error');
+                    }
+                    alert(`Backfill завершен. inserted: ${data.inserted || 0}, updated: ${data.updated || 0}`);
+                    await this.resetAndLoad();
+                    CoreAPI.warehouseSyncHistory.load();
+                } catch (err) {
+                    console.error('warehouse_sync_out_backfill error:', err);
+                    alert(`backfill ошибка: ${err?.message || err}`);
+                } finally {
+                    this.backfillBtn.disabled = false;
+                    this.backfillBtn.textContent = prevText;
+                }
+            });
+
+            this.reconcileBtn.addEventListener('click', async () => {
+                const limitRaw = prompt('Reconcile limit (1..2000)', '300');
+                if (limitRaw === null) return;
+                const limit = Math.max(1, Math.min(2000, Number.parseInt(limitRaw, 10) || 300));
+
+                this.reconcileBtn.disabled = true;
+                const prevText = this.reconcileBtn.textContent;
+                this.reconcileBtn.textContent = 'reconcile...';
+                try {
+                    const fd = new FormData();
+                    fd.append('action', 'warehouse_sync_reconcile');
+                    fd.append('limit', String(limit));
+                    const data = await CoreAPI.client.call(fd);
+                    if (!data || data.status !== 'ok') {
+                        throw new Error(data?.message || 'reconcile error');
+                    }
+                    const stats = data.stats || {};
+                    alert(`Reconcile завершен. checked: ${stats.checked || 0}, confirmed_sync: ${stats.confirmed_sync || 0}, error: ${stats.error || 0}, unchanged: ${stats.unchanged || 0}`);
+                    await this.resetAndLoad();
+                    CoreAPI.warehouseSyncHistory.load();
+                } catch (err) {
+                    console.error('warehouse_sync_reconcile error:', err);
+                    alert(`reconcile ошибка: ${err?.message || err}`);
+                } finally {
+                    this.reconcileBtn.disabled = false;
+                    this.reconcileBtn.textContent = prevText;
                 }
             });
 

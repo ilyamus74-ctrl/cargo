@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-03-06 09:21:15
+/* Smarty version 5.3.1, created on 2026-03-06 09:58:21
   from 'file:cells_NA_API_warehouse_sync.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_69aa9c8b635cc9_56063120',
+  'unifunc' => 'content_69aaa53ddbe8d8_56144574',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '29b257235e81d55e0df3e385612344f078c386a9' => 
     array (
       0 => 'cells_NA_API_warehouse_sync.html',
-      1 => 1772788201,
+      1 => 1772790928,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_69aa9c8b635cc9_56063120 (\Smarty\Template $_smarty_tpl) {
+function content_69aaa53ddbe8d8_56144574 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?><div class="pagetitle">
   <h1>Синхронизация</h1>
@@ -96,9 +96,19 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
                     <option value="all">Все</option>
                   </select>
                 </div>
-                <div class="col-6 col-md-3">
+                <div class="col-6 col-md-2">
                   <button type="button" id="warehouse-sync-all-sync-btn" class="btn btn-sm btn-primary w-100">
                     all_sync
+                  </button>
+                </div>
+                <div class="col-6 col-md-3">
+                  <button type="button" id="warehouse-sync-backfill-btn" class="btn btn-sm btn-outline-secondary w-100">
+                    backfill out
+                  </button>
+                </div>
+                <div class="col-12 col-md-2">
+                  <button type="button" id="warehouse-sync-reconcile-btn" class="btn btn-sm btn-outline-dark w-100">
+                    reconcile half_sync
                   </button>
                 </div>
               </div>
