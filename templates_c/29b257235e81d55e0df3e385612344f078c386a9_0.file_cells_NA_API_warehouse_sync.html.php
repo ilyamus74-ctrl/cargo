@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-03-05 11:09:40
+/* Smarty version 5.3.1, created on 2026-03-06 09:21:15
   from 'file:cells_NA_API_warehouse_sync.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_69a964747c2891_04363984',
+  'unifunc' => 'content_69aa9c8b635cc9_56063120',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '29b257235e81d55e0df3e385612344f078c386a9' => 
     array (
       0 => 'cells_NA_API_warehouse_sync.html',
-      1 => 1772708622,
+      1 => 1772788201,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_69a964747c2891_04363984 (\Smarty\Template $_smarty_tpl) {
+function content_69aa9c8b635cc9_56063120 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?><div class="pagetitle">
   <h1>Синхронизация</h1>
@@ -111,7 +111,7 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
                       <th scope="col">Форвард</th>
                       <th scope="col">Страна</th>
                       <th scope="col">Ячейка</th>
-                      <th scope="col">Таблица отчета</th>
+                      <th scope="col">Статус sync (warehouse_item_out)</th>
                       <th scope="col">Синхронизация</th>
                     </tr>
                   </thead>
@@ -158,7 +158,11 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
                   <label class="form-label small mb-1" for="warehouse-sync-history-status-filter">Статус</label>
                   <select id="warehouse-sync-history-status-filter" class="form-select form-select-sm">
                     <option value="all" selected>Все</option>
-                    <option value="success">success</option>
+                    <option value="for_sync">for_sync</option>
+                    <option value="half_sync">half_sync</option>
+                    <option value="confirmed_sync">confirmed_sync</option>
+                    <option value="to_send">to_send</option>
+                    <option value="sended">sended</option>
                     <option value="error">error</option>
                   </select>
                 </div>
