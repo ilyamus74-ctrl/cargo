@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-03-06 09:58:21
+/* Smarty version 5.3.1, created on 2026-03-06 13:31:32
   from 'file:cells_NA_API_warehouse_sync.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_69aaa53ddbe8d8_56144574',
+  'unifunc' => 'content_69aad7349a62d1_89234498',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '29b257235e81d55e0df3e385612344f078c386a9' => 
     array (
       0 => 'cells_NA_API_warehouse_sync.html',
-      1 => 1772790928,
+      1 => 1772803057,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_69aaa53ddbe8d8_56144574 (\Smarty\Template $_smarty_tpl) {
+function content_69aad7349a62d1_89234498 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?><div class="pagetitle">
   <h1>Синхронизация</h1>
@@ -63,7 +63,10 @@ $_smarty_current_dir = '/home/cells/web/templates';
               <p class="small text-muted mb-2">
                 Нет в отчетах форварда: <span id="warehouse-sync-missing-total">0</span>
               </p>
-
+              <div class="alert alert-warning py-2 small" role="alert">
+                Для синхронизации и любых операций используется только <strong>активный</strong> коннектор форварда.
+                Если выбран неактивный коннектор, операция будет остановлена с ошибкой.
+              </div>
               <div class="row g-2 align-items-end mb-3">
                 <div class="col-12 col-md-3">
                   <label class="form-label small mb-1" for="warehouse-sync-forwarder">Форвард</label>

@@ -2114,7 +2114,7 @@ switch ($normalizedAction) {
             if ($apiToken === '') {
                 $apiToken = $existing['api_token'];
             }
-
+            $operationsJson = (string)($existing['operations_json'] ?? '');
             $sql = "UPDATE connectors
                        SET name = ?,
                            countries = ?,
@@ -2155,10 +2155,10 @@ switch ($normalizedAction) {
                 $isActive,
                 $sslIgnore,
                 $scenarioJson,
+                $operationsJson,
                 $notes,
                 $connectorId
             );
-            $stmt->execute();
             if (!$stmt->execute()) {
                 $response = [
                     'status' => 'error',
@@ -2198,7 +2198,6 @@ switch ($normalizedAction) {
                 '',
                 $notes
             );
-            $stmt->execute();
             if (!$stmt->execute()) {
                 $response = [
                     'status' => 'error',
