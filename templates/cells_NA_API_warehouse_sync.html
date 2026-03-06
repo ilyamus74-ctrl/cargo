@@ -39,7 +39,10 @@
               <p class="small text-muted mb-2">
                 Нет в отчетах форварда: <span id="warehouse-sync-missing-total">0</span>
               </p>
-
+              <div class="alert alert-warning py-2 small" role="alert">
+                Для синхронизации и любых операций используется только <strong>активный</strong> коннектор форварда.
+                Если выбран неактивный коннектор, операция будет остановлена с ошибкой.
+              </div>
               <div class="row g-2 align-items-end mb-3">
                 <div class="col-12 col-md-3">
                   <label class="form-label small mb-1" for="warehouse-sync-forwarder">Форвард</label>

@@ -1408,13 +1408,19 @@ if ($action === 'warehouse_sync_item') {
     try {
         $connector = null;
         if ($connectorId > 0) {
-            $stmtConnector = $dbcnx->prepare("SELECT id, name, countries, auth_username, auth_password, auth_token, auth_cookies, base_url, ssl_ignore, scenario_json, operations_json, is_active FROM connectors WHERE id = ? AND is_active = 1 LIMIT 1");
+//            $stmtConnector = $dbcnx->prepare("SELECT id, name, countries, auth_username, auth_password, auth_token, auth_cookies, base_url, ssl_ignore, scenario_json, operations_json, is_active FROM connectors WHERE id = ? AND is_active = 1 LIMIT 1");
+            $stmtConnector = $dbcnx->prepare("SELECT id, name, countries, auth_username, auth_password, auth_token, auth_cookies, base_url, ssl_ignore, scenario_json, operations_json, is_active FROM connectors WHERE id = ? LIMIT 1");
             if ($stmtConnector) {
                 $stmtConnector->bind_param('i', $connectorId);
                 $stmtConnector->execute();
                 $resConnector = $stmtConnector->get_result();
                 if ($resConnector && ($connectorRow = $resConnector->fetch_assoc())) {
+                    if ((int)($connectorRow['is_active'] ?? 0) !== 1) {
+                        throw new RuntimeException('Выбранный коннектор не активен. Активируйте его в настройках коннектора.');
+                    }
                     $connector = $connectorRow;
+                } else {
+                    throw new RuntimeException('Выбранный коннектор не найден');
                 }
                 $stmtConnector->close();
             }
