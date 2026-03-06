@@ -145,13 +145,7 @@ function system_tasks_seed_defaults(mysqli $dbcnx): void
             'endpoint_action' => 'warehouse_sync_reconcile',
             'interval_minutes' => 30,
         ],
-        [
-            'code' => 'warehouse_sync_reconcile_half_sync_30m',
-            'name' => 'Reconcile half_sync/error (раз в 30 минут)',
-            'description' => 'Перепроверяет статусы half_sync/error в warehouse_item_out и обновляет до confirmed_sync/error.',
-            'endpoint_action' => 'warehouse_sync_reconcile',
-            'interval_minutes' => 30,
-        ],
+
     ];
 
     $sql = "INSERT INTO system_tasks (code, name, description, endpoint_action, interval_minutes, is_enabled, next_run_at)
