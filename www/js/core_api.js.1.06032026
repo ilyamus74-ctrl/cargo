@@ -1276,7 +1276,8 @@ const CoreAPI = {
             if (this.sentinel) {
                 this.sentinel.textContent = isLoading ? 'Загрузка...' : '';
             }
-        },        async loadNext() {
+        },
+        async loadNext() {
             if (this.state.loading || this.state.done) return;
             if (this.state.limit === 'all' && this.state.offset > 0) return;
             this.setLoading(true);
@@ -1790,80 +1791,59 @@ const CoreAPI = {
             });
 
             this.allSyncBtn.addEventListener('click', async () => {
+                const buttons = Array.from(this.tbody.querySelectorAll('.warehouse-sync-row-btn'));
+                const available = buttons.length;
+                if (!available) {
+                    alert('Нет посылок со статусом "Готов к синхронизации" в текущем фильтре');
+                    return;
+                }
+
+
+                if (!confirm(`Запустить sync для ${available} посылок на текущей странице?`)) {
+                    return;
+                }
 
                 this.allSyncBtn.disabled = true;
-                const previousText = this.allSyncBtn.textContent;
-                this.allSyncBtn.textContent = 'all_sync...';
                 let ok = 0;
                 let fail = 0;
-
-                try {
-                    const targets = await this.collectAllSyncTargets();
-                    const available = targets.length;
-                    if (!available) {
-                        alert('Нет посылок со статусом "Готов к синхронизации" в текущем фильтре');
-                        return;
-                    }
-
-                    const targetLabel = this.state.forwarder === 'ALL'
-                        ? `для всех форвардов (${available} шт.)`
-                        : `для форварда ${this.state.forwarder} (${available} шт.)`;
-                    if (!confirm(`Запустить all_sync ${targetLabel}?`)) {
-                        return;
-                    }
-
-                    for (const target of targets) {
-                        const itemId = target.itemId || '';
-                        const connectorId = target.connectorId || '';
-                        if (!itemId) continue;
-                        const rowBtn = this.tbody.querySelector(`.warehouse-sync-row-btn[data-item-id="${CSS.escape(itemId)}"]`);
-                        const prev = rowBtn?.textContent || 'sync';
-                        if (rowBtn) {
-                            rowBtn.disabled = true;
-                            rowBtn.textContent = 'sync...';
+                for (const btn of buttons) {
+                    const itemId = btn.dataset.itemId || '';
+                    const connectorId = btn.dataset.connectorId || '';
+                    if (!itemId) continue;
+                    btn.disabled = true;
+                    const prev = btn.textContent;
+                    btn.textContent = 'sync...';
+                    try {
+                        const fd = new FormData();
+                        fd.append('action', 'warehouse_sync_item');
+                        fd.append('item_id', itemId);
+                        if (connectorId) {
+                            fd.append('connector_id', connectorId);
                         }
-
-                        try {
-                            const fd = new FormData();
-                            fd.append('action', 'warehouse_sync_item');
-                            fd.append('item_id', itemId);
-                            if (connectorId) {
-                                fd.append('connector_id', connectorId);
-                            }
-                            const data = await CoreAPI.client.call(fd);
-                            if (!data || data.status !== 'ok') {
-                                console.log('[warehouse_sync_item][batch][node_payload]', data?.node_payload || null);
-                                throw new Error(data?.message || 'sync error');
-                            }
+                        const data = await CoreAPI.client.call(fd);
+                        if (!data || data.status !== 'ok') {
                             console.log('[warehouse_sync_item][batch][node_payload]', data?.node_payload || null);
-                            ok += 1;
-                            if (rowBtn) {
-                                rowBtn.classList.remove('btn-outline-primary');
-                                rowBtn.classList.add('btn-outline-success');
-                                rowBtn.textContent = 'synced';
-                            }
-                        } catch (err) {
-                            fail += 1;
-                            if (rowBtn) {
-                                rowBtn.disabled = false;
-                                rowBtn.textContent = prev;
-                                rowBtn.classList.remove('btn-outline-primary');
-                                rowBtn.classList.add('btn-outline-danger');
-                            }
-                            console.error('warehouse_sync_item error:', err);
+                            throw new Error(data?.message || 'sync error');
                         }
+                        console.log('[warehouse_sync_item][batch][node_payload]', data?.node_payload || null);
+                        ok += 1;
+                        btn.classList.remove('btn-outline-primary');
+                        btn.classList.add('btn-outline-success');
+                        btn.textContent = 'synced';
+                    } catch (err) {
+                        fail += 1;
+                        btn.disabled = false;
+                        btn.textContent = prev;
+                        btn.classList.remove('btn-outline-primary');
+                        btn.classList.add('btn-outline-danger');
+                        console.error('warehouse_sync_item error:', err);
                     }
-
-                    alert(`all_sync завершен. Успех: ${ok}, Ошибки: ${fail}`);
-                    await this.resetAndLoad();
-                    CoreAPI.warehouseSyncHistory.load();
-                } catch (err) {
-                    console.error('warehouse_sync_all error:', err);
-                    alert(`all_sync ошибка: ${err?.message || err}`);
-                } finally {
-                    this.allSyncBtn.disabled = false;
-                    this.allSyncBtn.textContent = previousText;
                 }
+
+                alert(`all_sync завершен. Успех: ${ok}, Ошибки: ${fail}`);
+                this.allSyncBtn.disabled = false;
+                await this.resetAndLoad();
+                CoreAPI.warehouseSyncHistory.load();
             });
         },
         setupObserver() {
@@ -1902,56 +1882,6 @@ const CoreAPI = {
             if (this.sentinel) {
                 this.sentinel.textContent = isLoading ? 'Загрузка...' : '';
             }
-        },
-
-
-        extractSyncTargetsFromHtml(html) {
-            const markup = String(html || '').trim();
-            if (!markup) return [];
-            const parser = new DOMParser();
-            const doc = parser.parseFromString(`<table><tbody>${markup}</tbody></table>`, 'text/html');
-            return Array.from(doc.querySelectorAll('.warehouse-sync-row-btn')).map((btn) => ({
-                itemId: btn.dataset.itemId || '',
-                connectorId: btn.dataset.connectorId || ''
-            })).filter((target) => target.itemId);
-        },
-        async collectAllSyncTargets() {
-            const targets = [];
-            const seen = new Set();
-            let offset = 0;
-            const pageLimit = '200';
-            let hasMore = true;
-
-            while (hasMore) {
-                const fd = new FormData();
-                fd.append('action', 'warehouse_sync_missing');
-                fd.append('limit', pageLimit);
-                fd.append('offset', String(offset));
-                fd.append('search', this.state.search);
-                fd.append('forwarder', this.state.forwarder);
-
-                const data = await CoreAPI.client.call(fd);
-                if (!data || data.status !== 'ok') {
-                    throw new Error(data?.message || 'load list error');
-                }
-
-                const pageTargets = this.extractSyncTargetsFromHtml(data.html);
-                for (const target of pageTargets) {
-                    if (!seen.has(target.itemId)) {
-                        seen.add(target.itemId);
-                        targets.push(target);
-                    }
-                }
-
-                const loaded = Number(data.items_count ?? 0);
-                if (loaded <= 0 || data.has_more === false) {
-                    hasMore = false;
-                } else {
-                    offset += loaded;
-                }
-            }
-
-            return targets;
         },
         async loadNext() {
             if (this.state.loading || this.state.done) return;
