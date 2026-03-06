@@ -1050,6 +1050,30 @@ if (!function_exists('warehouse_sync_build_vars')) {
     }
 }
 
+if (!function_exists('warehouse_sync_is_positive_feedback_text')) {
+    function warehouse_sync_is_positive_feedback_text(string $text): bool
+    {
+        $normalized = mb_strtolower(trim($text), 'UTF-8');
+        if ($normalized === '') {
+            return false;
+        }
+
+        $compact = preg_replace('/\s+/u', '', $normalized);
+        if (!is_string($compact)) {
+            $compact = $normalized;
+        }
+
+        $positiveTokens = ['success', 'успеш', 'успех', 'saved', 'ok', 'done'];
+        foreach ($positiveTokens as $token) {
+            if (mb_strpos($normalized, $token, 0, 'UTF-8') !== false || mb_strpos($compact, $token, 0, 'UTF-8') !== false) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+}
+
 if (!function_exists('warehouse_sync_run_submission')) {
     function warehouse_sync_run_submission(array $connector, array $item, ?array $preparedPayload = null): array
     {
@@ -1101,8 +1125,13 @@ if (!function_exists('warehouse_sync_run_submission')) {
             throw new RuntimeException($msg !== '' ? $msg : 'Sync failed');
         }
         $capturedErrorText = trim((string)($decoded['captured_error_text'] ?? ''));
+        $outStatus = 'half_sync';
         if ($capturedErrorText !== '') {
-            throw new RuntimeException($capturedErrorText);
+            if (warehouse_sync_is_positive_feedback_text($capturedErrorText)) {
+                $outStatus = 'half_sync';
+            } else {
+                throw new RuntimeException($capturedErrorText);
+            }
         }
 
 
@@ -1113,6 +1142,8 @@ if (!function_exists('warehouse_sync_run_submission')) {
             'message' => trim((string)($decoded['message'] ?? '')),
             'raw' => $decoded,
             'node_payload' => $payload,
+            'captured_error_text' => $capturedErrorText,
+            'out_status' => $outStatus,
         ];
     }
 }
@@ -1384,19 +1415,28 @@ if ($action === 'warehouse_sync_item') {
             'node_payload' => isset($result['node_payload']) && is_array($result['node_payload']) ? $result['node_payload'] : $debugNodePayload,
         ];
         $responseJson = json_encode($responsePayload, JSON_UNESCAPED_UNICODE);
+        $outStatus = strtolower(trim((string)($result['out_status'] ?? 'half_sync')));
+        if ($outStatus === '') {
+            $outStatus = 'half_sync';
+        }
+        $capturedErrorText = trim((string)($result['captured_error_text'] ?? ''));
+        $statusMessage = 'sync отправлен, ожидаем подтверждение форварда';
+        if ($outStatus === 'half_sync' && $capturedErrorText !== '') {
+            $statusMessage = 'sync отправлен, форвард ответил: ' . $capturedErrorText;
+        }
+
         warehouse_sync_audit_log($dbcnx, [
             'item_id' => $itemId,
             'tracking_no' => $tracking,
             'forwarder' => $forwarder,
             'country_code' => $country,
-            'status' => 'half_sync',
-            'message' => 'sync отправлен, ожидаем подтверждение форварда',
+            'status' => $outStatus,
+            'message' => $statusMessage,
             'response_json' => $responseJson === false ? '' : $responseJson,
             'created_by' => $userId,
         ]);
 
-        warehouse_sync_out_set_status($dbcnx, $itemId, 'half_sync', 'sync отправлен, ожидаем подтверждение форварда');
-
+        warehouse_sync_out_set_status($dbcnx, $itemId, $outStatus, $statusMessage);
         audit_log($userId, 'WAREHOUSE_SYNC_ITEM_SUCCESS', 'warehouse_item_stock', $itemId, 'Синхронизация посылки выполнена', [
             'item_id' => $itemId,
             'tracking_no' => $tracking,
