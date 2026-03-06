@@ -719,11 +719,11 @@ if (!function_exists('warehouse_sync_reconcile_half_sync')) {
 
         $limit = max(1, min(2000, $limit));
         $rows = [];
-        $sql = "SELECT stock_item_id, tracking_no, receiver_company, receiver_country_code, status
+        $sql = "SELECT stock_item_id, tracking_no, receiver_company, receiver_country_code, status, status_message
 "
             . "FROM warehouse_item_out
 "
-            . "WHERE status = 'half_sync'
+            . "WHERE status = 'half_sync' OR status = 'error'
 "
             . "ORDER BY status_updated_at ASC, id ASC
 "
@@ -747,6 +747,13 @@ if (!function_exists('warehouse_sync_reconcile_half_sync')) {
             $trackingNo = trim((string)($row['tracking_no'] ?? ''));
             $forwarder = strtoupper(trim((string)($row['receiver_company'] ?? '')));
             $countryCode = strtoupper(trim((string)($row['receiver_country_code'] ?? '')));
+            $currentStatus = strtolower(trim((string)($row['status'] ?? '')));
+            $currentStatusMessage = trim((string)($row['status_message'] ?? ''));
+
+            if ($currentStatus === 'error' && !warehouse_sync_should_reconcile_error_message($currentStatusMessage)) {
+                $stats['unchanged']++;
+                continue;
+            }
 
             if ($itemId <= 0 || $trackingNo === '' || $forwarder === '' || $countryCode === '') {
                 $stats['unchanged']++;
@@ -792,6 +799,22 @@ if (!function_exists('warehouse_sync_reconcile_half_sync')) {
         }
 
         return $stats;
+    }
+}
+
+
+
+if (!function_exists('warehouse_sync_should_reconcile_error_message')) {
+    function warehouse_sync_should_reconcile_error_message(string $message): bool
+    {
+        $normalized = mb_strtolower(trim($message), 'UTF-8');
+        if ($normalized === '') {
+            return false;
+        }
+
+        return mb_strpos($normalized, 'waiting failed:') !== false
+            || mb_strpos($normalized, 'timeout') !== false
+            || mb_strpos($normalized, 'timed out') !== false;
     }
 }
 
