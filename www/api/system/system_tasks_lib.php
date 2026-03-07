@@ -276,7 +276,7 @@ function system_tasks_execute(mysqli $dbcnx, array $task, int $systemUserId = 0)
     }
 
     if ($action === 'warehouse_sync_batch_worker') {
-        return system_tasks_run_warehouse_sync_batch_worker($dbcnx, $systemUserId);
+        return system_tasks_run_warehouse_sync_batch_worker($dbcnx, $task, $systemUserId);
     }
 
     if ($action === 'warehouse_sync_out_backfill') {
@@ -479,8 +479,141 @@ function system_tasks_run_connectors_report_operation_1(mysqli $dbcnx, array $ta
     ];
 }
 
-function system_tasks_run_warehouse_sync_batch_worker(mysqli $dbcnx, int $systemUserId = 0): array
+
+function system_tasks_auto_enqueue_warehouse_sync_batch(mysqli $dbcnx, int $limit = 100, int $requestedBy = 0): array
 {
+
+    $limit = max(1, min(500, $limit));
+
+    if (!function_exists('warehouse_sync_fetch_connector')) {
+        $action = '__system_task_bootstrap__';
+        $user = ['id' => $requestedBy > 0 ? $requestedBy : 1, 'role' => 'ADMIN'];
+        $response = ['status' => 'ok'];
+        require_once __DIR__ . '/../warehouse/warehouse_sync_actions.php';
+    }
+
+    $sql = "SELECT wi.id, wi.receiver_company, wi.receiver_country_code
+            FROM warehouse_item_stock wi
+            LEFT JOIN warehouse_item_out wo ON wo.stock_item_id = wi.id
+            WHERE wi.receiver_company IS NOT NULL
+              AND TRIM(wi.receiver_company) <> ''
+              AND wi.receiver_country_code IS NOT NULL
+              AND TRIM(wi.receiver_country_code) <> ''
+              AND (wo.stock_item_id IS NULL OR wo.status IN ('for_sync', 'error'))
+            ORDER BY wi.created_at ASC
+            LIMIT ?";
+
+    $stmt = $dbcnx->prepare($sql);
+    if (!$stmt) {
+        return ['queued' => 0, 'job_id' => 0, 'message' => 'auto-enqueue prepare failed'];
+    }
+
+    $stmt->bind_param('i', $limit);
+    $stmt->execute();
+    $res = $stmt->get_result();
+
+    $candidates = [];
+    while ($res && ($row = $res->fetch_assoc())) {
+        $itemId = (int)($row['id'] ?? 0);
+        if ($itemId <= 0) {
+            continue;
+        }
+
+        $forwarder = strtoupper(trim((string)($row['receiver_company'] ?? '')));
+        $country = strtoupper(trim((string)($row['receiver_country_code'] ?? '')));
+
+        if ($forwarder === '' || $country === '') {
+            continue;
+        }
+
+        $connector = function_exists('warehouse_sync_fetch_connector')
+            ? warehouse_sync_fetch_connector($dbcnx, $forwarder, $country)
+            : null;
+        if (!$connector) {
+            continue;
+        }
+
+        $candidates[] = [
+            'item_id' => $itemId,
+            'connector_id' => (int)($connector['id'] ?? 0),
+        ];
+    }
+    $stmt->close();
+
+    if (!$candidates) {
+        return ['queued' => 0, 'job_id' => 0, 'message' => 'no eligible for_sync/error items'];
+    }
+
+    $dbcnx->begin_transaction();
+    try {
+        $total = count($candidates);
+        $forwarder = 'AUTO';
+        $jobStmt = $dbcnx->prepare("INSERT INTO warehouse_sync_batch_jobs (status, forwarder, requested_by, total_items, message)
+                                    VALUES ('queued', ?, ?, ?, 'queued automatically by worker')");
+        if (!$jobStmt) {
+            throw new RuntimeException('auto-enqueue job prepare failed');
+        }
+        $jobStmt->bind_param('sii', $forwarder, $requestedBy, $total);
+        $jobStmt->execute();
+        $jobId = (int)$dbcnx->insert_id;
+        $jobStmt->close();
+
+        $itemStmt = $dbcnx->prepare("INSERT IGNORE INTO warehouse_sync_batch_job_items (job_id, item_id, connector_id, status)
+                                     VALUES (?, ?, ?, 'pending')");
+        if (!$itemStmt) {
+            throw new RuntimeException('auto-enqueue item prepare failed');
+        }
+
+        $queued = 0;
+        foreach ($candidates as $candidate) {
+            $itemId = (int)$candidate['item_id'];
+            $connectorId = (int)$candidate['connector_id'];
+            $itemStmt->bind_param('iii', $jobId, $itemId, $connectorId);
+            $itemStmt->execute();
+            if ($itemStmt->affected_rows > 0) {
+                $queued += 1;
+            }
+        }
+        $itemStmt->close();
+
+        if ($queued === 0) {
+            $cleanup = $dbcnx->prepare("DELETE FROM warehouse_sync_batch_jobs WHERE id = ?");
+            if ($cleanup) {
+                $cleanup->bind_param('i', $jobId);
+                $cleanup->execute();
+                $cleanup->close();
+            }
+            $dbcnx->commit();
+            return ['queued' => 0, 'job_id' => 0, 'message' => 'auto-enqueue skipped (all duplicates)'];
+        }
+
+        $upd = $dbcnx->prepare("UPDATE warehouse_sync_batch_jobs SET total_items = ? WHERE id = ?");
+        if ($upd) {
+            $upd->bind_param('ii', $queued, $jobId);
+            $upd->execute();
+            $upd->close();
+        }
+
+        $dbcnx->commit();
+        return ['queued' => $queued, 'job_id' => $jobId, 'message' => 'auto-enqueue created'];
+    } catch (Throwable $e) {
+        $dbcnx->rollback();
+        return ['queued' => 0, 'job_id' => 0, 'message' => 'auto-enqueue failed: ' . $e->getMessage()];
+    }
+}
+
+function system_tasks_run_warehouse_sync_batch_worker(mysqli $dbcnx, array $task, int $systemUserId = 0): array
+{
+    $payloadRaw = (string)($task['payload_json'] ?? '');
+    $payload = $payloadRaw !== '' ? json_decode($payloadRaw, true) : [];
+    if (!is_array($payload)) {
+        $payload = [];
+    }
+
+    $autoEnqueue = !array_key_exists('auto_enqueue', $payload)
+        || filter_var($payload['auto_enqueue'], FILTER_VALIDATE_BOOLEAN, FILTER_NULL_ON_FAILURE) !== false;
+    $autoEnqueueLimit = max(1, min(500, (int)($payload['auto_enqueue_limit'] ?? 100)));
+
     $jobRes = $dbcnx->query("SELECT * FROM warehouse_sync_batch_jobs
                             WHERE status IN ('queued','running')
                             ORDER BY FIELD(status, 'running', 'queued'), created_at ASC
@@ -492,8 +625,28 @@ function system_tasks_run_warehouse_sync_batch_worker(mysqli $dbcnx, int $system
     $job = $jobRes->fetch_assoc();
     $jobRes->free();
 
+    if (!$job && $autoEnqueue) {
+        $enqueueInfo = system_tasks_auto_enqueue_warehouse_sync_batch($dbcnx, $autoEnqueueLimit, $systemUserId > 0 ? $systemUserId : 1);
+        if ((int)($enqueueInfo['queued'] ?? 0) > 0) {
+            $jobRes = $dbcnx->query("SELECT * FROM warehouse_sync_batch_jobs
+                                    WHERE id = " . (int)$enqueueInfo['job_id'] . "
+                                    LIMIT 1");
+            if ($jobRes) {
+                $job = $jobRes->fetch_assoc();
+                $jobRes->free();
+            }
+        }
+    }
+
     if (!$job) {
-        return ['status' => 'ok', 'message' => 'No queued batch jobs', 'context' => ['processed' => 0]];
+        return [
+            'status' => 'ok',
+            'message' => 'No queued batch jobs',
+            'context' => [
+                'processed' => 0,
+                'auto_enqueue' => $autoEnqueue ? 'enabled' : 'disabled',
+            ],
+        ];
     }
 
     $jobId = (int)$job['id'];

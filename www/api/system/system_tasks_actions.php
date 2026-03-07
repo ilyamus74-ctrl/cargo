@@ -3,6 +3,28 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/system_tasks_lib.php';
 
+if (!function_exists('system_tasks_parse_checkbox_flag')) {
+    function system_tasks_parse_checkbox_flag($value): int
+    {
+        if (is_bool($value)) {
+            return $value ? 1 : 0;
+        }
+
+        if (is_int($value)) {
+            return $value === 1 ? 1 : 0;
+        }
+
+        if (is_string($value)) {
+            $normalized = strtolower(trim($value));
+            if (in_array($normalized, ['1', 'true', 'on', 'yes'], true)) {
+                return 1;
+            }
+        }
+
+        return 0;
+    }
+}
+
 auth_require_role('ADMIN');
 system_tasks_ensure_tables($dbcnx);
 system_tasks_seed_defaults($dbcnx);
@@ -51,7 +73,7 @@ if ($action === 'save_system_task') {
     $description = trim((string)($_POST['description'] ?? ''));
     $endpointAction = trim((string)($_POST['endpoint_action'] ?? ''));
     $intervalMinutes = max(1, (int)($_POST['interval_minutes'] ?? 60));
-    $isEnabled = (int)($_POST['is_enabled'] ?? 0) === 1 ? 1 : 0;
+    $isEnabled = system_tasks_parse_checkbox_flag($_POST['is_enabled'] ?? 0);
 
     if ($code === '' || $name === '' || $endpointAction === '') {
         $response = ['status' => 'error', 'message' => 'code, name и endpoint_action обязательны'];
