@@ -15,11 +15,13 @@ static const uint8_t ADDR_V = 0x02;  // вертикаль  (FA02)
 // Horizontal: Hall A3144 (PB14/PB15). Usually active-low: magnet -> LOW
 #define H_LEFT   PB14
 #define H_RIGHT  PB15
-static const bool HALL_ACTIVE_LOW = true; // если у тебя магнит даёт HIGH -> false
 
-// ===== 4x Hall limits (A3144) =====
-// Active-low: magnet -> LOW
-static const bool LIMIT_ACTIVE_LOW = true;
+// Limit polarity per axis:
+//   Vertical NC switches: HIGH when pressed/broken
+//   Horizontal Hall: LOW when magnet is present
+static const bool V_LIMIT_ACTIVE_LOW = false;
+static const bool H_LIMIT_ACTIVE_LOW = true;
+
 
 volatile uint32_t limLatched = 0;
 enum : uint32_t {
@@ -48,12 +50,12 @@ static inline bool latchConsume(uint32_t bit) {
 }
 
 // level+debounce + latched edge
-static bool hallHitStableLatched(uint8_t pin, uint32_t bit) {
+static bool limitHitStableLatched(uint8_t pin, uint32_t bit, bool activeLow) {
   // сначала проверим уровень (если сейчас на магните)
   for (int i = 0; i < 3; i++) {
     int v = digitalRead(pin);
-    bool hit = LIMIT_ACTIVE_LOW ? (v == LOW) : (v == HIGH);
-        if (hit) {
+    bool hit = activeLow ? (v == LOW) : (v == HIGH);
+    if (hit) {
       (void)latchConsume(bit);
       return true;
     }
@@ -61,7 +63,7 @@ static bool hallHitStableLatched(uint8_t pin, uint32_t bit) {
   }
 
   return latchConsume(bit);
-  }
+}
 
 // ================= Servo + OUT pins (your updated) =================
 #define SERVO1_PIN PB8
@@ -207,20 +209,6 @@ static void pollMotor(const char* tag, uint8_t addr) {
 }
 static void pollAll(const char* tag) { pollMotor(tag, ADDR_V); pollMotor(tag, ADDR_H); }
 
-// ================= Limit reading =================
-static bool vHitStable(uint8_t pin) {
-  for (int i = 0; i < 3; i++) { if (digitalRead(pin) == HIGH) return true; delay(5); }
-  return false;
-}
-static bool hallHitStable(uint8_t pin) {
-  for (int i = 0; i < 3; i++) {
-    int v = digitalRead(pin);
-    if (HALL_ACTIVE_LOW) { if (v == LOW) return true; }
-    else                 { if (v == HIGH) return true; }
-    delay(2);
-  }
-  return false;
-}
 
 // ================= Homing primitives =================
 static bool fastToLimit(uint8_t addr, bool (*hit)(), bool dirReverse,
@@ -276,8 +264,8 @@ static bool countToLimitSlow(uint8_t addr, bool (*hit)(), bool dirReverse, uint3
 }
 
 // ================= Homing: Vertical =================
-static bool hitVTop()    { return hallHitStableLatched(V_TOP,    LIM_VTOP); }
-static bool hitVBottom() { return hallHitStableLatched(V_BOTTOM, LIM_VBOT); }
+static bool hitVTop()    { return limitHitStableLatched(V_TOP,    LIM_VTOP, V_LIMIT_ACTIVE_LOW); }
+static bool hitVBottom() { return limitHitStableLatched(V_BOTTOM, LIM_VBOT, V_LIMIT_ACTIVE_LOW); }
 
 static void goToCenterFromVTop(uint32_t range) {
   int32_t half = (int32_t)(range / 2);
@@ -316,8 +304,8 @@ static bool homeVertical() {
 }
 
 // ================= Homing: Horizontal =================
-static bool hitHLeft()   { return hallHitStableLatched(H_LEFT,   LIM_HLEFT); }
-static bool hitHRight()  { return hallHitStableLatched(H_RIGHT,  LIM_HRIGHT); }
+static bool hitHLeft()   { return limitHitStableLatched(H_LEFT,   LIM_HLEFT, H_LIMIT_ACTIVE_LOW); }
+static bool hitHRight()  { return limitHitStableLatched(H_RIGHT,  LIM_HRIGHT, H_LIMIT_ACTIVE_LOW); }
 
 static void goToCenterFromHRight(uint32_t range) {
   int32_t half = (int32_t)(range / 2);
@@ -636,12 +624,13 @@ void setup() {
   pinMode(H_LEFT, INPUT_PULLUP);
   pinMode(H_RIGHT, INPUT_PULLUP);
 
-   ExtIntTriggerMode irqMode = LIMIT_ACTIVE_LOW ? FALLING : RISING;
-  attachInterrupt(digitalPinToInterrupt(V_TOP),    isrVTop,   irqMode);
-  attachInterrupt(digitalPinToInterrupt(V_BOTTOM), isrVBot,   irqMode);
-  attachInterrupt(digitalPinToInterrupt(H_LEFT),   isrHLeft,  irqMode);
-  attachInterrupt(digitalPinToInterrupt(H_RIGHT),  isrHRight, irqMode);
-
+  ExtIntTriggerMode irqModeV = V_LIMIT_ACTIVE_LOW ? FALLING : RISING;
+  ExtIntTriggerMode irqModeH = H_LIMIT_ACTIVE_LOW ? FALLING : RISING;
+  attachInterrupt(digitalPinToInterrupt(V_TOP),    isrVTop,   irqModeV);
+  attachInterrupt(digitalPinToInterrupt(V_BOTTOM), isrVBot,   irqModeV);
+  attachInterrupt(digitalPinToInterrupt(H_LEFT),   isrHLeft,  irqModeH);
+  attachInterrupt(digitalPinToInterrupt(H_RIGHT),  isrHRight, irqModeH);
+  
   Serial1.begin(115200);
   Serial2.begin(DBG_BAUD);
   delay(200);
