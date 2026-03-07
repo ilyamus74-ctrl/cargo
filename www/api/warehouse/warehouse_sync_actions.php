@@ -610,6 +610,65 @@ if (!function_exists('warehouse_sync_is_error_report_status')) {
     }
 }
 
+
+if (!function_exists('warehouse_sync_report_status_rules')) {
+    function warehouse_sync_report_status_rules(): array
+    {
+        static $rules = null;
+        if (is_array($rules)) {
+            return $rules;
+        }
+
+        // Пока правила захардкожены в коде. Позже можно вынести в UI/настройки.
+        $shared = [
+            'on the way' => 'sended',
+            'in transit' => 'sended',
+            'shipped' => 'sended',
+            'sent' => 'sended',
+            'dispatch' => 'sended',
+            'dispatched' => 'sended',
+        ];
+
+        $rules = [
+            '*' => $shared,
+            'colibri' => $shared,
+            'dev_colibri' => $shared,
+            'kolli' => $shared,
+        ];
+
+        return $rules;
+    }
+}
+
+if (!function_exists('warehouse_sync_out_status_by_report_status')) {
+    function warehouse_sync_out_status_by_report_status(string $forwarder, string $reportStatus): string
+    {
+        $normalizedStatus = mb_strtolower(trim($reportStatus), 'UTF-8');
+        if ($normalizedStatus === '') {
+            return '';
+        }
+
+        $forwarderNorm = strtolower(warehouse_sync_normalize_key($forwarder));
+        $rules = warehouse_sync_report_status_rules();
+
+        $map = $rules[$forwarderNorm] ?? ($rules['*'] ?? []);
+        if (isset($map[$normalizedStatus])) {
+            return trim((string)$map[$normalizedStatus]);
+        }
+
+        if (warehouse_sync_is_error_report_status($reportStatus)) {
+            return 'error';
+        }
+
+        if (warehouse_sync_is_final_report_status($reportStatus)) {
+            return 'confirmed_sync';
+        }
+
+        // Любой непустой промежуточный статус считаем отправленным в форвард.
+        return 'sended';
+    }
+}
+
 if (!function_exists('warehouse_sync_report_table_for_forwarder')) {
     function warehouse_sync_report_table_for_forwarder(string $forwarderNorm, string $countryNorm): string
     {
@@ -768,12 +827,7 @@ if (!function_exists('warehouse_sync_reconcile_half_sync')) {
             }
 
             $reportStatus = trim((string)($report['report_status'] ?? ''));
-            $nextStatus = '';
-            if (warehouse_sync_is_error_report_status($reportStatus)) {
-                $nextStatus = 'error';
-            } elseif (warehouse_sync_is_final_report_status($reportStatus) || $reportStatus !== '') {
-                $nextStatus = 'confirmed_sync';
-            }
+            $nextStatus = warehouse_sync_out_status_by_report_status($forwarder, $reportStatus);
 
             if ($nextStatus === '') {
                 $stats['unchanged']++;
