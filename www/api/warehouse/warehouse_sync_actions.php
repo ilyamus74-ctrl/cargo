@@ -943,9 +943,7 @@ if (!function_exists('warehouse_sync_fetch_connector')) {
                         if ($candidateNorm === '') {
                             continue;
                         }
-                        $namePlain = (strpos($nameNorm, 'DEV_') === 0) ? substr($nameNorm, 4) : $nameNorm;
-                        $candidatePlain = (strpos($candidateNorm, 'DEV_') === 0) ? substr($candidateNorm, 4) : $candidateNorm;
-                        if ($nameNorm === $candidateNorm || $namePlain === $candidateNorm || $nameNorm === $candidatePlain || $namePlain === $candidatePlain) {
+                        if ($nameNorm === $candidateNorm) {
                             $rows[] = $row;
                             break;
                         }
@@ -1024,9 +1022,7 @@ if (!function_exists('warehouse_sync_resolve_permitted_connector')) {
 
                     $matchesName = false;
                     foreach ($forwarderCandidates as $candidateNorm) {
-                        $namePlain = (strpos($nameNorm, 'DEV_') === 0) ? substr($nameNorm, 4) : $nameNorm;
-                        $candidatePlain = (strpos($candidateNorm, 'DEV_') === 0) ? substr($candidateNorm, 4) : $candidateNorm;
-                        if ($nameNorm === $candidateNorm || $namePlain === $candidateNorm || $nameNorm === $candidatePlain || $namePlain === $candidatePlain) {
+                        if ($nameNorm === $candidateNorm) {
                             $matchesName = true;
                             break;
                         }

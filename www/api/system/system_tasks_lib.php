@@ -512,6 +512,8 @@ function system_tasks_auto_enqueue_warehouse_sync_batch(mysqli $dbcnx, int $limi
     $stmt->execute();
     $res = $stmt->get_result();
 
+    $connectorActiveStmt = $dbcnx->prepare("SELECT is_active FROM connectors WHERE id = ? LIMIT 1");
+
     $candidates = [];
     while ($res && ($row = $res->fetch_assoc())) {
         $itemId = (int)($row['id'] ?? 0);
@@ -521,7 +523,6 @@ function system_tasks_auto_enqueue_warehouse_sync_batch(mysqli $dbcnx, int $limi
 
         $forwarder = strtoupper(trim((string)($row['receiver_company'] ?? '')));
         $country = strtoupper(trim((string)($row['receiver_country_code'] ?? '')));
-
         if ($forwarder === '' || $country === '') {
             continue;
         }
@@ -543,10 +544,31 @@ function system_tasks_auto_enqueue_warehouse_sync_batch(mysqli $dbcnx, int $limi
             continue;
         }
 
+        $connectorId = (int)($connector['id'] ?? 0);
+        if ($connectorId <= 0) {
+            continue;
+        }
+
+        if ($connectorActiveStmt) {
+            $connectorActiveStmt->bind_param('i', $connectorId);
+            $connectorActiveStmt->execute();
+            $connectorRes = $connectorActiveStmt->get_result();
+            $connectorRow = $connectorRes ? $connectorRes->fetch_assoc() : null;
+            if ($connectorRes) {
+                $connectorRes->free();
+            }
+            if ((int)($connectorRow['is_active'] ?? 0) !== 1) {
+                continue;
+            }
+        }
+
         $candidates[] = [
             'item_id' => $itemId,
-            'connector_id' => (int)($connector['id'] ?? 0),
+            'connector_id' => $connectorId,
         ];
+    }
+    if ($connectorActiveStmt) {
+        $connectorActiveStmt->close();
     }
     $stmt->close();
 
@@ -681,6 +703,8 @@ function system_tasks_run_warehouse_sync_batch_worker(mysqli $dbcnx, array $task
     $ok = 0;
     $fail = 0;
 
+    $workerConnectorActiveStmt = $dbcnx->prepare("SELECT is_active FROM connectors WHERE id = ? LIMIT 1");
+
     while ($item = $itemsRes->fetch_assoc()) {
         $processed += 1;
         $itemId = (int)$item['item_id'];
@@ -696,6 +720,28 @@ function system_tasks_run_warehouse_sync_batch_worker(mysqli $dbcnx, array $task
             $changed = $mark->affected_rows > 0;
             $mark->close();
             if (!$changed) {
+                continue;
+            }
+        }
+
+        if ($connectorId > 0 && $workerConnectorActiveStmt) {
+            $workerConnectorActiveStmt->bind_param('i', $connectorId);
+            $workerConnectorActiveStmt->execute();
+            $workerConnectorRes = $workerConnectorActiveStmt->get_result();
+            $workerConnectorRow = $workerConnectorRes ? $workerConnectorRes->fetch_assoc() : null;
+            if ($workerConnectorRes) {
+                $workerConnectorRes->free();
+            }
+
+            if ((int)($workerConnectorRow['is_active'] ?? 0) !== 1) {
+                $fail += 1;
+                $inactiveMsg = 'Коннектор не активен, синхронизация пропущена';
+                $updInactive = $dbcnx->prepare("UPDATE warehouse_sync_batch_job_items SET status = 'error', message = ?, finished_at = NOW() WHERE id = ?");
+                if ($updInactive) {
+                    $updInactive->bind_param('si', $inactiveMsg, $jobItemId);
+                    $updInactive->execute();
+                    $updInactive->close();
+                }
                 continue;
             }
         }
@@ -727,6 +773,9 @@ function system_tasks_run_warehouse_sync_batch_worker(mysqli $dbcnx, array $task
             $upd->execute();
             $upd->close();
         }
+    }
+    if ($workerConnectorActiveStmt) {
+        $workerConnectorActiveStmt->close();
     }
     $itemsRes->free();
 
