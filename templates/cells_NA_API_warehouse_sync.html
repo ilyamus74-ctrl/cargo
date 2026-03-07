@@ -150,6 +150,15 @@
                   <label class="form-label small mb-1" for="warehouse-sync-history-tracking-filter">Трекномер</label>
                   <input type="text" id="warehouse-sync-history-tracking-filter" class="form-control form-control-sm" placeholder="Введите трекномер">
                 </div>
+                <div class="col-6 col-md-2">
+                  <label class="form-label small mb-1" for="warehouse-sync-history-limit">Вывод строк</label>
+                  <select id="warehouse-sync-history-limit" class="form-select form-select-sm">
+                    <option value="20">20</option>
+                    <option value="50" selected>50</option>
+                    <option value="100">100</option>
+                    <option value="all">Все</option>
+                  </select>
+                </div>
               </div>
               <div class="table-responsive">
                 <table class="table table-sm align-middle users-table">

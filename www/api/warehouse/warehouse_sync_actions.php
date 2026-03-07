@@ -1762,6 +1762,13 @@ if ($action === 'warehouse_sync_history') {
 
     $statusFilter = strtolower(trim((string)($_POST['status_filter'] ?? 'all')));
     $trackingFilter = strtoupper(trim((string)($_POST['tracking_no'] ?? '')));
+    $limitRaw = strtolower(trim((string)($_POST['limit'] ?? '50')));
+    $limitSql = 50;
+    if ($limitRaw === 'all') {
+        $limitSql = 1000;
+    } else {
+        $limitSql = max(1, min(1000, (int)$limitRaw));
+    }
 
     $conditions = [];
     $params = [];
@@ -1799,7 +1806,7 @@ if ($action === 'warehouse_sync_history') {
 "
         . "ORDER BY a.id DESC
 "
-        . "LIMIT 200";
+        . "LIMIT {$limitSql}";
 
     if ($types === '') {
         if ($res = $dbcnx->query($sql)) {

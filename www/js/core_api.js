@@ -2061,6 +2061,7 @@ const CoreAPI = {
         total: null,
         statusFilter: null,
         trackingFilter: null,
+        limitSelect: null,
         searchTimer: null,
         initialized: false,
         init() {
@@ -2072,7 +2073,8 @@ const CoreAPI = {
             this.total = root.querySelector('#warehouse-sync-history-total');
             this.statusFilter = root.querySelector('#warehouse-sync-history-status-filter');
             this.trackingFilter = root.querySelector('#warehouse-sync-history-tracking-filter');
-            if (!this.tbody || !this.total || !this.statusFilter || !this.trackingFilter) {
+            this.limitSelect = root.querySelector('#warehouse-sync-history-limit');
+            if (!this.tbody || !this.total || !this.statusFilter || !this.trackingFilter || !this.limitSelect) {
                 return;
             }
             if (shouldBindEvents) {
@@ -2083,6 +2085,7 @@ const CoreAPI = {
         },
         bindEvents() {
             this.statusFilter.addEventListener('change', () => this.load());
+            this.limitSelect.addEventListener('change', () => this.load());
             this.trackingFilter.addEventListener('input', () => {
                 if (this.searchTimer) {
                     clearTimeout(this.searchTimer);
@@ -2103,6 +2106,7 @@ const CoreAPI = {
             fd.append('action', 'warehouse_sync_history');
             fd.append('status_filter', this.statusFilter?.value || 'all');
             fd.append('tracking_no', (this.trackingFilter?.value || '').trim());
+            fd.append('limit', this.limitSelect?.value || '50');
             try {
                 const data = await CoreAPI.client.call(fd);
                 if (!data || data.status !== 'ok') {

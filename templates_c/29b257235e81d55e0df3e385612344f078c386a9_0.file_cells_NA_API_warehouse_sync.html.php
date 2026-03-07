@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-03-06 13:31:32
+/* Smarty version 5.3.1, created on 2026-03-07 10:32:36
   from 'file:cells_NA_API_warehouse_sync.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_69aad7349a62d1_89234498',
+  'unifunc' => 'content_69abfec401be36_34440982',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '29b257235e81d55e0df3e385612344f078c386a9' => 
     array (
       0 => 'cells_NA_API_warehouse_sync.html',
-      1 => 1772803057,
+      1 => 1772879430,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_69aad7349a62d1_89234498 (\Smarty\Template $_smarty_tpl) {
+function content_69abfec401be36_34440982 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?><div class="pagetitle">
   <h1>Синхронизация</h1>
@@ -182,6 +182,15 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
                 <div class="col-12 col-md-4">
                   <label class="form-label small mb-1" for="warehouse-sync-history-tracking-filter">Трекномер</label>
                   <input type="text" id="warehouse-sync-history-tracking-filter" class="form-control form-control-sm" placeholder="Введите трекномер">
+                </div>
+                <div class="col-6 col-md-2">
+                  <label class="form-label small mb-1" for="warehouse-sync-history-limit">Вывод строк</label>
+                  <select id="warehouse-sync-history-limit" class="form-select form-select-sm">
+                    <option value="20">20</option>
+                    <option value="50" selected>50</option>
+                    <option value="100">100</option>
+                    <option value="all">Все</option>
+                  </select>
                 </div>
               </div>
               <div class="table-responsive">
