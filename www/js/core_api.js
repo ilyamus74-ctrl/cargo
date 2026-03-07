@@ -2066,6 +2066,7 @@ const CoreAPI = {
         init() {
             const root = document.getElementById('warehouse-sync-history');
             if (!root) return;
+            const shouldBindEvents = !this.initialized || this.root !== root;
             this.root = root;
             this.tbody = root.querySelector('#warehouse-sync-history-tbody');
             this.total = root.querySelector('#warehouse-sync-history-total');
@@ -2074,7 +2075,7 @@ const CoreAPI = {
             if (!this.tbody || !this.total || !this.statusFilter || !this.trackingFilter) {
                 return;
             }
-            if (!this.initialized) {
+            if (shouldBindEvents) {
                 this.bindEvents();
             }
             this.load();
@@ -2088,6 +2089,8 @@ const CoreAPI = {
                 }
                 this.searchTimer = setTimeout(() => this.load(), 300);
             });
+            this.trackingFilter.addEventListener('change', () => this.load());
+            this.trackingFilter.addEventListener('search', () => this.load());
         },
         async load() {
             if (!this.tbody || !this.total) return;
