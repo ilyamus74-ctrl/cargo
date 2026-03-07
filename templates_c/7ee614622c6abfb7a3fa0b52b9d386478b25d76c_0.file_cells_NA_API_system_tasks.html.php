@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-03-06 17:05:27
+/* Smarty version 5.3.1, created on 2026-03-06 19:43:32
   from 'file:cells_NA_API_system_tasks.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_69ab09576c5ff1_98557153',
+  'unifunc' => 'content_69ab2e64efd8a1_08798998',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '7ee614622c6abfb7a3fa0b52b9d386478b25d76c' => 
     array (
       0 => 'cells_NA_API_system_tasks.html',
-      1 => 1772815823,
+      1 => 1772824701,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_69ab09576c5ff1_98557153 (\Smarty\Template $_smarty_tpl) {
+function content_69ab2e64efd8a1_08798998 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?><div class="container-fluid py-3">
   <div class="d-flex justify-content-between align-items-center mb-3">
@@ -45,7 +45,22 @@ $_smarty_current_dir = '/home/cells/web/templates';
             </div>
             <div class="mb-2">
               <label class="form-label" for="system_task_endpoint">Endpoint action</label>
-              <input type="text" class="form-control form-control-sm" name="endpoint_action" id="system_task_endpoint" placeholder="warehouse_sync_batch_worker">
+              <input type="text" list="system_task_endpoint_list" class="form-control form-control-sm" name="endpoint_action" id="system_task_endpoint" placeholder="warehouse_sync_batch_worker">
+              <datalist id="system_task_endpoint_list">
+                <?php
+$_from = $_smarty_tpl->getSmarty()->getRuntime('Foreach')->init($_smarty_tpl, $_smarty_tpl->getValue('endpoint_actions'), 'endpointMeta', false, 'endpointCode');
+$foreach0DoElse = true;
+foreach ($_from ?? [] as $_smarty_tpl->getVariable('endpointCode')->value => $_smarty_tpl->getVariable('endpointMeta')->value) {
+$foreach0DoElse = false;
+?>
+                  <option value="<?php echo htmlspecialchars((string)$_smarty_tpl->getValue('endpointCode'), ENT_QUOTES, 'UTF-8', true);?>
+"><?php echo htmlspecialchars((string)(($tmp = $_smarty_tpl->getValue('endpointMeta')['name'] ?? null)===null||$tmp==='' ? $_smarty_tpl->getValue('endpointCode') ?? null : $tmp), ENT_QUOTES, 'UTF-8', true);?>
+</option>
+                <?php
+}
+$_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
+              </datalist>
+              <small class="text-muted">Поддерживаемые endpoint_action пополняются централизованно в system_tasks_endpoint_registry().</small>
             </div>
             <div class="mb-2">
               <label class="form-label" for="system_task_interval">Интервал (мин.)</label>
@@ -64,6 +79,26 @@ $_smarty_current_dir = '/home/cells/web/templates';
               <button type="button" class="btn btn-sm btn-outline-secondary js-system-task-reset">Очистить</button>
             </div>
           </form>
+        </div>
+      </div>
+
+      <div class="card mt-3">
+        <div class="card-header">Доступные endpoint_action</div>
+        <div class="card-body p-2">
+          <ul class="mb-0 ps-3">
+            <?php
+$_from = $_smarty_tpl->getSmarty()->getRuntime('Foreach')->init($_smarty_tpl, $_smarty_tpl->getValue('endpoint_actions'), 'endpointMeta', false, 'endpointCode');
+$foreach1DoElse = true;
+foreach ($_from ?? [] as $_smarty_tpl->getVariable('endpointCode')->value => $_smarty_tpl->getVariable('endpointMeta')->value) {
+$foreach1DoElse = false;
+?>
+              <li><code><?php echo htmlspecialchars((string)$_smarty_tpl->getValue('endpointCode'), ENT_QUOTES, 'UTF-8', true);?>
+</code> — <?php echo htmlspecialchars((string)(($tmp = $_smarty_tpl->getValue('endpointMeta')['name'] ?? null)===null||$tmp==='' ? '' ?? null : $tmp), ENT_QUOTES, 'UTF-8', true);?>
+</li>
+            <?php
+}
+$_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
+          </ul>
         </div>
       </div>
     </div>
@@ -89,9 +124,9 @@ $_smarty_current_dir = '/home/cells/web/templates';
             <?php if ($_smarty_tpl->getSmarty()->getModifierCallback('count')($_smarty_tpl->getValue('tasks')) > 0) {?>
               <?php
 $_from = $_smarty_tpl->getSmarty()->getRuntime('Foreach')->init($_smarty_tpl, $_smarty_tpl->getValue('tasks'), 'task');
-$foreach0DoElse = true;
+$foreach2DoElse = true;
 foreach ($_from ?? [] as $_smarty_tpl->getVariable('task')->value) {
-$foreach0DoElse = false;
+$foreach2DoElse = false;
 ?>
                 <tr>
                   <td><?php echo $_smarty_tpl->getValue('task')['id'];?>
@@ -161,9 +196,9 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
             <?php if ($_smarty_tpl->getSmarty()->getModifierCallback('count')($_smarty_tpl->getValue('task_runs')) > 0) {?>
               <?php
 $_from = $_smarty_tpl->getSmarty()->getRuntime('Foreach')->init($_smarty_tpl, $_smarty_tpl->getValue('task_runs'), 'run');
-$foreach1DoElse = true;
+$foreach3DoElse = true;
 foreach ($_from ?? [] as $_smarty_tpl->getVariable('run')->value) {
-$foreach1DoElse = false;
+$foreach3DoElse = false;
 ?>
                 <tr>
                   <td><?php echo $_smarty_tpl->getValue('run')['id'];?>

@@ -291,53 +291,12 @@ function system_tasks_execute(mysqli $dbcnx, array $task, int $systemUserId = 0)
         return system_tasks_run_warehouse_sync_reconcile($dbcnx, $task, $systemUserId);
     }
 
-    if ($action === 'warehouse_sync_reconcile') {
-        return system_tasks_run_warehouse_sync_reconcile($dbcnx, $task, $systemUserId);
-    }
-
     return [
         'status' => 'error',
 
         'message' => 'Unhandled endpoint_action: ' . $action,
     ];
 }
-
-function system_tasks_run_warehouse_sync_reconcile(mysqli $dbcnx, array $task, int $systemUserId = 0): array
-{
-    $payloadRaw = (string)($task['payload_json'] ?? '');
-    $payload = $payloadRaw !== '' ? json_decode($payloadRaw, true) : [];
-    if (!is_array($payload)) {
-        $payload = [];
-    }
-
-    $limit = max(1, min(5000, (int)($payload['limit'] ?? 200)));
-
-    if (!function_exists('warehouse_sync_reconcile_half_sync')) {
-        $action = '__system_task_bootstrap__';
-        $user = ['id' => $systemUserId > 0 ? $systemUserId : 1, 'role' => 'ADMIN'];
-        $response = ['status' => 'ok'];
-        require_once __DIR__ . '/../warehouse/warehouse_sync_actions.php';
-    }
-
-    if (!function_exists('warehouse_sync_reconcile_half_sync')) {
-        return ['status' => 'error', 'message' => 'warehouse_sync_reconcile_half_sync not available'];
-    }
-
-    $stats = warehouse_sync_reconcile_half_sync($dbcnx, $limit, $systemUserId > 0 ? $systemUserId : 1);
-
-    return [
-        'status' => 'ok',
-        'message' => 'warehouse_sync_reconcile done',
-        'context' => [
-            'limit' => $limit,
-            'checked' => (int)($stats['checked'] ?? 0),
-            'confirmed_sync' => (int)($stats['confirmed_sync'] ?? 0),
-            'error' => (int)($stats['error'] ?? 0),
-            'unchanged' => (int)($stats['unchanged'] ?? 0),
-        ],
-    ];
-}
-
 
 
 function system_tasks_run_warehouse_sync_reconcile(mysqli $dbcnx, array $task, int $systemUserId = 0): array
