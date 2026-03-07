@@ -485,7 +485,7 @@ function system_tasks_auto_enqueue_warehouse_sync_batch(mysqli $dbcnx, int $limi
 
     $limit = max(1, min(500, $limit));
 
-    if (!function_exists('warehouse_sync_fetch_connector')) {
+    if (!function_exists('warehouse_sync_fetch_connector') || !function_exists('warehouse_sync_resolve_permitted_connector')) {
         $action = '__system_task_bootstrap__';
         $user = ['id' => $requestedBy > 0 ? $requestedBy : 1, 'role' => 'ADMIN'];
         $response = ['status' => 'ok'];
@@ -526,9 +526,19 @@ function system_tasks_auto_enqueue_warehouse_sync_batch(mysqli $dbcnx, int $limi
             continue;
         }
 
-        $connector = function_exists('warehouse_sync_fetch_connector')
-            ? warehouse_sync_fetch_connector($dbcnx, $forwarder, $country)
-            : null;
+        $connector = null;
+        if (function_exists('warehouse_sync_resolve_permitted_connector')) {
+            try {
+                $connector = warehouse_sync_resolve_permitted_connector($dbcnx, [
+                    'receiver_company' => $forwarder,
+                    'receiver_country_code' => $country,
+                ], 0);
+            } catch (Throwable $e) {
+                $connector = null;
+            }
+        } elseif (function_exists('warehouse_sync_fetch_connector')) {
+            $connector = warehouse_sync_fetch_connector($dbcnx, $forwarder, $country);
+        }
         if (!$connector) {
             continue;
         }

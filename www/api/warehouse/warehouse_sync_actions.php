@@ -918,6 +918,95 @@ if (!function_exists('warehouse_sync_fetch_connector')) {
     }
 }
 
+
+if (!function_exists('warehouse_sync_resolve_permitted_connector')) {
+    function warehouse_sync_resolve_permitted_connector(mysqli $dbcnx, array $item, int $requestedConnectorId = 0): array
+    {
+        $forwarder = strtoupper(trim((string)($item['receiver_company'] ?? '')));
+        $country = strtoupper(trim((string)($item['receiver_country_code'] ?? '')));
+
+        if ($requestedConnectorId > 0) {
+            $stmtConnector = $dbcnx->prepare("SELECT id, name, countries, auth_username, auth_password, auth_token, auth_cookies, base_url, ssl_ignore, scenario_json, operations_json, is_active FROM connectors WHERE id = ? LIMIT 1");
+            if (!$stmtConnector) {
+                throw new RuntimeException('Ошибка доступа к коннектору');
+            }
+
+            $stmtConnector->bind_param('i', $requestedConnectorId);
+            $stmtConnector->execute();
+            $resConnector = $stmtConnector->get_result();
+            $connectorRow = $resConnector ? $resConnector->fetch_assoc() : null;
+            $stmtConnector->close();
+
+            if (!$connectorRow) {
+                throw new RuntimeException('Выбранный коннектор не найден');
+            }
+            if ((int)($connectorRow['is_active'] ?? 0) !== 1) {
+                throw new RuntimeException('Выбранный коннектор не активен. Активируйте его в настройках коннектора.');
+            }
+
+            return $connectorRow;
+        }
+
+        $connector = warehouse_sync_fetch_connector($dbcnx, $forwarder, $country);
+        if ($connector) {
+            return $connector;
+        }
+
+        $forwarderNorm = warehouse_sync_normalize_key($forwarder);
+        if ($forwarderNorm !== '') {
+            $forwarderCandidates = [$forwarderNorm];
+            if (strpos($forwarderNorm, 'DEV_') === 0) {
+                $forwarderCandidates[] = substr($forwarderNorm, 4);
+            }
+
+            $resAll = $dbcnx->query("SELECT name, countries, is_active FROM connectors ORDER BY id DESC");
+            if ($resAll) {
+                $hasMatchingInactive = false;
+                while ($row = $resAll->fetch_assoc()) {
+                    $nameNorm = warehouse_sync_normalize_key((string)($row['name'] ?? ''));
+                    if ($nameNorm === '') {
+                        continue;
+                    }
+
+                    $matchesName = false;
+                    foreach ($forwarderCandidates as $candidateNorm) {
+                        $namePlain = (strpos($nameNorm, 'DEV_') === 0) ? substr($nameNorm, 4) : $nameNorm;
+                        $candidatePlain = (strpos($candidateNorm, 'DEV_') === 0) ? substr($candidateNorm, 4) : $candidateNorm;
+                        if ($nameNorm === $candidateNorm || $namePlain === $candidateNorm || $nameNorm === $candidatePlain || $namePlain === $candidatePlain) {
+                            $matchesName = true;
+                            break;
+                        }
+                    }
+
+                    if (!$matchesName) {
+                        continue;
+                    }
+
+                    $countriesRaw = strtoupper(trim((string)($row['countries'] ?? '')));
+                    if ($country !== '' && $countriesRaw !== '') {
+                        $parts = array_map('trim', explode(',', $countriesRaw));
+                        if (!in_array($country, $parts, true)) {
+                            continue;
+                        }
+                    }
+
+                    if ((int)($row['is_active'] ?? 0) !== 1) {
+                        $hasMatchingInactive = true;
+                    }
+                }
+                $resAll->free();
+
+                if ($hasMatchingInactive) {
+                    throw new RuntimeException('Коннектор для форварда ' . $forwarder . ' не активен. Активируйте его в настройках коннекторов.');
+                }
+            }
+        }
+
+        throw new RuntimeException('Не найден активный коннектор для форварда ' . $forwarder);
+    }
+}
+
+
 if (!function_exists('warehouse_sync_submission_steps')) {
     function warehouse_sync_submission_steps(array $connector): array
     {
@@ -1407,32 +1496,7 @@ if ($action === 'warehouse_sync_item') {
     $tracking = trim((string)($item['tracking_no'] ?? ''));
 
     try {
-        $connector = null;
-        if ($connectorId > 0) {
-//            $stmtConnector = $dbcnx->prepare("SELECT id, name, countries, auth_username, auth_password, auth_token, auth_cookies, base_url, ssl_ignore, scenario_json, operations_json, is_active FROM connectors WHERE id = ? AND is_active = 1 LIMIT 1");
-            $stmtConnector = $dbcnx->prepare("SELECT id, name, countries, auth_username, auth_password, auth_token, auth_cookies, base_url, ssl_ignore, scenario_json, operations_json, is_active FROM connectors WHERE id = ? LIMIT 1");
-            if ($stmtConnector) {
-                $stmtConnector->bind_param('i', $connectorId);
-                $stmtConnector->execute();
-                $resConnector = $stmtConnector->get_result();
-                if ($resConnector && ($connectorRow = $resConnector->fetch_assoc())) {
-                    if ((int)($connectorRow['is_active'] ?? 0) !== 1) {
-                        throw new RuntimeException('Выбранный коннектор не активен. Активируйте его в настройках коннектора.');
-                    }
-                    $connector = $connectorRow;
-                } else {
-                    throw new RuntimeException('Выбранный коннектор не найден');
-                }
-                $stmtConnector->close();
-            }
-        }
-
-        if (!$connector) {
-            $connector = warehouse_sync_fetch_connector($dbcnx, $forwarder, $country);
-        }
-        if (!$connector) {
-            throw new RuntimeException('Не найден активный коннектор для форварда ' . $forwarder);
-        }
+        $connector = warehouse_sync_resolve_permitted_connector($dbcnx, $item, $connectorId);
 
         $debugNodePayload = [
             'steps' => warehouse_sync_submission_steps($connector),
@@ -1568,12 +1632,33 @@ if ($action === 'warehouse_sync_batch_enqueue') {
 
     $dbcnx->begin_transaction();
     try {
+
+        $validatedItems = [];
+        foreach ($items as $row) {
+            $itemId = (int)$row['item_id'];
+            $requestedConnectorId = (int)($row['connector_id'] ?? 0);
+            $itemRow = warehouse_sync_fetch_item($dbcnx, $itemId);
+            if (!$itemRow) {
+                continue;
+            }
+
+            $resolvedConnector = warehouse_sync_resolve_permitted_connector($dbcnx, $itemRow, $requestedConnectorId);
+            $validatedItems[] = [
+                'item_id' => $itemId,
+                'connector_id' => (int)($resolvedConnector['id'] ?? 0),
+            ];
+        }
+
+        if (!$validatedItems) {
+            throw new RuntimeException('Нет посылок с разрешенными активными коннекторами');
+        }
+
         $stmtJob = $dbcnx->prepare("INSERT INTO warehouse_sync_batch_jobs (status, forwarder, requested_by, total_items, message)
                                     VALUES ('queued', ?, ?, ?, 'queued from UI')");
         if (!$stmtJob) {
             throw new RuntimeException('prepare batch job failed');
         }
-        $total = count($items);
+        $total = count($validatedItems);
         $stmtJob->bind_param('sii', $forwarder, $requestedBy, $total);
         $stmtJob->execute();
         $jobId = (int)$dbcnx->insert_id;
@@ -1586,9 +1671,9 @@ if ($action === 'warehouse_sync_batch_enqueue') {
         }
 
         $queued = 0;
-        foreach ($items as $row) {
+        foreach ($validatedItems as $row) {
             $itemId = (int)$row['item_id'];
-            $connectorId = $row['connector_id'];
+            $connectorId = (int)$row['connector_id'];
             $stmtItem->bind_param('iii', $jobId, $itemId, $connectorId);
             $stmtItem->execute();
             if ($stmtItem->affected_rows > 0) {
@@ -1610,7 +1695,7 @@ if ($action === 'warehouse_sync_batch_enqueue') {
             'status' => 'ok',
             'job_id' => $jobId,
             'queued' => $queued,
-            'skipped' => max(0, count($items) - $queued),
+            'skipped' => max(0, count($validatedItems) - $queued),
             'message' => 'Batch job queued',
         ];
     } catch (Throwable $e) {
