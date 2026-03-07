@@ -21,36 +21,47 @@ static const bool HALL_ACTIVE_LOW = true; // если у тебя магнит �
 // Active-low: magnet -> LOW
 static const bool LIMIT_ACTIVE_LOW = true;
 
-volatile uint8_t limLatched = 0;
-enum : uint8_t {
-  LIM_VTOP   = 1 << 0,
-  LIM_VBOT   = 1 << 1,
-  LIM_HLEFT  = 1 << 2,
-  LIM_HRIGHT = 1 << 3
+volatile uint32_t limLatched = 0;
+enum : uint32_t {
+  LIM_VTOP   = 1u << 0,
+  LIM_VBOT   = 1u << 1,
+  LIM_HLEFT  = 1u << 2,
+  LIM_HRIGHT = 1u << 3
 };
 
-void isrVTop()   { limLatched |= LIM_VTOP;   }
-void isrVBot()   { limLatched |= LIM_VBOT;   }
-void isrHLeft()  { limLatched |= LIM_HLEFT;  }
-void isrHRight() { limLatched |= LIM_HRIGHT; }
+static inline void latchSet(uint32_t bit) {
+  limLatched |= bit;
+}
+
+void isrVTop()   { latchSet(LIM_VTOP); }
+void isrVBot()   { latchSet(LIM_VBOT); }
+void isrHLeft()  { latchSet(LIM_HLEFT); }
+void isrHRight() { latchSet(LIM_HRIGHT); }
+
+static inline bool latchConsume(uint32_t bit) {
+  bool had;
+  noInterrupts();
+  had = (limLatched & bit);
+  limLatched &= ~bit;
+  interrupts();
+  return had;
+}
 
 // level+debounce + latched edge
-static bool hallHitStableLatched(uint8_t pin, uint8_t bit) {
+static bool hallHitStableLatched(uint8_t pin, uint32_t bit) {
   // сначала проверим уровень (если сейчас на магните)
   for (int i = 0; i < 3; i++) {
     int v = digitalRead(pin);
     bool hit = LIMIT_ACTIVE_LOW ? (v == LOW) : (v == HIGH);
-    if (hit) return true;
+        if (hit) {
+      (void)latchConsume(bit);
+      return true;
+    }
     delay(2);
   }
 
-  // если проскочили магнит “внутри шага” — ловим latched edge
-  if (limLatched & bit) {
-    limLatched &= ~bit; // consume
-    return true;
+  return latchConsume(bit);
   }
-  return false;
-}
 
 // ================= Servo + OUT pins (your updated) =================
 #define SERVO1_PIN PB8
@@ -87,14 +98,17 @@ static int32_t  V_CENTER_OFFSET = 30;   // + вниз, - вверх
 static uint16_t H_SPEED_FAST = 0x0030;
 static uint16_t H_SPEED_SLOW = 0x0010;
 static uint16_t H_SPEED_RUN  = 0x0020;
-static uint32_t H_JOG_FAST   = 10;
-static uint32_t H_JOG_SLOW   = 10;
+static uint32_t H_JOG_FAST   = 50;
+static uint32_t H_JOG_SLOW   = 1;
 static uint32_t H_BACKOFF    = 20;
 static int32_t  H_CENTER_OFFSET = 0;
 
 // Safety
 static const uint32_t MAX_RANGE_STEPS = 200000;
 static const uint32_t MAX_HOMING_MS   = 30000;
+static const uint32_t RUN_JOG_STEPS   = 2;   // anti-overshoot: move in short chunks
+static const uint16_t RUN_JOG_DELAY_MS = 8;  // let driver execute each chunk
+static const uint16_t RUN_BRAKE_DELAY_MS = 4;
 
 // Directions (если перепутано — меняй местами true/false)
 static const bool DIR_UP_REVERSE    = false;
@@ -355,11 +369,26 @@ static void safeMoveH(int32_t delta) {
   if (move < 0 && hitHLeft())  { cmdF7(ADDR_H); return; }
 
   bool dir = (move > 0) ? DIR_RIGHT_REVERSE : DIR_LEFT_REVERSE;
-  cmdFD(ADDR_H, dir, H_SPEED_RUN, ACC_RUN, (uint32_t)abs(move));
-  //delay(20);
-  //cmdF7(ADDR_H);
+  int32_t sign = (move > 0) ? 1 : -1;
+  uint32_t remaining = (uint32_t)abs(move);
 
-  posH = target;
+    while (remaining > 0) {
+    if (sign > 0 && hitHRight()) break;
+    if (sign < 0 && hitHLeft())  break;
+
+    uint32_t chunk = (remaining > RUN_JOG_STEPS) ? RUN_JOG_STEPS : remaining;
+    cmdFD(ADDR_H, dir, H_SPEED_RUN, ACC_RUN, chunk);
+    delay(RUN_JOG_DELAY_MS);
+
+    // stop after each short chunk: prevents command queue from blasting past Hall marker
+    cmdF7(ADDR_H);
+    delay(RUN_BRAKE_DELAY_MS);
+
+    posH += (int32_t)chunk * sign;
+    if (posH < 0) posH = 0;
+    if (posH > (int32_t)rangeH) posH = (int32_t)rangeH;
+    remaining -= chunk;
+  }
 }
 
 static void safeMoveV(int32_t delta) {
@@ -375,11 +404,26 @@ static void safeMoveV(int32_t delta) {
   if (move < 0 && hitVBottom()) { cmdF7(ADDR_V); return; }
 
   bool dir = (move > 0) ? DIR_UP_REVERSE : DIR_DOWN_REVERSE;
-  cmdFD(ADDR_V, dir, V_SPEED_RUN, ACC_RUN, (uint32_t)abs(move));
-  //delay(20);
-  //cmdF7(ADDR_V);
+  int32_t sign = (move > 0) ? 1 : -1;
+  uint32_t remaining = (uint32_t)abs(move);
 
-  posV = target;
+    while (remaining > 0) {
+    if (sign > 0 && hitVTop())    break;
+    if (sign < 0 && hitVBottom()) break;
+
+    uint32_t chunk = (remaining > RUN_JOG_STEPS) ? RUN_JOG_STEPS : remaining;
+    cmdFD(ADDR_V, dir, V_SPEED_RUN, ACC_RUN, chunk);
+    delay(RUN_JOG_DELAY_MS);
+
+    // same anti-overshoot braking in run mode
+    cmdF7(ADDR_V);
+    delay(RUN_BRAKE_DELAY_MS);
+
+    posV += (int32_t)chunk * sign;
+    if (posV < 0) posV = 0;
+    if (posV > (int32_t)rangeV) posV = (int32_t)rangeV;
+    remaining -= chunk;
+  }
 }
 
 // ================= OUT + Servo control =================
@@ -449,6 +493,11 @@ static void cmdStatus() {
 
 static void cmdHome() {
   Serial2.println("PRE-POLL:");
+
+    noInterrupts();
+  limLatched = 0;
+  interrupts();
+
   pollAll("PRE");
 
   homedV = homedH = false;
@@ -587,10 +636,11 @@ void setup() {
   pinMode(H_LEFT, INPUT_PULLUP);
   pinMode(H_RIGHT, INPUT_PULLUP);
 
-attachInterrupt(digitalPinToInterrupt(V_TOP),    isrVTop,   FALLING);
-attachInterrupt(digitalPinToInterrupt(V_BOTTOM), isrVBot,   FALLING);
-attachInterrupt(digitalPinToInterrupt(H_LEFT),   isrHLeft,  FALLING);
-attachInterrupt(digitalPinToInterrupt(H_RIGHT),  isrHRight, FALLING);
+   ExtIntTriggerMode irqMode = LIMIT_ACTIVE_LOW ? FALLING : RISING;
+  attachInterrupt(digitalPinToInterrupt(V_TOP),    isrVTop,   irqMode);
+  attachInterrupt(digitalPinToInterrupt(V_BOTTOM), isrVBot,   irqMode);
+  attachInterrupt(digitalPinToInterrupt(H_LEFT),   isrHLeft,  irqMode);
+  attachInterrupt(digitalPinToInterrupt(H_RIGHT),  isrHRight, irqMode);
 
   Serial1.begin(115200);
   Serial2.begin(DBG_BAUD);
@@ -607,6 +657,10 @@ attachInterrupt(digitalPinToInterrupt(H_RIGHT),  isrHRight, FALLING);
   // servoInitSequence();
 
   // motor homing on boot
+    noInterrupts();
+  limLatched = 0;
+  interrupts();
+
   pollAll("PRE");
   (void)homeVertical();
   delay(200);
