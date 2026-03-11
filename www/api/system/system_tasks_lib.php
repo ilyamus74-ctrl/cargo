@@ -79,6 +79,11 @@ function system_tasks_endpoint_registry(): array
             'name' => 'Backfill warehouse_item_out',
             'description' => 'Заполняет/обновляет warehouse_item_out из warehouse_item_stock.',
         ],
+        'warehouse_stock_to_out_sync' => [
+            'group' => 'warehouse',
+            'name' => 'Stock -> Out sync',
+            'description' => 'Отдельный endpoint для переноса/обновления warehouse_item_out из warehouse_item_stock.',
+        ],
         'connectors_report_operation_1' => [
             'group' => 'connectors',
             'name' => 'Коннекторы: операция #1 (репорты)',
@@ -121,7 +126,7 @@ function system_tasks_seed_defaults(mysqli $dbcnx): void
             'code' => 'warehouse_sync_out_backfill_hourly',
             'name' => 'Backfill warehouse_item_out (раз в час)',
             'description' => 'Заполняет/обновляет warehouse_item_out из warehouse_item_stock.',
-            'endpoint_action' => 'warehouse_sync_out_backfill',
+            'endpoint_action' => 'warehouse_stock_to_out_sync',
             'interval_minutes' => 60,
         ],
         [
@@ -279,7 +284,7 @@ function system_tasks_execute(mysqli $dbcnx, array $task, int $systemUserId = 0)
         return system_tasks_run_warehouse_sync_batch_worker($dbcnx, $task, $systemUserId);
     }
 
-    if ($action === 'warehouse_sync_out_backfill') {
+    if ($action === 'warehouse_sync_out_backfill' || $action === 'warehouse_stock_to_out_sync') {
         return system_tasks_run_warehouse_sync_out_backfill($dbcnx, $task);
     }
 
