@@ -450,6 +450,18 @@
                   </div>
                 </div>
 
+                <div class="row mb-3">
+                  <label for="addon_status_targets_json" class="col-md-4 col-lg-3 col-form-label">Статусы -> таблица</label>
+                  <div class="col-md-8 col-lg-9">
+                    <textarea class="form-control"
+                              id="addon_status_targets_json"
+                              name="addon_status_targets_json"
+                              rows="5"
+                              placeholder='{literal}{"Declared":"warehouse_item_out","Declared. Duty paid":"warehouse_item_out","Legal entity":"warehouse_item_out"}{/literal}'>{$addons.status_targets_json|escape}</textarea>
+                    <div class="form-text">JSON-маршрутизация по статусам из репорта форварда: при совпадении статуса система использует указанную таблицу как целевую для операции перевода в отгрузку (operation #3).</div>
+                  </div>
+                </div>
+
                 <div class="d-flex gap-2">
                   <button type="button" class="btn btn-primary js-core-link" data-core-action="save_connector_addons">
                     Сохранить ДопИнфо

@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-03-05 16:58:34
+/* Smarty version 5.3.1, created on 2026-03-11 11:08:53
   from 'file:cells_NA_API_connector_operations_modal.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_69a9b63a7e9839_63059830',
+  'unifunc' => 'content_69b14d45c52757_69328024',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '4e0cfb81384357625659d5eca445a63482fe7323' => 
     array (
       0 => 'cells_NA_API_connector_operations_modal.html',
-      1 => 1772729543,
+      1 => 1773226290,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_69a9b63a7e9839_63059830 (\Smarty\Template $_smarty_tpl) {
+function content_69b14d45c52757_69328024 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>
 <section class="section">
@@ -489,6 +489,19 @@ $_smarty_current_dir = '/home/cells/web/templates';
                               placeholder='{"forwarder_field":"node_field"}'><?php echo htmlspecialchars((string)$_smarty_tpl->getValue('addons')['node_mapping_json'], ENT_QUOTES, 'UTF-8', true);?>
 </textarea>
                     <div class="form-text">Маппинг для заполнения через node-сценарий по конкретному форварду.</div>
+                  </div>
+                </div>
+
+                <div class="row mb-3">
+                  <label for="addon_status_targets_json" class="col-md-4 col-lg-3 col-form-label">Статусы -> таблица</label>
+                  <div class="col-md-8 col-lg-9">
+                    <textarea class="form-control"
+                              id="addon_status_targets_json"
+                              name="addon_status_targets_json"
+                              rows="5"
+                              placeholder='{"Declared":"warehouse_item_out","Declared. Duty paid":"warehouse_item_out","Legal entity":"warehouse_item_out"}'><?php echo htmlspecialchars((string)$_smarty_tpl->getValue('addons')['status_targets_json'], ENT_QUOTES, 'UTF-8', true);?>
+</textarea>
+                    <div class="form-text">JSON-маршрутизация по статусам из репорта форварда: при совпадении статуса система использует указанную таблицу как целевую для операции перевода в отгрузку (operation #3).</div>
                   </div>
                 </div>
 

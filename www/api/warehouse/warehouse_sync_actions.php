@@ -611,32 +611,100 @@ if (!function_exists('warehouse_sync_is_error_report_status')) {
 }
 
 
-if (!function_exists('warehouse_sync_report_status_rules')) {
-    function warehouse_sync_report_status_rules(): array
+if (!function_exists('warehouse_sync_status_target_map_for_connector')) {
+    function warehouse_sync_status_target_map_for_connector(mysqli $dbcnx, string $forwarder, string $countryCode): array
     {
-        static $rules = null;
-        if (is_array($rules)) {
-            return $rules;
+        static $cache = [];
+
+        $forwarderNorm = strtolower(warehouse_sync_normalize_key($forwarder));
+        $countryNorm = strtoupper(warehouse_sync_normalize_key($countryCode));
+        $cacheKey = $forwarderNorm . '|' . $countryNorm;
+        if (array_key_exists($cacheKey, $cache)) {
+            return $cache[$cacheKey];
         }
 
-        // Пока правила захардкожены в коде. Позже можно вынести в UI/настройки.
-        $shared = [
-            'on the way' => 'sended',
-            'in transit' => 'sended',
-            'shipped' => 'sended',
-            'sent' => 'sended',
-            'dispatch' => 'sended',
-            'dispatched' => 'sended',
-        ];
+        if ($forwarderNorm === '' || $countryNorm === '') {
+            $cache[$cacheKey] = [];
+            return [];
+        }
 
-        $rules = [
-            '*' => $shared,
-            'colibri' => $shared,
-            'dev_colibri' => $shared,
-            'kolli' => $shared,
-        ];
+        $sql = "SELECT c.name, c.countries, ca.status_targets_json
+"
+            . "FROM connectors c
+"
+            . "JOIN connectors_addons ca ON ca.connector_id = c.id
+"
+            . "WHERE c.is_active = 1 AND c.name <> ''";
 
-        return $rules;
+        $rows = [];
+        if ($res = $dbcnx->query($sql)) {
+            while ($row = $res->fetch_assoc()) {
+                $rows[] = $row;
+            }
+            $res->free();
+        }
+
+        $matchedMap = [];
+        foreach ($rows as $row) {
+            $rowForwarder = strtolower(warehouse_sync_normalize_key((string)($row['name'] ?? '')));
+            if ($rowForwarder !== $forwarderNorm) {
+                continue;
+            }
+
+            $countriesRaw = strtoupper((string)($row['countries'] ?? ''));
+            $countries = array_values(array_filter(array_map(static function ($item) {
+                return strtoupper(warehouse_sync_normalize_key((string)$item));
+            }, explode(',', $countriesRaw)), static function ($item) {
+                return $item !== '';
+            }));
+            if (!empty($countries) && !in_array($countryNorm, $countries, true)) {
+                continue;
+            }
+            $rawMap = trim((string)($row['status_targets_json'] ?? ''));
+            if ($rawMap === '') {
+                continue;
+            }
+
+            $decodedMap = json_decode($rawMap, true);
+            if (!is_array($decodedMap) || empty($decodedMap)) {
+                continue;
+            }
+
+            $map = [];
+            foreach ($decodedMap as $status => $targetTable) {
+                $statusKey = mb_strtolower(trim((string)$status), 'UTF-8');
+                $target = trim((string)$targetTable);
+                if ($statusKey === '' || $target === '') {
+                    continue;
+                }
+                $map[$statusKey] = $target;
+            }
+
+            if (!empty($map)) {
+                $matchedMap = $map;
+                break;
+            }
+        }
+
+        $cache[$cacheKey] = $matchedMap;
+        return $matchedMap;
+    }
+}
+
+if (!function_exists('warehouse_sync_target_table_by_report_status')) {
+    function warehouse_sync_target_table_by_report_status(mysqli $dbcnx, string $forwarder, string $countryCode, string $reportStatus): string
+    {
+        $statusNorm = mb_strtolower(trim($reportStatus), 'UTF-8');
+        if ($statusNorm === '') {
+            return '';
+        }
+
+        $map = warehouse_sync_status_target_map_for_connector($dbcnx, $forwarder, $countryCode);
+        if (isset($map[$statusNorm])) {
+            return trim((string)$map[$statusNorm]);
+        }
+
+        return '';
     }
 }
 
@@ -648,13 +716,6 @@ if (!function_exists('warehouse_sync_out_status_by_report_status')) {
             return '';
         }
 
-        $forwarderNorm = strtolower(warehouse_sync_normalize_key($forwarder));
-        $rules = warehouse_sync_report_status_rules();
-
-        $map = $rules[$forwarderNorm] ?? ($rules['*'] ?? []);
-        if (isset($map[$normalizedStatus])) {
-            return trim((string)$map[$normalizedStatus]);
-        }
 
         if (warehouse_sync_is_error_report_status($reportStatus)) {
             return 'error';
@@ -664,8 +725,8 @@ if (!function_exists('warehouse_sync_out_status_by_report_status')) {
             return 'confirmed_sync';
         }
 
-        // Любой непустой промежуточный статус считаем отправленным в форвард.
-        return 'sended';
+        // Без явного JSON-маршрута в ДопИнфо не переводим в to_send/sended автоматически.
+        return 'half_sync';
     }
 }
 
@@ -827,7 +888,14 @@ if (!function_exists('warehouse_sync_reconcile_half_sync')) {
             }
 
             $reportStatus = trim((string)($report['report_status'] ?? ''));
-            $nextStatus = warehouse_sync_out_status_by_report_status($forwarder, $reportStatus);
+            $targetTable = warehouse_sync_target_table_by_report_status($dbcnx, $forwarder, $countryCode, $reportStatus);
+            if ($targetTable !== '') {
+                $nextStatus = strtolower($targetTable) === 'warehouse_item_out'
+                    ? 'to_send'
+                    : warehouse_sync_out_status_by_report_status($forwarder, $reportStatus);
+            } else {
+                $nextStatus = warehouse_sync_out_status_by_report_status($forwarder, $reportStatus);
+            }
 
             if ($nextStatus === '') {
                 $stats['unchanged']++;
@@ -835,7 +903,7 @@ if (!function_exists('warehouse_sync_reconcile_half_sync')) {
             }
 
             $message = $reportStatus !== ''
-                ? ('report status: ' . $reportStatus)
+                ? ('report status: ' . $reportStatus . ($targetTable !== '' ? (' -> ' . $targetTable) : ''))
                 : ('report matched in ' . (string)($report['table_name'] ?? 'connector_report'));
 
             warehouse_sync_out_set_status($dbcnx, $itemId, $nextStatus, $message);

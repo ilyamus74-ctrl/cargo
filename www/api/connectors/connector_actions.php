@@ -102,6 +102,7 @@ function connectors_ensure_schema(mysqli $dbcnx): void
             connector_name VARCHAR(128) NOT NULL DEFAULT '',
             addons_json LONGTEXT NULL,
             node_mapping_json LONGTEXT NULL,
+            status_targets_json LONGTEXT NULL,
             created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
             updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             PRIMARY KEY (id),
@@ -112,6 +113,24 @@ function connectors_ensure_schema(mysqli $dbcnx): void
     if (!$dbcnx->query($addonsSql)) {
         error_log('connectors_addons schema create error: ' . $dbcnx->error);
     }
+
+    $addonsColumnsToEnsure = [
+        'status_targets_json' => "ALTER TABLE connectors_addons ADD COLUMN status_targets_json LONGTEXT NULL AFTER node_mapping_json",
+    ];
+
+    foreach ($addonsColumnsToEnsure as $column => $alterSql) {
+        $columnCheck = $dbcnx->query("SHOW COLUMNS FROM connectors_addons LIKE '{$column}'");
+        if ($columnCheck instanceof mysqli_result) {
+            if ($columnCheck->num_rows === 0) {
+                if (!$dbcnx->query($alterSql)) {
+                    error_log('connectors_addons schema alter error: ' . $dbcnx->error);
+                }
+            }
+            $columnCheck->free();
+        } elseif ($columnCheck === false) {
+            error_log('connectors_addons schema check error: ' . $dbcnx->error);
+        }
+    }
 }
 
 function connectors_default_addons(): array
@@ -121,6 +140,7 @@ function connectors_default_addons(): array
         'category' => '',
         'extra_json' => '',
         'node_mapping_json' => '',
+        'status_targets_json' => '',
     ];
 }
 
@@ -150,13 +170,21 @@ function connectors_decode_addons(array $row): array
         }
     }
 
+
+    $rawStatusTargets = trim((string)($row['status_targets_json'] ?? ''));
+    if ($rawStatusTargets !== '') {
+        $decodedStatusTargets = json_decode($rawStatusTargets, true);
+        if (is_array($decodedStatusTargets) && !empty($decodedStatusTargets)) {
+            $addons['status_targets_json'] = json_encode($decodedStatusTargets, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT) ?: '';
+        }
+    }
     return $addons;
 }
 
 function connectors_fetch_addons(mysqli $dbcnx, int $connectorId): array
 {
     $addons = connectors_default_addons();
-    $stmt = $dbcnx->prepare('SELECT addons_json, node_mapping_json FROM connectors_addons WHERE connector_id = ? LIMIT 1');
+    $stmt = $dbcnx->prepare('SELECT addons_json, node_mapping_json, status_targets_json FROM connectors_addons WHERE connector_id = ? LIMIT 1');
     if (!$stmt) {
         error_log('connectors addons fetch prepare error: ' . $dbcnx->error);
         return $addons;
@@ -185,6 +213,7 @@ function connectors_build_addons_payload_from_post(): array
     $category = trim((string)($_POST['addon_category'] ?? ''));
     $extraJsonRaw = trim((string)($_POST['addon_extra_json'] ?? ''));
     $nodeMappingJsonRaw = trim((string)($_POST['addon_node_mapping_json'] ?? ''));
+    $statusTargetsJsonRaw = trim((string)($_POST['addon_status_targets_json'] ?? ''));
 
     $extra = [];
     if ($extraJsonRaw !== '') {
@@ -204,6 +233,22 @@ function connectors_build_addons_payload_from_post(): array
         $nodeMapping = $decodedMapping;
     }
 
+    $statusTargets = [];
+    if ($statusTargetsJsonRaw !== '') {
+        $decodedStatusTargets = json_decode($statusTargetsJsonRaw, true);
+        if (!is_array($decodedStatusTargets)) {
+            throw new InvalidArgumentException('Некорректный JSON в "Карта статусов -> таблица"');
+        }
+        foreach ($decodedStatusTargets as $status => $targetTable) {
+            $statusKey = trim((string)$status);
+            $target = trim((string)$targetTable);
+            if ($statusKey === '' || $target === '') {
+                continue;
+            }
+            $statusTargets[$statusKey] = $target;
+        }
+    }
+
     return [
         'addons' => [
             'tariff_type' => $tariffType,
@@ -211,6 +256,7 @@ function connectors_build_addons_payload_from_post(): array
             'extra' => $extra,
         ],
         'node_mapping' => $nodeMapping,
+        'status_targets' => $statusTargets,
     ];
 }
 function connectors_build_status(array $connector): array
@@ -1852,7 +1898,16 @@ switch ($normalizedAction) {
             break;
         }
 
-        $stmt = $dbcnx->prepare('INSERT INTO connectors_addons (connector_id, connector_name, addons_json, node_mapping_json) VALUES (?, ?, ?, ?) ON DUPLICATE KEY UPDATE connector_name = VALUES(connector_name), addons_json = VALUES(addons_json), node_mapping_json = VALUES(node_mapping_json)');
+        $statusTargetsJson = json_encode($addonsPayload['status_targets'], JSON_UNESCAPED_UNICODE);
+        if ($statusTargetsJson === false) {
+            $response = [
+                'status' => 'error',
+                'message' => 'Не удалось сериализовать карту статусов',
+            ];
+            break;
+        }
+
+        $stmt = $dbcnx->prepare('INSERT INTO connectors_addons (connector_id, connector_name, addons_json, node_mapping_json, status_targets_json) VALUES (?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE connector_name = VALUES(connector_name), addons_json = VALUES(addons_json), node_mapping_json = VALUES(node_mapping_json), status_targets_json = VALUES(status_targets_json)');
         if (!$stmt) {
             $response = [
                 'status' => 'error',
@@ -1862,7 +1917,7 @@ switch ($normalizedAction) {
         }
 
         $connectorName = trim((string)($connector['name'] ?? ''));
-        $stmt->bind_param('isss', $connectorId, $connectorName, $addonsJson, $nodeMappingJson);
+        $stmt->bind_param('issss', $connectorId, $connectorName, $addonsJson, $nodeMappingJson, $statusTargetsJson);
         if (!$stmt->execute()) {
             $response = [
                 'status' => 'error',
