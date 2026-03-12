@@ -372,6 +372,74 @@ if (!function_exists('warehouse_sync_audit_log')) {
 }
 
 
+if (!function_exists('warehouse_sync_ensure_trace_table')) {
+    function warehouse_sync_ensure_trace_table(mysqli $dbcnx): void
+    {
+        $sql = "CREATE TABLE IF NOT EXISTS warehouse_sync_trace (
+"
+            . " id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+"
+            . " item_id BIGINT UNSIGNED NOT NULL,
+"
+            . " connector_id BIGINT UNSIGNED NOT NULL DEFAULT 0,
+"
+            . " job_id BIGINT UNSIGNED NOT NULL DEFAULT 0,
+"
+            . " stage VARCHAR(64) NOT NULL DEFAULT '',
+"
+            . " policy_code VARCHAR(64) NOT NULL DEFAULT '',
+"
+            . " decision VARCHAR(32) NOT NULL DEFAULT '',
+"
+            . " reason TEXT NULL,
+"
+            . " snapshot_json LONGTEXT NULL,
+"
+            . " created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+"
+            . " PRIMARY KEY (id),
+"
+            . " KEY idx_item_created (item_id, created_at),
+"
+            . " KEY idx_connector_created (connector_id, created_at),
+"
+            . " KEY idx_job_created (job_id, created_at),
+"
+            . " KEY idx_stage_created (stage, created_at)
+"
+            . ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci";
+        $dbcnx->query($sql);
+    }
+}
+
+if (!function_exists('warehouse_sync_trace_log')) {
+    function warehouse_sync_trace_log(mysqli $dbcnx, array $entry): void
+    {
+        warehouse_sync_ensure_trace_table($dbcnx);
+
+        $sql = 'INSERT INTO warehouse_sync_trace (item_id, connector_id, job_id, stage, policy_code, decision, reason, snapshot_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?)';
+        $stmt = $dbcnx->prepare($sql);
+        if (!$stmt) {
+            return;
+        }
+
+        $itemId = (int)($entry['item_id'] ?? 0);
+        $connectorId = (int)($entry['connector_id'] ?? 0);
+        $jobId = max(0, (int)($entry['job_id'] ?? 0));
+        $stage = trim((string)($entry['stage'] ?? ''));
+        $policyCode = trim((string)($entry['policy_code'] ?? ''));
+        $decision = trim((string)($entry['decision'] ?? ''));
+        $reason = trim((string)($entry['reason'] ?? ''));
+        $snapshotJson = trim((string)($entry['snapshot_json'] ?? ''));
+
+        $stmt->bind_param('iiisssss', $itemId, $connectorId, $jobId, $stage, $policyCode, $decision, $reason, $snapshotJson);
+        $stmt->execute();
+        $stmt->close();
+    }
+}
+
+
+
 if (!function_exists('warehouse_sync_ensure_out_table')) {
     function warehouse_sync_ensure_out_table(mysqli $dbcnx): void
     {
@@ -1535,11 +1603,46 @@ if (!function_exists('warehouse_sync_build_planner_output')) {
             'missing_required_vars' => $missingRequired,
         ]);
 
+        $itemId = (int)($item['id'] ?? 0);
+
         $stopReasons = [];
         foreach ((array)$policyEval['decisions'] as $d) {
             if (empty($d['ok'])) {
                 $stopReasons[] = (string)($d['message'] ?? 'blocked');
             }
+        }
+
+
+        $planSnapshot = [
+            'operation_flow' => array_map(static function($s){ return (string)($s['code'] ?? ''); }, (array)($processDef['stages'] ?? [])),
+            'required_vars' => $requiredVars,
+            'missing_required_vars' => $missingRequired,
+            'can_execute' => !$policyEval['blocked'],
+            'stop_reasons' => $stopReasons,
+        ];
+        $planSnapshotJson = json_encode($planSnapshot, JSON_UNESCAPED_UNICODE);
+        warehouse_sync_trace_log($dbcnx, [
+            'item_id' => $itemId,
+            'connector_id' => $connectorId,
+            'job_id' => max(0, (int)($_POST['job_id'] ?? 0)),
+            'stage' => 'plan_built',
+            'decision' => !$policyEval['blocked'] ? 'allow' : 'block',
+            'reason' => !$policyEval['blocked'] ? 'execution plan ready' : implode('; ', $stopReasons),
+            'snapshot_json' => $planSnapshotJson === false ? '' : $planSnapshotJson,
+        ]);
+
+        foreach ((array)$policyEval['decisions'] as $decision) {
+            $policySnapshot = json_encode($decision, JSON_UNESCAPED_UNICODE);
+            warehouse_sync_trace_log($dbcnx, [
+                'item_id' => $itemId,
+                'connector_id' => $connectorId,
+                'job_id' => max(0, (int)($_POST['job_id'] ?? 0)),
+                'stage' => 'policy_evaluated',
+                'policy_code' => trim((string)($decision['code'] ?? '')),
+                'decision' => !empty($decision['ok']) ? 'allow' : 'block',
+                'reason' => trim((string)($decision['message'] ?? '')),
+                'snapshot_json' => $policySnapshot === false ? '' : $policySnapshot,
+            ]);
         }
 
         return [
@@ -2013,7 +2116,39 @@ if ($action === 'warehouse_sync_item') {
             'error_wait_ms' => 1800,
         ];
 
+        $submissionStartSnapshot = json_encode([
+            'item_id' => $itemId,
+            'connector_id' => (int)($connector['id'] ?? 0),
+            'step_count' => count((array)($debugNodePayload['steps'] ?? [])),
+            'vars_keys' => array_keys((array)($debugNodePayload['vars'] ?? [])),
+        ], JSON_UNESCAPED_UNICODE);
+        warehouse_sync_trace_log($dbcnx, [
+            'item_id' => $itemId,
+            'connector_id' => (int)($connector['id'] ?? 0),
+            'job_id' => max(0, (int)($_POST['job_id'] ?? 0)),
+            'stage' => 'submission_started',
+            'decision' => 'started',
+            'reason' => 'submission pipeline started',
+            'snapshot_json' => $submissionStartSnapshot === false ? '' : $submissionStartSnapshot,
+        ]);
+
         $result = warehouse_sync_run_submission($connector, $item, $debugNodePayload);
+
+        $submissionFinishSnapshot = json_encode([
+            'message' => (string)($result['message'] ?? ''),
+            'out_status' => (string)($result['out_status'] ?? ''),
+            'captured_error_text' => (string)($result['captured_error_text'] ?? ''),
+            'step_log_count' => count((array)($result['step_log'] ?? [])),
+        ], JSON_UNESCAPED_UNICODE);
+        warehouse_sync_trace_log($dbcnx, [
+            'item_id' => $itemId,
+            'connector_id' => isset($connector) && is_array($connector) ? (int)($connector['id'] ?? 0) : $connectorId,
+            'job_id' => max(0, (int)($_POST['job_id'] ?? 0)),
+            'stage' => 'submission_finished',
+            'decision' => 'success',
+            'reason' => trim((string)($result['message'] ?? 'submission completed')),
+            'snapshot_json' => $submissionFinishSnapshot === false ? '' : $submissionFinishSnapshot,
+        ]);
         $responsePayload = [
             'message' => $result['message'],
             'connector_id' => (int)($connector['id'] ?? 0),
@@ -2046,6 +2181,21 @@ if ($action === 'warehouse_sync_item') {
         ]);
 
         warehouse_sync_out_set_status($dbcnx, $itemId, $outStatus, $statusMessage);
+
+        $statusPersistSnapshot = json_encode([
+            'out_status' => $outStatus,
+            'status_message' => $statusMessage,
+            'tracking_no' => $tracking,
+        ], JSON_UNESCAPED_UNICODE);
+        warehouse_sync_trace_log($dbcnx, [
+            'item_id' => $itemId,
+            'connector_id' => isset($connector) && is_array($connector) ? (int)($connector['id'] ?? 0) : $connectorId,
+            'job_id' => max(0, (int)($_POST['job_id'] ?? 0)),
+            'stage' => 'status_persisted',
+            'decision' => $outStatus,
+            'reason' => $statusMessage,
+            'snapshot_json' => $statusPersistSnapshot === false ? '' : $statusPersistSnapshot,
+        ]);
         audit_log($userId, 'WAREHOUSE_SYNC_ITEM_SUCCESS', 'warehouse_item_stock', $itemId, 'Синхронизация посылки выполнена', [
             'item_id' => $itemId,
             'tracking_no' => $tracking,
@@ -2067,6 +2217,22 @@ if ($action === 'warehouse_sync_item') {
             'node_payload' => isset($result['node_payload']) && is_array($result['node_payload']) ? $result['node_payload'] : $debugNodePayload,
         ];
     } catch (Throwable $e) {
+
+        $submissionErrorSnapshot = json_encode([
+            'error' => $e->getMessage(),
+            'item_id' => $itemId,
+            'tracking_no' => $tracking,
+        ], JSON_UNESCAPED_UNICODE);
+        warehouse_sync_trace_log($dbcnx, [
+            'item_id' => $itemId,
+            'connector_id' => isset($connector) && is_array($connector) ? (int)($connector['id'] ?? 0) : $connectorId,
+            'job_id' => max(0, (int)($_POST['job_id'] ?? 0)),
+            'stage' => 'submission_finished',
+            'decision' => 'error',
+            'reason' => $e->getMessage(),
+            'snapshot_json' => $submissionErrorSnapshot === false ? '' : $submissionErrorSnapshot,
+        ]);
+
         $errorPayload = ['error' => $e->getMessage()];
         if (isset($debugNodePayload) && is_array($debugNodePayload)) {
             $errorPayload['node_payload'] = $debugNodePayload;
@@ -2083,6 +2249,21 @@ if ($action === 'warehouse_sync_item') {
             'created_by' => $userId,
         ]);
         warehouse_sync_out_set_status($dbcnx, $itemId, 'error', $e->getMessage());
+
+        $statusErrorSnapshot = json_encode([
+            'out_status' => 'error',
+            'status_message' => $e->getMessage(),
+            'tracking_no' => $tracking,
+        ], JSON_UNESCAPED_UNICODE);
+        warehouse_sync_trace_log($dbcnx, [
+            'item_id' => $itemId,
+            'connector_id' => isset($connector) && is_array($connector) ? (int)($connector['id'] ?? 0) : $connectorId,
+            'job_id' => max(0, (int)($_POST['job_id'] ?? 0)),
+            'stage' => 'status_persisted',
+            'decision' => 'error',
+            'reason' => $e->getMessage(),
+            'snapshot_json' => $statusErrorSnapshot === false ? '' : $statusErrorSnapshot,
+        ]);
         audit_log($userId, 'WAREHOUSE_SYNC_ITEM_ERROR', 'warehouse_item_stock', $itemId, 'Ошибка синхронизации посылки', [
             'item_id' => $itemId,
             'tracking_no' => $tracking,
