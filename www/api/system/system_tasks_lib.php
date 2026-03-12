@@ -391,6 +391,10 @@ function system_tasks_run_connectors_report_operation_1(mysqli $dbcnx, array $ta
         'connectors_download_report_file',
         'connectors_import_csv_into_report_table',
         'connectors_import_xlsx_into_report_table',
+        'connectors_generate_run_id',
+        'connectors_append_trace_event',
+        'connectors_build_chain_status_map',
+        'connectors_persist_run_trace',
     ];
     foreach ($requiredFns as $fn) {
         if (!function_exists($fn)) {
@@ -521,6 +525,8 @@ function system_tasks_run_connectors_report_operation_1(mysqli $dbcnx, array $ta
             }
 
             if (function_exists('connectors_persist_run_trace')) {
+            $stepLog = method_exists($e, 'getStepLog') ? (array)$e->getStepLog() : [];
+            $artifactsDir = method_exists($e, 'getArtifactsDir') ? (string)$e->getArtifactsDir() : '';
                 connectors_persist_run_trace($dbcnx, [
                     'connector_id' => $connectorId,
                     'run_id' => $runId,
