@@ -17,6 +17,39 @@
                 <li><strong>Проверка перед sync</strong> — система проверяет: коннектор активен, шаги есть, обязательные ${...} заполнены.</li>
               </ol>
               <div class="text-muted">Для машинной подсказки используйте API action <code>warehouse_sync_process_helper</code> (вернет стадии, политики и чек-лист).</div>
+
+
+              <div class="border rounded p-2 mt-2 bg-light">
+                <div class="fw-semibold mb-2">Самообновляемая подсказка по конкретной посылке</div>
+                <div class="row g-2 align-items-end mb-2">
+                  <div class="col-sm-4 col-md-3">
+                    <label for="process-helper-item-id" class="form-label mb-1">ID посылки</label>
+                    <input type="number" min="1" class="form-control form-control-sm" id="process-helper-item-id" placeholder="Например, 12345">
+                  </div>
+                  <div class="col-auto">
+                    <button type="button" class="btn btn-sm btn-outline-primary js-core-link" data-core-action="warehouse_sync_process_helper">
+                      Обновить подсказку
+                    </button>
+                  </div>
+                </div>
+
+                <div id="process-helper-status" class="text-muted mb-2">Укажите ID посылки и нажмите «Обновить подсказку».</div>
+
+                <div class="mb-2">
+                  <div class="fw-semibold">Обязательные поля (коннектор/товар):</div>
+                  <div id="process-helper-required-vars" class="small text-muted">—</div>
+                </div>
+
+                <div class="mb-2">
+                  <div class="fw-semibold">Что блокирует исполнение сейчас:</div>
+                  <div id="process-helper-blockers" class="small text-muted">—</div>
+                </div>
+
+                <div>
+                  <div class="fw-semibold">Quick-check перед запуском:</div>
+                  <div id="process-helper-quick-check" class="small text-muted">—</div>
+                </div>
+              </div>
             </div>
           </details>
 

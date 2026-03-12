@@ -115,6 +115,21 @@ const CoreAPI = {
                 },
                 'save_connector_addons': () => this.getFormById('connector-operations-form'),
 
+                'warehouse_sync_process_helper': () => {
+                    const fd = new FormData();
+                    const itemInput = document.getElementById('process-helper-item-id');
+                    const connectorInput = document.querySelector('#connector-operations-form input[name="connector_id"]');
+                    const itemId = (itemInput?.value || '').trim();
+                    const connectorId = (connectorInput?.value || '').trim();
+                    if (itemId) {
+                        fd.append('item_id', itemId);
+                    }
+                    if (connectorId) {
+                        fd.append('connector_id', connectorId);
+                    }
+                    return fd;
+                },
+
                 'tools_management_open_modal': () => this.withAttribute('tool_id', link),
                 'tools_management_open_user_modal': () => this.withAttribute('tool_id', link),
                 'tools_management_open_cell_modal': () => this.withAttribute('tool_id', link),
@@ -543,6 +558,60 @@ const CoreAPI = {
                     CoreAPI.ui.showModal(d2.html);
                 }
             }
+        },
+
+
+        'warehouse_sync_process_helper': (data) => {
+            const setText = (id, html, fallback = '—') => {
+                const el = document.getElementById(id);
+                if (!el) return;
+                const safe = (typeof html === 'string' && html.trim() !== '') ? html : fallback;
+                el.innerHTML = safe;
+            };
+
+            const processHelper = (data && typeof data === 'object' && data.process_helper && typeof data.process_helper === 'object')
+                ? data.process_helper
+                : {};
+            const executionPlan = (data && typeof data === 'object' && data.execution_plan && typeof data.execution_plan === 'object')
+                ? data.execution_plan
+                : {};
+
+            const requiredVars = Array.isArray(executionPlan?.data_block?.required_vars)
+                ? executionPlan.data_block.required_vars
+                : [];
+            const missingVars = Array.isArray(executionPlan?.data_block?.missing_required_vars)
+                ? executionPlan.data_block.missing_required_vars
+                : [];
+
+            const requiredHtml = requiredVars.length > 0
+                ? `<ul class="mb-0">${requiredVars.map((name) => {
+                    const safeName = String(name).replace(/[<>&]/g, '');
+                    const isMissing = missingVars.includes(name);
+                    return `<li>${isMissing ? '<span class="text-danger">' : ''}<code>${safeName}</code>${isMissing ? '</span> <span class="text-danger">(не заполнено)</span>' : ''}</li>`;
+                }).join('')}</ul>`
+                : 'Нет обязательных переменных по текущему сценарию.';
+
+            const blockers = Array.isArray(executionPlan?.stop_reasons) ? executionPlan.stop_reasons : [];
+            const blockersHtml = blockers.length > 0
+                ? `<ul class="mb-0">${blockers.map((reason) => `<li class="text-danger">${String(reason).replace(/[<>&]/g, '')}</li>`).join('')}</ul>`
+                : '<span class="text-success">Блокирующие проверки не найдены.</span>';
+
+            const quickCheck = Array.isArray(processHelper?.quick_check) ? processHelper.quick_check : [];
+            const quickCheckHtml = quickCheck.length > 0
+                ? `<ol class="mb-0">${quickCheck.map((point) => `<li>${String(point).replace(/[<>&]/g, '')}</li>`).join('')}</ol>`
+                : 'Quick-check не задан в process helper.';
+
+            const itemId = Number(data?.item_id || 0);
+            const connectorId = Number(data?.connector_id || 0);
+            const canExecute = !!executionPlan?.can_execute;
+            const statusHtml = itemId > 0
+                ? `Посылка <code>#${itemId}</code>, коннектор <code>#${connectorId || 0}</code>. ${canExecute ? '<span class="text-success">Можно запускать.</span>' : '<span class="text-danger">Запуск сейчас заблокирован.</span>'}`
+                : 'Подсказка обновлена.';
+
+            setText('process-helper-status', statusHtml);
+            setText('process-helper-required-vars', requiredHtml);
+            setText('process-helper-blockers', blockersHtml);
+            setText('process-helper-quick-check', quickCheckHtml);
         },
 
         'test_connector_operations': async (data) => {
