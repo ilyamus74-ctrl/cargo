@@ -1245,6 +1245,329 @@ if (!function_exists('warehouse_sync_has_submission_steps')) {
         return !empty(warehouse_sync_submission_steps($connector));
     }
 }
+
+if (!function_exists('warehouse_sync_process_definition_from_connector')) {
+    function warehouse_sync_process_definition_from_connector(array $connector, array $item = []): array
+    {
+        $submissionSteps = warehouse_sync_submission_steps($connector);
+        $requiredVars = warehouse_sync_collect_required_vars_from_steps($submissionSteps);
+
+        return [
+            'version' => 'v2',
+            'forwarder' => strtoupper(trim((string)($item['receiver_company'] ?? $connector['name'] ?? ''))),
+            'stages' => [
+                ['code' => 'resolve_connector', 'title' => 'Подбор активного коннектора', 'required' => []],
+                ['code' => 'validate_permissions', 'title' => 'Проверка разрешений', 'required' => ['connector_active']],
+                ['code' => 'validate_data', 'title' => 'Проверка обязательных данных', 'required' => $requiredVars],
+                ['code' => 'run_submission', 'title' => 'Отправка в форвард', 'required' => ['submission_steps']],
+                ['code' => 'persist_results', 'title' => 'Запись статуса и аудита', 'required' => []],
+            ],
+            'policies' => [
+                ['code' => 'connector_active', 'title' => 'Коннектор активен', 'severity' => 'block'],
+                ['code' => 'submission_steps_present', 'title' => 'Есть шаги submission', 'severity' => 'block'],
+                ['code' => 'required_vars_present', 'title' => 'Есть все обязательные переменные', 'severity' => 'block'],
+            ],
+            'states' => [
+                'for_sync' => ['next' => ['half_sync', 'confirmed_sync', 'error']],
+                'half_sync' => ['next' => ['confirmed_sync', 'error']],
+                'confirmed_sync' => ['next' => []],
+                'error' => ['next' => ['for_sync']],
+            ],
+            'help' => [
+                'what_to_fill' => [
+                    'Операция #2 > Шаги формы: описывают действия браузера.',
+                    'addons ДопИнфа: задает значения для ${tariff_type}/${category}/${sub_category}.',
+                    'scenario_json коннектора: базовые переменные (${login}, ${password} и т.д.).',
+                ],
+                'quick_check' => [
+                    '1) Коннектор активен',
+                    '2) В submission есть шаги',
+                    '3) Все ${...} из шагов заполнены',
+                ],
+            ],
+        ];
+    }
+}
+
+if (!function_exists('warehouse_sync_evaluate_policies')) {
+    function warehouse_sync_evaluate_policies(array $processDef, array $context): array
+    {
+        $decisions = [];
+        $blocked = false;
+
+        foreach ((array)($processDef['policies'] ?? []) as $policy) {
+            $code = trim((string)($policy['code'] ?? ''));
+            if ($code === '') {
+                continue;
+            }
+
+            $ok = true;
+            $message = 'ok';
+
+            if ($code === 'connector_active') {
+                $ok = !empty($context['connector_active']);
+                $message = $ok ? 'Коннектор активен.' : 'Коннектор не активен.';
+            } elseif ($code === 'submission_steps_present') {
+                $ok = !empty($context['steps_defined']);
+                $message = $ok ? 'Шаги submission настроены.' : 'Не настроены шаги операции submission.';
+            } elseif ($code === 'required_vars_present') {
+                $missing = (array)($context['missing_required_vars'] ?? []);
+                $ok = empty($missing);
+                $message = $ok ? 'Все обязательные переменные заполнены.' : 'Не заполнена ДопИнформация/переменные: ' . implode(', ', $missing);
+            }
+
+            if (!$ok && (($policy['severity'] ?? 'block') === 'block')) {
+                $blocked = true;
+            }
+
+            $decisions[] = [
+                'code' => $code,
+                'severity' => (string)($policy['severity'] ?? 'block'),
+                'ok' => $ok,
+                'message' => $message,
+            ];
+        }
+
+        return ['decisions' => $decisions, 'blocked' => $blocked];
+    }
+}
+
+if (!function_exists('warehouse_sync_build_planner_output')) {
+    function warehouse_sync_build_planner_output(mysqli $dbcnx, array $item, array $connector): array
+    {
+        $steps = warehouse_sync_submission_steps($connector);
+        $vars = warehouse_sync_build_vars($connector, $item);
+        $requiredVars = warehouse_sync_collect_required_vars_from_steps($steps);
+        $missingRequired = [];
+        foreach ($requiredVars as $varName) {
+            if (trim((string)($vars[$varName] ?? '')) === '') {
+                $missingRequired[] = $varName;
+            }
+        }
+
+        $connectorId = (int)($connector['id'] ?? 0);
+        $connectorActive = (int)($connector['is_active'] ?? 0) === 1;
+        if ($connectorId > 0) {
+            $stmt = $dbcnx->prepare("SELECT is_active FROM connectors WHERE id = ? LIMIT 1");
+            if ($stmt) {
+                $stmt->bind_param('i', $connectorId);
+                $stmt->execute();
+                $res = $stmt->get_result();
+                $row = $res ? $res->fetch_assoc() : null;
+                if ($res) { $res->free(); }
+                $stmt->close();
+                $connectorActive = (int)($row['is_active'] ?? 0) === 1;
+            }
+        }
+
+        $processDef = warehouse_sync_process_definition_from_connector($connector, $item);
+        $policyEval = warehouse_sync_evaluate_policies($processDef, [
+            'connector_active' => $connectorActive,
+            'steps_defined' => !empty($steps),
+            'missing_required_vars' => $missingRequired,
+        ]);
+
+        $stopReasons = [];
+        foreach ((array)$policyEval['decisions'] as $d) {
+            if (empty($d['ok'])) {
+                $stopReasons[] = (string)($d['message'] ?? 'blocked');
+            }
+        }
+
+        return [
+            'process_definition' => $processDef,
+            'connector' => [
+                'id' => $connectorId,
+                'name' => trim((string)($connector['name'] ?? '')),
+                'is_active' => $connectorActive,
+                'allowed_for_item' => $connectorActive,
+            ],
+            'permissions_block' => array_values(array_filter((array)$policyEval['decisions'], static function($d){ return in_array((string)($d['code'] ?? ''), ['connector_active'], true); })),
+            'data_block' => [
+                'steps_defined' => !empty($steps),
+                'required_vars' => $requiredVars,
+                'missing_required_vars' => $missingRequired,
+                'has_all_required_data' => empty($missingRequired),
+            ],
+            'operation_flow' => array_map(static function($s){ return (string)($s['code'] ?? ''); }, (array)($processDef['stages'] ?? [])),
+            'policies' => (array)($policyEval['decisions'] ?? []),
+            'can_execute' => !$policyEval['blocked'],
+            'stop_reasons' => $stopReasons,
+        ];
+    }
+}
+
+if (!function_exists('warehouse_sync_collect_required_vars_from_steps')) {
+    function warehouse_sync_collect_required_vars_from_steps(array $steps): array
+    {
+        $required = [];
+        foreach ($steps as $step) {
+            if (!is_array($step)) {
+                continue;
+            }
+            $json = json_encode($step, JSON_UNESCAPED_UNICODE);
+            if (!is_string($json) || $json === '') {
+                continue;
+            }
+
+            if (preg_match_all('/\$\{([a-zA-Z0-9_]+)\}/', $json, $matches)) {
+                foreach ((array)($matches[1] ?? []) as $name) {
+                    $key = trim((string)$name);
+                    if ($key !== '') {
+                        $required[$key] = true;
+                    }
+                }
+            }
+        }
+
+        return array_keys($required);
+    }
+}
+
+if (!function_exists('warehouse_sync_build_execution_control_map')) {
+    function warehouse_sync_build_execution_control_map(mysqli $dbcnx, array $item, array $connector): array
+    {
+        return warehouse_sync_build_planner_output($dbcnx, $item, $connector);
+    }
+}
+
+if (!function_exists('warehouse_sync_assert_execution_control_map')) {
+    function warehouse_sync_assert_execution_control_map(array $plan): void
+    {
+        if (!empty($plan['can_execute'])) {
+            return;
+        }
+
+        $reasons = isset($plan['stop_reasons']) && is_array($plan['stop_reasons'])
+            ? $plan['stop_reasons']
+            : ['Синхронизация заблокирована модулем контроля'];
+
+        throw new RuntimeException((string)($reasons[0] ?? 'Синхронизация заблокирована модулем контроля'));
+    }
+}
+
+
+if (!function_exists('warehouse_sync_collect_required_vars_from_steps')) {
+    function warehouse_sync_collect_required_vars_from_steps(array $steps): array
+    {
+        $required = [];
+        foreach ($steps as $step) {
+            if (!is_array($step)) {
+                continue;
+            }
+            $json = json_encode($step, JSON_UNESCAPED_UNICODE);
+            if (!is_string($json) || $json === '') {
+                continue;
+            }
+
+            if (preg_match_all('/\$\{([a-zA-Z0-9_]+)\}/', $json, $matches)) {
+                foreach ((array)($matches[1] ?? []) as $name) {
+                    $key = trim((string)$name);
+                    if ($key !== '') {
+                        $required[$key] = true;
+                    }
+                }
+            }
+        }
+
+        return array_keys($required);
+    }
+}
+
+if (!function_exists('warehouse_sync_build_execution_control_map')) {
+    function warehouse_sync_build_execution_control_map(mysqli $dbcnx, array $item, array $connector): array
+    {
+        $steps = warehouse_sync_submission_steps($connector);
+        $vars = warehouse_sync_build_vars($connector, $item);
+        $requiredVars = warehouse_sync_collect_required_vars_from_steps($steps);
+
+        $missingRequired = [];
+        foreach ($requiredVars as $varName) {
+            $value = trim((string)($vars[$varName] ?? ''));
+            if ($value === '') {
+                $missingRequired[] = $varName;
+            }
+        }
+
+        $connectorId = (int)($connector['id'] ?? 0);
+        $connectorActive = (int)($connector['is_active'] ?? 0) === 1;
+        if ($connectorId > 0) {
+            $stmt = $dbcnx->prepare("SELECT is_active FROM connectors WHERE id = ? LIMIT 1");
+            if ($stmt) {
+                $stmt->bind_param('i', $connectorId);
+                $stmt->execute();
+                $res = $stmt->get_result();
+                $row = $res ? $res->fetch_assoc() : null;
+                if ($res) {
+                    $res->free();
+                }
+                $stmt->close();
+                $connectorActive = (int)($row['is_active'] ?? 0) === 1;
+            }
+        }
+
+        $plan = [
+            'connector' => [
+                'id' => $connectorId,
+                'name' => trim((string)($connector['name'] ?? '')),
+                'is_active' => $connectorActive,
+                'allowed_for_item' => $connectorActive,
+            ],
+            'permissions_block' => [
+                [
+                    'code' => 'connector_active',
+                    'ok' => $connectorActive,
+                    'message' => $connectorActive
+                        ? 'Коннектор активен и разрешен для обработки.'
+                        : 'Коннектор не активен. Обработка запрещена.',
+                ],
+            ],
+            'data_block' => [
+                'steps_defined' => !empty($steps),
+                'required_vars' => $requiredVars,
+                'missing_required_vars' => $missingRequired,
+                'has_all_required_data' => empty($missingRequired),
+            ],
+            'operation_flow' => [
+                'resolve_connector',
+                'validate_permissions_block',
+                'validate_data_block',
+                'run_submission',
+                'persist_audit_and_status',
+            ],
+        ];
+
+        $plan['can_execute'] = $connectorActive && !empty($steps) && empty($missingRequired);
+        $plan['stop_reasons'] = [];
+        if (!$connectorActive) {
+            $plan['stop_reasons'][] = 'Коннектор не активен.';
+        }
+        if (empty($steps)) {
+            $plan['stop_reasons'][] = 'Не настроены шаги операции submission.';
+        }
+        if (!empty($missingRequired)) {
+            $plan['stop_reasons'][] = 'Не заполнена ДопИнформация/переменные: ' . implode(', ', $missingRequired);
+        }
+
+        return $plan;
+    }
+}
+
+if (!function_exists('warehouse_sync_assert_execution_control_map')) {
+    function warehouse_sync_assert_execution_control_map(array $plan): void
+    {
+        if (!empty($plan['can_execute'])) {
+            return;
+        }
+
+        $reasons = isset($plan['stop_reasons']) && is_array($plan['stop_reasons'])
+            ? $plan['stop_reasons']
+            : ['Синхронизация заблокирована модулем контроля'];
+
+        throw new RuntimeException((string)($reasons[0] ?? 'Синхронизация заблокирована модулем контроля'));
+    }
+}
+
 if (!function_exists('warehouse_sync_build_vars')) {
     function warehouse_sync_build_vars(array $connector, array $item): array
     {
@@ -1627,6 +1950,8 @@ if ($action === 'warehouse_sync_item') {
 
     try {
         $connector = warehouse_sync_resolve_permitted_connector($dbcnx, $item, $connectorId);
+        $executionPlan = warehouse_sync_build_execution_control_map($dbcnx, $item, $connector);
+        warehouse_sync_assert_execution_control_map($executionPlan);
 
         $debugNodePayload = [
             'steps' => warehouse_sync_submission_steps($connector),
@@ -1644,6 +1969,7 @@ if ($action === 'warehouse_sync_item') {
         $responsePayload = [
             'message' => $result['message'],
             'connector_id' => (int)($connector['id'] ?? 0),
+            'execution_plan' => $executionPlan,
             'step_log' => $result['step_log'],
             'artifacts_dir' => $result['artifacts_dir'],
             'vars' => $result['vars'],
@@ -1687,6 +2013,7 @@ if ($action === 'warehouse_sync_item') {
             'forwarder' => $forwarder,
             'country_code' => $country,
             'message' => 'sync выполнен успешно',
+            'execution_plan' => $executionPlan,
             'step_log' => $result['step_log'],
             'artifacts_dir' => $result['artifacts_dir'],
             'node_payload' => isset($result['node_payload']) && is_array($result['node_payload']) ? $result['node_payload'] : $debugNodePayload,
@@ -1727,6 +2054,40 @@ if ($action === 'warehouse_sync_item') {
 }
 
 
+
+if ($action === 'warehouse_sync_control_plan') {
+    auth_require_login();
+
+    $itemId = (int)($_POST['item_id'] ?? 0);
+    if ($itemId <= 0) {
+        $response = ['status' => 'error', 'message' => 'item_id required'];
+        return;
+    }
+
+    $connectorId = (int)($_POST['connector_id'] ?? 0);
+    $item = warehouse_sync_fetch_item($dbcnx, $itemId);
+    if (!$item) {
+        $response = ['status' => 'error', 'message' => 'Посылка не найдена', 'item_id' => $itemId];
+        return;
+    }
+
+    try {
+        $connector = warehouse_sync_resolve_permitted_connector($dbcnx, $item, $connectorId);
+        $plan = warehouse_sync_build_execution_control_map($dbcnx, $item, $connector);
+        $response = [
+            'status' => 'ok',
+            'item_id' => $itemId,
+            'connector_id' => (int)($connector['id'] ?? 0),
+            'execution_plan' => $plan,
+        ];
+    } catch (Throwable $e) {
+        $response = [
+            'status' => 'error',
+            'item_id' => $itemId,
+            'message' => $e->getMessage(),
+        ];
+    }
+}
 
 if ($action === 'warehouse_sync_batch_enqueue') {
     auth_require_login();

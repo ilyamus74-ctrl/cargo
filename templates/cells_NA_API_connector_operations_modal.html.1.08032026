@@ -7,19 +7,6 @@
           <h5 class="card-title">Операции коннектора: {$connector.name|escape}</h5>
 
 
-          <details class="mb-3">
-            <summary><strong>Памятка: что и зачем заполнять</strong></summary>
-            <div class="small mt-2">
-              <ol class="mb-2">
-                <li><strong>Операция #1 (report)</strong> — откуда брать отчет форварда и в какую таблицу импортировать.</li>
-                <li><strong>Операция #2 (submission)</strong> — шаги отправки посылки на сайт форварда (JSON шагов с ${переменными}).</li>
-                <li><strong>addons ДопИнфа</strong> — справочники/доп. значения для обязательных полей из шагов.</li>
-                <li><strong>Проверка перед sync</strong> — система проверяет: коннектор активен, шаги есть, обязательные ${...} заполнены.</li>
-              </ol>
-              <div class="text-muted">Для машинной подсказки используйте API action <code>warehouse_sync_process_helper</code> (вернет стадии, политики и чек-лист).</div>
-            </div>
-          </details>
-
           <ul class="nav nav-tabs mb-3" id="connector-operations-tabs" role="tablist">
             <li class="nav-item" role="presentation">
               <button class="nav-link active"
