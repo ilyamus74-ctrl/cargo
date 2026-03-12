@@ -15,15 +15,27 @@
     </td>
     <td>
       {if $item.can_sync|default:0}
-        <button
-          type="button"
-          class="btn btn-sm btn-outline-primary warehouse-sync-row-btn"
-          data-item-id="{$item.id|default:''|escape}"
-          data-connector-id="{$item.connector_id|default:''|escape}"
-          data-parcel="{$item.parcel_uid|default:''|escape}"
-        >
-          sync
-        </button>
+
+        <div class="btn-group btn-group-sm" role="group" aria-label="sync actions">
+          <button
+            type="button"
+            class="btn btn-sm btn-outline-primary warehouse-sync-row-btn"
+            data-item-id="{$item.id|default:''|escape}"
+            data-connector-id="{$item.connector_id|default:''|escape}"
+            data-parcel="{$item.parcel_uid|default:''|escape}"
+          >
+            sync
+          </button>
+          <button
+            type="button"
+            class="btn btn-sm btn-outline-secondary warehouse-sync-helper-btn"
+            data-item-id="{$item.id|default:''|escape}"
+            data-connector-id="{$item.connector_id|default:''|escape}"
+            title="Подсказка по синхронизации"
+          >
+            ?
+          </button>
+        </div>
       {else}
         <span class="text-muted small">—</span>
       {/if}

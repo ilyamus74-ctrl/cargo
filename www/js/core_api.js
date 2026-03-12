@@ -1792,6 +1792,88 @@ const CoreAPI = {
             this.resetAndLoad();
             this.initialized = true;
         },
+
+        formatSyncHelperMessage(payload = {}, fallbackTitle = '') {
+            const executionPlan = (payload && typeof payload === 'object' && payload.execution_plan && typeof payload.execution_plan === 'object')
+                ? payload.execution_plan
+                : {};
+            const processHelper = (payload && typeof payload === 'object' && payload.process_helper && typeof payload.process_helper === 'object')
+                ? payload.process_helper
+                : {};
+
+            const stopReasons = Array.isArray(executionPlan.stop_reasons)
+                ? executionPlan.stop_reasons.filter((item) => String(item || '').trim() !== '')
+                : [];
+            const quickCheck = Array.isArray(processHelper.quick_check)
+                ? processHelper.quick_check.filter((item) => String(item || '').trim() !== '')
+                : [];
+            const whatUserFills = Array.isArray(processHelper.what_to_fill)
+                ? processHelper.what_to_fill.filter((item) => String(item || '').trim() !== '')
+                : [];
+            const missingVars = Array.isArray(executionPlan?.data_block?.missing_required_vars)
+                ? executionPlan.data_block.missing_required_vars.filter((item) => String(item || '').trim() !== '')
+                : [];
+
+            const blocks = [];
+            if (fallbackTitle) {
+                blocks.push(String(fallbackTitle));
+            }
+            if (stopReasons.length > 0) {
+                blocks.push(`Причины остановки:
+- ${stopReasons.map((item) => String(item)).join('\n- ')}`);
+            }
+            if (quickCheck.length > 0) {
+                blocks.push(`Quick check:
+- ${quickCheck.map((item) => String(item)).join('\n- ')}`);
+            }
+            if (whatUserFills.length > 0) {
+                blocks.push(`Что заполняет пользователь:
+- ${whatUserFills.map((item) => String(item)).join('\n- ')}`);
+            }
+            if (missingVars.length > 0) {
+                blocks.push(`Недостающие переменные:
+- ${missingVars.map((item) => String(item)).join('\n- ')}`);
+            }
+
+            return blocks.length > 0 ? blocks.join('\n\n') : 'Подсказки отсутствуют.';
+        },
+        async fetchSyncProcessHelper(itemId, connectorId = '') {
+            const fd = new FormData();
+            fd.append('action', 'warehouse_sync_process_helper');
+            fd.append('item_id', String(itemId || ''));
+            if (connectorId) {
+                fd.append('connector_id', String(connectorId));
+            }
+            const data = await CoreAPI.client.call(fd);
+            if (!data || data.status !== 'ok') {
+                throw new Error(data?.message || 'helper error');
+            }
+            return data;
+        },
+        async fetchSyncControlPlan(itemId, connectorId = '') {
+            const fd = new FormData();
+            fd.append('action', 'warehouse_sync_control_plan');
+            fd.append('item_id', String(itemId || ''));
+            if (connectorId) {
+                fd.append('connector_id', String(connectorId));
+            }
+            const data = await CoreAPI.client.call(fd);
+            if (!data || data.status !== 'ok') {
+                throw new Error(data?.message || 'control plan error');
+            }
+            return data;
+        },
+        async showSyncProcessHelperAlert(itemId, connectorId = '', title = '') {
+            try {
+                const helper = await this.fetchSyncProcessHelper(itemId, connectorId);
+                alert(this.formatSyncHelperMessage(helper, title));
+                return helper;
+            } catch (helperErr) {
+                console.error('warehouse_sync_process_helper error:', helperErr);
+                alert(`${title ? `${title}\n\n` : ''}Не удалось получить process helper: ${helperErr?.message || helperErr}`);
+                return null;
+            }
+        },
         bindEvents() {
             this.limitSelect.addEventListener('change', () => {
                 this.state.limit = this.limitSelect.value || '50';
@@ -1814,6 +1896,15 @@ const CoreAPI = {
             });
 
             this.tbody.addEventListener('click', async (event) => {
+
+                const helperBtn = event.target.closest('.warehouse-sync-helper-btn');
+                if (helperBtn) {
+                    const itemId = helperBtn.dataset.itemId || '';
+                    const connectorId = helperBtn.dataset.connectorId || '';
+                    if (!itemId) return;
+                    await this.showSyncProcessHelperAlert(itemId, connectorId, 'Подсказка по sync');
+                    return;
+                }
                 const btn = event.target.closest('.warehouse-sync-row-btn');
                 if (!btn) return;
                 const itemId = btn.dataset.itemId || '';
@@ -1824,6 +1915,16 @@ const CoreAPI = {
                 const prev = btn.textContent;
                 btn.textContent = 'sync...';
                 try {
+
+                    const controlPlan = await this.fetchSyncControlPlan(itemId, connectorId);
+                    const canExecute = !!controlPlan?.execution_plan?.can_execute;
+                    if (!canExecute) {
+                        btn.disabled = false;
+                        btn.textContent = prev;
+                        alert(this.formatSyncHelperMessage(controlPlan, 'sync остановлен preflight-проверкой'));
+                        return;
+                    }
+
                     const fd = new FormData();
                     fd.append('action', 'warehouse_sync_item');
                     fd.append('item_id', itemId);
@@ -1847,6 +1948,7 @@ const CoreAPI = {
                     btn.disabled = false;
                     btn.textContent = prev;
                     alert(`sync ошибка: ${err?.message || err}`);
+                    await this.showSyncProcessHelperAlert(itemId, connectorId, 'Подсказка после ошибки sync');
                     CoreAPI.warehouseSyncHistory.load();
                 }
             });
@@ -1925,16 +2027,43 @@ const CoreAPI = {
                         return;
                     }
 
-                    const targetLabel = this.state.forwarder === 'ALL'
-                        ? `для всех форвардов (${available} шт.)`
-                        : `для форварда ${this.state.forwarder} (${available} шт.)`;
-                    if (!confirm(`Запустить all_sync ${targetLabel}?`)) {
+                    const preflightTargets = [];
+                    const blockedSummaries = [];
+                    for (const target of targets) {
+                        const controlPlan = await this.fetchSyncControlPlan(target.itemId, target.connectorId || '');
+                        const canExecute = !!controlPlan?.execution_plan?.can_execute;
+                        if (canExecute) {
+                            preflightTargets.push(target);
+                        } else {
+                            const stopReasons = Array.isArray(controlPlan?.execution_plan?.stop_reasons)
+                                ? controlPlan.execution_plan.stop_reasons.filter((item) => String(item || '').trim() !== '')
+                                : [];
+                            blockedSummaries.push(`#${target.itemId}: ${stopReasons.length > 0 ? stopReasons.join('; ') : 'blocked by preflight'}`);
+                        }
+                    }
+
+                    if (!preflightTargets.length) {
+                        alert(`all_sync остановлен preflight: все ${available} шт. заблокированы.\n\n${blockedSummaries.join('\n')}`);
                         return;
+                    }
+
+                    const targetLabel = this.state.forwarder === 'ALL'
+                        ? `для всех форвардов (${preflightTargets.length} из ${available} шт.)`
+                        : `для форварда ${this.state.forwarder} (${preflightTargets.length} из ${available} шт.)`;
+                    const blockedNote = blockedSummaries.length > 0
+                        ? `\n\nБудут пропущены preflight-blocked: ${blockedSummaries.length}`
+                        : '';
+                    if (!confirm(`Запустить all_sync ${targetLabel}?${blockedNote}`)) {
+                        return;
+                    }
+
+                    if (blockedSummaries.length > 0) {
+                        alert(`all_sync preflight: пропущено ${blockedSummaries.length} шт.\n\n${blockedSummaries.join('\n')}`);
                     }
 
                     const fd = new FormData();
                     fd.append('action', 'warehouse_sync_batch_enqueue');
-                    fd.append('targets_json', JSON.stringify(targets));
+                    fd.append('targets_json', JSON.stringify(preflightTargets));
                     fd.append('forwarder', this.state.forwarder || 'ALL'); 
                     const data = await CoreAPI.client.call(fd);
                     if (!data || data.status !== 'ok') {
