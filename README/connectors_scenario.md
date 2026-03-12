@@ -355,7 +355,12 @@
 -   Покрытие не только тест-ручки
     Трассировка должна работать и для боевого/cron execution path, а не только test_connector_operations
 --- Фактический runtime-статус цепочки
-    Текущий chain_status строится от плана и текущей операции, но не отражает полный реальный прогон стадий before/during/finally как отдельные executed events.
+    Текущий `chain_status` строится от плана и текущей операции, но не отражает полный реальный прогон стадий `before/during/finally` как отдельные `executed events`.
+    Что нужно сделать:
+    - Логировать каждую выполненную операцию как отдельное runtime-событие: `event_type=operation_executed`, `stage=before|during|main|finally`, `operation_id`, `status`, `started_at`, `finished_at`, `duration_ms`.
+    - Формировать `chain_status` не из расчетного execution plan, а из фактической ленты событий (event stream) текущего `run_id`.
+    - Добавить агрегаты в ответ API: `stages.before.executed/success/failed`, `stages.during...`, `stages.finally...`, плюс `current_event`.
+    - Для UI показывать таймлайн выполнения стадий (не только “текущая операция”), чтобы было видно, что именно реально уже отработало.
 --- UI-поток для операции #1 сейчас затирает отчет
     После рендера блока отчета вызывается перезагрузка модалки, из-за чего визуальный статус может сразу исчезнуть для report-теста
 
