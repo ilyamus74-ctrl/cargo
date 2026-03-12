@@ -422,6 +422,25 @@ function system_tasks_run_connectors_report_operation_1(mysqli $dbcnx, array $ta
 
         $processed += 1;
 
+        $runStartedAtTs = microtime(true);
+        $runStartedAt = date('Y-m-d H:i:s');
+        $runId = function_exists('connectors_generate_run_id')
+            ? connectors_generate_run_id($connectorId)
+            : ('run-' . date('YmdHis') . '-c' . $connectorId . '-' . bin2hex(random_bytes(4)));
+        $reportOperationId = trim((string)($reportCfg['operation_id'] ?? 'report'));
+        if ($reportOperationId === '') {
+            $reportOperationId = 'report';
+        }
+        $executionPlan = [
+            'before' => [],
+            'main' => $reportOperationId,
+            'during' => [],
+            'finally' => [],
+        ];
+        $traceLog = [];
+        if (function_exists('connectors_append_trace_event')) {
+            connectors_append_trace_event($traceLog, $runId, $reportOperationId, 'start', 'start', 'Запуск cron операции #1');
+        }
         try {
             $targetTable = connectors_normalize_report_table_name((string)($reportCfg['target_table'] ?? ''));
             connectors_ensure_report_table($dbcnx, $targetTable);
@@ -454,18 +473,79 @@ function system_tasks_run_connectors_report_operation_1(mysqli $dbcnx, array $ta
             }
 
             $ok += 1;
+
+            if (function_exists('connectors_append_trace_event')) {
+                connectors_append_trace_event($traceLog, $runId, $reportOperationId, 'main', 'success', 'Cron операция #1 выполнена успешно', [
+                    'target_table' => $targetTable,
+                    'file_extension' => $fileExt,
+                    'imported_rows' => $importedRows,
+                ]);
+            }
+
+            if (function_exists('connectors_persist_run_trace')) {
+                connectors_persist_run_trace($dbcnx, [
+                    'connector_id' => $connectorId,
+                    'run_id' => $runId,
+                    'test_operation' => 'cron_report',
+                    'status' => 'ok',
+                    'message' => 'Cron операция #1 выполнена успешно',
+                    'target_table' => $targetTable,
+                    'created_by' => 0,
+                    'started_at' => $runStartedAt,
+                    'finished_at' => date('Y-m-d H:i:s'),
+                    'duration_ms' => max(0, (int)round((microtime(true) - $runStartedAtTs) * 1000)),
+                    'trace_log' => $traceLog,
+                    'step_log' => isset($downloadInfo['step_log']) && is_array($downloadInfo['step_log']) ? $downloadInfo['step_log'] : [],
+                    'execution_plan' => $executionPlan,
+                    'chain_status' => function_exists('connectors_build_chain_status_map')
+                        ? connectors_build_chain_status_map($executionPlan, $reportOperationId, true)
+                        : [['operation_id' => $reportOperationId, 'status' => 'success']],
+                    'artifacts_dir' => (string)($downloadInfo['artifacts_dir'] ?? ''),
+                ]);
+            }
             $details[] = [
                 'connector_id' => $connectorId,
                 'status' => 'ok',
+                'run_id' => $runId,
                 'target_table' => $targetTable,
                 'file_extension' => $fileExt,
                 'imported_rows' => $importedRows,
             ];
         } catch (Throwable $e) {
             $fail += 1;
+
+            if (function_exists('connectors_append_trace_event')) {
+                connectors_append_trace_event($traceLog, $runId, $reportOperationId, 'main', 'failed', 'Cron операция #1 завершилась ошибкой', [
+                    'error' => $e->getMessage(),
+                ]);
+            }
+
+            if (function_exists('connectors_persist_run_trace')) {
+                connectors_persist_run_trace($dbcnx, [
+                    'connector_id' => $connectorId,
+                    'run_id' => $runId,
+                    'test_operation' => 'cron_report',
+                    'status' => 'error',
+                    'message' => $e->getMessage(),
+                    'target_table' => '',
+                    'created_by' => 0,
+                    'started_at' => $runStartedAt,
+                    'finished_at' => date('Y-m-d H:i:s'),
+                    'duration_ms' => max(0, (int)round((microtime(true) - $runStartedAtTs) * 1000)),
+                    'trace_log' => $traceLog,
+                    'step_log' => [],
+                    'execution_plan' => $executionPlan,
+                    'chain_status' => function_exists('connectors_build_chain_status_map')
+                        ? connectors_build_chain_status_map($executionPlan, $reportOperationId, false)
+                        : [['operation_id' => $reportOperationId, 'status' => 'failed']],
+                    'artifacts_dir' => '',
+                ]);
+            }
+
             $details[] = [
                 'connector_id' => $connectorId,
                 'status' => 'error',
+                'run_id' => $runId,
                 'message' => $e->getMessage(),
             ];
         }
