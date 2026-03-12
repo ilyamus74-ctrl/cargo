@@ -1447,126 +1447,6 @@ if (!function_exists('warehouse_sync_assert_execution_control_map')) {
 }
 
 
-if (!function_exists('warehouse_sync_collect_required_vars_from_steps')) {
-    function warehouse_sync_collect_required_vars_from_steps(array $steps): array
-    {
-        $required = [];
-        foreach ($steps as $step) {
-            if (!is_array($step)) {
-                continue;
-            }
-            $json = json_encode($step, JSON_UNESCAPED_UNICODE);
-            if (!is_string($json) || $json === '') {
-                continue;
-            }
-
-            if (preg_match_all('/\$\{([a-zA-Z0-9_]+)\}/', $json, $matches)) {
-                foreach ((array)($matches[1] ?? []) as $name) {
-                    $key = trim((string)$name);
-                    if ($key !== '') {
-                        $required[$key] = true;
-                    }
-                }
-            }
-        }
-
-        return array_keys($required);
-    }
-}
-
-if (!function_exists('warehouse_sync_build_execution_control_map')) {
-    function warehouse_sync_build_execution_control_map(mysqli $dbcnx, array $item, array $connector): array
-    {
-        $steps = warehouse_sync_submission_steps($connector);
-        $vars = warehouse_sync_build_vars($connector, $item);
-        $requiredVars = warehouse_sync_collect_required_vars_from_steps($steps);
-
-        $missingRequired = [];
-        foreach ($requiredVars as $varName) {
-            $value = trim((string)($vars[$varName] ?? ''));
-            if ($value === '') {
-                $missingRequired[] = $varName;
-            }
-        }
-
-        $connectorId = (int)($connector['id'] ?? 0);
-        $connectorActive = (int)($connector['is_active'] ?? 0) === 1;
-        if ($connectorId > 0) {
-            $stmt = $dbcnx->prepare("SELECT is_active FROM connectors WHERE id = ? LIMIT 1");
-            if ($stmt) {
-                $stmt->bind_param('i', $connectorId);
-                $stmt->execute();
-                $res = $stmt->get_result();
-                $row = $res ? $res->fetch_assoc() : null;
-                if ($res) {
-                    $res->free();
-                }
-                $stmt->close();
-                $connectorActive = (int)($row['is_active'] ?? 0) === 1;
-            }
-        }
-
-        $plan = [
-            'connector' => [
-                'id' => $connectorId,
-                'name' => trim((string)($connector['name'] ?? '')),
-                'is_active' => $connectorActive,
-                'allowed_for_item' => $connectorActive,
-            ],
-            'permissions_block' => [
-                [
-                    'code' => 'connector_active',
-                    'ok' => $connectorActive,
-                    'message' => $connectorActive
-                        ? 'Коннектор активен и разрешен для обработки.'
-                        : 'Коннектор не активен. Обработка запрещена.',
-                ],
-            ],
-            'data_block' => [
-                'steps_defined' => !empty($steps),
-                'required_vars' => $requiredVars,
-                'missing_required_vars' => $missingRequired,
-                'has_all_required_data' => empty($missingRequired),
-            ],
-            'operation_flow' => [
-                'resolve_connector',
-                'validate_permissions_block',
-                'validate_data_block',
-                'run_submission',
-                'persist_audit_and_status',
-            ],
-        ];
-
-        $plan['can_execute'] = $connectorActive && !empty($steps) && empty($missingRequired);
-        $plan['stop_reasons'] = [];
-        if (!$connectorActive) {
-            $plan['stop_reasons'][] = 'Коннектор не активен.';
-        }
-        if (empty($steps)) {
-            $plan['stop_reasons'][] = 'Не настроены шаги операции submission.';
-        }
-        if (!empty($missingRequired)) {
-            $plan['stop_reasons'][] = 'Не заполнена ДопИнформация/переменные: ' . implode(', ', $missingRequired);
-        }
-
-        return $plan;
-    }
-}
-
-if (!function_exists('warehouse_sync_assert_execution_control_map')) {
-    function warehouse_sync_assert_execution_control_map(array $plan): void
-    {
-        if (!empty($plan['can_execute'])) {
-            return;
-        }
-
-        $reasons = isset($plan['stop_reasons']) && is_array($plan['stop_reasons'])
-            ? $plan['stop_reasons']
-            : ['Синхронизация заблокирована модулем контроля'];
-
-        throw new RuntimeException((string)($reasons[0] ?? 'Синхронизация заблокирована модулем контроля'));
-    }
-}
 
 if (!function_exists('warehouse_sync_build_vars')) {
     function warehouse_sync_build_vars(array $connector, array $item): array
@@ -2088,6 +1968,52 @@ if ($action === 'warehouse_sync_control_plan') {
         ];
     }
 }
+
+if ($action === 'warehouse_sync_process_helper') {
+    auth_require_login();
+
+    $itemId = (int)($_POST['item_id'] ?? 0);
+    if ($itemId <= 0) {
+        $response = ['status' => 'error', 'message' => 'item_id required'];
+        return;
+    }
+
+    $connectorId = (int)($_POST['connector_id'] ?? 0);
+    $item = warehouse_sync_fetch_item($dbcnx, $itemId);
+    if (!$item) {
+        $response = ['status' => 'error', 'message' => 'Посылка не найдена', 'item_id' => $itemId];
+        return;
+    }
+
+    try {
+        $connector = warehouse_sync_resolve_permitted_connector($dbcnx, $item, $connectorId);
+        $plan = warehouse_sync_build_execution_control_map($dbcnx, $item, $connector);
+        $processDefinition = is_array($plan['process_definition'] ?? null)
+            ? (array)$plan['process_definition']
+            : warehouse_sync_process_definition_from_connector($connector, $item);
+
+        $response = [
+            'status' => 'ok',
+            'item_id' => $itemId,
+            'connector_id' => (int)($connector['id'] ?? 0),
+            'execution_plan' => $plan,
+            'process_helper' => [
+                'what_to_fill' => (array)($processDefinition['help']['what_to_fill'] ?? []),
+                'quick_check' => (array)($processDefinition['help']['quick_check'] ?? []),
+                'stages' => (array)($processDefinition['stages'] ?? []),
+                'policies' => (array)($processDefinition['policies'] ?? []),
+                'states' => (array)($processDefinition['states'] ?? []),
+            ],
+        ];
+    } catch (Throwable $e) {
+        $response = [
+            'status' => 'error',
+            'item_id' => $itemId,
+            'message' => $e->getMessage(),
+        ];
+    }
+}
+
 
 if ($action === 'warehouse_sync_batch_enqueue') {
     auth_require_login();
