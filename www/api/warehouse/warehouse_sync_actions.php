@@ -537,57 +537,55 @@ if (!function_exists('warehouse_sync_out_backfill_from_stock')) {
 
         $limit = max(1, min(5000, $limit));
         $inserted = 0;
+        $updated = 0;
+        $skippedNoRouting = 0;
 
-        $sql = "INSERT INTO warehouse_item_out
-"
-            . "(stock_item_id, batch_uid, uid_created, tuid, tracking_no, carrier_name, receiver_country_code, receiver_company, receiver_address)
-"
-            . "SELECT wi.id, wi.batch_uid, wi.uid_created, wi.tuid, wi.tracking_no, wi.carrier_name, wi.receiver_country_code, wi.receiver_company, wi.receiver_address
-"
+        $rows = [];
+        $sql = "SELECT wi.id, wi.receiver_company, wi.receiver_country_code, wo.stock_item_id AS out_stock_item_id"
             . "FROM warehouse_item_stock wi
 "
             . "LEFT JOIN warehouse_item_out wo ON wo.stock_item_id = wi.id
 "
-            . "WHERE wo.stock_item_id IS NULL
+            . "WHERE wo.stock_item_id IS NULL OR wo.status IN ('for_sync', '')
 "
             . "ORDER BY wi.id ASC
 "
             . "LIMIT {$limit}";
-        if ($dbcnx->query($sql)) {
-            $inserted = (int)$dbcnx->affected_rows;
+        if ($res = $dbcnx->query($sql)) {
+            while ($row = $res->fetch_assoc()) {
+                $rows[] = $row;
+            }
+            $res->free();
         }
 
-        $updated = 0;
-        $sqlUpdate = "UPDATE warehouse_item_out wo
-"
-            . "JOIN warehouse_item_stock wi ON wi.id = wo.stock_item_id
-"
-            . "SET wo.batch_uid = wi.batch_uid,
-"
-            . "    wo.uid_created = wi.uid_created,
-"
-            . "    wo.tuid = wi.tuid,
-"
-            . "    wo.tracking_no = wi.tracking_no,
-"
-            . "    wo.carrier_name = wi.carrier_name,
-"
-            . "    wo.receiver_country_code = wi.receiver_country_code,
-"
-            . "    wo.receiver_company = wi.receiver_company,
-"
-            . "    wo.receiver_address = wi.receiver_address
-"
-            . "WHERE wo.status IN ('for_sync', '')
-"
-            . "LIMIT {$limit}";
-        if ($dbcnx->query($sqlUpdate)) {
-            $updated = (int)$dbcnx->affected_rows;
+        foreach ($rows as $row) {
+            $stockItemId = (int)($row['id'] ?? 0);
+            if ($stockItemId <= 0) {
+                continue;
+            }
+
+            $forwarder = trim((string)($row['receiver_company'] ?? ''));
+            $countryCode = trim((string)($row['receiver_country_code'] ?? ''));
+            $statusMap = warehouse_sync_status_target_map_for_connector($dbcnx, $forwarder, $countryCode);
+            if (empty($statusMap)) {
+                $skippedNoRouting++;
+                continue;
+            }
+
+            $hadOutRow = (int)($row['out_stock_item_id'] ?? 0) > 0;
+            warehouse_sync_out_upsert_from_stock($dbcnx, $stockItemId);
+
+            if ($hadOutRow) {
+                $updated++;
+            } else {
+                $inserted++;
+            }
         }
 
         return [
             'inserted' => $inserted,
             'updated' => $updated,
+            'skipped_no_routing' => $skippedNoRouting,
             'processed' => $inserted + $updated,
         ];
     }
@@ -889,12 +887,18 @@ if (!function_exists('warehouse_sync_reconcile_half_sync')) {
 
             $reportStatus = trim((string)($report['report_status'] ?? ''));
             $targetTable = warehouse_sync_target_table_by_report_status($dbcnx, $forwarder, $countryCode, $reportStatus);
-            if ($targetTable !== '') {
+            if ($targetTable === '') {
+                if (warehouse_sync_is_error_report_status($reportStatus)) {
+                    $nextStatus = 'error';
+                } else {
+                    // Если в ДопИнфо нет явного статуса -> таблица, не меняем half_sync.
+                    $stats['unchanged']++;
+                    continue;
+                }
+            } else {
                 $nextStatus = strtolower($targetTable) === 'warehouse_item_out'
                     ? 'to_send'
                     : warehouse_sync_out_status_by_report_status($forwarder, $reportStatus);
-            } else {
-                $nextStatus = warehouse_sync_out_status_by_report_status($forwarder, $reportStatus);
             }
 
             if ($nextStatus === '') {
