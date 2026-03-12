@@ -429,6 +429,144 @@ function connectors_decode_dependency_links_json(string $raw, string $fieldLabel
     return connectors_normalize_dependency_links($decoded);
 }
 
+
+function connectors_validate_single_operation_schema(string $operationKey, array $operation): void
+{
+    $requiredFields = [
+        'schema_version',
+        'operation_id',
+        'run_after',
+        'run_with',
+        'run_finally',
+        'entrypoint',
+        'on_dependency_fail',
+        'enabled',
+    ];
+
+    foreach ($requiredFields as $field) {
+        if (!array_key_exists($field, $operation)) {
+            throw new InvalidArgumentException('Операция "' . $operationKey . '": отсутствует обязательное поле "' . $field . '"');
+        }
+    }
+
+    $schemaVersion = (int)$operation['schema_version'];
+    if ($schemaVersion !== 2) {
+        throw new InvalidArgumentException('Операция "' . $operationKey . '": поддерживается только schema_version = 2');
+    }
+
+    $operationId = trim((string)$operation['operation_id']);
+    if ($operationId === '' || !preg_match('/^[a-zA-Z0-9_\-\.]+$/', $operationId)) {
+        throw new InvalidArgumentException('Операция "' . $operationKey . '": некорректный operation_id');
+    }
+
+    foreach (['run_after', 'run_with', 'run_finally'] as $dependencyField) {
+        if (!is_array($operation[$dependencyField])) {
+            throw new InvalidArgumentException('Операция "' . $operationKey . '": поле "' . $dependencyField . '" должно быть массивом');
+        }
+        foreach ($operation[$dependencyField] as $link) {
+            if (!is_string($link) || trim($link) === '' || !preg_match('/^[a-zA-Z0-9_\-\.]+$/', $link)) {
+                throw new InvalidArgumentException('Операция "' . $operationKey . '": поле "' . $dependencyField . '" содержит некорректную ссылку');
+            }
+        }
+    }
+
+    $onDependencyFail = strtolower(trim((string)$operation['on_dependency_fail']));
+    if (!in_array($onDependencyFail, ['stop', 'skip', 'continue'], true)) {
+        throw new InvalidArgumentException('Операция "' . $operationKey . '": поле "on_dependency_fail" должно быть stop|skip|continue');
+    }
+}
+
+function connectors_validate_operations_runtime(array $operations): void
+{
+    $operationIndex = [];
+    $dependencies = [];
+
+    foreach ($operations as $operationKey => $operation) {
+        if (!is_array($operation)) {
+            throw new InvalidArgumentException('Операция "' . $operationKey . '": неверный формат');
+        }
+
+        connectors_validate_single_operation_schema((string)$operationKey, $operation);
+
+        $operationId = trim((string)$operation['operation_id']);
+        if (isset($operationIndex[$operationId])) {
+            throw new InvalidArgumentException('Дублирующийся operation_id: "' . $operationId . '"');
+        }
+
+        $operationIndex[$operationId] = [
+            'key' => (string)$operationKey,
+            'enabled' => !empty($operation['enabled']),
+        ];
+
+        $dependencies[$operationId] = [];
+        foreach (['run_after', 'run_with', 'run_finally'] as $field) {
+            foreach ($operation[$field] as $linkedOperationId) {
+                $dependencies[$operationId][] = trim((string)$linkedOperationId);
+            }
+        }
+    }
+
+    foreach ($operations as $operationKey => $operation) {
+        $operationId = trim((string)$operation['operation_id']);
+        foreach (['run_after', 'run_with', 'run_finally'] as $field) {
+            foreach ($operation[$field] as $linkedOperationIdRaw) {
+                $linkedOperationId = trim((string)$linkedOperationIdRaw);
+
+                if (!isset($operationIndex[$linkedOperationId])) {
+                    throw new InvalidArgumentException('Операция "' . $operationId . '": ссылка "' . $linkedOperationId . '" в "' . $field . '" не найдена');
+                }
+
+                if ($linkedOperationId === $operationId) {
+                    throw new InvalidArgumentException('Операция "' . $operationId . '": ссылка на саму себя в "' . $field . '" запрещена');
+                }
+
+                if (!$operationIndex[$linkedOperationId]['enabled']) {
+                    throw new InvalidArgumentException('Операция "' . $operationId . '": зависимость "' . $linkedOperationId . '" неактивна');
+                }
+            }
+        }
+    }
+
+    $visitState = [];
+    $stack = [];
+
+    $visit = static function (string $operationId) use (&$visit, &$visitState, &$stack, $dependencies): void {
+        $state = $visitState[$operationId] ?? 0;
+        if ($state === 2) {
+            return;
+        }
+        if ($state === 1) {
+            $cycleStart = array_search($operationId, $stack, true);
+            $cyclePath = $cycleStart === false ? [$operationId] : array_slice($stack, $cycleStart);
+            $cyclePath[] = $operationId;
+            throw new InvalidArgumentException('Обнаружен цикл зависимостей: ' . implode(' -> ', $cyclePath));
+        }
+
+        $visitState[$operationId] = 1;
+        $stack[] = $operationId;
+
+        foreach ($dependencies[$operationId] as $linkedOperationId) {
+            $visit($linkedOperationId);
+        }
+
+        array_pop($stack);
+        $visitState[$operationId] = 2;
+    };
+
+    foreach (array_keys($dependencies) as $operationId) {
+        $visit($operationId);
+    }
+}
+
+function connectors_validate_operations_payload(array $operationsPayload): void
+{
+    if (!isset($operationsPayload['report']) || !isset($operationsPayload['submission'])) {
+        throw new InvalidArgumentException('Операции должны содержать как минимум report и submission');
+    }
+
+    connectors_validate_operations_runtime($operationsPayload);
+}
+
 function connectors_decode_operations(array $connector): array
 {
     $operations = connectors_default_operations($connector);
@@ -1912,6 +2050,7 @@ switch ($normalizedAction) {
 
         try {
             $operationsPayload = connectors_build_operations_payload_from_post();
+            connectors_validate_operations_payload($operationsPayload);
         } catch (InvalidArgumentException $e) {
             $response = [
                 'status' => 'error',
@@ -2073,6 +2212,7 @@ switch ($normalizedAction) {
 
         try {
             $operationsPayload = connectors_build_operations_payload_from_post();
+            connectors_validate_operations_payload($operationsPayload);
             $reportCfg = (array)($operationsPayload['report'] ?? []);
             $submissionCfg = (array)($operationsPayload['submission'] ?? []);
 
