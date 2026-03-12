@@ -345,6 +345,13 @@ function connectors_default_operations(array $connector): array
 
     return [
         'report' => [
+            'schema_version' => 2,
+            'operation_id' => 'report',
+            'run_after' => [],
+            'run_with' => [],
+            'run_finally' => [],
+            'entrypoint' => 1,
+            'on_dependency_fail' => 'stop',
             'enabled' => 0,
             'page_url' => '',
             'file_extension' => 'xlsx',
@@ -356,6 +363,13 @@ function connectors_default_operations(array $connector): array
             'field_mapping_json' => '',
         ],
         'submission' => [
+            'schema_version' => 2,
+            'operation_id' => 'submission',
+            'run_after' => [],
+            'run_with' => [],
+            'run_finally' => [],
+            'entrypoint' => 0,
+            'on_dependency_fail' => 'stop',
             'enabled' => 0,
             'page_url' => '',
             'log_steps' => 0,
@@ -366,6 +380,53 @@ function connectors_default_operations(array $connector): array
             'error_selector' => '',
         ],
     ];
+}
+
+
+function connectors_normalize_dependency_links($value): array
+{
+    if (!is_array($value)) {
+        return [];
+    }
+
+    $result = [];
+    foreach ($value as $item) {
+        $id = trim((string)$item);
+        if ($id === '') {
+            continue;
+        }
+        if (!preg_match('/^[a-zA-Z0-9_\-\.]+$/', $id)) {
+            continue;
+        }
+        $result[$id] = true;
+    }
+
+    return array_keys($result);
+}
+
+function connectors_normalize_dependency_policy($value): string
+{
+    $value = strtolower(trim((string)$value));
+    if (!in_array($value, ['stop', 'skip', 'continue'], true)) {
+        return 'stop';
+    }
+
+    return $value;
+}
+
+function connectors_decode_dependency_links_json(string $raw, string $fieldLabel): array
+{
+    $raw = trim($raw);
+    if ($raw === '') {
+        return [];
+    }
+
+    $decoded = json_decode($raw, true);
+    if (!is_array($decoded)) {
+        throw new InvalidArgumentException('Некорректный JSON в "' . $fieldLabel . '"');
+    }
+
+    return connectors_normalize_dependency_links($decoded);
 }
 
 function connectors_decode_operations(array $connector): array
@@ -383,6 +444,13 @@ function connectors_decode_operations(array $connector): array
 
     if (isset($decoded['report']) && is_array($decoded['report'])) {
         $report = $decoded['report'];
+        $operations['report']['schema_version'] = (int)($report['schema_version'] ?? 2) > 0 ? (int)$report['schema_version'] : 2;
+        $operations['report']['operation_id'] = trim((string)($report['operation_id'] ?? 'report')) ?: 'report';
+        $operations['report']['run_after'] = connectors_normalize_dependency_links($report['run_after'] ?? []);
+        $operations['report']['run_with'] = connectors_normalize_dependency_links($report['run_with'] ?? []);
+        $operations['report']['run_finally'] = connectors_normalize_dependency_links($report['run_finally'] ?? []);
+        $operations['report']['entrypoint'] = !empty($report['entrypoint']) ? 1 : 0;
+        $operations['report']['on_dependency_fail'] = connectors_normalize_dependency_policy($report['on_dependency_fail'] ?? 'stop');
         $operations['report']['enabled'] = !empty($report['enabled']) ? 1 : 0;
         $operations['report']['page_url'] = trim((string)($report['page_url'] ?? ''));
         $operations['report']['file_extension'] = trim((string)($report['file_extension'] ?? 'xlsx')) ?: 'xlsx';
@@ -407,6 +475,13 @@ function connectors_decode_operations(array $connector): array
 
     if (isset($decoded['submission']) && is_array($decoded['submission'])) {
         $submission = $decoded['submission'];
+        $operations['submission']['schema_version'] = (int)($submission['schema_version'] ?? 2) > 0 ? (int)$submission['schema_version'] : 2;
+        $operations['submission']['operation_id'] = trim((string)($submission['operation_id'] ?? 'submission')) ?: 'submission';
+        $operations['submission']['run_after'] = connectors_normalize_dependency_links($submission['run_after'] ?? []);
+        $operations['submission']['run_with'] = connectors_normalize_dependency_links($submission['run_with'] ?? []);
+        $operations['submission']['run_finally'] = connectors_normalize_dependency_links($submission['run_finally'] ?? []);
+        $operations['submission']['entrypoint'] = !empty($submission['entrypoint']) ? 1 : 0;
+        $operations['submission']['on_dependency_fail'] = connectors_normalize_dependency_policy($submission['on_dependency_fail'] ?? 'stop');
         $operations['submission']['enabled'] = !empty($submission['enabled']) ? 1 : 0;
         $operations['submission']['page_url'] = trim((string)($submission['page_url'] ?? ''));
         $operations['submission']['log_steps'] = !empty($submission['log_steps']) ? 1 : 0;
@@ -1276,6 +1351,27 @@ function connectors_build_operations_payload_from_post(): array
     $submissionSuccessText = trim((string)($_POST['submission_success_text'] ?? ''));
     $submissionErrorSelector = trim((string)($_POST['submission_error_selector'] ?? ''));
 
+    $reportOperationId = trim((string)($_POST['report_operation_id'] ?? 'report'));
+    $reportRunAfter = connectors_decode_dependency_links_json((string)($_POST['report_run_after_json'] ?? ''), 'Report run_after');
+    $reportRunWith = connectors_decode_dependency_links_json((string)($_POST['report_run_with_json'] ?? ''), 'Report run_with');
+    $reportRunFinally = connectors_decode_dependency_links_json((string)($_POST['report_run_finally_json'] ?? ''), 'Report run_finally');
+    $reportEntrypoint = !empty($_POST['report_entrypoint']) ? 1 : 0;
+    $reportOnDependencyFail = connectors_normalize_dependency_policy($_POST['report_on_dependency_fail'] ?? 'stop');
+
+    $submissionOperationId = trim((string)($_POST['submission_operation_id'] ?? 'submission'));
+    $submissionRunAfter = connectors_decode_dependency_links_json((string)($_POST['submission_run_after_json'] ?? ''), 'Submission run_after');
+    $submissionRunWith = connectors_decode_dependency_links_json((string)($_POST['submission_run_with_json'] ?? ''), 'Submission run_with');
+    $submissionRunFinally = connectors_decode_dependency_links_json((string)($_POST['submission_run_finally_json'] ?? ''), 'Submission run_finally');
+    $submissionEntrypoint = !empty($_POST['submission_entrypoint']) ? 1 : 0;
+    $submissionOnDependencyFail = connectors_normalize_dependency_policy($_POST['submission_on_dependency_fail'] ?? 'stop');
+
+    if ($reportOperationId === '') {
+        $reportOperationId = 'report';
+    }
+    if ($submissionOperationId === '') {
+        $submissionOperationId = 'submission';
+    }
+
     $targetTable = preg_replace('/[^a-z0-9_]+/', '_', $targetTable ?? '');
     if ($targetTable !== '') {
         $targetTable = trim($targetTable, '_');
@@ -1345,6 +1441,13 @@ function connectors_build_operations_payload_from_post(): array
 
     return [
         'report' => [
+            'schema_version' => 2,
+            'operation_id' => $reportOperationId,
+            'run_after' => $reportRunAfter,
+            'run_with' => $reportRunWith,
+            'run_finally' => $reportRunFinally,
+            'entrypoint' => $reportEntrypoint,
+            'on_dependency_fail' => $reportOnDependencyFail,
             'enabled' => $enabled,
             'page_url' => $pageUrl,
             'file_extension' => $fileExtension,
@@ -1357,6 +1460,13 @@ function connectors_build_operations_payload_from_post(): array
         ],
 
         'submission' => [
+            'schema_version' => 2,
+            'operation_id' => $submissionOperationId,
+            'run_after' => $submissionRunAfter,
+            'run_with' => $submissionRunWith,
+            'run_finally' => $submissionRunFinally,
+            'entrypoint' => $submissionEntrypoint,
+            'on_dependency_fail' => $submissionOnDependencyFail,
             'enabled' => $submissionEnabled,
             'page_url' => $submissionPageUrl,
             'log_steps' => $submissionLogSteps,

@@ -126,6 +126,59 @@
             </div>
 
             <div class="row mb-3">
+              <label for="report_operation_id" class="col-md-4 col-lg-3 col-form-label">ID операции</label>
+              <div class="col-md-8 col-lg-9">
+                <input type="text"
+                       class="form-control"
+                       id="report_operation_id"
+                       name="report_operation_id"
+                       value="{$operations.report.operation_id|default:'report'|escape}"
+                       placeholder="report">
+              </div>
+            </div>
+
+            <div class="row mb-3">
+              <label for="report_run_after_json" class="col-md-4 col-lg-3 col-form-label">Before (run_after)</label>
+              <div class="col-md-8 col-lg-9">
+                <textarea class="form-control" id="report_run_after_json" name="report_run_after_json" rows="2">{$operations.report.run_after|@json_encode|escape}</textarea>
+              </div>
+            </div>
+
+            <div class="row mb-3">
+              <label for="report_run_with_json" class="col-md-4 col-lg-3 col-form-label">During (run_with)</label>
+              <div class="col-md-8 col-lg-9">
+                <textarea class="form-control" id="report_run_with_json" name="report_run_with_json" rows="2">{$operations.report.run_with|@json_encode|escape}</textarea>
+              </div>
+            </div>
+
+            <div class="row mb-3">
+              <label for="report_run_finally_json" class="col-md-4 col-lg-3 col-form-label">After (run_finally)</label>
+              <div class="col-md-8 col-lg-9">
+                <textarea class="form-control" id="report_run_finally_json" name="report_run_finally_json" rows="2">{$operations.report.run_finally|@json_encode|escape}</textarea>
+              </div>
+            </div>
+
+            <div class="row mb-3">
+              <label class="col-md-4 col-lg-3 col-form-label">Точка входа</label>
+              <div class="col-md-8 col-lg-9">
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" id="report_entrypoint" name="report_entrypoint" value="1" {if $operations.report.entrypoint == 1}checked{/if}>
+                  <label class="form-check-label" for="report_entrypoint">Запускать как entrypoint</label>
+                </div>
+              </div>
+            </div>
+
+            <div class="row mb-3">
+              <label for="report_on_dependency_fail" class="col-md-4 col-lg-3 col-form-label">Политика при ошибке зависимости</label>
+              <div class="col-md-8 col-lg-9">
+                <select class="form-select" id="report_on_dependency_fail" name="report_on_dependency_fail">
+                  <option value="stop" {if $operations.report.on_dependency_fail == 'stop'}selected{/if}>stop</option>
+                  <option value="skip" {if $operations.report.on_dependency_fail == 'skip'}selected{/if}>skip</option>
+                  <option value="continue" {if $operations.report.on_dependency_fail == 'continue'}selected{/if}>continue</option>
+                </select>
+              </div>
+            </div>
+            <div class="row mb-3">
               <label for="report_page_url" class="col-md-4 col-lg-3 col-form-label">Страница отчета</label>
               <div class="col-md-8 col-lg-9">
                 <input type="text"
@@ -303,6 +356,61 @@
                              {if $operations.submission.enabled == 1}checked{/if}>
                       <label class="form-check-label" for="submission_enabled">Использовать операцию отправки</label>
                     </div>
+                  </div>
+                </div>
+
+
+                <div class="row mb-3">
+                  <label for="submission_operation_id" class="col-md-4 col-lg-3 col-form-label">ID операции</label>
+                  <div class="col-md-8 col-lg-9">
+                    <input type="text"
+                           class="form-control"
+                           id="submission_operation_id"
+                           name="submission_operation_id"
+                           value="{$operations.submission.operation_id|default:'submission'|escape}"
+                           placeholder="submission">
+                  </div>
+                </div>
+
+                <div class="row mb-3">
+                  <label for="submission_run_after_json" class="col-md-4 col-lg-3 col-form-label">Before (run_after)</label>
+                  <div class="col-md-8 col-lg-9">
+                    <textarea class="form-control" id="submission_run_after_json" name="submission_run_after_json" rows="2">{$operations.submission.run_after|@json_encode|escape}</textarea>
+                  </div>
+                </div>
+
+                <div class="row mb-3">
+                  <label for="submission_run_with_json" class="col-md-4 col-lg-3 col-form-label">During (run_with)</label>
+                  <div class="col-md-8 col-lg-9">
+                    <textarea class="form-control" id="submission_run_with_json" name="submission_run_with_json" rows="2">{$operations.submission.run_with|@json_encode|escape}</textarea>
+                  </div>
+                </div>
+
+                <div class="row mb-3">
+                  <label for="submission_run_finally_json" class="col-md-4 col-lg-3 col-form-label">After (run_finally)</label>
+                  <div class="col-md-8 col-lg-9">
+                    <textarea class="form-control" id="submission_run_finally_json" name="submission_run_finally_json" rows="2">{$operations.submission.run_finally|@json_encode|escape}</textarea>
+                  </div>
+                </div>
+
+                <div class="row mb-3">
+                  <label class="col-md-4 col-lg-3 col-form-label">Точка входа</label>
+                  <div class="col-md-8 col-lg-9">
+                    <div class="form-check">
+                      <input class="form-check-input" type="checkbox" id="submission_entrypoint" name="submission_entrypoint" value="1" {if $operations.submission.entrypoint == 1}checked{/if}>
+                      <label class="form-check-label" for="submission_entrypoint">Запускать как entrypoint</label>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="row mb-3">
+                  <label for="submission_on_dependency_fail" class="col-md-4 col-lg-3 col-form-label">Политика при ошибке зависимости</label>
+                  <div class="col-md-8 col-lg-9">
+                    <select class="form-select" id="submission_on_dependency_fail" name="submission_on_dependency_fail">
+                      <option value="stop" {if $operations.submission.on_dependency_fail == 'stop'}selected{/if}>stop</option>
+                      <option value="skip" {if $operations.submission.on_dependency_fail == 'skip'}selected{/if}>skip</option>
+                      <option value="continue" {if $operations.submission.on_dependency_fail == 'continue'}selected{/if}>continue</option>
+                    </select>
                   </div>
                 </div>
 

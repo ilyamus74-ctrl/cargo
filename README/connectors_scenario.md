@@ -310,6 +310,30 @@
 
 1. **Спека JSON v2**
    - Зафиксировать поля: `operation_id`, `run_after`, `run_with`, `run_finally`, `entrypoint`, `on_dependency_fail`.
+
+### JSON v2 (зафиксировано для этапа dependencies)
+
+```json
+{
+  "schema_version": 2,
+  "operation_id": "report",
+  "entrypoint": true,
+  "on_dependency_fail": "stop",
+  "run_after": [],
+  "run_with": [],
+  "run_finally": [],
+  "enabled": 1,
+  "actions": []
+}
+```
+
+Правила для полей v2:
+- `operation_id` — строковый стабильный идентификатор операции внутри коннектора.
+- `run_after` — массив `operation_id`, которые должны завершиться до старта текущей операции.
+- `run_with` — массив `operation_id`, которые запускаются в параллельной стадии вместе с текущей операцией.
+- `run_finally` — массив `operation_id`, которые запускаются в финальной стадии.
+- `entrypoint` — булев флаг, можно ли использовать операцию как точку входа.
+- `on_dependency_fail` — политика `stop|skip|continue` (по умолчанию `stop`).
 2. **Валидация**
    - JSON schema + runtime-проверки ссылок/циклов/неактивных зависимостей.
 3. **Планировщик исполнения графа**
