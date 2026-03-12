@@ -1138,6 +1138,29 @@ const CoreAPI = {
                 if (!data || data.status !== 'ok') {
                     console.error('core_api error:', data);
 
+                    if (action === 'form_connector_operations') {
+                        const connectorId = String(formData.get('connector_id') || '').trim();
+                        if (connectorId) {
+                            try {
+                                const fallbackFd = new FormData();
+                                fallbackFd.append('action', 'form_edit_connector');
+                                fallbackFd.append('connector_id', connectorId);
+                                const fallbackData = await CoreAPI.client.call(fallbackFd);
+                                if (fallbackData?.status === 'ok' && fallbackData.html) {
+                                    console.warn('form_connector_operations failed, fallback to form_edit_connector');
+                                    CoreAPI.ui.showModal(fallbackData.html);
+                                    if (CoreAPI.connectors?.initForm) {
+                                        CoreAPI.connectors.initForm();
+                                    }
+                                    alert((data?.message || 'Не удалось открыть операции коннектора') + '\n\nОткрыта карточка коннектора вместо операций.');
+                                    return;
+                                }
+                            } catch (fallbackErr) {
+                                console.error('core_api fallback error (form_edit_connector):', fallbackErr);
+                            }
+                        }
+                    }
+
                     const stepLog = Array.isArray(data?.step_log) ? data.step_log : [];
                     const artifactsDir = typeof data?.artifacts_dir === 'string' ? data.artifacts_dir.trim() : '';
                     if (stepLog.length > 0) {
