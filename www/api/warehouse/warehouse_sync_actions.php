@@ -541,7 +541,8 @@ if (!function_exists('warehouse_sync_out_backfill_from_stock')) {
         $skippedNoRouting = 0;
 
         $rows = [];
-        $sql = "SELECT wi.id, wi.receiver_company, wi.receiver_country_code, wo.stock_item_id AS out_stock_item_id"
+        $sql = "SELECT wi.id, wi.receiver_company, wi.receiver_country_code, wo.stock_item_id AS out_stock_item_id
+"
             . "FROM warehouse_item_stock wi
 "
             . "LEFT JOIN warehouse_item_out wo ON wo.stock_item_id = wi.id
@@ -626,13 +627,15 @@ if (!function_exists('warehouse_sync_status_target_map_for_connector')) {
             return [];
         }
 
-        $sql = "SELECT c.name, c.countries, ca.status_targets_json
+        $sql = "SELECT c.id, c.name, c.countries, ca.status_targets_json
 "
             . "FROM connectors c
 "
-            . "JOIN connectors_addons ca ON ca.connector_id = c.id
+            . "LEFT JOIN connectors_addons ca ON ca.connector_id = c.id
 "
-            . "WHERE c.is_active = 1 AND c.name <> ''";
+            . "WHERE c.is_active = 1 AND c.name <> ''
+"
+            . "ORDER BY c.id DESC";
 
         $rows = [];
         if ($res = $dbcnx->query($sql)) {
@@ -642,7 +645,7 @@ if (!function_exists('warehouse_sync_status_target_map_for_connector')) {
             $res->free();
         }
 
-        $matchedMap = [];
+        $selectedRow = null;
         foreach ($rows as $row) {
             $rowForwarder = strtolower(warehouse_sync_normalize_key((string)($row['name'] ?? '')));
             if ($rowForwarder !== $forwarderNorm) {
@@ -658,34 +661,39 @@ if (!function_exists('warehouse_sync_status_target_map_for_connector')) {
             if (!empty($countries) && !in_array($countryNorm, $countries, true)) {
                 continue;
             }
-            $rawMap = trim((string)($row['status_targets_json'] ?? ''));
-            if ($rawMap === '') {
-                continue;
-            }
-
-            $decodedMap = json_decode($rawMap, true);
-            if (!is_array($decodedMap) || empty($decodedMap)) {
-                continue;
-            }
-
-            $map = [];
-            foreach ($decodedMap as $status => $targetTable) {
-                $statusKey = mb_strtolower(trim((string)$status), 'UTF-8');
-                $target = trim((string)$targetTable);
-                if ($statusKey === '' || $target === '') {
-                    continue;
-                }
-                $map[$statusKey] = $target;
-            }
-
-            if (!empty($map)) {
-                $matchedMap = $map;
-                break;
-            }
+            $selectedRow = $row;
+            break;
         }
 
-        $cache[$cacheKey] = $matchedMap;
-        return $matchedMap;
+        if (!$selectedRow) {
+            $cache[$cacheKey] = [];
+            return [];
+        }
+
+
+        $rawMap = trim((string)($selectedRow['status_targets_json'] ?? ''));
+        if ($rawMap === '') {
+            $cache[$cacheKey] = [];
+            return [];
+        }
+
+        $decodedMap = json_decode($rawMap, true);
+        if (!is_array($decodedMap) || empty($decodedMap)) {
+            $cache[$cacheKey] = [];
+            return [];
+        }
+
+        $map = [];
+        foreach ($decodedMap as $status => $targetTable) {
+            $statusKey = mb_strtolower(trim((string)$status), 'UTF-8');
+            $target = trim((string)$targetTable);
+            if ($statusKey === '' || $target === '') {
+                continue;
+            }
+            $map[$statusKey] = $target;
+        }
+        $cache[$cacheKey] = $map;
+        return $map;
     }
 }
 
