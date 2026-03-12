@@ -1299,6 +1299,25 @@ if (!function_exists('warehouse_sync_process_definition_from_connector')) {
     {
         $submissionSteps = warehouse_sync_submission_steps($connector);
         $requiredVars = warehouse_sync_collect_required_vars_from_steps($submissionSteps);
+        $policyCodes = [
+            'connector_active',
+            'submission_steps_present',
+            'required_vars_present',
+        ];
+
+        $policies = [];
+        foreach ($policyCodes as $policyCode) {
+            $rule = warehouse_sync_policy_rule($policyCode);
+            if (empty($rule)) {
+                continue;
+            }
+            $policies[] = [
+                'code' => $policyCode,
+                'title' => (string)($rule['title'] ?? $policyCode),
+                'severity' => (string)($rule['severity'] ?? 'block'),
+                'success_criteria' => (string)($rule['success_criteria'] ?? ''),
+            ];
+        }
 
         return warehouse_sync_normalize_process_definition([
             'version' => 'v2',
@@ -1309,11 +1328,7 @@ if (!function_exists('warehouse_sync_process_definition_from_connector')) {
                 ['code' => 'run_submission', 'title' => 'Отправка в форвард', 'required' => ['submission_steps']],
                 ['code' => 'persist_results', 'title' => 'Запись статуса и аудита', 'required' => []],
             ],
-            'policies' => [
-                ['code' => 'connector_active', 'title' => 'Коннектор активен', 'severity' => 'block'],
-                ['code' => 'submission_steps_present', 'title' => 'Есть шаги submission', 'severity' => 'block'],
-                ['code' => 'required_vars_present', 'title' => 'Есть все обязательные переменные', 'severity' => 'block'],
-            ],
+            'policies' => $policies,
             'states' => [
                 'for_sync' => ['next' => ['half_sync', 'confirmed_sync', 'error']],
                 'half_sync' => ['next' => ['confirmed_sync', 'error']],
@@ -1336,6 +1351,81 @@ if (!function_exists('warehouse_sync_process_definition_from_connector')) {
     }
 }
 
+
+if (!function_exists('warehouse_sync_policy_catalog')) {
+    function warehouse_sync_policy_catalog(): array
+    {
+        return [
+            'connector_active' => [
+                'title' => 'Коннектор активен',
+                'severity' => 'block',
+                'success_criteria' => 'connector_active = true',
+                'evaluator' => ['type' => 'truthy', 'field' => 'connector_active'],
+                'messages' => [
+                    'ok' => 'Коннектор активен.',
+                    'fail' => 'Коннектор не активен.',
+                ],
+            ],
+            'submission_steps_present' => [
+                'title' => 'Есть шаги submission',
+                'severity' => 'block',
+                'success_criteria' => 'steps_defined = true',
+                'evaluator' => ['type' => 'truthy', 'field' => 'steps_defined'],
+                'messages' => [
+                    'ok' => 'Шаги submission настроены.',
+                    'fail' => 'Не настроены шаги операции submission.',
+                ],
+            ],
+            'required_vars_present' => [
+                'title' => 'Есть все обязательные переменные',
+                'severity' => 'block',
+                'success_criteria' => 'missing_required_vars is empty',
+                'evaluator' => ['type' => 'empty_array', 'field' => 'missing_required_vars'],
+                'messages' => [
+                    'ok' => 'Все обязательные переменные заполнены.',
+                    'fail' => 'Не заполнена ДопИнформация/переменные: %s',
+                ],
+            ],
+        ];
+    }
+}
+
+if (!function_exists('warehouse_sync_policy_rule')) {
+    function warehouse_sync_policy_rule(string $policyCode): array
+    {
+        $catalog = warehouse_sync_policy_catalog();
+        return isset($catalog[$policyCode]) && is_array($catalog[$policyCode])
+            ? $catalog[$policyCode]
+            : [];
+    }
+}
+
+if (!function_exists('warehouse_sync_evaluate_policy_rule')) {
+    function warehouse_sync_evaluate_policy_rule(array $rule, array $context): array
+    {
+        $eval = isset($rule['evaluator']) && is_array($rule['evaluator']) ? $rule['evaluator'] : [];
+        $evalType = trim((string)($eval['type'] ?? 'truthy'));
+        $field = trim((string)($eval['field'] ?? ''));
+        $value = $field !== '' ? ($context[$field] ?? null) : null;
+
+        $ok = true;
+        if ($evalType === 'truthy') {
+            $ok = !empty($value);
+        } elseif ($evalType === 'empty_array') {
+            $ok = empty((array)$value);
+        } else {
+            $ok = false;
+        }
+
+        return [
+            'ok' => $ok,
+            'field' => $field,
+            'value' => $value,
+            'type' => $evalType,
+        ];
+    }
+}
+
 if (!function_exists('warehouse_sync_evaluate_policies')) {
     function warehouse_sync_evaluate_policies(array $processDef, array $context): array
     {
@@ -1348,28 +1438,44 @@ if (!function_exists('warehouse_sync_evaluate_policies')) {
                 continue;
             }
 
-            $ok = true;
-            $message = 'ok';
+            $rule = warehouse_sync_policy_rule($code);
+            $severity = trim((string)($policy['severity'] ?? ($rule['severity'] ?? 'block')));
+            $successCriteria = trim((string)($policy['success_criteria'] ?? ($rule['success_criteria'] ?? '')));
 
-            if ($code === 'connector_active') {
-                $ok = !empty($context['connector_active']);
-                $message = $ok ? 'Коннектор активен.' : 'Коннектор не активен.';
-            } elseif ($code === 'submission_steps_present') {
-                $ok = !empty($context['steps_defined']);
-                $message = $ok ? 'Шаги submission настроены.' : 'Не настроены шаги операции submission.';
-            } elseif ($code === 'required_vars_present') {
-                $missing = (array)($context['missing_required_vars'] ?? []);
-                $ok = empty($missing);
-                $message = $ok ? 'Все обязательные переменные заполнены.' : 'Не заполнена ДопИнформация/переменные: ' . implode(', ', $missing);
+
+            if (empty($rule)) {
+                $ok = true;
+                $message = 'Проверка политики пропущена: правило не зарегистрировано.';
+            } else {
+                $eval = warehouse_sync_evaluate_policy_rule($rule, $context);
+                $ok = !empty($eval['ok']);
+
+                $messages = isset($rule['messages']) && is_array($rule['messages']) ? $rule['messages'] : [];
+                $okMessage = trim((string)($messages['ok'] ?? 'ok'));
+                $failTemplate = trim((string)($messages['fail'] ?? 'policy failed'));
+
+                $message = $okMessage;
+                if (!$ok) {
+                    $fieldValue = $eval['value'] ?? null;
+                    if (($eval['type'] ?? '') === 'empty_array') {
+                        $fieldValue = implode(', ', array_values(array_map('strval', (array)$fieldValue)));
+                    }
+                    if (strpos($failTemplate, '%s') !== false) {
+                        $message = sprintf($failTemplate, (string)$fieldValue);
+                    } else {
+                        $message = $failTemplate;
+                    }
+                }
             }
 
-            if (!$ok && (($policy['severity'] ?? 'block') === 'block')) {
+            if (!$ok && $severity === 'block') {
                 $blocked = true;
             }
 
             $decisions[] = [
                 'code' => $code,
-                'severity' => (string)($policy['severity'] ?? 'block'),
+                'severity' => $severity,
+                'success_criteria' => $successCriteria,
                 'ok' => $ok,
                 'message' => $message,
             ];
