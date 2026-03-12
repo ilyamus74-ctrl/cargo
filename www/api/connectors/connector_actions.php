@@ -1203,6 +1203,204 @@ function connectors_generate_run_id(int $connectorId): string
     return 'run-' . date('YmdHis') . '-c' . max(0, $connectorId) . '-' . $random;
 }
 
+
+function connectors_ensure_run_trace_tables(mysqli $dbcnx): void
+{
+    $runsSql = "
+        CREATE TABLE IF NOT EXISTS connector_operation_runs (
+            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+            connector_id INT UNSIGNED NOT NULL,
+            run_id VARCHAR(96) NOT NULL,
+            test_operation VARCHAR(64) NOT NULL DEFAULT 'report',
+            status VARCHAR(32) NOT NULL DEFAULT 'error',
+            message TEXT NULL,
+            target_table VARCHAR(128) NOT NULL DEFAULT '',
+            started_at DATETIME NOT NULL,
+            finished_at DATETIME NOT NULL,
+            duration_ms INT UNSIGNED NOT NULL DEFAULT 0,
+            created_by INT NOT NULL DEFAULT 0,
+            trace_log_json LONGTEXT NULL,
+            step_log_json LONGTEXT NULL,
+            execution_plan_json LONGTEXT NULL,
+            chain_status_json LONGTEXT NULL,
+            artifacts_dir TEXT NULL,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            UNIQUE KEY uq_run_id (run_id),
+            KEY idx_connector_created (connector_id, created_at),
+            KEY idx_connector_status_created (connector_id, status, created_at),
+            KEY idx_test_operation_created (test_operation, created_at)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+    ";
+
+    if (!$dbcnx->query($runsSql)) {
+        error_log('connector_operation_runs schema create error: ' . $dbcnx->error);
+    }
+
+    $eventsSql = "
+        CREATE TABLE IF NOT EXISTS connector_operation_run_events (
+            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+            run_id VARCHAR(96) NOT NULL,
+            connector_id INT UNSIGNED NOT NULL,
+            event_index INT UNSIGNED NOT NULL DEFAULT 0,
+            event_source VARCHAR(16) NOT NULL DEFAULT 'trace',
+            operation_id VARCHAR(96) NOT NULL DEFAULT '',
+            stage VARCHAR(96) NOT NULL DEFAULT '',
+            step_name VARCHAR(255) NOT NULL DEFAULT '',
+            status VARCHAR(32) NOT NULL DEFAULT '',
+            duration_ms INT UNSIGNED NOT NULL DEFAULT 0,
+            message TEXT NULL,
+            meta_json LONGTEXT NULL,
+            event_time DATETIME NOT NULL,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            KEY idx_run_event_index (run_id, event_index),
+            KEY idx_connector_event_time (connector_id, event_time),
+            KEY idx_operation_event_time (operation_id, event_time),
+            KEY idx_status_event_time (status, event_time)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+    ";
+
+    if (!$dbcnx->query($eventsSql)) {
+        error_log('connector_operation_run_events schema create error: ' . $dbcnx->error);
+    }
+}
+
+function connectors_persist_run_trace(mysqli $dbcnx, array $payload): bool
+{
+    connectors_ensure_run_trace_tables($dbcnx);
+
+    $connectorId = (int)($payload['connector_id'] ?? 0);
+    $runId = trim((string)($payload['run_id'] ?? ''));
+    if ($connectorId <= 0 || $runId === '') {
+        return false;
+    }
+
+    $testOperation = trim((string)($payload['test_operation'] ?? 'report')) ?: 'report';
+    $status = trim((string)($payload['status'] ?? 'error')) ?: 'error';
+    $message = trim((string)($payload['message'] ?? ''));
+    $targetTable = trim((string)($payload['target_table'] ?? ''));
+    $createdBy = (int)($payload['created_by'] ?? 0);
+    $startedAt = trim((string)($payload['started_at'] ?? date('Y-m-d H:i:s')));
+    $finishedAt = trim((string)($payload['finished_at'] ?? date('Y-m-d H:i:s')));
+    $durationMs = max(0, (int)($payload['duration_ms'] ?? 0));
+    $artifactsDir = trim((string)($payload['artifacts_dir'] ?? ''));
+
+    $traceLog = isset($payload['trace_log']) && is_array($payload['trace_log']) ? $payload['trace_log'] : [];
+    $stepLog = isset($payload['step_log']) && is_array($payload['step_log']) ? $payload['step_log'] : [];
+    $executionPlan = isset($payload['execution_plan']) && is_array($payload['execution_plan']) ? $payload['execution_plan'] : [];
+    $chainStatus = isset($payload['chain_status']) && is_array($payload['chain_status']) ? $payload['chain_status'] : [];
+
+    $traceLogJson = json_encode($traceLog, JSON_UNESCAPED_UNICODE);
+    $stepLogJson = json_encode($stepLog, JSON_UNESCAPED_UNICODE);
+    $executionPlanJson = json_encode($executionPlan, JSON_UNESCAPED_UNICODE);
+    $chainStatusJson = json_encode($chainStatus, JSON_UNESCAPED_UNICODE);
+
+    if ($traceLogJson === false || $stepLogJson === false || $executionPlanJson === false || $chainStatusJson === false) {
+        return false;
+    }
+
+    $dbcnx->begin_transaction();
+    try {
+        $runSql = 'INSERT INTO connector_operation_runs (connector_id, run_id, test_operation, status, message, target_table, started_at, finished_at, duration_ms, created_by, trace_log_json, step_log_json, execution_plan_json, chain_status_json, artifacts_dir) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE connector_id = VALUES(connector_id), test_operation = VALUES(test_operation), status = VALUES(status), message = VALUES(message), target_table = VALUES(target_table), started_at = VALUES(started_at), finished_at = VALUES(finished_at), duration_ms = VALUES(duration_ms), created_by = VALUES(created_by), trace_log_json = VALUES(trace_log_json), step_log_json = VALUES(step_log_json), execution_plan_json = VALUES(execution_plan_json), chain_status_json = VALUES(chain_status_json), artifacts_dir = VALUES(artifacts_dir)';
+        $runStmt = $dbcnx->prepare($runSql);
+        if (!$runStmt) {
+            throw new RuntimeException('prepare connector_operation_runs failed');
+        }
+
+        $runStmt->bind_param(
+            'isssssssissssss',
+            $connectorId,
+            $runId,
+            $testOperation,
+            $status,
+            $message,
+            $targetTable,
+            $startedAt,
+            $finishedAt,
+            $durationMs,
+            $createdBy,
+            $traceLogJson,
+            $stepLogJson,
+            $executionPlanJson,
+            $chainStatusJson,
+            $artifactsDir
+        );
+        if (!$runStmt->execute()) {
+            $error = $runStmt->error;
+            $runStmt->close();
+            throw new RuntimeException('execute connector_operation_runs failed: ' . $error);
+        }
+        $runStmt->close();
+
+        $deleteStmt = $dbcnx->prepare('DELETE FROM connector_operation_run_events WHERE run_id = ?');
+        if (!$deleteStmt) {
+            throw new RuntimeException('prepare connector_operation_run_events delete failed');
+        }
+        $deleteStmt->bind_param('s', $runId);
+        $deleteStmt->execute();
+        $deleteStmt->close();
+
+        $eventSql = 'INSERT INTO connector_operation_run_events (run_id, connector_id, event_index, event_source, operation_id, stage, step_name, status, duration_ms, message, meta_json, event_time) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)';
+        $eventStmt = $dbcnx->prepare($eventSql);
+        if (!$eventStmt) {
+            throw new RuntimeException('prepare connector_operation_run_events insert failed');
+        }
+
+        $eventIndex = 0;
+        $appendEvent = static function (array $event, string $source) use (&$eventIndex, $eventStmt, $runId, $connectorId): void {
+            $eventTime = trim((string)($event['time'] ?? ''));
+            if ($eventTime === '') {
+                $eventTime = date('Y-m-d H:i:s');
+            } else {
+                $timestamp = strtotime($eventTime);
+                $eventTime = $timestamp !== false ? date('Y-m-d H:i:s', $timestamp) : date('Y-m-d H:i:s');
+            }
+
+            $operationId = trim((string)($event['operation_id'] ?? ''));
+            $stage = trim((string)($event['stage'] ?? ($event['step'] ?? '')));
+            $stepName = trim((string)($event['step'] ?? ''));
+            $status = trim((string)($event['status'] ?? ''));
+            $durationMs = max(0, (int)($event['duration_ms'] ?? (($event['meta']['duration_ms'] ?? 0))));
+            $message = trim((string)($event['message'] ?? ''));
+            $meta = isset($event['meta']) && is_array($event['meta']) ? $event['meta'] : [];
+            $metaJson = json_encode($meta, JSON_UNESCAPED_UNICODE);
+            if ($metaJson === false) {
+                $metaJson = '{}';
+            }
+
+            $index = $eventIndex;
+            $eventStmt->bind_param('siisssssisss', $runId, $connectorId, $index, $source, $operationId, $stage, $stepName, $status, $durationMs, $message, $metaJson, $eventTime);
+            if (!$eventStmt->execute()) {
+                throw new RuntimeException('execute connector_operation_run_events failed: ' . $eventStmt->error);
+            }
+            $eventIndex++;
+        };
+
+        foreach ($traceLog as $traceEvent) {
+            if (is_array($traceEvent)) {
+                $appendEvent($traceEvent, 'trace');
+            }
+        }
+
+        foreach ($stepLog as $stepEvent) {
+            if (is_array($stepEvent)) {
+                $appendEvent($stepEvent, 'step');
+            }
+        }
+
+        $eventStmt->close();
+        $dbcnx->commit();
+        return true;
+    } catch (Throwable $e) {
+        $dbcnx->rollback();
+        error_log('connectors_persist_run_trace error: ' . $e->getMessage());
+        return false;
+    }
+}
+
+
 function connectors_append_trace_event(array &$traceLog, string $runId, string $operationId, string $stage, string $status, string $message, array $meta = []): void
 {
     $traceLog[] = [
@@ -2555,6 +2753,11 @@ switch ($normalizedAction) {
         $runId = connectors_generate_run_id($connectorId);
         $traceLog = [];
         $executionPlan = [];
+        $targetTable = '';
+        $reportCfg = [];
+        $submissionCfg = [];
+        $runStartedAtTs = microtime(true);
+        $runStartedAt = date('Y-m-d H:i:s');
         if ($connectorId <= 0) {
             $response = [
                 'status' => 'error',
@@ -2614,7 +2817,6 @@ switch ($normalizedAction) {
                     'artifacts_dir' => (string)($submissionResult['artifacts_dir'] ?? ''),
                     'node_payload' => isset($submissionResult['node_payload']) && is_array($submissionResult['node_payload']) ? $submissionResult['node_payload'] : null,
                 ];
-                break;
             }
 
             $periodFrom = connectors_validate_iso_date($_POST['test_period_from'] ?? null);
@@ -2633,7 +2835,6 @@ switch ($normalizedAction) {
                 'run_id' => $runId,
                 'trace_log' => $traceLog,
             ];
-            break;
         } catch (RuntimeException $e) {
 
             connectors_append_trace_event($traceLog, $runId, $testOperation ?: 'report', 'validate', 'failed', 'Ошибка подготовки операции', [
@@ -2647,7 +2848,6 @@ switch ($normalizedAction) {
                 'run_id' => $runId,
                 'trace_log' => $traceLog,
             ];
-            break;
         } catch (ConnectorStepLogException $e) {
             connectors_append_trace_event($traceLog, $runId, $testOperation ?: 'report', 'validate', 'failed', 'Ошибка выполнения шага', [
                 'error' => $e->getMessage(),
@@ -2662,128 +2862,150 @@ switch ($normalizedAction) {
                 'trace_log' => $traceLog,
                 'artifacts_dir' => $e->getArtifactsDir(),
             ];
-            break;
         }
 
-        $periodMessage = '';
-        if ($periodFrom !== null || $periodTo !== null) {
-            $periodMessage = ' Период: ' . ($periodFrom ?? '...') . ' — ' . ($periodTo ?? '...') . '.';
-        }
 
-        try {
-            $downloadInfo = connectors_download_report_file($connector, $reportCfg, $periodFrom, $periodTo);
-            $reportOperationId = trim((string)($reportCfg['operation_id'] ?? 'report'));
-            connectors_append_trace_event($traceLog, $runId, $reportOperationId, 'main', 'success', 'Файл успешно скачан', [
-                'file_size' => (int)($downloadInfo['file_size'] ?? 0),
-            ]);
-
-            $importedRows = 0;
-            $importMessage = ' Парсинг не выполнен: поддержан авто-импорт CSV/XLSX.';
-            $fieldMapping = isset($reportCfg['field_mapping']) && is_array($reportCfg['field_mapping']) ? $reportCfg['field_mapping'] : [];
-            $fileExt = strtolower(trim((string)($downloadInfo['file_extension'] ?? '')));
-            if ($fileExt === 'csv') {
-                $importedRows = connectors_import_csv_into_report_table(
-                    $dbcnx,
-                    $targetTable,
-                    (string)$downloadInfo['file_path'],
-                    $connectorId,
-                    $periodFrom,
-                    $periodTo,
-                    $fieldMapping
-                );
-                $importMessage = ' Импортировано строк: ' . $importedRows . '.';
-            } elseif ($fileExt === 'xlsx') {
-                $importedRows = connectors_import_xlsx_into_report_table(
-                    $dbcnx,
-                    $targetTable,
-                    (string)$downloadInfo['file_path'],
-                    $connectorId,
-                    $periodFrom,
-                    $periodTo,
-                    $fieldMapping
-                );
-                $importMessage = ' Импортировано строк: ' . $importedRows . '.';
+        if (($response['status'] ?? '') === 'error') {
+            // Ошибка подготовки: запуск скачивания/импорта пропускаем.
+        } else {
+            $periodMessage = '';
+            if ($periodFrom !== null || $periodTo !== null) {
+                $periodMessage = ' Период: ' . ($periodFrom ?? '...') . ' — ' . ($periodTo ?? '...') . '.';
             }
+            try {
+                $downloadInfo = connectors_download_report_file($connector, $reportCfg, $periodFrom, $periodTo);
+                $reportOperationId = trim((string)($reportCfg['operation_id'] ?? 'report'));
+                connectors_append_trace_event($traceLog, $runId, $reportOperationId, 'main', 'success', 'Файл успешно скачан', [
+                    'file_size' => (int)($downloadInfo['file_size'] ?? 0),
+                ]);
+                $importedRows = 0;
+                $importMessage = ' Парсинг не выполнен: поддержан авто-импорт CSV/XLSX.';
+                $fieldMapping = isset($reportCfg['field_mapping']) && is_array($reportCfg['field_mapping']) ? $reportCfg['field_mapping'] : [];
+                $fileExt = strtolower(trim((string)($downloadInfo['file_extension'] ?? '')));
+                if ($fileExt === 'csv') {
+                    $importedRows = connectors_import_csv_into_report_table(
+                        $dbcnx,
+                        $targetTable,
+                        (string)$downloadInfo['file_path'],
+                        $connectorId,
+                        $periodFrom,
+                        $periodTo,
+                        $fieldMapping
+                    );
+                    $importMessage = ' Импортировано строк: ' . $importedRows . '.';
+                } elseif ($fileExt === 'xlsx') {
+                    $importedRows = connectors_import_xlsx_into_report_table(
+                        $dbcnx,
+                        $targetTable,
+                        (string)$downloadInfo['file_path'],
+                        $connectorId,
+                        $periodFrom,
+                        $periodTo,
+                        $fieldMapping
+                    );
+                    $importMessage = ' Импортировано строк: ' . $importedRows . '.';
+                }
 
-            $response = [
-                'status' => 'ok',
-                'message' => 'Тест операции пройден. Файл скачан (' . (int)($downloadInfo['file_size'] ?? 0) . ' байт). Таблица `' . $targetTable . '` готова.' . $periodMessage . $importMessage,
-                'connector_id' => $connectorId,
-                'run_id' => $runId,
-                'target_table' => $targetTable,
-                'period_from' => $periodFrom,
-                'period_to' => $periodTo,
-                'download' => $downloadInfo,
-                'step_log' => isset($downloadInfo['step_log']) && is_array($downloadInfo['step_log']) ? $downloadInfo['step_log'] : [],
-                'trace_log' => $traceLog,
-                'execution_plan' => $executionPlan,
-                'chain_status' => connectors_build_chain_status_map($executionPlan, $reportOperationId, true),
-                'imported_rows' => $importedRows,
-            ];
-        } catch (InvalidArgumentException $e) {
-            $reportOperationId = trim((string)($reportCfg['operation_id'] ?? 'report'));
-            connectors_append_trace_event($traceLog, $runId, $reportOperationId, 'main', 'failed', 'Ошибка валидации операции #1', [
-                'error' => $e->getMessage(),
-            ]);
-            $response = [
-                'status' => 'error',
-                'message' => $e->getMessage(),
-                'connector_id' => $connectorId,
-                'run_id' => $runId,
-                'target_table' => $targetTable,
-                'trace_log' => $traceLog,
-                'execution_plan' => $executionPlan,
-                'chain_status' => connectors_build_chain_status_map($executionPlan, $reportOperationId, false),
-            ];
-        } catch (ConnectorStepLogException $e) {
-            $reportOperationId = trim((string)($reportCfg['operation_id'] ?? 'report'));
-            connectors_append_trace_event($traceLog, $runId, $reportOperationId, 'main', 'failed', 'Ошибка шага операции #1', [
-                'error' => $e->getMessage(),
-            ]);
-            $response = [
-                'status' => 'error',
-                'message' => $e->getMessage(),
-                'connector_id' => $connectorId,
-                'run_id' => $runId,
-                'target_table' => $targetTable,
-                'step_log' => $e->getStepLog(),
-                'trace_log' => $traceLog,
-                'execution_plan' => $executionPlan,
-                'chain_status' => connectors_build_chain_status_map($executionPlan, $reportOperationId, false),
-                'artifacts_dir' => $e->getArtifactsDir(),
-            ];
-        } catch (RuntimeException $e) {
-            $reportOperationId = trim((string)($reportCfg['operation_id'] ?? 'report'));
-            connectors_append_trace_event($traceLog, $runId, $reportOperationId, 'main', 'failed', 'Ошибка выполнения операции #1', [
-                'error' => $e->getMessage(),
-            ]);
-            $response = [
-                'status' => 'error',
-                'message' => $e->getMessage(),
-                'connector_id' => $connectorId,
-                'run_id' => $runId,
-                'target_table' => $targetTable,
-                'trace_log' => $traceLog,
-                'execution_plan' => $executionPlan,
-                'chain_status' => connectors_build_chain_status_map($executionPlan, $reportOperationId, false),
-            ];
-        } catch (Throwable $e) {
-            $reportOperationId = trim((string)($reportCfg['operation_id'] ?? 'report'));
-            connectors_append_trace_event($traceLog, $runId, $reportOperationId, 'main', 'failed', 'Фатальная ошибка операции #1', [
-                'error' => $e->getMessage(),
-            ]);
-            error_log('test_connector_operations fatal: ' . $e->getMessage());
-            $response = [
-                'status' => 'error',
-                'message' => 'Ошибка во время теста операции: ' . $e->getMessage(),
-                'connector_id' => $connectorId,
-                'run_id' => $runId,
-                'target_table' => $targetTable,
-                'trace_log' => $traceLog,
-                'execution_plan' => $executionPlan,
-                'chain_status' => connectors_build_chain_status_map($executionPlan, $reportOperationId, false),
-            ];
+                $response = [
+                    'status' => 'ok',
+                    'message' => 'Тест операции пройден. Файл скачан (' . (int)($downloadInfo['file_size'] ?? 0) . ' байт). Таблица `' . $targetTable . '` готова.' . $periodMessage . $importMessage,
+                    'connector_id' => $connectorId,
+                    'run_id' => $runId,
+                    'target_table' => $targetTable,
+                    'period_from' => $periodFrom,
+                    'period_to' => $periodTo,
+                    'download' => $downloadInfo,
+                    'step_log' => isset($downloadInfo['step_log']) && is_array($downloadInfo['step_log']) ? $downloadInfo['step_log'] : [],
+                    'trace_log' => $traceLog,
+                    'execution_plan' => $executionPlan,
+                    'chain_status' => connectors_build_chain_status_map($executionPlan, $reportOperationId, true),
+                    'imported_rows' => $importedRows,
+                ];
+            } catch (InvalidArgumentException $e) {
+                $reportOperationId = trim((string)($reportCfg['operation_id'] ?? 'report'));
+                connectors_append_trace_event($traceLog, $runId, $reportOperationId, 'main', 'failed', 'Ошибка валидации операции #1', [
+                    'error' => $e->getMessage(),
+                ]);
+                $response = [
+                    'status' => 'error',
+                    'message' => $e->getMessage(),
+                    'connector_id' => $connectorId,
+                    'run_id' => $runId,
+                    'target_table' => $targetTable,
+                    'trace_log' => $traceLog,
+                    'execution_plan' => $executionPlan,
+                    'chain_status' => connectors_build_chain_status_map($executionPlan, $reportOperationId, false),
+                ];
+            } catch (ConnectorStepLogException $e) {
+                $reportOperationId = trim((string)($reportCfg['operation_id'] ?? 'report'));
+                connectors_append_trace_event($traceLog, $runId, $reportOperationId, 'main', 'failed', 'Ошибка шага операции #1', [
+                    'error' => $e->getMessage(),
+                ]);
+                $response = [
+                    'status' => 'error',
+                    'message' => $e->getMessage(),
+                    'connector_id' => $connectorId,
+                    'run_id' => $runId,
+                    'target_table' => $targetTable,
+                    'step_log' => $e->getStepLog(),
+                    'trace_log' => $traceLog,
+                    'execution_plan' => $executionPlan,
+                    'chain_status' => connectors_build_chain_status_map($executionPlan, $reportOperationId, false),
+                    'artifacts_dir' => $e->getArtifactsDir(),
+                ];
+            } catch (RuntimeException $e) {
+                $reportOperationId = trim((string)($reportCfg['operation_id'] ?? 'report'));
+                connectors_append_trace_event($traceLog, $runId, $reportOperationId, 'main', 'failed', 'Ошибка выполнения операции #1', [
+                    'error' => $e->getMessage(),
+                ]);
+                $response = [
+                    'status' => 'error',
+                    'message' => $e->getMessage(),
+                    'connector_id' => $connectorId,
+                    'run_id' => $runId,
+                    'target_table' => $targetTable,
+                    'trace_log' => $traceLog,
+                    'execution_plan' => $executionPlan,
+                    'chain_status' => connectors_build_chain_status_map($executionPlan, $reportOperationId, false),
+                ];
+            } catch (Throwable $e) {
+                $reportOperationId = trim((string)($reportCfg['operation_id'] ?? 'report'));
+                connectors_append_trace_event($traceLog, $runId, $reportOperationId, 'main', 'failed', 'Фатальная ошибка операции #1', [
+                    'error' => $e->getMessage(),
+                ]);
+                error_log('test_connector_operations fatal: ' . $e->getMessage());
+                $response = [
+                    'status' => 'error',
+                    'message' => 'Ошибка во время теста операции: ' . $e->getMessage(),
+                    'connector_id' => $connectorId,
+                    'run_id' => $runId,
+                    'target_table' => $targetTable,
+                    'trace_log' => $traceLog,
+                    'execution_plan' => $executionPlan,
+                    'chain_status' => connectors_build_chain_status_map($executionPlan, $reportOperationId, false),
+                ];
+            }
         }
+
+        $runFinishedAt = date('Y-m-d H:i:s');
+        $runDurationMs = max(0, (int)round((microtime(true) - $runStartedAtTs) * 1000));
+        connectors_persist_run_trace($dbcnx, [
+            'connector_id' => $connectorId,
+            'run_id' => $runId,
+            'test_operation' => (string)($response['test_operation'] ?? $testOperation),
+            'status' => (string)($response['status'] ?? 'error'),
+            'message' => (string)($response['message'] ?? ''),
+            'target_table' => (string)($response['target_table'] ?? $targetTable),
+            'created_by' => (int)($user['id'] ?? 0),
+            'started_at' => $runStartedAt,
+            'finished_at' => $runFinishedAt,
+            'duration_ms' => $runDurationMs,
+            'trace_log' => isset($response['trace_log']) && is_array($response['trace_log']) ? $response['trace_log'] : $traceLog,
+            'step_log' => isset($response['step_log']) && is_array($response['step_log']) ? $response['step_log'] : [],
+            'execution_plan' => isset($response['execution_plan']) && is_array($response['execution_plan']) ? $response['execution_plan'] : $executionPlan,
+            'chain_status' => isset($response['chain_status']) && is_array($response['chain_status']) ? $response['chain_status'] : [],
+            'artifacts_dir' => (string)($response['artifacts_dir'] ?? ''),
+        ]);
         break;
 
 
