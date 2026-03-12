@@ -558,6 +558,290 @@ function connectors_validate_operations_runtime(array $operations): void
     }
 }
 
+function connectors_topological_sort_operations(array $nodes, array $adjacency, array $stableOrder): array
+{
+    $nodeSet = [];
+    foreach ($nodes as $nodeId) {
+        $nodeSet[(string)$nodeId] = true;
+    }
+
+    $indegree = [];
+    foreach (array_keys($nodeSet) as $nodeId) {
+        $indegree[$nodeId] = 0;
+    }
+
+    foreach ($adjacency as $from => $toList) {
+        $from = (string)$from;
+        if (!isset($nodeSet[$from]) || !is_array($toList)) {
+            continue;
+        }
+
+        foreach ($toList as $to) {
+            $to = (string)$to;
+            if (!isset($nodeSet[$to])) {
+                continue;
+            }
+            $indegree[$to] = (int)($indegree[$to] ?? 0) + 1;
+        }
+    }
+
+    $queue = [];
+    foreach ($indegree as $nodeId => $degree) {
+        if ((int)$degree === 0) {
+            $queue[] = $nodeId;
+        }
+    }
+
+    usort($queue, static function (string $a, string $b) use ($stableOrder): int {
+        $aPos = (int)($stableOrder[$a] ?? PHP_INT_MAX);
+        $bPos = (int)($stableOrder[$b] ?? PHP_INT_MAX);
+        if ($aPos === $bPos) {
+            return strcmp($a, $b);
+        }
+        return $aPos <=> $bPos;
+    });
+
+    $result = [];
+    while (!empty($queue)) {
+        $current = array_shift($queue);
+        $result[] = $current;
+
+        $targets = isset($adjacency[$current]) && is_array($adjacency[$current]) ? $adjacency[$current] : [];
+        foreach ($targets as $target) {
+            $target = (string)$target;
+            if (!isset($nodeSet[$target])) {
+                continue;
+            }
+
+            $indegree[$target]--;
+            if ($indegree[$target] === 0) {
+                $queue[] = $target;
+            }
+        }
+
+        usort($queue, static function (string $a, string $b) use ($stableOrder): int {
+            $aPos = (int)($stableOrder[$a] ?? PHP_INT_MAX);
+            $bPos = (int)($stableOrder[$b] ?? PHP_INT_MAX);
+            if ($aPos === $bPos) {
+                return strcmp($a, $b);
+            }
+            return $aPos <=> $bPos;
+        });
+    }
+
+    if (count($result) !== count($nodeSet)) {
+        throw new InvalidArgumentException('Не удалось построить топологический порядок (обнаружен цикл в подграфе)');
+    }
+
+    return $result;
+}
+
+function connectors_build_execution_plan(array $operations, ?string $entrypointOperationId = null): array
+{
+    connectors_validate_operations_runtime($operations);
+
+    $operationsById = [];
+    $stableOrder = [];
+    $index = 0;
+
+    foreach ($operations as $operationKey => $operation) {
+        $operationId = trim((string)($operation['operation_id'] ?? ''));
+        if ($operationId === '' || empty($operation['enabled'])) {
+            continue;
+        }
+        $operationsById[$operationId] = [
+            'key' => (string)$operationKey,
+            'config' => $operation,
+        ];
+        $stableOrder[$operationId] = $index++;
+    }
+
+    if (empty($operationsById)) {
+        throw new InvalidArgumentException('Нет активных операций для построения плана');
+    }
+
+    if ($entrypointOperationId !== null) {
+        $entrypointOperationId = trim($entrypointOperationId);
+    }
+
+    if ($entrypointOperationId === null || $entrypointOperationId === '') {
+        foreach ($operationsById as $operationId => $entry) {
+            if (!empty($entry['config']['entrypoint'])) {
+                $entrypointOperationId = $operationId;
+                break;
+            }
+        }
+    }
+
+    if ($entrypointOperationId === null || $entrypointOperationId === '') {
+        throw new InvalidArgumentException('Не найден entrypoint среди активных операций');
+    }
+
+    if (!isset($operationsById[$entrypointOperationId])) {
+        throw new InvalidArgumentException('Entrypoint операция не найдена среди активных: "' . $entrypointOperationId . '"');
+    }
+
+    $main = $operationsById[$entrypointOperationId]['config'];
+    $mainOperationId = trim((string)$main['operation_id']);
+
+    $duringSet = [];
+    $duringQueue = [];
+    foreach ((array)($main['run_with'] ?? []) as $duringId) {
+        $duringId = trim((string)$duringId);
+        if ($duringId !== '') {
+            $duringQueue[] = $duringId;
+        }
+    }
+
+    while (!empty($duringQueue)) {
+        $current = array_shift($duringQueue);
+        if ($current === $mainOperationId || isset($duringSet[$current])) {
+            continue;
+        }
+        $duringSet[$current] = true;
+
+        $cfg = $operationsById[$current]['config'] ?? null;
+        if (!is_array($cfg)) {
+            throw new InvalidArgumentException('During-операция не найдена: "' . $current . '"');
+        }
+
+        foreach ((array)($cfg['run_with'] ?? []) as $nestedDuringId) {
+            $nestedDuringId = trim((string)$nestedDuringId);
+            if ($nestedDuringId !== '' && !isset($duringSet[$nestedDuringId])) {
+                $duringQueue[] = $nestedDuringId;
+            }
+        }
+    }
+
+    $beforeSet = [];
+    $beforeQueue = [$mainOperationId, ...array_keys($duringSet)];
+    while (!empty($beforeQueue)) {
+        $current = array_shift($beforeQueue);
+        $cfg = $operationsById[$current]['config'] ?? null;
+        if (!is_array($cfg)) {
+            continue;
+        }
+        foreach ((array)($cfg['run_after'] ?? []) as $dependencyId) {
+            $dependencyId = trim((string)$dependencyId);
+            if ($dependencyId === '' || $dependencyId === $mainOperationId || isset($duringSet[$dependencyId])) {
+                continue;
+            }
+            if (!isset($beforeSet[$dependencyId])) {
+                $beforeSet[$dependencyId] = true;
+                $beforeQueue[] = $dependencyId;
+            }
+        }
+    }
+
+    $finallySet = [];
+    $finallyQueue = (array)($main['run_finally'] ?? []);
+    while (!empty($finallyQueue)) {
+        $current = trim((string)array_shift($finallyQueue));
+        if ($current === '' || $current === $mainOperationId || isset($duringSet[$current]) || isset($beforeSet[$current])) {
+            continue;
+        }
+        if (isset($finallySet[$current])) {
+            continue;
+        }
+
+        $finallySet[$current] = true;
+        $cfg = $operationsById[$current]['config'] ?? null;
+        if (is_array($cfg)) {
+            foreach ((array)($cfg['run_finally'] ?? []) as $nestedFinallyId) {
+                $nestedFinallyId = trim((string)$nestedFinallyId);
+                if ($nestedFinallyId !== '' && !isset($finallySet[$nestedFinallyId])) {
+                    $finallyQueue[] = $nestedFinallyId;
+                }
+            }
+        }
+    }
+
+    $adjacency = [];
+    foreach ($operationsById as $operationId => $entry) {
+        $adjacency[$operationId] = [];
+    }
+    foreach ($operationsById as $operationId => $entry) {
+        $cfg = $entry['config'];
+        foreach ((array)($cfg['run_after'] ?? []) as $dependencyId) {
+            $dependencyId = trim((string)$dependencyId);
+            if ($dependencyId !== '' && isset($adjacency[$dependencyId])) {
+                $adjacency[$dependencyId][] = $operationId;
+            }
+        }
+    }
+
+    $beforeOrder = connectors_topological_sort_operations(array_keys($beforeSet), $adjacency, $stableOrder);
+    $finallyOrder = connectors_topological_sort_operations(array_keys($finallySet), $adjacency, $stableOrder);
+
+    $duringNodes = array_keys($duringSet);
+    $duringAdjacency = [];
+    foreach ($duringNodes as $nodeId) {
+        $duringAdjacency[$nodeId] = [];
+    }
+    foreach ($duringNodes as $nodeId) {
+        $cfg = $operationsById[$nodeId]['config'] ?? [];
+        foreach ((array)($cfg['run_after'] ?? []) as $dependencyId) {
+            $dependencyId = trim((string)$dependencyId);
+            if (isset($duringSet[$dependencyId])) {
+                $duringAdjacency[$dependencyId][] = $nodeId;
+            }
+        }
+    }
+
+    $duringGroups = [];
+    if (!empty($duringNodes)) {
+        $indegree = [];
+        foreach ($duringNodes as $nodeId) {
+            $indegree[$nodeId] = 0;
+        }
+        foreach ($duringAdjacency as $from => $toList) {
+            foreach ($toList as $toId) {
+                $indegree[$toId]++;
+            }
+        }
+
+        $processed = 0;
+        while ($processed < count($duringNodes)) {
+            $group = [];
+            foreach ($indegree as $nodeId => $degree) {
+                if ($degree === 0) {
+                    $group[] = $nodeId;
+                }
+            }
+
+            if (empty($group)) {
+                throw new InvalidArgumentException('Не удалось запланировать during-группы: цикл в run_with/run_after');
+            }
+
+            usort($group, static function (string $a, string $b) use ($stableOrder): int {
+                $aPos = (int)($stableOrder[$a] ?? PHP_INT_MAX);
+                $bPos = (int)($stableOrder[$b] ?? PHP_INT_MAX);
+                if ($aPos === $bPos) {
+                    return strcmp($a, $b);
+                }
+                return $aPos <=> $bPos;
+            });
+
+            $duringGroups[] = $group;
+            foreach ($group as $nodeId) {
+                $processed++;
+                $indegree[$nodeId] = -1;
+                foreach ((array)($duringAdjacency[$nodeId] ?? []) as $toId) {
+                    $indegree[$toId]--;
+                }
+            }
+        }
+    }
+
+    return [
+        'entrypoint_operation_id' => $entrypointOperationId,
+        'before' => $beforeOrder,
+        'main' => $mainOperationId,
+        'during_groups' => $duringGroups,
+        'after' => $finallyOrder,
+    ];
+}
+
 function connectors_validate_operations_payload(array $operationsPayload): void
 {
     if (!isset($operationsPayload['report']) || !isset($operationsPayload['submission'])) {
@@ -565,6 +849,13 @@ function connectors_validate_operations_payload(array $operationsPayload): void
     }
 
     connectors_validate_operations_runtime($operationsPayload);
+
+    foreach ($operationsPayload as $operation) {
+        if (!is_array($operation) || empty($operation['entrypoint']) || empty($operation['enabled'])) {
+            continue;
+        }
+        connectors_build_execution_plan($operationsPayload, (string)($operation['operation_id'] ?? ''));
+    }
 }
 
 function connectors_decode_operations(array $connector): array
