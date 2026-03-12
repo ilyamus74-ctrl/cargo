@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-03-11 11:08:53
+/* Smarty version 5.3.1, created on 2026-03-12 12:02:56
   from 'file:cells_NA_API_connector_operations_modal.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_69b14d45c52757_69328024',
+  'unifunc' => 'content_69b2ab704ed340_80127655',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '4e0cfb81384357625659d5eca445a63482fe7323' => 
     array (
       0 => 'cells_NA_API_connector_operations_modal.html',
-      1 => 1773226290,
+      1 => 1773316959,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_69b14d45c52757_69328024 (\Smarty\Template $_smarty_tpl) {
+function content_69b2ab704ed340_80127655 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>
 <section class="section">
@@ -31,6 +31,52 @@ $_smarty_current_dir = '/home/cells/web/templates';
           <h5 class="card-title">Операции коннектора: <?php echo htmlspecialchars((string)$_smarty_tpl->getValue('connector')['name'], ENT_QUOTES, 'UTF-8', true);?>
 </h5>
 
+
+          <details class="mb-3">
+            <summary><strong>Памятка: что и зачем заполнять</strong></summary>
+            <div class="small mt-2">
+              <ol class="mb-2">
+                <li><strong>Операция #1 (report)</strong> — откуда брать отчет форварда и в какую таблицу импортировать.</li>
+                <li><strong>Операция #2 (submission)</strong> — шаги отправки посылки на сайт форварда (JSON шагов с <code>$&#123;переменными&#125;</code>).</li>
+                <li><strong>addons ДопИнфа</strong> — справочники/доп. значения для обязательных полей из шагов.</li>
+                <li><strong>Проверка перед sync</strong> — система проверяет: коннектор активен, шаги есть, обязательные <code>$&#123;...&#125;</code> заполнены.</li>
+              </ol>
+              <div class="text-muted">Для машинной подсказки используйте API action <code>warehouse_sync_process_helper</code> (вернет стадии, политики и чек-лист).</div>
+            </div>
+
+              <div class="border rounded p-2 mt-2 bg-light">
+                <div class="fw-semibold mb-2">Самообновляемая подсказка по конкретной посылке</div>
+                <div class="row g-2 align-items-end mb-2">
+                  <div class="col-sm-4 col-md-3">
+                    <label for="process-helper-item-id" class="form-label mb-1">ID посылки</label>
+                    <input type="number" min="1" class="form-control form-control-sm" id="process-helper-item-id" placeholder="Например, 12345">
+                  </div>
+                  <div class="col-auto">
+                    <button type="button" class="btn btn-sm btn-outline-primary js-core-link" data-core-action="warehouse_sync_process_helper">
+                      Обновить подсказку
+                    </button>
+                  </div>
+                </div>
+
+                <div id="process-helper-status" class="text-muted mb-2">Укажите ID посылки и нажмите «Обновить подсказку».</div>
+
+                <div class="mb-2">
+                  <div class="fw-semibold">Обязательные поля (коннектор/товар):</div>
+                  <div id="process-helper-required-vars" class="small text-muted">—</div>
+                </div>
+
+                <div class="mb-2">
+                  <div class="fw-semibold">Что блокирует исполнение сейчас:</div>
+                  <div id="process-helper-blockers" class="small text-muted">—</div>
+                </div>
+
+                <div>
+                  <div class="fw-semibold">Quick-check перед запуском:</div>
+                  <div id="process-helper-quick-check" class="small text-muted">—</div>
+                </div>
+              </div>
+            </div>
+          </details>
 
           <ul class="nav nav-tabs mb-3" id="connector-operations-tabs" role="tablist">
             <li class="nav-item" role="presentation">

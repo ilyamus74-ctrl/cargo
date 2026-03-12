@@ -12,12 +12,12 @@
             <div class="small mt-2">
               <ol class="mb-2">
                 <li><strong>Операция #1 (report)</strong> — откуда брать отчет форварда и в какую таблицу импортировать.</li>
-                <li><strong>Операция #2 (submission)</strong> — шаги отправки посылки на сайт форварда (JSON шагов с ${переменными}).</li>
+                <li><strong>Операция #2 (submission)</strong> — шаги отправки посылки на сайт форварда (JSON шагов с <code>$&#123;переменными&#125;</code>).</li>
                 <li><strong>addons ДопИнфа</strong> — справочники/доп. значения для обязательных полей из шагов.</li>
-                <li><strong>Проверка перед sync</strong> — система проверяет: коннектор активен, шаги есть, обязательные ${...} заполнены.</li>
+                <li><strong>Проверка перед sync</strong> — система проверяет: коннектор активен, шаги есть, обязательные <code>$&#123;...&#125;</code> заполнены.</li>
               </ol>
               <div class="text-muted">Для машинной подсказки используйте API action <code>warehouse_sync_process_helper</code> (вернет стадии, политики и чек-лист).</div>
-
+            </div>
 
               <div class="border rounded p-2 mt-2 bg-light">
                 <div class="fw-semibold mb-2">Самообновляемая подсказка по конкретной посылке</div>
