@@ -1247,14 +1247,61 @@ if (!function_exists('warehouse_sync_has_submission_steps')) {
 }
 
 if (!function_exists('warehouse_sync_process_definition_from_connector')) {
+    function warehouse_sync_process_definition_contract(): array
+    {
+        return [
+            'version' => 'v1',
+            'stages' => [],
+            'policies' => [],
+            'states' => [],
+            'help' => [
+                'what_to_fill' => [],
+                'quick_check' => [],
+            ],
+        ];
+    }
+}
+
+if (!function_exists('warehouse_sync_normalize_process_definition')) {
+    function warehouse_sync_normalize_process_definition(array $processDef): array
+    {
+        $normalized = warehouse_sync_process_definition_contract();
+
+        $version = trim((string)($processDef['version'] ?? ''));
+        if ($version !== '') {
+            $normalized['version'] = $version;
+        }
+
+        $normalized['stages'] = isset($processDef['stages']) && is_array($processDef['stages'])
+            ? array_values($processDef['stages'])
+            : [];
+        $normalized['policies'] = isset($processDef['policies']) && is_array($processDef['policies'])
+            ? array_values($processDef['policies'])
+            : [];
+        $normalized['states'] = isset($processDef['states']) && is_array($processDef['states'])
+            ? $processDef['states']
+            : [];
+
+        $help = isset($processDef['help']) && is_array($processDef['help']) ? $processDef['help'] : [];
+        $normalized['help']['what_to_fill'] = isset($help['what_to_fill']) && is_array($help['what_to_fill'])
+            ? array_values($help['what_to_fill'])
+            : [];
+        $normalized['help']['quick_check'] = isset($help['quick_check']) && is_array($help['quick_check'])
+            ? array_values($help['quick_check'])
+            : [];
+
+        return $normalized;
+    }
+}
+
+if (!function_exists('warehouse_sync_process_definition_from_connector')) {
     function warehouse_sync_process_definition_from_connector(array $connector, array $item = []): array
     {
         $submissionSteps = warehouse_sync_submission_steps($connector);
         $requiredVars = warehouse_sync_collect_required_vars_from_steps($submissionSteps);
 
-        return [
+        return warehouse_sync_normalize_process_definition([
             'version' => 'v2',
-            'forwarder' => strtoupper(trim((string)($item['receiver_company'] ?? $connector['name'] ?? ''))),
             'stages' => [
                 ['code' => 'resolve_connector', 'title' => 'Подбор активного коннектора', 'required' => []],
                 ['code' => 'validate_permissions', 'title' => 'Проверка разрешений', 'required' => ['connector_active']],
@@ -1285,7 +1332,7 @@ if (!function_exists('warehouse_sync_process_definition_from_connector')) {
                     '3) Все ${...} из шагов заполнены',
                 ],
             ],
-        ];
+        ]);
     }
 }
 
@@ -1337,7 +1384,23 @@ if (!function_exists('warehouse_sync_build_planner_output')) {
     {
         $steps = warehouse_sync_submission_steps($connector);
         $vars = warehouse_sync_build_vars($connector, $item);
-        $requiredVars = warehouse_sync_collect_required_vars_from_steps($steps);
+        $processDef = warehouse_sync_process_definition_from_connector($connector, $item);
+
+        $requiredVars = [];
+        foreach ((array)($processDef['stages'] ?? []) as $stage) {
+            if (!is_array($stage) || trim((string)($stage['code'] ?? '')) !== 'validate_data') {
+                continue;
+            }
+
+            foreach ((array)($stage['required'] ?? []) as $requiredVar) {
+                $key = trim((string)$requiredVar);
+                if ($key !== '' && $key !== 'submission_steps') {
+                    $requiredVars[$key] = true;
+                }
+            }
+        }
+        $requiredVars = array_keys($requiredVars);
+
         $missingRequired = [];
         foreach ($requiredVars as $varName) {
             if (trim((string)($vars[$varName] ?? '')) === '') {
@@ -1360,7 +1423,6 @@ if (!function_exists('warehouse_sync_build_planner_output')) {
             }
         }
 
-        $processDef = warehouse_sync_process_definition_from_connector($connector, $item);
         $policyEval = warehouse_sync_evaluate_policies($processDef, [
             'connector_active' => $connectorActive,
             'steps_defined' => !empty($steps),
