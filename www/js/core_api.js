@@ -616,37 +616,74 @@ const CoreAPI = {
 
         'test_connector_operations': async (data) => {
 
+            const safeText = (value) => String(value || '').replace(/[<>&]/g, '');
+            const renderChainStatus = (chainStatus) => {
+                const rows = Array.isArray(chainStatus) ? chainStatus : [];
+                if (rows.length === 0) {
+                    return '<div class="text-muted">Статус цепочки пока не построен.</div>';
+                }
+
+                const badgeByStatus = {
+                    success: 'success',
+                    failed: 'danger',
+                    pending: 'secondary',
+                };
+
+                const titleByStatus = {
+                    success: 'success',
+                    failed: 'failed',
+                    pending: 'pending',
+                };
+
+                return `<div class="d-flex flex-wrap gap-2">${rows.map((row, idx) => {
+                    const status = String(row?.status || 'pending').toLowerCase();
+                    const badge = badgeByStatus[status] || 'secondary';
+                    const title = titleByStatus[status] || 'pending';
+                    const op = safeText(row?.operation_id || `op_${idx + 1}`);
+                    return `<span class="badge text-bg-${badge}">${op}: ${title}</span>`;
+                }).join('')}</div>`;
+            };
+
+            const renderRunReport = (boxId, payload, fallbackTitle) => {
+                const box = document.getElementById(boxId);
+                if (!box) return;
+
+                const lines = [];
+                const safeMessage = safeText(payload?.message || fallbackTitle);
+                const runId = safeText(payload?.run_id || '');
+                const traceLog = Array.isArray(payload?.trace_log) ? payload.trace_log : [];
+                const stepLog = Array.isArray(payload?.step_log) ? payload.step_log : [];
+
+                lines.push(`<div><strong>${safeMessage}</strong></div>`);
+                if (runId) {
+                    lines.push(`<div class="mt-1">run_id: <code>${runId}</code></div>`);
+                }
+
+                lines.push('<div class="mt-2"><strong>Статус цепочки</strong></div>');
+                lines.push(renderChainStatus(payload?.chain_status));
+
+                if (traceLog.length > 0) {
+                    lines.push('<div class="mt-2"><strong>trace_log</strong></div>');
+                    lines.push(`<pre class="mb-0" style="max-height:220px;overflow:auto;">${safeText(JSON.stringify(traceLog, null, 2))}</pre>`);
+                }
+
+                if (stepLog.length > 0) {
+                    lines.push('<div class="mt-2"><strong>step_log</strong></div>');
+                    lines.push(`<pre class="mb-0" style="max-height:260px;overflow:auto;">${safeText(JSON.stringify(stepLog, null, 2))}</pre>`);
+                }
+
+                box.innerHTML = lines.join('');
+                box.style.display = 'block';
+            };
+
             const testOperation = String(data?.test_operation || '').trim();
             if (testOperation === 'submission') {
                 console.log('[test_connector_operations][submission][node_payload]', data?.node_payload || null);
-                const box = document.getElementById('submission-test-report');
-                if (box) {
-                    const stepLog = Array.isArray(data?.step_log) ? data.step_log : [];
-                    const safeMessage = String(data?.message || 'Тест операции #2 выполнен');
-                    const safeTracking = String(data?.submission_tracking || '').trim();
-                    const safeErrorText = String(data?.captured_error_text || '').trim();
-                    const safeErrorSelector = String(data?.resolved_error_selector || '').trim();
-                    const lines = [];
-                    lines.push(`<div><strong>${safeMessage.replace(/[<>&]/g, '')}</strong></div>`);
-                    if (safeTracking) {
-                        lines.push(`<div class="mt-1">tracking: <code>${safeTracking.replace(/[<>&]/g, '')}</code></div>`);
-                    }
-                    if (safeErrorSelector) {
-                        lines.push(`<div class="mt-1">error selector: <code>${safeErrorSelector.replace(/[<>&]/g, '')}</code></div>`);
-                    }
-                    if (safeErrorText) {
-                        lines.push(`<div class="mt-1 text-warning"><strong>Forwarder alert:</strong> ${safeErrorText.replace(/[<>&]/g, '')}</div>`);
-                    }
-                    if (stepLog.length > 0) {
-                        lines.push('<div class="mt-2"><strong>step_log</strong></div>');
-                        lines.push(`<pre class="mb-0" style="max-height:260px;overflow:auto;">${JSON.stringify(stepLog, null, 2).replace(/[<>&]/g, '')}</pre>`);
-                    }
-                    box.innerHTML = lines.join('');
-                    box.style.display = 'block';
-                }
+                renderRunReport('submission-test-report', data, 'Тест операции #2 выполнен');
                 alert(data.message || 'Тест операции #2 выполнен');
                 return;
             }
+            renderRunReport('report-test-report', data, 'Тест операции #1 выполнен');
 
             alert(data.message || 'Тест операции выполнен');
             const connectorId = data.connector_id;
