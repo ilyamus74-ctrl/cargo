@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-03-12 12:02:56
+/* Smarty version 5.3.1, created on 2026-03-13 08:43:59
   from 'file:cells_NA_API_connector_operations_modal.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_69b2ab704ed340_80127655',
+  'unifunc' => 'content_69b3ce4f3573f4_54445766',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '4e0cfb81384357625659d5eca445a63482fe7323' => 
     array (
       0 => 'cells_NA_API_connector_operations_modal.html',
-      1 => 1773316959,
+      1 => 1773340097,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_69b2ab704ed340_80127655 (\Smarty\Template $_smarty_tpl) {
+function content_69b3ce4f3573f4_54445766 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>
 <section class="section">
@@ -151,6 +151,63 @@ $_smarty_current_dir = '/home/cells/web/templates';
               </div>
             </div>
 
+            <div class="row mb-3">
+              <label for="report_operation_id" class="col-md-4 col-lg-3 col-form-label">ID операции</label>
+              <div class="col-md-8 col-lg-9">
+                <input type="text"
+                       class="form-control"
+                       id="report_operation_id"
+                       name="report_operation_id"
+                       value="<?php echo htmlspecialchars((string)(($tmp = $_smarty_tpl->getValue('operations')['report']['operation_id'] ?? null)===null||$tmp==='' ? 'report' ?? null : $tmp), ENT_QUOTES, 'UTF-8', true);?>
+"
+                       placeholder="report">
+              </div>
+            </div>
+
+            <div class="row mb-3">
+              <label for="report_run_after_json" class="col-md-4 col-lg-3 col-form-label">Before (run_after)</label>
+              <div class="col-md-8 col-lg-9">
+                <textarea class="form-control" id="report_run_after_json" name="report_run_after_json" rows="2"><?php echo htmlspecialchars((string)json_encode($_smarty_tpl->getValue('operations')['report']['run_after']), ENT_QUOTES, 'UTF-8', true);?>
+</textarea>
+              </div>
+            </div>
+
+            <div class="row mb-3">
+              <label for="report_run_with_json" class="col-md-4 col-lg-3 col-form-label">During (run_with)</label>
+              <div class="col-md-8 col-lg-9">
+                <textarea class="form-control" id="report_run_with_json" name="report_run_with_json" rows="2"><?php echo htmlspecialchars((string)json_encode($_smarty_tpl->getValue('operations')['report']['run_with']), ENT_QUOTES, 'UTF-8', true);?>
+</textarea>
+              </div>
+            </div>
+
+            <div class="row mb-3">
+              <label for="report_run_finally_json" class="col-md-4 col-lg-3 col-form-label">After (run_finally)</label>
+              <div class="col-md-8 col-lg-9">
+                <textarea class="form-control" id="report_run_finally_json" name="report_run_finally_json" rows="2"><?php echo htmlspecialchars((string)json_encode($_smarty_tpl->getValue('operations')['report']['run_finally']), ENT_QUOTES, 'UTF-8', true);?>
+</textarea>
+              </div>
+            </div>
+
+            <div class="row mb-3">
+              <label class="col-md-4 col-lg-3 col-form-label">Точка входа</label>
+              <div class="col-md-8 col-lg-9">
+                <div class="form-check">
+                  <input class="form-check-input" type="checkbox" id="report_entrypoint" name="report_entrypoint" value="1" <?php if ($_smarty_tpl->getValue('operations')['report']['entrypoint'] == 1) {?>checked<?php }?>>
+                  <label class="form-check-label" for="report_entrypoint">Запускать как entrypoint</label>
+                </div>
+              </div>
+            </div>
+
+            <div class="row mb-3">
+              <label for="report_on_dependency_fail" class="col-md-4 col-lg-3 col-form-label">Политика при ошибке зависимости</label>
+              <div class="col-md-8 col-lg-9">
+                <select class="form-select" id="report_on_dependency_fail" name="report_on_dependency_fail">
+                  <option value="stop" <?php if ($_smarty_tpl->getValue('operations')['report']['on_dependency_fail'] == 'stop') {?>selected<?php }?>>stop</option>
+                  <option value="skip" <?php if ($_smarty_tpl->getValue('operations')['report']['on_dependency_fail'] == 'skip') {?>selected<?php }?>>skip</option>
+                  <option value="continue" <?php if ($_smarty_tpl->getValue('operations')['report']['on_dependency_fail'] == 'continue') {?>selected<?php }?>>continue</option>
+                </select>
+              </div>
+            </div>
             <div class="row mb-3">
               <label for="report_page_url" class="col-md-4 col-lg-3 col-form-label">Страница отчета</label>
               <div class="col-md-8 col-lg-9">
@@ -314,7 +371,7 @@ $_smarty_current_dir = '/home/cells/web/templates';
             </div>
 
             <div class="form-text mt-2">Кнопка теста сейчас запускает только сценарий операции #1 (скачивание отчета).</div>
-
+            <div id="report-test-report" class="small border rounded p-2 bg-light mt-2" style="display: none;"></div>
               </div>
 
               <div class="tab-pane fade" id="op2-pane" role="tabpanel" aria-labelledby="op2-tab" tabindex="0">
@@ -337,6 +394,65 @@ $_smarty_current_dir = '/home/cells/web/templates';
                              <?php if ($_smarty_tpl->getValue('operations')['submission']['enabled'] == 1) {?>checked<?php }?>>
                       <label class="form-check-label" for="submission_enabled">Использовать операцию отправки</label>
                     </div>
+                  </div>
+                </div>
+
+
+                <div class="row mb-3">
+                  <label for="submission_operation_id" class="col-md-4 col-lg-3 col-form-label">ID операции</label>
+                  <div class="col-md-8 col-lg-9">
+                    <input type="text"
+                           class="form-control"
+                           id="submission_operation_id"
+                           name="submission_operation_id"
+                           value="<?php echo htmlspecialchars((string)(($tmp = $_smarty_tpl->getValue('operations')['submission']['operation_id'] ?? null)===null||$tmp==='' ? 'submission' ?? null : $tmp), ENT_QUOTES, 'UTF-8', true);?>
+"
+                           placeholder="submission">
+                  </div>
+                </div>
+
+                <div class="row mb-3">
+                  <label for="submission_run_after_json" class="col-md-4 col-lg-3 col-form-label">Before (run_after)</label>
+                  <div class="col-md-8 col-lg-9">
+                    <textarea class="form-control" id="submission_run_after_json" name="submission_run_after_json" rows="2"><?php echo htmlspecialchars((string)json_encode($_smarty_tpl->getValue('operations')['submission']['run_after']), ENT_QUOTES, 'UTF-8', true);?>
+</textarea>
+                  </div>
+                </div>
+
+                <div class="row mb-3">
+                  <label for="submission_run_with_json" class="col-md-4 col-lg-3 col-form-label">During (run_with)</label>
+                  <div class="col-md-8 col-lg-9">
+                    <textarea class="form-control" id="submission_run_with_json" name="submission_run_with_json" rows="2"><?php echo htmlspecialchars((string)json_encode($_smarty_tpl->getValue('operations')['submission']['run_with']), ENT_QUOTES, 'UTF-8', true);?>
+</textarea>
+                  </div>
+                </div>
+
+                <div class="row mb-3">
+                  <label for="submission_run_finally_json" class="col-md-4 col-lg-3 col-form-label">After (run_finally)</label>
+                  <div class="col-md-8 col-lg-9">
+                    <textarea class="form-control" id="submission_run_finally_json" name="submission_run_finally_json" rows="2"><?php echo htmlspecialchars((string)json_encode($_smarty_tpl->getValue('operations')['submission']['run_finally']), ENT_QUOTES, 'UTF-8', true);?>
+</textarea>
+                  </div>
+                </div>
+
+                <div class="row mb-3">
+                  <label class="col-md-4 col-lg-3 col-form-label">Точка входа</label>
+                  <div class="col-md-8 col-lg-9">
+                    <div class="form-check">
+                      <input class="form-check-input" type="checkbox" id="submission_entrypoint" name="submission_entrypoint" value="1" <?php if ($_smarty_tpl->getValue('operations')['submission']['entrypoint'] == 1) {?>checked<?php }?>>
+                      <label class="form-check-label" for="submission_entrypoint">Запускать как entrypoint</label>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="row mb-3">
+                  <label for="submission_on_dependency_fail" class="col-md-4 col-lg-3 col-form-label">Политика при ошибке зависимости</label>
+                  <div class="col-md-8 col-lg-9">
+                    <select class="form-select" id="submission_on_dependency_fail" name="submission_on_dependency_fail">
+                      <option value="stop" <?php if ($_smarty_tpl->getValue('operations')['submission']['on_dependency_fail'] == 'stop') {?>selected<?php }?>>stop</option>
+                      <option value="skip" <?php if ($_smarty_tpl->getValue('operations')['submission']['on_dependency_fail'] == 'skip') {?>selected<?php }?>>skip</option>
+                      <option value="continue" <?php if ($_smarty_tpl->getValue('operations')['submission']['on_dependency_fail'] == 'continue') {?>selected<?php }?>>continue</option>
+                    </select>
                   </div>
                 </div>
 

@@ -721,16 +721,7 @@ const CoreAPI = {
             renderRunReport('report-test-report', data, 'Тест операции #1 выполнен');
 
             alert(data.message || 'Тест операции выполнен');
-            const connectorId = data.connector_id;
-            if (connectorId) {
-                const fd = new FormData();
-                fd.append('action', 'form_connector_operations');
-                fd.append('connector_id', connectorId);
-                const d2 = await CoreAPI.client.call(fd);
-                if (d2?.status === 'ok') {
-                    CoreAPI.ui.showModal(d2.html);
-                }
-            }
+
         },
         'form_connector_operations': (data) => {
             CoreAPI.ui.showModal(data.html);
