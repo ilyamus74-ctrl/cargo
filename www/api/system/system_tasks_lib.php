@@ -393,6 +393,7 @@ function system_tasks_run_connectors_report_operation_1(mysqli $dbcnx, array $ta
         'connectors_import_xlsx_into_report_table',
         'connectors_generate_run_id',
         'connectors_append_trace_event',
+        'connectors_append_operation_executed_event',
         'connectors_build_chain_status_map',
         'connectors_persist_run_trace',
     ];
@@ -479,7 +480,7 @@ function system_tasks_run_connectors_report_operation_1(mysqli $dbcnx, array $ta
             $ok += 1;
 
             if (function_exists('connectors_append_trace_event')) {
-                connectors_append_trace_event($traceLog, $runId, $reportOperationId, 'main', 'success', 'Cron операция #1 выполнена успешно', [
+                connectors_append_operation_executed_event($traceLog, $runId, $reportOperationId, 'main', 'success', 'Cron операция #1 выполнена успешно', 0, null, null, [
                     'target_table' => $targetTable,
                     'file_extension' => $fileExt,
                     'imported_rows' => $importedRows,
@@ -502,7 +503,7 @@ function system_tasks_run_connectors_report_operation_1(mysqli $dbcnx, array $ta
                     'step_log' => isset($downloadInfo['step_log']) && is_array($downloadInfo['step_log']) ? $downloadInfo['step_log'] : [],
                     'execution_plan' => $executionPlan,
                     'chain_status' => function_exists('connectors_build_chain_status_map')
-                        ? connectors_build_chain_status_map($executionPlan, $reportOperationId, true)
+                        ? connectors_build_chain_status_map($executionPlan, $reportOperationId, true, $traceLog)
                         : [['operation_id' => $reportOperationId, 'status' => 'success']],
                     'artifacts_dir' => (string)($downloadInfo['artifacts_dir'] ?? ''),
                 ]);
@@ -519,7 +520,7 @@ function system_tasks_run_connectors_report_operation_1(mysqli $dbcnx, array $ta
             $fail += 1;
 
             if (function_exists('connectors_append_trace_event')) {
-                connectors_append_trace_event($traceLog, $runId, $reportOperationId, 'main', 'failed', 'Cron операция #1 завершилась ошибкой', [
+                connectors_append_operation_executed_event($traceLog, $runId, $reportOperationId, 'main', 'failed', 'Cron операция #1 завершилась ошибкой', 0, null, null, [
                     'error' => $e->getMessage(),
                 ]);
             }
@@ -542,7 +543,7 @@ function system_tasks_run_connectors_report_operation_1(mysqli $dbcnx, array $ta
                     'step_log' => [],
                     'execution_plan' => $executionPlan,
                     'chain_status' => function_exists('connectors_build_chain_status_map')
-                        ? connectors_build_chain_status_map($executionPlan, $reportOperationId, false)
+                        ? connectors_build_chain_status_map($executionPlan, $reportOperationId, false, $traceLog)
                         : [['operation_id' => $reportOperationId, 'status' => 'failed']],
                     'artifacts_dir' => '',
                 ]);

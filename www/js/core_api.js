@@ -618,7 +618,10 @@ const CoreAPI = {
 
             const safeText = (value) => String(value || '').replace(/[<>&]/g, '');
             const renderChainStatus = (chainStatus) => {
-                const rows = Array.isArray(chainStatus) ? chainStatus : [];
+                const statusPayload = (chainStatus && typeof chainStatus === 'object' && !Array.isArray(chainStatus))
+                    ? chainStatus
+                    : { operations: Array.isArray(chainStatus) ? chainStatus : [] };
+                const rows = Array.isArray(statusPayload?.operations) ? statusPayload.operations : [];
                 if (rows.length === 0) {
                     return '<div class="text-muted">Статус цепочки пока не построен.</div>';
                 }
@@ -635,13 +638,45 @@ const CoreAPI = {
                     pending: 'pending',
                 };
 
+                const stages = statusPayload?.stages && typeof statusPayload.stages === 'object'
+                    ? statusPayload.stages
+                    : null;
+                const currentEvent = statusPayload?.current_event && typeof statusPayload.current_event === 'object'
+                    ? statusPayload.current_event
+                    : null;
+                const timeline = Array.isArray(statusPayload?.timeline) ? statusPayload.timeline : [];
+
+                const stageNames = ['before', 'during', 'main', 'finally'];
+                const stageSummaryHtml = stages
+                    ? `<div class="mt-2 d-flex flex-wrap gap-2">${stageNames.map((name) => {
+                        const stats = stages?.[name] || {};
+                        const executed = Number(stats?.executed || 0);
+                        const success = Number(stats?.success || 0);
+                        const failed = Number(stats?.failed || 0);
+                        return `<span class="badge text-bg-light border">${name}: exec=${executed}, ok=${success}, fail=${failed}</span>`;
+                    }).join('')}</div>`
+                    : '';
+
+                const currentEventHtml = currentEvent
+                    ? `<div class="mt-2"><small>current_event: <code>${safeText(currentEvent.operation_id || '')}</code> (${safeText(currentEvent.stage || '')}) → <strong>${safeText(currentEvent.status || '')}</strong></small></div>`
+                    : '';
+
+                const timelineHtml = timeline.length > 0
+                    ? `<div class="mt-2"><small><strong>timeline</strong></small><ul class="mb-0">${timeline.map((event) => {
+                        const op = safeText(event?.operation_id || '');
+                        const stage = safeText(event?.stage || '');
+                        const status = safeText(event?.status || '');
+                        const duration = Number(event?.duration_ms || 0);
+                        return `<li><code>${op}</code> [${stage}] → ${status} (${duration}ms)</li>`;
+                    }).join('')}</ul></div>`
+                    : '';
                 return `<div class="d-flex flex-wrap gap-2">${rows.map((row, idx) => {
                     const status = String(row?.status || 'pending').toLowerCase();
                     const badge = badgeByStatus[status] || 'secondary';
                     const title = titleByStatus[status] || 'pending';
                     const op = safeText(row?.operation_id || `op_${idx + 1}`);
                     return `<span class="badge text-bg-${badge}">${op}: ${title}</span>`;
-                }).join('')}</div>`;
+                }).join('')}</div>${stageSummaryHtml}${currentEventHtml}${timelineHtml}`;
             };
 
             const renderRunReport = (boxId, payload, fallbackTitle) => {
