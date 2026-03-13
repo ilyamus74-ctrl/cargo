@@ -447,6 +447,42 @@ function connectors_is_test_connector(array $connector): bool
     return (int)($connector['is_test_connector'] ?? 0) === 1;
 }
 
+
+function connectors_build_graph_error(string $runId, int $connectorId, string $entrypoint, string $errorCode, array $details = []): array
+{
+    return [
+        'run_id' => $runId,
+        'connector_id' => $connectorId,
+        'entrypoint' => $entrypoint,
+        'error_code' => $errorCode,
+        'details' => $details,
+    ];
+}
+
+function connectors_resolve_graph_error_code(string $message): string
+{
+    if (mb_stripos($message, 'Дублирующийся operation_id') !== false) {
+        return 'duplicate_operation_id';
+    }
+    if (mb_stripos($message, 'не найдена') !== false) {
+        return 'missing_dependency';
+    }
+    if (mb_stripos($message, 'ссылка на саму себя') !== false) {
+        return 'self_dependency';
+    }
+    if (mb_stripos($message, 'неактивна') !== false) {
+        return 'inactive_dependency';
+    }
+    if (mb_stripos($message, 'циклическая зависимость') !== false || mb_stripos($message, 'цикл в run_with/run_after') !== false) {
+        return 'dependency_cycle';
+    }
+    if (mb_stripos($message, 'Entrypoint операция не найдена') !== false || mb_stripos($message, 'Не найден entrypoint') !== false) {
+        return 'entrypoint_not_found';
+    }
+
+    return 'invalid_graph';
+}
+
 function connectors_is_dependency_graph_enabled(array $connector): bool
 {
     $rolloutMode = connectors_dependency_graph_rollout_mode();
@@ -3056,6 +3092,7 @@ switch ($normalizedAction) {
         $runId = connectors_generate_run_id($connectorId);
         $traceLog = [];
         $executionPlan = [];
+        $graphErrors = [];
         $targetTable = '';
         $reportCfg = [];
         $submissionCfg = [];
@@ -3088,7 +3125,21 @@ switch ($normalizedAction) {
             connectors_validate_operations_payload($operationsPayload);
             $entrypoint = $testOperation === 'submission' ? (string)($operationsPayload['submission']['operation_id'] ?? 'submission') : (string)($operationsPayload['report']['operation_id'] ?? 'report');
             if (connectors_is_dependency_graph_enabled($connector)) {
-                $executionPlan = connectors_build_execution_plan($operationsPayload, $entrypoint);
+                try {
+                    $executionPlan = connectors_build_execution_plan($operationsPayload, $entrypoint);
+                } catch (InvalidArgumentException $graphException) {
+                    $graphErrors[] = connectors_build_graph_error(
+                        $runId,
+                        $connectorId,
+                        $entrypoint,
+                        connectors_resolve_graph_error_code($graphException->getMessage()),
+                        [
+                            'message' => $graphException->getMessage(),
+                            'source' => 'manual_test',
+                        ]
+                    );
+                    throw $graphException;
+                }
             } else {
                 $executionPlan = connectors_build_legacy_execution_plan($entrypoint);
             }
@@ -3122,6 +3173,7 @@ switch ($normalizedAction) {
                     'chain_status' => connectors_build_chain_status_map($executionPlan, $operationId, true, $traceLog),
                     'artifacts_dir' => (string)($submissionResult['artifacts_dir'] ?? ''),
                     'node_payload' => isset($submissionResult['node_payload']) && is_array($submissionResult['node_payload']) ? $submissionResult['node_payload'] : null,
+                    'graph_errors' => $graphErrors,
                 ];
             }
 
@@ -3134,12 +3186,26 @@ switch ($normalizedAction) {
             $targetTable = connectors_normalize_report_table_name((string)($reportCfg['target_table'] ?? ''));
             connectors_ensure_report_table($dbcnx, $targetTable);
         } catch (InvalidArgumentException $e) {
+
+            if (empty($graphErrors) && connectors_is_dependency_graph_enabled($connector)) {
+                $graphErrors[] = connectors_build_graph_error(
+                    $runId,
+                    $connectorId,
+                    isset($entrypoint) ? (string)$entrypoint : '',
+                    connectors_resolve_graph_error_code($e->getMessage()),
+                    [
+                        'message' => $e->getMessage(),
+                        'source' => 'manual_test',
+                    ]
+                );
+            }
             $response = [
                 'status' => 'error',
                 'message' => $e->getMessage(),
                 'connector_id' => $connectorId,
                 'run_id' => $runId,
                 'trace_log' => $traceLog,
+                'graph_errors' => $graphErrors,
             ];
         } catch (RuntimeException $e) {
 
@@ -3311,7 +3377,11 @@ switch ($normalizedAction) {
             'execution_plan' => isset($response['execution_plan']) && is_array($response['execution_plan']) ? $response['execution_plan'] : $executionPlan,
             'chain_status' => isset($response['chain_status']) && is_array($response['chain_status']) ? $response['chain_status'] : [],
             'artifacts_dir' => (string)($response['artifacts_dir'] ?? ''),
+            'graph_errors' => isset($response['graph_errors']) && is_array($response['graph_errors']) ? $response['graph_errors'] : $graphErrors,
         ]);
+        if (!isset($response['graph_errors']) || !is_array($response['graph_errors'])) {
+            $response['graph_errors'] = $graphErrors;
+        }
         break;
 
 

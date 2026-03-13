@@ -429,7 +429,14 @@
     Ветка исполнения уже использует gate connectors_is_dependency_graph_enabled(...) и при выключенном графе уходит в legacy-план, то есть механизм переключения реально подключён в runtime.
     В сценарии этот шаг отдельно отмечен как выполненный.
 
---- 2. Прогнать тестовые коннекторы (ручной запуск + cron), собрать `graph_errors[]` и исправить payload.
+- 2. Прогнать тестовые коннекторы (ручной запуск + cron), собрать `graph_errors[]` и исправить payload.
+    Выполнено в коде: в ручном запуске (`test_connector_operations`) и в cron (`system_tasks_run_connectors_report_operation_1`) добавлен единый сбор `graph_errors[]` c полями `run_id`, `connector_id`, `entrypoint`, `error_code`, `details`, а также прокидывание этого массива в ответ и в `connector_operation_runs` через `connectors_persist_run_trace`.
+
+    Выполнил пункт 2 в README/connectors_scenario.md: отметил шаг как реализованный и зафиксировал, что сбор graph_errors[] теперь есть и для ручного запуска, и для cron.
+    Добавил в connector_actions.php унифицированные helper-функции для структуры ошибок графа (connectors_build_graph_error) и нормализации error_code (connectors_resolve_graph_error_code).
+    Обновил ручной запуск test_connector_operations: при ошибках построения dependency graph теперь формируется graph_errors[], эти данные возвращаются в response и передаются в connectors_persist_run_trace(...).
+    Обновил cron-путь system_tasks_run_connectors_report_operation_1: добавил проверку/построение execution plan через rollout-gate, сбор graph_errors[] и прокидывание этих данных в trace/persist/details
+
 --- 3. Зафиксировать критерий готовности к `all` (например, 0 критических ошибок графа N дней подряд).
 --- 4. Переключить флаг в `all`.
 --- 5. Оставить fallback в `off` как аварийный rollback-переключатель.

@@ -396,6 +396,11 @@ function system_tasks_run_connectors_report_operation_1(mysqli $dbcnx, array $ta
         'connectors_append_operation_executed_event',
         'connectors_build_chain_status_map',
         'connectors_persist_run_trace',
+        'connectors_is_dependency_graph_enabled',
+        'connectors_build_execution_plan',
+        'connectors_build_legacy_execution_plan',
+        'connectors_build_graph_error',
+        'connectors_resolve_graph_error_code',
     ];
     foreach ($requiredFns as $fn) {
         if (!function_exists($fn)) {
@@ -442,11 +447,33 @@ function system_tasks_run_connectors_report_operation_1(mysqli $dbcnx, array $ta
             'during' => [],
             'finally' => [],
         ];
+        $graphErrors = [];
         $traceLog = [];
         if (function_exists('connectors_append_trace_event')) {
             connectors_append_trace_event($traceLog, $runId, $reportOperationId, 'start', 'start', 'Запуск cron операции #1');
         }
         try {
+
+            if (connectors_is_dependency_graph_enabled($connector)) {
+                try {
+                    $executionPlan = connectors_build_execution_plan($operations, $reportOperationId);
+                } catch (InvalidArgumentException $graphException) {
+                    $graphErrors[] = connectors_build_graph_error(
+                        $runId,
+                        $connectorId,
+                        $reportOperationId,
+                        connectors_resolve_graph_error_code($graphException->getMessage()),
+                        [
+                            'message' => $graphException->getMessage(),
+                            'source' => 'cron_report',
+                        ]
+                    );
+                    throw $graphException;
+                }
+            } else {
+                $executionPlan = connectors_build_legacy_execution_plan($reportOperationId);
+            }
+
             $targetTable = connectors_normalize_report_table_name((string)($reportCfg['target_table'] ?? ''));
             connectors_ensure_report_table($dbcnx, $targetTable);
 
@@ -506,6 +533,7 @@ function system_tasks_run_connectors_report_operation_1(mysqli $dbcnx, array $ta
                         ? connectors_build_chain_status_map($executionPlan, $reportOperationId, true, $traceLog)
                         : [['operation_id' => $reportOperationId, 'status' => 'success']],
                     'artifacts_dir' => (string)($downloadInfo['artifacts_dir'] ?? ''),
+                    'graph_errors' => $graphErrors,
                 ]);
             }
             $details[] = [
@@ -519,9 +547,23 @@ function system_tasks_run_connectors_report_operation_1(mysqli $dbcnx, array $ta
         } catch (Throwable $e) {
             $fail += 1;
 
+            if (empty($graphErrors) && connectors_is_dependency_graph_enabled($connector) && $e instanceof InvalidArgumentException) {
+                $graphErrors[] = connectors_build_graph_error(
+                    $runId,
+                    $connectorId,
+                    $reportOperationId,
+                    connectors_resolve_graph_error_code($e->getMessage()),
+                    [
+                        'message' => $e->getMessage(),
+                        'source' => 'cron_report',
+                    ]
+                );
+            }
+
             if (function_exists('connectors_append_trace_event')) {
                 connectors_append_operation_executed_event($traceLog, $runId, $reportOperationId, 'main', 'failed', 'Cron операция #1 завершилась ошибкой', 0, null, null, [
                     'error' => $e->getMessage(),
+                    'graph_errors' => $graphErrors,
                 ]);
             }
 
@@ -546,6 +588,7 @@ function system_tasks_run_connectors_report_operation_1(mysqli $dbcnx, array $ta
                         ? connectors_build_chain_status_map($executionPlan, $reportOperationId, false, $traceLog)
                         : [['operation_id' => $reportOperationId, 'status' => 'failed']],
                     'artifacts_dir' => '',
+                    'graph_errors' => $graphErrors,
                 ]);
             }
 
@@ -554,6 +597,7 @@ function system_tasks_run_connectors_report_operation_1(mysqli $dbcnx, array $ta
                 'status' => 'error',
                 'run_id' => $runId,
                 'message' => $e->getMessage(),
+                'graph_errors' => $graphErrors,
             ];
         }
     }
