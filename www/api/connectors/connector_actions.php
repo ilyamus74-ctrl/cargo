@@ -326,7 +326,12 @@ function connectors_fetch_one(mysqli $dbcnx, int $connectorId): ?array
     $res = $stmt->get_result();
     $row = $res ? $res->fetch_assoc() : null;
     $stmt->close();
-    return $row ?: null;
+
+    if (!is_array($row)) {
+        return null;
+    }
+
+    return connectors_try_migrate_operations_json($dbcnx, $row);
 }
 
 
@@ -949,6 +954,103 @@ function connectors_decode_operations(array $connector): array
         $operations['track_and_label_info']['enabled'] = !empty($trackAndLabel['enabled']) ? 1 : 0;
     }
     return $operations;
+}
+
+
+function connectors_migrate_operations_payload(array $payload): array
+{
+    $operationDefaults = [
+        'report' => [
+            'operation_id' => 'report',
+            'entrypoint' => 1,
+        ],
+        'submission' => [
+            'operation_id' => 'submission',
+            'entrypoint' => 0,
+        ],
+        'track_and_label_info' => [
+            'operation_id' => 'track_and_label_info',
+            'entrypoint' => 0,
+        ],
+    ];
+
+    $mainOperationKey = 'report';
+    foreach (['report', 'submission', 'track_and_label_info'] as $operationKey) {
+        if (!empty($payload[$operationKey]['enabled'])) {
+            $mainOperationKey = $operationKey;
+            break;
+        }
+    }
+
+    $hasExplicitEntrypoint = false;
+    foreach ($operationDefaults as $operationKey => $defaults) {
+        if (!isset($payload[$operationKey]) || !is_array($payload[$operationKey])) {
+            continue;
+        }
+        if (array_key_exists('entrypoint', $payload[$operationKey])) {
+            $hasExplicitEntrypoint = $hasExplicitEntrypoint || !empty($payload[$operationKey]['entrypoint']);
+        }
+    }
+
+    foreach ($operationDefaults as $operationKey => $defaults) {
+        if (!isset($payload[$operationKey]) || !is_array($payload[$operationKey])) {
+            continue;
+        }
+
+        $operationId = trim((string)($payload[$operationKey]['operation_id'] ?? ''));
+        if ($operationId === '') {
+            $payload[$operationKey]['operation_id'] = $defaults['operation_id'];
+        }
+
+        if (!isset($payload[$operationKey]['run_after']) || !is_array($payload[$operationKey]['run_after'])) {
+            $payload[$operationKey]['run_after'] = [];
+        }
+
+        if (!array_key_exists('entrypoint', $payload[$operationKey])) {
+            $payload[$operationKey]['entrypoint'] = (!$hasExplicitEntrypoint && $operationKey === $mainOperationKey)
+                ? 1
+                : $defaults['entrypoint'];
+        }
+    }
+
+    return $payload;
+}
+
+function connectors_try_migrate_operations_json(mysqli $dbcnx, array $connector): array
+{
+    $raw = trim((string)($connector['operations_json'] ?? ''));
+    if ($raw === '') {
+        return $connector;
+    }
+
+    $decoded = json_decode($raw, true);
+    if (!is_array($decoded)) {
+        return $connector;
+    }
+
+    $migrated = connectors_migrate_operations_payload($decoded);
+    if ($migrated === $decoded) {
+        return $connector;
+    }
+
+    $encoded = json_encode($migrated, JSON_UNESCAPED_UNICODE);
+    if ($encoded === false) {
+        return $connector;
+    }
+
+    $stmt = $dbcnx->prepare('UPDATE connectors SET operations_json = ? WHERE id = ?');
+    if (!$stmt) {
+        return $connector;
+    }
+
+    $connectorId = (int)($connector['id'] ?? 0);
+    $stmt->bind_param('si', $encoded, $connectorId);
+    if ($stmt->execute()) {
+        $connector['operations_json'] = $encoded;
+    }
+    $stmt->close();
+
+    return $connector;
 }
 
 
