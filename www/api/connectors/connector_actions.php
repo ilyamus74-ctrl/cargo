@@ -1541,7 +1541,6 @@ function connectors_build_chain_status_map(array $executionPlan, string $current
     $statusMap = [];
     foreach ($operationIds as $operationId) {
         $state = $statusByOperation[$operationId] ?? 'pending';
-        if ($state === 'pending') {
 
         $statusMap[] = [
             'operation_id' => $operationId,
