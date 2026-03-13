@@ -354,7 +354,7 @@
     Сейчас лог в ответе API, но нет отдельного хранилища истории запусков (run_id, операции, шаги, длительности, статусы) для последующего аудита/поиска.
 -   Покрытие не только тест-ручки
     Трассировка должна работать и для боевого/cron execution path, а не только test_connector_operations
---- Фактический runtime-статус цепочки
+-   Фактический runtime-статус цепочки
     Текущий `chain_status` строится от плана и текущей операции, но не отражает полный реальный прогон стадий `before/during/finally` как отдельные `executed events`.
     Что нужно сделать:
     - Логировать каждую выполненную операцию как отдельное runtime-событие: `event_type=operation_executed`, `stage=before|during|main|finally`, `operation_id`, `status`, `started_at`, `finished_at`, `duration_ms`.
