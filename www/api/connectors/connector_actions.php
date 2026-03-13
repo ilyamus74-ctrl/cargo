@@ -1495,12 +1495,6 @@ function connectors_build_chain_status_map(array $executionPlan, string $current
         return [];
     }
 
-    $currentIndex = array_search($currentOperationId, $operationIds, true);
-    if ($currentIndex === false) {
-        $currentIndex = count($operationIds) - 1;
-    }
-
-
     $statusByOperation = [];
     foreach ($operationIds as $operationId) {
         $statusByOperation[$operationId] = 'pending';
@@ -1545,15 +1539,9 @@ function connectors_build_chain_status_map(array $executionPlan, string $current
     }
 
     $statusMap = [];
-    foreach ($operationIds as $index => $operationId) {
+    foreach ($operationIds as $operationId) {
         $state = $statusByOperation[$operationId] ?? 'pending';
         if ($state === 'pending') {
-            if ($index < $currentIndex) {
-                $state = 'success';
-            } elseif ($index === $currentIndex) {
-                $state = $isSuccess ? 'success' : 'failed';
-            }
-        }
 
         $statusMap[] = [
             'operation_id' => $operationId,
@@ -3076,7 +3064,7 @@ switch ($normalizedAction) {
                     'step_log' => $e->getStepLog(),
                     'trace_log' => $traceLog,
                     'execution_plan' => $executionPlan,
-                    'chain_status' => connectors_build_chain_status_map($executionPlan, $reportOperationId, false),
+                    'chain_status' => connectors_build_chain_status_map($executionPlan, $reportOperationId, false, $traceLog),
                     'artifacts_dir' => $e->getArtifactsDir(),
                 ];
             } catch (RuntimeException $e) {
