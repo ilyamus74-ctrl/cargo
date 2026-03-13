@@ -550,89 +550,9 @@
               </div>
 
               <div class="tab-pane fade" id="op3-pane" role="tabpanel" aria-labelledby="op3-tab" tabindex="0">
-
-                <div class="row mb-3 mt-3">
-                  <label class="col-md-4 col-lg-3 col-form-label">Операция #3</label>
-                  <div class="col-md-8 col-lg-9">
-                    <div class="form-text mt-2">Сценарий TrackAndLabelInfo: проверка трека и загрузка label/документов.</div>
-                  </div>
-                </div>
-
-                <div class="row mb-3">
-                  <label for="track_and_label_info_enabled" class="col-md-4 col-lg-3 col-form-label">Включить операцию #3</label>
-                  <div class="col-md-8 col-lg-9">
-                    <div class="form-check form-switch mt-2">
-                      <input class="form-check-input" type="checkbox" id="track_and_label_info_enabled" name="track_and_label_info_enabled" value="1" {if $operations.track_and_label_info.enabled == 1}checked{/if}>
-                      <label class="form-check-label" for="track_and_label_info_enabled">Да, использовать операцию #3 в цепочке</label>
-                    </div>
-                  </div>
-                </div>
-
-                <div class="row mb-3">
-                  <label for="track_and_label_info_operation_id" class="col-md-4 col-lg-3 col-form-label">ID операции</label>
-                  <div class="col-md-8 col-lg-9">
-                    <input type="text"
-                           class="form-control"
-                           id="track_and_label_info_operation_id"
-                           name="track_and_label_info_operation_id"
-                           value="{$operations.track_and_label_info.operation_id|default:'track_and_label_info'|escape}"
-                           placeholder="track_and_label_info">
-                  </div>
-                </div>
-
-                <div class="row mb-3">
-                  <label for="track_and_label_info_run_after_json" class="col-md-4 col-lg-3 col-form-label">Before (run_after)</label>
-                  <div class="col-md-8 col-lg-9">
-                    <textarea class="form-control" id="track_and_label_info_run_after_json" name="track_and_label_info_run_after_json" rows="2">{$operations.track_and_label_info.run_after|@json_encode|escape}</textarea>
-                    <div class="form-text">JSON-массив operation_id, которые должны завершиться до старта операции #3.</div>
-                  </div>
-                </div>
-
-                <div class="row mb-3">
-                  <label for="track_and_label_info_run_with_json" class="col-md-4 col-lg-3 col-form-label">During (run_with)</label>
-                  <div class="col-md-8 col-lg-9">
-                    <textarea class="form-control" id="track_and_label_info_run_with_json" name="track_and_label_info_run_with_json" rows="2">{$operations.track_and_label_info.run_with|@json_encode|escape}</textarea>
-                    <div class="form-text">JSON-массив operation_id, которые запускаются параллельно с операцией #3.</div>
-                  </div>
-                </div>
-
-                <div class="row mb-3">
-                  <label for="track_and_label_info_run_finally_json" class="col-md-4 col-lg-3 col-form-label">After (run_finally)</label>
-                  <div class="col-md-8 col-lg-9">
-                    <textarea class="form-control" id="track_and_label_info_run_finally_json" name="track_and_label_info_run_finally_json" rows="2">{$operations.track_and_label_info.run_finally|@json_encode|escape}</textarea>
-                    <div class="form-text">JSON-массив operation_id, которые запускаются в финальной стадии после операции #3.</div>
-                  </div>
-                </div>
-
-                <div class="row mb-3">
-                  <label class="col-md-4 col-lg-3 col-form-label">Точка входа</label>
-                  <div class="col-md-8 col-lg-9">
-                    <div class="form-check mt-2">
-                      <input class="form-check-input" type="checkbox" id="track_and_label_info_entrypoint" name="track_and_label_info_entrypoint" value="1" {if $operations.track_and_label_info.entrypoint == 1}checked{/if}>
-                      <label class="form-check-label" for="track_and_label_info_entrypoint">Запускать как entrypoint</label>
-                    </div>
-                  </div>
-                </div>
-
-                <div class="row mb-3">
-                  <label for="track_and_label_info_on_dependency_fail" class="col-md-4 col-lg-3 col-form-label">Политика при ошибке зависимости</label>
-                  <div class="col-md-8 col-lg-9">
-                    <select class="form-select" id="track_and_label_info_on_dependency_fail" name="track_and_label_info_on_dependency_fail">
-                      <option value="stop" {if $operations.track_and_label_info.on_dependency_fail == 'stop'}selected{/if}>stop</option>
-                      <option value="skip" {if $operations.track_and_label_info.on_dependency_fail == 'skip'}selected{/if}>skip</option>
-                      <option value="continue" {if $operations.track_and_label_info.on_dependency_fail == 'continue'}selected{/if}>continue</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div class="d-flex gap-2 mb-2">
-                  <button type="button" class="btn btn-primary js-core-link" data-core-action="save_connector_operations" data-open-tab="op3-pane">
-                    Сохранить операции #3
-                  </button>
-                </div>
-
                 <div class="alert alert-info mb-0" role="alert">
-                  Сейчас для операции #3 включена настройка dependency-полей (ID/before-during-after/entrypoint/policy). Исполнитель шагов для TrackAndLabelInfo добавим следующим этапом.
+                  <strong>Операция #3 (TrackAndLabelInfo)</strong><br>
+                  Заготовка под сценарий проверки трека и загрузки label/документов.
                 </div>
               </div>
 

@@ -379,6 +379,16 @@ function connectors_default_operations(array $connector): array
             'success_text' => '',
             'error_selector' => '',
         ],
+        'track_and_label_info' => [
+            'schema_version' => 2,
+            'operation_id' => 'track_and_label_info',
+            'run_after' => [],
+            'run_with' => [],
+            'run_finally' => [],
+            'entrypoint' => 0,
+            'on_dependency_fail' => 'stop',
+            'enabled' => 0,
+        ],
     ];
 }
 
@@ -927,6 +937,17 @@ function connectors_decode_operations(array $connector): array
         }
     }
 
+    if (isset($decoded['track_and_label_info']) && is_array($decoded['track_and_label_info'])) {
+        $trackAndLabel = $decoded['track_and_label_info'];
+        $operations['track_and_label_info']['schema_version'] = (int)($trackAndLabel['schema_version'] ?? 2) > 0 ? (int)$trackAndLabel['schema_version'] : 2;
+        $operations['track_and_label_info']['operation_id'] = trim((string)($trackAndLabel['operation_id'] ?? 'track_and_label_info')) ?: 'track_and_label_info';
+        $operations['track_and_label_info']['run_after'] = connectors_normalize_dependency_links($trackAndLabel['run_after'] ?? []);
+        $operations['track_and_label_info']['run_with'] = connectors_normalize_dependency_links($trackAndLabel['run_with'] ?? []);
+        $operations['track_and_label_info']['run_finally'] = connectors_normalize_dependency_links($trackAndLabel['run_finally'] ?? []);
+        $operations['track_and_label_info']['entrypoint'] = !empty($trackAndLabel['entrypoint']) ? 1 : 0;
+        $operations['track_and_label_info']['on_dependency_fail'] = connectors_normalize_dependency_policy($trackAndLabel['on_dependency_fail'] ?? 'stop');
+        $operations['track_and_label_info']['enabled'] = !empty($trackAndLabel['enabled']) ? 1 : 0;
+    }
     return $operations;
 }
 
@@ -2175,11 +2196,22 @@ function connectors_build_operations_payload_from_post(): array
     $submissionEntrypoint = !empty($_POST['submission_entrypoint']) ? 1 : 0;
     $submissionOnDependencyFail = connectors_normalize_dependency_policy($_POST['submission_on_dependency_fail'] ?? 'stop');
 
+    $trackAndLabelEnabled = !empty($_POST['track_and_label_info_enabled']) ? 1 : 0;
+    $trackAndLabelOperationId = trim((string)($_POST['track_and_label_info_operation_id'] ?? 'track_and_label_info'));
+    $trackAndLabelRunAfter = connectors_decode_dependency_links_json((string)($_POST['track_and_label_info_run_after_json'] ?? ''), 'TrackAndLabelInfo run_after');
+    $trackAndLabelRunWith = connectors_decode_dependency_links_json((string)($_POST['track_and_label_info_run_with_json'] ?? ''), 'TrackAndLabelInfo run_with');
+    $trackAndLabelRunFinally = connectors_decode_dependency_links_json((string)($_POST['track_and_label_info_run_finally_json'] ?? ''), 'TrackAndLabelInfo run_finally');
+    $trackAndLabelEntrypoint = !empty($_POST['track_and_label_info_entrypoint']) ? 1 : 0;
+    $trackAndLabelOnDependencyFail = connectors_normalize_dependency_policy($_POST['track_and_label_info_on_dependency_fail'] ?? 'stop');
+
     if ($reportOperationId === '') {
         $reportOperationId = 'report';
     }
     if ($submissionOperationId === '') {
         $submissionOperationId = 'submission';
+    }
+    if ($trackAndLabelOperationId === '') {
+        $trackAndLabelOperationId = 'track_and_label_info';
     }
 
     $targetTable = preg_replace('/[^a-z0-9_]+/', '_', $targetTable ?? '');
@@ -2285,6 +2317,17 @@ function connectors_build_operations_payload_from_post(): array
             'success_selector' => $submissionSuccessSelector,
             'success_text' => $submissionSuccessText,
             'error_selector' => $submissionErrorSelector,
+        ],
+
+        'track_and_label_info' => [
+            'schema_version' => 2,
+            'operation_id' => $trackAndLabelOperationId,
+            'run_after' => $trackAndLabelRunAfter,
+            'run_with' => $trackAndLabelRunWith,
+            'run_finally' => $trackAndLabelRunFinally,
+            'entrypoint' => $trackAndLabelEntrypoint,
+            'on_dependency_fail' => $trackAndLabelOnDependencyFail,
+            'enabled' => $trackAndLabelEnabled,
         ],
     ];
 }
