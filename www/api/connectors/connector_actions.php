@@ -77,6 +77,7 @@ function connectors_ensure_schema(mysqli $dbcnx): void
         'last_manual_confirm_at' => "ALTER TABLE connectors ADD COLUMN last_manual_confirm_at DATETIME NULL AFTER scenario_json",
         'last_manual_confirm_by' => "ALTER TABLE connectors ADD COLUMN last_manual_confirm_by INT NULL AFTER last_manual_confirm_at",
         'operations_json' => "ALTER TABLE connectors ADD COLUMN operations_json LONGTEXT NULL AFTER scenario_json",
+        'is_test_connector' => "ALTER TABLE connectors ADD COLUMN is_test_connector TINYINT(1) NOT NULL DEFAULT 0 AFTER notes",
     ];
 
     foreach ($columnsToEnsure as $column => $alterSql) {
@@ -311,6 +312,7 @@ function connectors_fetch_one(mysqli $dbcnx, int $connectorId): ?array
                 last_manual_confirm_at,
                 last_manual_confirm_by,
                 notes,
+                is_test_connector,
                 created_at,
                 updated_at
             FROM connectors
@@ -427,6 +429,36 @@ function connectors_normalize_dependency_policy($value): string
     }
 
     return $value;
+}
+
+
+function connectors_dependency_graph_rollout_mode(): string
+{
+    $mode = strtolower(trim((string)(getenv('CONNECTORS_DEPENDENCY_GRAPH_ROLLOUT') ?: 'test_only')));
+    if (!in_array($mode, ['off', 'test_only', 'all'], true)) {
+        return 'test_only';
+    }
+
+    return $mode;
+}
+
+function connectors_is_test_connector(array $connector): bool
+{
+    return (int)($connector['is_test_connector'] ?? 0) === 1;
+}
+
+function connectors_is_dependency_graph_enabled(array $connector): bool
+{
+    $rolloutMode = connectors_dependency_graph_rollout_mode();
+    if ($rolloutMode === 'off') {
+        return false;
+    }
+
+    if ($rolloutMode === 'all') {
+        return true;
+    }
+
+    return connectors_is_test_connector($connector);
 }
 
 function connectors_decode_dependency_links_json(string $raw, string $fieldLabel): array
@@ -854,6 +886,19 @@ function connectors_build_execution_plan(array $operations, ?string $entrypointO
         'main' => $mainOperationId,
         'during_groups' => $duringGroups,
         'after' => $finallyOrder,
+    ];
+}
+
+function connectors_build_legacy_execution_plan(string $entrypointOperationId): array
+{
+    return [
+        'entrypoint_operation_id' => $entrypointOperationId,
+        'before' => [],
+        'main' => $entrypointOperationId,
+        'during' => [],
+        'finally' => [],
+        'legacy_mode' => true,
+        'reason' => 'dependency_graph_rollout_disabled',
     ];
 }
 
@@ -3041,9 +3086,12 @@ switch ($normalizedAction) {
         try {
             $operationsPayload = connectors_build_operations_payload_from_post();
             connectors_validate_operations_payload($operationsPayload);
-
             $entrypoint = $testOperation === 'submission' ? (string)($operationsPayload['submission']['operation_id'] ?? 'submission') : (string)($operationsPayload['report']['operation_id'] ?? 'report');
-            $executionPlan = connectors_build_execution_plan($operationsPayload, $entrypoint);
+            if (connectors_is_dependency_graph_enabled($connector)) {
+                $executionPlan = connectors_build_execution_plan($operationsPayload, $entrypoint);
+            } else {
+                $executionPlan = connectors_build_legacy_execution_plan($entrypoint);
+            }
             $reportCfg = (array)($operationsPayload['report'] ?? []);
             $submissionCfg = (array)($operationsPayload['submission'] ?? []);
 

@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-03-13 08:43:59
+/* Smarty version 5.3.1, created on 2026-03-13 12:10:17
   from 'file:cells_NA_API_connector_operations_modal.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_69b3ce4f3573f4_54445766',
+  'unifunc' => 'content_69b3fea9caa978_37054849',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '4e0cfb81384357625659d5eca445a63482fe7323' => 
     array (
       0 => 'cells_NA_API_connector_operations_modal.html',
-      1 => 1773340097,
+      1 => 1773401665,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_69b3ce4f3573f4_54445766 (\Smarty\Template $_smarty_tpl) {
+function content_69b3fea9caa978_37054849 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>
 <section class="section">
@@ -598,9 +598,93 @@ $_smarty_current_dir = '/home/cells/web/templates';
               </div>
 
               <div class="tab-pane fade" id="op3-pane" role="tabpanel" aria-labelledby="op3-tab" tabindex="0">
+
+                <div class="row mb-3 mt-3">
+                  <label class="col-md-4 col-lg-3 col-form-label">Операция #3</label>
+                  <div class="col-md-8 col-lg-9">
+                    <div class="form-text mt-2">Сценарий TrackAndLabelInfo: проверка трека и загрузка label/документов.</div>
+                  </div>
+                </div>
+
+                <div class="row mb-3">
+                  <label for="track_and_label_info_enabled" class="col-md-4 col-lg-3 col-form-label">Включить операцию #3</label>
+                  <div class="col-md-8 col-lg-9">
+                    <div class="form-check form-switch mt-2">
+                      <input class="form-check-input" type="checkbox" id="track_and_label_info_enabled" name="track_and_label_info_enabled" value="1" <?php if ($_smarty_tpl->getValue('operations')['track_and_label_info']['enabled'] == 1) {?>checked<?php }?>>
+                      <label class="form-check-label" for="track_and_label_info_enabled">Да, использовать операцию #3 в цепочке</label>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="row mb-3">
+                  <label for="track_and_label_info_operation_id" class="col-md-4 col-lg-3 col-form-label">ID операции</label>
+                  <div class="col-md-8 col-lg-9">
+                    <input type="text"
+                           class="form-control"
+                           id="track_and_label_info_operation_id"
+                           name="track_and_label_info_operation_id"
+                           value="<?php echo htmlspecialchars((string)(($tmp = $_smarty_tpl->getValue('operations')['track_and_label_info']['operation_id'] ?? null)===null||$tmp==='' ? 'track_and_label_info' ?? null : $tmp), ENT_QUOTES, 'UTF-8', true);?>
+"
+                           placeholder="track_and_label_info">
+                  </div>
+                </div>
+
+                <div class="row mb-3">
+                  <label for="track_and_label_info_run_after_json" class="col-md-4 col-lg-3 col-form-label">Before (run_after)</label>
+                  <div class="col-md-8 col-lg-9">
+                    <textarea class="form-control" id="track_and_label_info_run_after_json" name="track_and_label_info_run_after_json" rows="2"><?php echo htmlspecialchars((string)json_encode($_smarty_tpl->getValue('operations')['track_and_label_info']['run_after']), ENT_QUOTES, 'UTF-8', true);?>
+</textarea>
+                    <div class="form-text">JSON-массив operation_id, которые должны завершиться до старта операции #3.</div>
+                  </div>
+                </div>
+
+                <div class="row mb-3">
+                  <label for="track_and_label_info_run_with_json" class="col-md-4 col-lg-3 col-form-label">During (run_with)</label>
+                  <div class="col-md-8 col-lg-9">
+                    <textarea class="form-control" id="track_and_label_info_run_with_json" name="track_and_label_info_run_with_json" rows="2"><?php echo htmlspecialchars((string)json_encode($_smarty_tpl->getValue('operations')['track_and_label_info']['run_with']), ENT_QUOTES, 'UTF-8', true);?>
+</textarea>
+                    <div class="form-text">JSON-массив operation_id, которые запускаются параллельно с операцией #3.</div>
+                  </div>
+                </div>
+
+                <div class="row mb-3">
+                  <label for="track_and_label_info_run_finally_json" class="col-md-4 col-lg-3 col-form-label">After (run_finally)</label>
+                  <div class="col-md-8 col-lg-9">
+                    <textarea class="form-control" id="track_and_label_info_run_finally_json" name="track_and_label_info_run_finally_json" rows="2"><?php echo htmlspecialchars((string)json_encode($_smarty_tpl->getValue('operations')['track_and_label_info']['run_finally']), ENT_QUOTES, 'UTF-8', true);?>
+</textarea>
+                    <div class="form-text">JSON-массив operation_id, которые запускаются в финальной стадии после операции #3.</div>
+                  </div>
+                </div>
+
+                <div class="row mb-3">
+                  <label class="col-md-4 col-lg-3 col-form-label">Точка входа</label>
+                  <div class="col-md-8 col-lg-9">
+                    <div class="form-check mt-2">
+                      <input class="form-check-input" type="checkbox" id="track_and_label_info_entrypoint" name="track_and_label_info_entrypoint" value="1" <?php if ($_smarty_tpl->getValue('operations')['track_and_label_info']['entrypoint'] == 1) {?>checked<?php }?>>
+                      <label class="form-check-label" for="track_and_label_info_entrypoint">Запускать как entrypoint</label>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="row mb-3">
+                  <label for="track_and_label_info_on_dependency_fail" class="col-md-4 col-lg-3 col-form-label">Политика при ошибке зависимости</label>
+                  <div class="col-md-8 col-lg-9">
+                    <select class="form-select" id="track_and_label_info_on_dependency_fail" name="track_and_label_info_on_dependency_fail">
+                      <option value="stop" <?php if ($_smarty_tpl->getValue('operations')['track_and_label_info']['on_dependency_fail'] == 'stop') {?>selected<?php }?>>stop</option>
+                      <option value="skip" <?php if ($_smarty_tpl->getValue('operations')['track_and_label_info']['on_dependency_fail'] == 'skip') {?>selected<?php }?>>skip</option>
+                      <option value="continue" <?php if ($_smarty_tpl->getValue('operations')['track_and_label_info']['on_dependency_fail'] == 'continue') {?>selected<?php }?>>continue</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div class="d-flex gap-2 mb-2">
+                  <button type="button" class="btn btn-primary js-core-link" data-core-action="save_connector_operations" data-open-tab="op3-pane">
+                    Сохранить операции #3
+                  </button>
+                </div>
+
                 <div class="alert alert-info mb-0" role="alert">
-                  <strong>Операция #3 (TrackAndLabelInfo)</strong><br>
-                  Заготовка под сценарий проверки трека и загрузки label/документов.
+                  Сейчас для операции #3 включена настройка dependency-полей (ID/before-during-after/entrypoint/policy). Исполнитель шагов для TrackAndLabelInfo добавим следующим этапом.
                 </div>
               </div>
 
