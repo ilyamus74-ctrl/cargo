@@ -1044,14 +1044,17 @@ function connectors_migrate_operations_payload(array $payload): array
         'report' => [
             'operation_id' => 'report',
             'entrypoint' => 1,
+            'schema_version' => 2,
         ],
         'submission' => [
             'operation_id' => 'submission',
             'entrypoint' => 0,
+            'schema_version' => 2,
         ],
         'track_and_label_info' => [
             'operation_id' => 'track_and_label_info',
             'entrypoint' => 0,
+            'schema_version' => 2,
         ],
     ];
 
@@ -1085,6 +1088,11 @@ function connectors_migrate_operations_payload(array $payload): array
 
         if (!isset($payload[$operationKey]['run_after']) || !is_array($payload[$operationKey]['run_after'])) {
             $payload[$operationKey]['run_after'] = [];
+        }
+
+        $currentSchemaVersion = (int)($payload[$operationKey]['schema_version'] ?? 0);
+        if ($currentSchemaVersion !== (int)$defaults['schema_version']) {
+            $payload[$operationKey]['schema_version'] = (int)$defaults['schema_version'];
         }
 
         if (!array_key_exists('entrypoint', $payload[$operationKey])) {
@@ -2366,6 +2374,7 @@ function connectors_has_operations_payload_in_post(): bool
 
     return false;
 }
+
 
 function connectors_build_operations_payload_from_post(): array
 {
