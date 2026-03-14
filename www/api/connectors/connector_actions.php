@@ -3430,6 +3430,7 @@ switch ($normalizedAction) {
         $scenarioJson = trim($_POST['scenario_json'] ?? '');
         $notes = trim($_POST['notes'] ?? '');
         $isActive = !empty($_POST['is_active']) ? 1 : 0;
+        $isTestConnector = !empty($_POST['is_test_connector']) ? 1 : 0;
         $sslIgnore = !empty($_POST['ssl_ignore']) ? 1 : 0;
 
         $isNew = $connectorId <= 0;
@@ -3462,6 +3463,7 @@ switch ($normalizedAction) {
                            auth_cookies = ?,
                            auth_token_expires_at = ?,
                            is_active = ?,
+                           is_test_connector = ?,
                            ssl_ignore = ?,
                            scenario_json = ?,
                            operations_json = ?,
@@ -3476,7 +3478,7 @@ switch ($normalizedAction) {
                 break;
             }
             $stmt->bind_param(
-                'ssssssssssiisssi',
+                'ssssssssssiiisssi',
                 $name,
                 $countries,
                 $baseUrl,
@@ -3488,6 +3490,7 @@ switch ($normalizedAction) {
                 $authCookies,
                 $authTokenExpiresAt,
                 $isActive,
+                $isTestConnector,
                 $sslIgnore,
                 $scenarioJson,
                 $operationsJson,
@@ -3505,8 +3508,8 @@ switch ($normalizedAction) {
             $stmt->close();
         } else {
             $sql = "INSERT INTO connectors
-                        (name, countries, base_url, auth_type, auth_username, auth_password, api_token, auth_token, auth_cookies, auth_token_expires_at, is_active, ssl_ignore, scenario_json, operations_json, notes)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                        (name, countries, base_url, auth_type, auth_username, auth_password, api_token, auth_token, auth_cookies, auth_token_expires_at, is_active, is_test_connector, ssl_ignore, scenario_json, operations_json, notes)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
             $stmt = $dbcnx->prepare($sql);
             if (!$stmt) {
                 $response = [
@@ -3516,7 +3519,7 @@ switch ($normalizedAction) {
                 break;
             }
             $stmt->bind_param(
-                'ssssssssssiisss',
+                'ssssssssssiiisss',
                 $name,
                 $countries,
                 $baseUrl,
@@ -3528,6 +3531,7 @@ switch ($normalizedAction) {
                 $authCookies,
                 $authTokenExpiresAt,
                 $isActive,
+                $isTestConnector,
                 $sslIgnore,
                 $scenarioJson,
                 '',

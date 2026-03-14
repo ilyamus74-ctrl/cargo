@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-02-23 15:45:45
+/* Smarty version 5.3.1, created on 2026-03-14 09:42:49
   from 'file:cells_NA_API_connector_modal.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_699c7629947c46_51601071',
+  'unifunc' => 'content_69b52d99dbaf70_99021923',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     'e3b4a633cb3de7e87ec136742f2dde5df829ed18' => 
     array (
       0 => 'cells_NA_API_connector_modal.html',
-      1 => 1771861105,
+      1 => 1773481168,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_699c7629947c46_51601071 (\Smarty\Template $_smarty_tpl) {
+function content_69b52d99dbaf70_99021923 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?><section class="section">
   <div class="row">
@@ -223,6 +223,23 @@ $_smarty_current_dir = '/home/cells/web/templates';
                 <pre class="form-text mb-0">{"manual_confirm":{"required":true,"instruction":"Оператор проходит капчу и нажимает \"Обновить токен\""},"login":{"url":"https://portal.example.com/login","method":"POST","fields":{"username":"${login}","password":"${password}"},"browser_steps":[{"action":"goto","url":"https://portal.example.com/login"},{"action":"fill","selector":"input[name=\"email\"]","value":"${login}"},{"action":"fill","selector":"input[name=\"password\"]","value":"${password}"},{"action":"click","selector":"button[type=\"submit\"]"}]},"success":{"selector":"a[href*=\"logout\"]","text":"Log out"},"steps":[{"name":"Dashboard","url":"https://portal.example.com/dashboard","method":"GET","success":{"selector":".user-profile"}},{"name":"Balance API","url":"https://portal.example.com/api/balance","method":"GET","expect":{"json_path":"data.balance","operator":">","value":0}}]}</pre>
               </div>
             </div>
+
+            <div class="row mb-3">
+              <label class="col-md-4 col-lg-3 col-form-label">Тестовый коннектор</label>
+              <div class="col-md-8 col-lg-9">
+                <div class="form-check">
+                  <input class="form-check-input"
+                         type="checkbox"
+                         id="connector_is_test"
+                         name="is_test_connector"
+                         value="1"
+                         <?php if ($_smarty_tpl->getValue('connector')['is_test_connector'] == 1) {?>checked<?php }?>>
+                  <label class="form-check-label" for="connector_is_test">Использовать в rollout режиме <code>test_only</code></label>
+                </div>
+                <div class="form-text">Включайте для безопасной обкатки dependency graph до переключения глобального режима в <code>all</code>.</div>
+              </div>
+            </div>
+
 
             <div class="row mb-3">
               <label class="col-md-4 col-lg-3 col-form-label">Активен</label>

@@ -186,6 +186,23 @@
             </div>
 
             <div class="row mb-3">
+              <label class="col-md-4 col-lg-3 col-form-label">Тестовый коннектор</label>
+              <div class="col-md-8 col-lg-9">
+                <div class="form-check">
+                  <input class="form-check-input"
+                         type="checkbox"
+                         id="connector_is_test"
+                         name="is_test_connector"
+                         value="1"
+                         {if $connector.is_test_connector == 1}checked{/if}>
+                  <label class="form-check-label" for="connector_is_test">Использовать в rollout режиме <code>test_only</code></label>
+                </div>
+                <div class="form-text">Включайте для безопасной обкатки dependency graph до переключения глобального режима в <code>all</code>.</div>
+              </div>
+            </div>
+
+
+            <div class="row mb-3">
               <label class="col-md-4 col-lg-3 col-form-label">Активен</label>
               <div class="col-md-8 col-lg-9">
                 <div class="form-check">
