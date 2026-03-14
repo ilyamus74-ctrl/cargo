@@ -6,6 +6,8 @@ declare(strict_types=1);
 //$response = ['status' => 'error', 'message' => 'Unknown connector action'];
 
 $normalizedAction = trim((string)$action);
+$normalizedAction = preg_replace('/[\x00-\x1F\x7F\x{00A0}\x{200B}-\x{200D}\x{FEFF}]/u', '', $normalizedAction) ?? $normalizedAction;
+$normalizedAction = preg_replace('/\s+/u', '', $normalizedAction) ?? $normalizedAction;
 $response = ['status' => 'error', 'message' => 'Unknown connector action: ' . $normalizedAction];
 
 require_once __DIR__ . '/connector_engine.php';
