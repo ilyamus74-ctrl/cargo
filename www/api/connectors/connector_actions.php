@@ -2343,6 +2343,30 @@ function connectors_run_submission_test(array $connector, array $submissionCfg):
 }
 
 
+function connectors_has_operations_payload_in_post(): bool
+{
+    $fields = [
+        'report_enabled',
+        'report_operation_id',
+        'report_target_table',
+        'report_steps_json',
+        'report_curl_config_json',
+        'submission_enabled',
+        'submission_operation_id',
+        'submission_steps_json',
+        'track_and_label_info_enabled',
+        'track_and_label_info_operation_id',
+    ];
+
+    foreach ($fields as $field) {
+        if (array_key_exists($field, $_POST)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
 function connectors_build_operations_payload_from_post(): array
 {
     $enabled = !empty($_POST['report_enabled']) ? 1 : 0;
@@ -3121,7 +3145,11 @@ switch ($normalizedAction) {
         connectors_append_trace_event($traceLog, $runId, $testOperation ?: 'report', 'start', 'start', 'Запуск теста операции');
 
         try {
-            $operationsPayload = connectors_build_operations_payload_from_post();
+            if (connectors_has_operations_payload_in_post()) {
+                $operationsPayload = connectors_build_operations_payload_from_post();
+            } else {
+                $operationsPayload = connectors_decode_operations($connector);
+            }
             connectors_validate_operations_payload($operationsPayload);
             $entrypoint = $testOperation === 'submission' ? (string)($operationsPayload['submission']['operation_id'] ?? 'submission') : (string)($operationsPayload['report']['operation_id'] ?? 'report');
             if (connectors_is_dependency_graph_enabled($connector)) {
