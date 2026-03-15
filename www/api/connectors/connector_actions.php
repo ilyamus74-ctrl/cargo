@@ -5,9 +5,34 @@ declare(strict_types=1);
 // Доступны: $action, $user, $dbcnx, $smarty
 //$response = ['status' => 'error', 'message' => 'Unknown connector action'];
 
-$normalizedAction = trim((string)$action);
-$normalizedAction = preg_replace('/[\x00-\x1F\x7F\x{00A0}\x{200B}-\x{200D}\x{FEFF}]/u', '', $normalizedAction) ?? $normalizedAction;
-$normalizedAction = preg_replace('/\s+/u', '', $normalizedAction) ?? $normalizedAction;
+$routeActionRaw = $action ?? '';
+$postActionRaw = $_POST['action'] ?? '';
+$getActionRaw = $_GET['action'] ?? '';
+
+// Важно: handler должен в первую очередь доверять action, уже отмаршрутизированному в core_api.php.
+// Это исключает расхождение между роутером и switch при «грязном» POST/GET.
+$routeActionRaw = isset($action) ? (string)$action : '';
+$postActionRaw = isset($_POST['action']) ? (string)$_POST['action'] : '';
+$getActionRaw = isset($_GET['action']) ? (string)$_GET['action'] : '';
+
+// Важно: handler должен в первую очередь доверять action, уже отмаршрутизированному в core_api.php.
+// Это исключает расхождение между роутером и switch при «грязном» POST/GET.
+$normalizedRouteAction = connectors_resolve_action_alias(connectors_normalize_action($routeActionRaw));
+$normalizedPostAction = connectors_resolve_action_alias(connectors_normalize_action($postActionRaw));
+$normalizedGetAction = connectors_resolve_action_alias(connectors_normalize_action($getActionRaw));
+
+// Для switch используем максимально «сырой», но уже отмаршрутизированный action (route-first),
+// чтобы не ломать совпадение case из-за агрессивной нормализации.
+$dispatchAction = $routeActionRaw !== '' ? trim($routeActionRaw) : trim(($postActionRaw !== '' ? $postActionRaw : $getActionRaw));
+$dispatchAction = connectors_resolve_action_alias($dispatchAction);
+
+$normalizedAction = $normalizedRouteAction !== '' ? $normalizedRouteAction : ($normalizedPostAction !== '' ? $normalizedPostAction : $normalizedGetAction);
+$incomingAction = $routeActionRaw !== '' ? $routeActionRaw : ($postActionRaw !== '' ? $postActionRaw : $getActionRaw);
+
+if ($normalizedRouteAction !== '' && $normalizedPostAction !== '' && $normalizedRouteAction !== $normalizedPostAction) {
+    error_log('connector_actions action mismatch route_vs_post: route=' . $normalizedRouteAction . '; post=' . $normalizedPostAction . '; post_hex=' . bin2hex((string)$postActionRaw));
+}
+
 $response = ['status' => 'error', 'message' => 'Unknown connector action: ' . $normalizedAction];
 
 require_once __DIR__ . '/connector_engine.php';
@@ -35,6 +60,33 @@ final class ConnectorStepLogException extends RuntimeException
     {
         return $this->artifactsDir;
     }
+}
+
+function connectors_normalize_action($action): string
+{
+    $normalized = trim((string)$action);
+
+    // byte-level cleanup: remove ASCII control chars even if input has broken UTF-8
+    $normalized = preg_replace('/[\x00-\x1F\x7F]/', '', $normalized) ?? $normalized;
+    // remove common UTF-8 invisible chars by raw byte sequences
+    $normalized = str_replace(["\xC2\xA0", "\xE2\x80\x8B", "\xE2\x80\x8C", "\xE2\x80\x8D", "\xE2\x81\xA0", "\xEF\xBB\xBF"], '', $normalized);
+    $normalized = preg_replace('/\s+/u', '', $normalized) ?? preg_replace('/\s+/', '', $normalized) ?? $normalized;
+    $normalized = strtolower($normalized);
+
+    return preg_replace('/[^a-z0-9_.-]/', '', $normalized) ?? $normalized;
+}
+
+function connectors_resolve_action_alias(string $action): string
+{
+    if (preg_match('/^test[_.-]*connector[_.-]*operations$/i', $action)) {
+        return 'test_connector_operations';
+    }
+
+    static $aliases = [
+        'testconnectoroperations' => 'test_connector_operations',
+    ];
+
+    return $aliases[$action] ?? $action;
 }
 
 function connectors_ensure_schema(mysqli $dbcnx): void
@@ -2553,7 +2605,7 @@ function connectors_build_operations_payload_from_post(): array
 
 connectors_ensure_schema($dbcnx);
 
-switch ($normalizedAction) {
+switch ($dispatchAction) {
     case 'view_connectors':
         $connectors = [];
         $sql = "SELECT
@@ -3128,6 +3180,7 @@ switch ($normalizedAction) {
         $traceLog = [];
         $executionPlan = [];
         $graphErrors = [];
+        $response = [];
         $targetTable = '';
         $reportCfg = [];
         $submissionCfg = [];
@@ -3216,7 +3269,8 @@ switch ($normalizedAction) {
                 ];
             }
 
-            $periodFrom = connectors_validate_iso_date($_POST['test_period_from'] ?? null);
+            if ($testOperation !== 'submission') {
+                $periodFrom = connectors_validate_iso_date($_POST['test_period_from'] ?? null);
             $periodTo = connectors_validate_iso_date($_POST['test_period_to'] ?? null);
             if ($periodFrom !== null && $periodTo !== null && $periodFrom > $periodTo) {
                 throw new InvalidArgumentException('Дата начала периода больше даты окончания');
@@ -3224,6 +3278,7 @@ switch ($normalizedAction) {
 
             $targetTable = connectors_normalize_report_table_name((string)($reportCfg['target_table'] ?? ''));
             connectors_ensure_report_table($dbcnx, $targetTable);
+            }
         } catch (InvalidArgumentException $e) {
 
             if (empty($graphErrors) && connectors_is_dependency_graph_enabled($connector)) {
@@ -3396,7 +3451,7 @@ switch ($normalizedAction) {
                     'chain_status' => connectors_build_chain_status_map($executionPlan, $reportOperationId, false, $traceLog),
                 ];
             }
-        }
+            }
 
         $runFinishedAt = date('Y-m-d H:i:s');
         $runDurationMs = max(0, (int)round((microtime(true) - $runStartedAtTs) * 1000));
@@ -3603,7 +3658,12 @@ switch ($normalizedAction) {
         ];
         break;
 
-    default:
+    default:        error_log('connector_actions unknown action: normalized=' . $normalizedAction
+            . '; route=' . $normalizedRouteAction
+            . '; post=' . $normalizedPostAction
+            . '; get=' . $normalizedGetAction
+            . '; raw=' . json_encode($incomingAction, JSON_UNESCAPED_UNICODE)
+            . '; raw_hex=' . bin2hex((string)$incomingAction));
         $response = [
             'status' => 'error',
             'message' => 'Unknown connector action: ' . $normalizedAction,
