@@ -91,17 +91,26 @@ if ($action === 'save_system_task') {
 
     if ($taskId > 0) {
         $stmt = $dbcnx->prepare("UPDATE system_tasks
-                                 SET code = ?, name = ?, description = ?, endpoint_action = ?, interval_minutes = ?, is_enabled = ?
+                                 SET code = ?,
+                                     name = ?,
+                                     description = ?,
+                                     endpoint_action = ?,
+                                     interval_minutes = ?,
+                                     is_enabled = ?,
+                                     next_run_at = CASE
+                                         WHEN ? = 1 THEN NOW()
+                                         ELSE next_run_at
+                                     END
                                  WHERE id = ?");
         if (!$stmt) {
             throw new RuntimeException('save_system_task update prepare failed');
         }
-        $stmt->bind_param('ssssiii', $code, $name, $description, $endpointAction, $intervalMinutes, $isEnabled, $taskId);
+        $stmt->bind_param('ssssiiii', $code, $name, $description, $endpointAction, $intervalMinutes, $isEnabled, $isEnabled, $taskId);
         $ok = $stmt->execute();
         $stmt->close();
 
         $response = $ok
-            ? ['status' => 'ok', 'message' => 'Задание обновлено']
+            ? ['status' => 'ok', 'message' => 'Задание обновлено. Следующий запуск пересчитан от текущего времени.']
             : ['status' => 'error', 'message' => 'Не удалось обновить задание'];
         return;
     }

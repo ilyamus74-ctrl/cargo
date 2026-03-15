@@ -1092,48 +1092,6 @@ function connectors_decode_operations(array $connector): array
 }
 
 
-function connectors_decode_runtime_json_fields(array $operation): array
-{
-    $jsonToArrayMap = [
-        'steps_json' => 'steps',
-        'curl_config_json' => 'curl_config',
-        'field_mapping_json' => 'field_mapping',
-        'request_config_json' => 'request_config',
-    ];
-
-    foreach ($jsonToArrayMap as $jsonKey => $arrayKey) {
-        if (isset($operation[$arrayKey])) {
-            continue;
-        }
-
-        $rawJson = trim((string)($operation[$jsonKey] ?? ''));
-        if ($rawJson === '') {
-            continue;
-        }
-
-        $decoded = json_decode($rawJson, true);
-        if (is_array($decoded)) {
-            $operation[$arrayKey] = $decoded;
-        }
-    }
-
-    return $operation;
-}
-
-function connectors_decode_operations_for_runtime(array $connector): array
-{
-    $operations = connectors_decode_operations($connector);
-    foreach ($operations as $operationKey => $operation) {
-        if (!is_array($operation)) {
-            continue;
-        }
-        $operations[$operationKey] = connectors_decode_runtime_json_fields($operation);
-    }
-
-    return $operations;
-}
-
-
 function connectors_migrate_operations_payload(array $payload): array
 {
     $operationDefaults = [

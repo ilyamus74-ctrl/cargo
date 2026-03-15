@@ -152,7 +152,7 @@ function system_tasks_seed_defaults(mysqli $dbcnx): void
         ],
 
     ];
-/*
+
     $sql = "INSERT INTO system_tasks (code, name, description, endpoint_action, interval_minutes, is_enabled, next_run_at)
             VALUES (?, ?, ?, ?, ?, 1, NOW())
             ON DUPLICATE KEY UPDATE
@@ -160,9 +160,7 @@ function system_tasks_seed_defaults(mysqli $dbcnx): void
                 description = VALUES(description),
                 endpoint_action = VALUES(endpoint_action),
                 interval_minutes = VALUES(interval_minutes)";
-*/
-    $sql = "INSERT IGNORE INTO system_tasks (code, name, description, endpoint_action, interval_minutes, is_enabled, next_run_at)
-            VALUES (?, ?, ?, ?, ?, 1, NOW())";
+
     $stmt = $dbcnx->prepare($sql);
     if (!$stmt) {
         throw new RuntimeException('system_tasks seed prepare failed');
@@ -387,7 +385,7 @@ function system_tasks_run_connectors_report_operation_1(mysqli $dbcnx, array $ta
     }
 
     $requiredFns = [
-        'connectors_decode_operations_for_runtime',
+        'connectors_decode_operations',
         'connectors_normalize_report_table_name',
         'connectors_ensure_report_table',
         'connectors_download_report_file',
@@ -426,26 +424,8 @@ function system_tasks_run_connectors_report_operation_1(mysqli $dbcnx, array $ta
             continue;
         }
 
-        $operations = connectors_decode_operations_for_runtime($connector);
+        $operations = connectors_decode_operations($connector);
         $reportCfg = (array)($operations['report'] ?? []);
-        if (!isset($reportCfg['steps']) && !empty($reportCfg['steps_json'])) {
-            $decodedSteps = json_decode((string)$reportCfg['steps_json'], true);
-            if (is_array($decodedSteps)) {
-                $reportCfg['steps'] = $decodedSteps;
-            }
-        }
-        if (!isset($reportCfg['curl_config']) && !empty($reportCfg['curl_config_json'])) {
-            $decodedCurlConfig = json_decode((string)$reportCfg['curl_config_json'], true);
-            if (is_array($decodedCurlConfig)) {
-                $reportCfg['curl_config'] = $decodedCurlConfig;
-            }
-        }
-        if (!isset($reportCfg['field_mapping']) && !empty($reportCfg['field_mapping_json'])) {
-            $decodedFieldMapping = json_decode((string)$reportCfg['field_mapping_json'], true);
-            if (is_array($decodedFieldMapping)) {
-                $reportCfg['field_mapping'] = $decodedFieldMapping;
-            }
-        }
         if (empty($reportCfg['enabled'])) {
             continue;
         }
