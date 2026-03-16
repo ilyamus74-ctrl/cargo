@@ -421,8 +421,7 @@ function connectors_fetch_one(mysqli $dbcnx, int $connectorId): ?array
     if (!is_array($row)) {
         return null;
     }
-
-    return connectors_try_migrate_operations_json($dbcnx, $row);
+    return connectors_try_migrate_operations_json($row);
 }
 
 
@@ -1420,62 +1419,7 @@ function connectors_decode_operations(array $connector): array
 
 
     if (connectors_is_v3_operations_payload($decoded)) {
-        $runtimeOperations = connectors_v3_payload_to_runtime_operations($decoded);
-        foreach (['report', 'submission', 'track_and_label_info'] as $operationKey) {
-            if (!isset($runtimeOperations[$operationKey])) {
-                continue;
-            }
-
-            $op = $runtimeOperations[$operationKey];
-            $cfg = isset($op['config']) && is_array($op['config']) ? $op['config'] : [];
-            $operations[$operationKey]['schema_version'] = 3;
-            $operations[$operationKey]['operation_id'] = $op['operation_id'];
-            $operations[$operationKey]['display_name'] = trim((string)($op['display_name'] ?? $operations[$operationKey]['display_name'] ?? $operationKey));
-            $operations[$operationKey]['module'] = connectors_normalize_operation_module($op['module'] ?? 'generic');
-            $operations[$operationKey]['action'] = trim((string)($op['action'] ?? ''));
-            $operations[$operationKey]['kind'] = connectors_normalize_operation_kind($op['kind'] ?? '', (string)($operations[$operationKey]['module'] ?? 'generic'));
-            $operations[$operationKey]['run_after'] = connectors_normalize_dependency_links($op['run_after'] ?? []);
-            $operations[$operationKey]['run_with'] = connectors_normalize_dependency_links($op['run_with'] ?? []);
-            $operations[$operationKey]['run_finally'] = connectors_normalize_dependency_links($op['run_finally'] ?? []);
-            $operations[$operationKey]['entrypoint'] = !empty($op['entrypoint']) ? 1 : 0;
-            $operations[$operationKey]['on_dependency_fail'] = connectors_normalize_dependency_policy($op['on_dependency_fail'] ?? 'stop');
-            $operations[$operationKey]['enabled'] = !empty($op['enabled']) ? 1 : 0;
-
-            if ($operationKey === 'report') {
-                $operations[$operationKey]['page_url'] = trim((string)($cfg['page_url'] ?? ''));
-                $operations[$operationKey]['file_extension'] = trim((string)($cfg['file_extension'] ?? 'xlsx')) ?: 'xlsx';
-                $operations[$operationKey]['download_mode'] = in_array(($cfg['download_mode'] ?? 'browser'), ['browser', 'curl'], true)
-                    ? (string)$cfg['download_mode']
-                    : 'browser';
-                $operations[$operationKey]['log_steps'] = !empty($cfg['log_steps']) ? 1 : 0;
-                if (isset($cfg['steps']) && is_array($cfg['steps'])) {
-                    $operations[$operationKey]['steps_json'] = json_encode($cfg['steps'], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT) ?: '';
-                }
-                if (isset($cfg['curl_config']) && is_array($cfg['curl_config'])) {
-                    $operations[$operationKey]['curl_config_json'] = json_encode($cfg['curl_config'], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT) ?: '';
-                }
-                $operations[$operationKey]['target_table'] = trim((string)($cfg['target_table'] ?? $operations[$operationKey]['target_table']));
-                if (isset($cfg['field_mapping']) && is_array($cfg['field_mapping'])) {
-                    $operations[$operationKey]['field_mapping_json'] = json_encode($cfg['field_mapping'], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT) ?: '';
-                }
-            }
-
-            if ($operationKey === 'submission') {
-                $operations[$operationKey]['page_url'] = trim((string)($cfg['page_url'] ?? ''));
-                $operations[$operationKey]['log_steps'] = !empty($cfg['log_steps']) ? 1 : 0;
-                if (isset($cfg['steps']) && is_array($cfg['steps'])) {
-                    $operations[$operationKey]['steps_json'] = json_encode($cfg['steps'], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT) ?: '';
-                }
-                if (isset($cfg['request_config']) && is_array($cfg['request_config'])) {
-                    $operations[$operationKey]['request_config_json'] = json_encode($cfg['request_config'], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT) ?: '';
-                }
-                $operations[$operationKey]['success_selector'] = trim((string)($cfg['success_selector'] ?? ''));
-                $operations[$operationKey]['success_text'] = trim((string)($cfg['success_text'] ?? ''));
-                $operations[$operationKey]['error_selector'] = trim((string)($cfg['error_selector'] ?? ''));
-            }
-        }
-
-        return $operations;
+        return connectors_build_legacy_compat_operations_view($decoded, $connector);
     }
 
     if (isset($decoded['report']) && is_array($decoded['report'])) {
@@ -1603,6 +1547,25 @@ function connectors_decode_operations_for_runtime(array $connector): array
 }
 
 
+function connectors_resolve_legacy_test_entrypoint(array $operationsPayload, string $testOperation): string
+{
+    $testOperation = strtolower(trim($testOperation));
+
+    if (connectors_is_v3_operations_payload($operationsPayload)) {
+        $runtimeOperations = connectors_v3_payload_to_runtime_operations($operationsPayload);
+        $preferred = $testOperation === 'submission' ? 'submission' : 'report';
+        if (isset($runtimeOperations[$preferred])) {
+            return (string)($runtimeOperations[$preferred]['operation_id'] ?? $preferred);
+        }
+
+        return $testOperation === 'submission' ? 'submission' : 'report';
+    }
+
+    return $testOperation === 'submission'
+        ? (string)($operationsPayload['submission']['operation_id'] ?? 'submission')
+        : (string)($operationsPayload['report']['operation_id'] ?? 'report');
+}
+
 function connectors_migrate_operations_payload(array $payload): array
 {
 
@@ -1686,7 +1649,74 @@ function connectors_migrate_operations_payload(array $payload): array
     return connectors_legacy_operations_to_v3_payload($payload);
 }
 
-function connectors_try_migrate_operations_json(mysqli $dbcnx, array $connector): array
+
+function connectors_build_legacy_compat_operations_view(array $operationsPayload, array $connector = []): array
+{
+    if (!connectors_is_v3_operations_payload($operationsPayload)) {
+        return $operationsPayload;
+    }
+
+    $operations = connectors_default_operations($connector);
+    $runtimeOperations = connectors_v3_payload_to_runtime_operations($operationsPayload);
+
+    foreach (['report', 'submission', 'track_and_label_info'] as $operationKey) {
+        if (!isset($runtimeOperations[$operationKey])) {
+            continue;
+        }
+
+        $op = $runtimeOperations[$operationKey];
+        $cfg = isset($op['config']) && is_array($op['config']) ? $op['config'] : [];
+        $operations[$operationKey]['schema_version'] = 3;
+        $operations[$operationKey]['operation_id'] = $op['operation_id'];
+        $operations[$operationKey]['display_name'] = trim((string)($op['display_name'] ?? $operations[$operationKey]['display_name'] ?? $operationKey));
+        $operations[$operationKey]['module'] = connectors_normalize_operation_module($op['module'] ?? 'generic');
+        $operations[$operationKey]['action'] = trim((string)($op['action'] ?? ''));
+        $operations[$operationKey]['kind'] = connectors_normalize_operation_kind($op['kind'] ?? '', (string)($operations[$operationKey]['module'] ?? 'generic'));
+        $operations[$operationKey]['run_after'] = connectors_normalize_dependency_links($op['run_after'] ?? []);
+        $operations[$operationKey]['run_with'] = connectors_normalize_dependency_links($op['run_with'] ?? []);
+        $operations[$operationKey]['run_finally'] = connectors_normalize_dependency_links($op['run_finally'] ?? []);
+        $operations[$operationKey]['entrypoint'] = !empty($op['entrypoint']) ? 1 : 0;
+        $operations[$operationKey]['on_dependency_fail'] = connectors_normalize_dependency_policy($op['on_dependency_fail'] ?? 'stop');
+        $operations[$operationKey]['enabled'] = !empty($op['enabled']) ? 1 : 0;
+
+        if ($operationKey === 'report') {
+            $operations[$operationKey]['page_url'] = trim((string)($cfg['page_url'] ?? ''));
+            $operations[$operationKey]['file_extension'] = trim((string)($cfg['file_extension'] ?? 'xlsx')) ?: 'xlsx';
+            $operations[$operationKey]['download_mode'] = in_array(($cfg['download_mode'] ?? 'browser'), ['browser', 'curl'], true)
+                ? (string)$cfg['download_mode']
+                : 'browser';
+            $operations[$operationKey]['log_steps'] = !empty($cfg['log_steps']) ? 1 : 0;
+            if (isset($cfg['steps']) && is_array($cfg['steps'])) {
+                $operations[$operationKey]['steps_json'] = json_encode($cfg['steps'], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT) ?: '';
+            }
+            if (isset($cfg['curl_config']) && is_array($cfg['curl_config'])) {
+                $operations[$operationKey]['curl_config_json'] = json_encode($cfg['curl_config'], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT) ?: '';
+            }
+            $operations[$operationKey]['target_table'] = trim((string)($cfg['target_table'] ?? $operations[$operationKey]['target_table']));
+            if (isset($cfg['field_mapping']) && is_array($cfg['field_mapping'])) {
+                $operations[$operationKey]['field_mapping_json'] = json_encode($cfg['field_mapping'], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT) ?: '';
+            }
+        }
+
+        if ($operationKey === 'submission') {
+            $operations[$operationKey]['page_url'] = trim((string)($cfg['page_url'] ?? ''));
+            $operations[$operationKey]['log_steps'] = !empty($cfg['log_steps']) ? 1 : 0;
+            if (isset($cfg['steps']) && is_array($cfg['steps'])) {
+                $operations[$operationKey]['steps_json'] = json_encode($cfg['steps'], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT) ?: '';
+            }
+            if (isset($cfg['request_config']) && is_array($cfg['request_config'])) {
+                $operations[$operationKey]['request_config_json'] = json_encode($cfg['request_config'], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT) ?: '';
+            }
+            $operations[$operationKey]['success_selector'] = trim((string)($cfg['success_selector'] ?? ''));
+            $operations[$operationKey]['success_text'] = trim((string)($cfg['success_text'] ?? ''));
+            $operations[$operationKey]['error_selector'] = trim((string)($cfg['error_selector'] ?? ''));
+        }
+    }
+
+    return $operations;
+}
+
+function connectors_try_migrate_operations_json(array $connector): array
 {
     $raw = trim((string)($connector['operations_json'] ?? ''));
     if ($raw === '') {
@@ -1708,18 +1738,7 @@ function connectors_try_migrate_operations_json(mysqli $dbcnx, array $connector)
         return $connector;
     }
 
-    $stmt = $dbcnx->prepare('UPDATE connectors SET operations_json = ? WHERE id = ?');
-    if (!$stmt) {
-        return $connector;
-    }
-
-    $connectorId = (int)($connector['id'] ?? 0);
-    $stmt->bind_param('si', $encoded, $connectorId);
-    if ($stmt->execute()) {
-        $connector['operations_json'] = $encoded;
-    }
-    $stmt->close();
-
+    $connector['operations_json'] = $encoded;
     return $connector;
 }
 
@@ -3731,7 +3750,7 @@ switch ($dispatchAction) {
                 $operationsPayload = connectors_decode_operations($connector);
             }
             connectors_validate_operations_payload($operationsPayload);
-            $entrypoint = $testOperation === 'submission' ? (string)($operationsPayload['submission']['operation_id'] ?? 'submission') : (string)($operationsPayload['report']['operation_id'] ?? 'report');
+            $entrypoint = connectors_resolve_legacy_test_entrypoint($operationsPayload, $testOperation);
             if (connectors_is_dependency_graph_enabled($connector)) {
                 try {
                     $executionPlan = connectors_build_execution_plan($operationsPayload, $entrypoint);
@@ -3751,9 +3770,11 @@ switch ($dispatchAction) {
             } else {
                 $executionPlan = connectors_build_legacy_execution_plan($entrypoint);
             }
-            $reportCfg = (array)($operationsPayload['report'] ?? []);
-            $submissionCfg = (array)($operationsPayload['submission'] ?? []);
 
+
+            $legacyCompatPayload = connectors_build_legacy_compat_operations_view($operationsPayload, $connector);
+            $reportCfg = (array)($legacyCompatPayload['report'] ?? []);
+            $submissionCfg = (array)($legacyCompatPayload['submission'] ?? []);
             if ($testOperation === 'submission') {
                 $submissionResult = connectors_run_submission_test($connector, $submissionCfg);
                 $tracking = (string)($submissionResult['tracking_number'] ?? '');
