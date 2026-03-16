@@ -779,6 +779,22 @@ function connectors_validate_v3_operations_payload(array $operationsPayload): vo
         throw new InvalidArgumentException('Операции v3 не содержат валидных operation_id');
     }
 
+
+    $seenOperationIds = [];
+    foreach ($operationsPayload['operations'] as $index => $operation) {
+        if (!is_array($operation)) {
+            continue;
+        }
+        $operationId = trim((string)($operation['operation_id'] ?? ''));
+        if ($operationId === '') {
+            continue;
+        }
+        if (isset($seenOperationIds[$operationId])) {
+            throw new InvalidArgumentException('Дублирующийся operation_id в operations_v3_json: "' . $operationId . '" (операции #' . $seenOperationIds[$operationId] . ' и #' . ($index + 1) . ')');
+        }
+        $seenOperationIds[$operationId] = $index + 1;
+    }
+
     foreach ($operationsPayload['operations'] as $index => $operation) {
         if (!is_array($operation)) {
             throw new InvalidArgumentException('Операция #' . ($index + 1) . ': ожидается JSON-объект');
@@ -1041,34 +1057,32 @@ function connectors_validate_operations_runtime(array $operations): void
         }
     }
 
-    $visitState = [];
-    $stack = [];
-
-    $visit = static function (string $operationId) use (&$visit, &$visitState, &$stack, $dependencies): void {
-        $state = $visitState[$operationId] ?? 0;
-        if ($state === 2) {
-            return;
-        }
-        if ($state === 1) {
-            $cycleStart = array_search($operationId, $stack, true);
-            $cyclePath = $cycleStart === false ? [$operationId] : array_slice($stack, $cycleStart);
-            $cyclePath[] = $operationId;
-            throw new InvalidArgumentException('Обнаружен цикл зависимостей: ' . implode(' -> ', $cyclePath));
-        }
-
-        $visitState[$operationId] = 1;
-        $stack[] = $operationId;
-
-        foreach ($dependencies[$operationId] as $linkedOperationId) {
-            $visit($linkedOperationId);
-        }
-
-        array_pop($stack);
-        $visitState[$operationId] = 2;
-    };
-
+    $adjacency = [];
     foreach (array_keys($dependencies) as $operationId) {
-        $visit($operationId);
+        $adjacency[$operationId] = [];
+    }
+    foreach ($dependencies as $operationId => $linkedOperationIds) {
+        foreach ($linkedOperationIds as $linkedOperationId) {
+            if ($linkedOperationId === '' || !isset($adjacency[$linkedOperationId])) {
+                continue;
+            }
+            $adjacency[$linkedOperationId][] = $operationId;
+        }
+    }
+
+    $stableOrder = [];
+    $index = 0;
+    foreach ($operations as $operation) {
+        $operationId = trim((string)($operation['operation_id'] ?? ''));
+        if ($operationId === '') {
+            continue;
+        }
+        $stableOrder[$operationId] = $index++;
+    }
+    try {
+        connectors_topological_sort_operations(array_keys($dependencies), $adjacency, $stableOrder);
+    } catch (InvalidArgumentException $e) {
+        throw new InvalidArgumentException('Обнаружен цикл зависимостей между операциями (run_after/run_with/run_finally): ' . $e->getMessage());
     }
 }
 
