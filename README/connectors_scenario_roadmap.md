@@ -205,7 +205,7 @@ UI:
     - для `module=generic` `action` можно оставить пустым (и это явно подсвечено в форме).
 Статус: выполнено.
     
-** - 5) Исполнение операций по kind
+* - 5) Исполнение операций по kind
 
 Минимальная стратегия:
 
@@ -214,7 +214,7 @@ UI:
     browser_steps
     Выполнить шаги из config.steps (логин, формы, клики и т.д.).
     script
-    Зарезервировать интерфейс (пока можно disabled/feature-flag).
+    Выполнить скрипт из config.script_path (с ограничением interpreter/timeout).
     noop
     Технический узел графа.
 
@@ -226,26 +226,14 @@ UI:
       - `kind` проверяется по реестру,
       - `module != generic + kind=api_call` требует `action`,
       - `action` дополнительно сверяется с роутером `core_api.php` и модулем handler.
-    - в runtime теста пока нет универсального диспетчера по `kind`; исполнение по факту остается в legacy-ветках (`submission` vs `report`) через compat view.
-Статус: выполнено частично.
+    - в runtime manual test реализован универсальный dispatcher по `kind`:
 
-Что осталось доделать (чтобы считать пункт полностью выполненным)
-
-    script пока не реализован
-        Сейчас это явный RuntimeException (“feature flag”).
-
-    browser_steps всё ещё опирается на legacy-эвристику submission/report
-        Выбор идет по признакам operation_id/action/request_config, а дальше вызываются legacy-флоу (connectors_run_submission_test 
-        или connectors_download_report_file).
-        То есть нет полностью унифицированного раннера “исполнить config.steps как общий движок” вне legacy-сценариев.
-
-    Исполняется только entrypoint, а не полный граф (before/during/after)
-        План графа строится, но фактически вызывается только одна операция ($entrypointOperation).
-        Нет цикла исполнения всех операций из плана по стадиям.
-
-    Roadmap-текст частично устарел
-        В roadmap всё ещё написано, что “в runtime теста пока нет универсального диспетчера”, хотя минимальный dispatcher уже есть
-         в коде
+      - `api_call` исполняется через handler action,
+      - `browser_steps` исполняет единый движок шагов из `operation.config.steps` (+ optional login steps),
+      - `script` исполняет `operation.config.script_path` (поддержка `bash|sh|node|php|python3`, timeout),
+      - `noop` логируется и пропускается.
+    - manual test теперь исполняет не только entrypoint, а весь execution plan по стадиям: `before -> main -> during_groups -> after`.
+Статус: выполнено.
 
 * - 6) Рейсы: стартовый набор operation templates
 

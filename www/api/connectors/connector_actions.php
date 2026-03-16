@@ -1364,7 +1364,9 @@ function connectors_build_execution_plan(array $operations, ?string $entrypointO
         'entrypoint_operation_id' => $entrypointOperationId,
         'before' => $beforeOrder,
         'main' => $mainOperationId,
+        'during' => $duringGroups,
         'during_groups' => $duringGroups,
+        'finally' => $finallyOrder,
         'after' => $finallyOrder,
     ];
 }
@@ -3053,6 +3055,160 @@ function connectors_execute_api_call_operation(array $operation, int $connectorI
     ];
 }
 
+
+
+function connectors_execute_browser_steps_operation(array $connector, array $operation, ?string $periodFrom, ?string $periodTo): array
+{
+    $config = isset($operation['config']) && is_array($operation['config']) ? $operation['config'] : [];
+    $steps = isset($config['steps']) && is_array($config['steps']) ? $config['steps'] : [];
+    $prependLoginSteps = !array_key_exists('prepend_login_steps', $config) || !empty($config['prepend_login_steps']);
+    if ($prependLoginSteps) {
+        $steps = array_merge(connectors_extract_browser_login_steps($connector), $steps);
+    }
+
+    if (empty($steps)) {
+        throw new InvalidArgumentException('Для kind=browser_steps нужно заполнить operation.config.steps (или browser_login_steps в scenario_json).');
+    }
+
+    $scriptPath = realpath(__DIR__ . '/../../scripts/test_connector_operations_browser.js');
+    if (!$scriptPath) {
+        throw new RuntimeException('Не найден browser script для kind=browser_steps');
+    }
+
+    $tempDir = __DIR__ . '/../../scripts/_tmp';
+    if (!is_dir($tempDir)) {
+        @mkdir($tempDir, 0775, true);
+    }
+    connectors_clear_directory($tempDir);
+
+    $today = date('Y-m-d');
+    $defaultDateFrom = date('Y-m-d', strtotime('-2 years', strtotime($today)));
+    $resolvedDateFrom = $periodFrom ?? $defaultDateFrom;
+    $resolvedDateTo = $periodTo ?? $today;
+    $vars = connectors_build_submission_test_vars($connector);
+    $vars['date_from'] = $resolvedDateFrom;
+    $vars['date_to'] = $resolvedDateTo;
+    $vars['test_period_from'] = $resolvedDateFrom;
+    $vars['test_period_to'] = $resolvedDateTo;
+    $vars['today'] = $today;
+    $vars['today_minus_2y'] = $defaultDateFrom;
+
+    $expectDownload = !empty($config['expect_download']);
+    $payload = [
+        'steps' => $steps,
+        'vars' => $vars,
+        'file_extension' => strtolower(trim((string)($config['file_extension'] ?? 'xlsx'))) ?: 'xlsx',
+        'ssl_ignore' => !empty($connector['ssl_ignore']),
+        'cookies' => (string)($connector['auth_cookies'] ?? ''),
+        'auth_token' => (string)($connector['auth_token'] ?? ''),
+        'temp_dir' => realpath($tempDir) ?: $tempDir,
+        'expect_download' => $expectDownload,
+        'error_selector' => trim((string)($config['error_selector'] ?? '')),
+        'error_wait_ms' => max(0, (int)($config['error_wait_ms'] ?? 1800)),
+    ];
+
+    $cmd = 'node ' . escapeshellarg($scriptPath) . ' ' . escapeshellarg((string)json_encode($payload, JSON_UNESCAPED_UNICODE));
+    $output = shell_exec($cmd . ' 2>&1');
+    $decoded = json_decode(trim((string)$output), true);
+    if (!is_array($decoded)) {
+        throw new RuntimeException('Не удалось выполнить kind=browser_steps: ' . trim((string)$output));
+    }
+    if (empty($decoded['ok'])) {
+        $browserStepLog = isset($decoded['step_log']) && is_array($decoded['step_log']) ? $decoded['step_log'] : [];
+        $browserArtifactsDir = trim((string)($decoded['artifacts_dir'] ?? ''));
+        if (!empty($browserStepLog)) {
+            throw new ConnectorStepLogException((string)($decoded['message'] ?? 'Browser steps failed'), $browserStepLog, 0, null, $browserArtifactsDir);
+        }
+        throw new RuntimeException((string)($decoded['message'] ?? 'Browser steps failed'));
+    }
+
+    $result = [
+        'message' => trim((string)($decoded['message'] ?? 'Операция browser_steps выполнена')),
+        'step_log' => isset($decoded['step_log']) && is_array($decoded['step_log']) ? $decoded['step_log'] : [],
+        'artifacts_dir' => trim((string)($decoded['artifacts_dir'] ?? '')),
+    ];
+
+    if ($expectDownload) {
+        $filePath = (string)($decoded['file_path'] ?? '');
+        if ($filePath === '' || !is_file($filePath)) {
+            throw new RuntimeException('kind=browser_steps (expect_download=1) не вернул путь к скачанному файлу');
+        }
+        $result['download'] = [
+            'file_path' => $filePath,
+            'file_size' => (int)filesize($filePath),
+            'file_extension' => strtolower(trim((string)($payload['file_extension'] ?? 'xlsx'))) ?: 'xlsx',
+            'download_mode' => 'browser',
+            'step_log' => $result['step_log'],
+            'artifacts_dir' => $result['artifacts_dir'],
+        ];
+    }
+
+    return $result;
+}
+
+function connectors_execute_script_operation(array $operation): array
+{
+    $config = isset($operation['config']) && is_array($operation['config']) ? $operation['config'] : [];
+    $scriptPathRaw = trim((string)($config['script_path'] ?? ''));
+    if ($scriptPathRaw === '') {
+        throw new InvalidArgumentException('Для kind=script укажите operation.config.script_path');
+    }
+
+    $rootPath = realpath(__DIR__ . '/../../');
+    $scriptPath = realpath($scriptPathRaw);
+    if ($scriptPath === false && $rootPath !== false) {
+        $scriptPath = realpath($rootPath . '/' . ltrim($scriptPathRaw, '/'));
+    }
+    if ($scriptPath === false || !is_file($scriptPath)) {
+        throw new RuntimeException('kind=script: файл не найден: ' . $scriptPathRaw);
+    }
+
+    if ($rootPath !== false && strpos($scriptPath, $rootPath) !== 0) {
+        throw new RuntimeException('kind=script: путь должен быть внутри репозитория');
+    }
+
+    $interpreter = strtolower(trim((string)($config['interpreter'] ?? '')));
+    if ($interpreter === '') {
+        $ext = strtolower(pathinfo($scriptPath, PATHINFO_EXTENSION));
+        $interpreter = $ext === 'js' ? 'node' : ($ext === 'php' ? 'php' : 'bash');
+    }
+    if (!in_array($interpreter, ['bash', 'sh', 'node', 'php', 'python3'], true)) {
+        throw new InvalidArgumentException('kind=script: недопустимый interpreter (bash|sh|node|php|python3)');
+    }
+
+    $args = [];
+    if (isset($config['args']) && is_array($config['args'])) {
+        foreach ($config['args'] as $arg) {
+            $args[] = (string)$arg;
+        }
+    }
+
+    $timeoutSec = max(1, (int)($config['timeout_sec'] ?? 60));
+    $parts = ['timeout', (string)$timeoutSec, $interpreter, escapeshellarg($scriptPath)];
+    foreach ($args as $arg) {
+        $parts[] = escapeshellarg($arg);
+    }
+    $cmd = implode(' ', $parts) . ' 2>&1';
+
+    $lines = [];
+    $exitCode = 0;
+    @exec($cmd, $lines, $exitCode);
+    $output = trim((string)implode("\n", $lines));
+    if ($exitCode !== 0) {
+        throw new RuntimeException('kind=script завершился с ошибкой (exit_code=' . $exitCode . '): ' . $output);
+    }
+
+    return [
+        'message' => 'Операция script выполнена',
+        'script' => [
+            'script_path' => $scriptPath,
+            'interpreter' => $interpreter,
+            'output' => $output,
+            'exit_code' => $exitCode,
+        ],
+    ];
+}
+
 function connectors_execute_operation_by_kind_for_manual_test(array $connector, array $operation, int $connectorId, ?string $periodFrom, ?string $periodTo): array
 {
     $kind = trim((string)($operation['kind'] ?? ''));
@@ -3066,7 +3222,12 @@ function connectors_execute_operation_by_kind_for_manual_test(array $connector, 
     }
 
     if ($kind === 'script') {
-        throw new RuntimeException('kind=script пока не поддержан в runtime теста (feature flag).');
+        $scriptResult = connectors_execute_script_operation($operation);
+        return [
+            'message' => (string)($scriptResult['message'] ?? 'Операция script выполнена'),
+            'script' => isset($scriptResult['script']) && is_array($scriptResult['script']) ? $scriptResult['script'] : null,
+            'trace_meta' => ['kind' => 'script'],
+        ];
     }
 
     if ($kind === 'api_call') {
@@ -3078,44 +3239,150 @@ function connectors_execute_operation_by_kind_for_manual_test(array $connector, 
         ];
     }
 
-    $operationId = trim((string)($operation['operation_id'] ?? ''));
-    $action = trim((string)($operation['action'] ?? ''));
-    $config = isset($operation['config']) && is_array($operation['config']) ? $operation['config'] : [];
-    $looksLikeSubmission = ($operationId === 'submission') || (strpos($action, 'submit') !== false) || !empty($config['request_config']);
-
-    if ($looksLikeSubmission) {
-        $submissionCfg = connectors_build_legacy_compat_operations_view([
-            'schema_version' => 3,
-            'operations' => [$operation],
-        ], $connector)['submission'] ?? [];
-        $submissionResult = connectors_run_submission_test($connector, is_array($submissionCfg) ? $submissionCfg : []);
-        return [
-            'message' => 'Операция browser_steps выполнена (submission flow).',
-            'step_log' => isset($submissionResult['step_log']) && is_array($submissionResult['step_log']) ? $submissionResult['step_log'] : [],
-            'artifacts_dir' => (string)($submissionResult['artifacts_dir'] ?? ''),
-            'submission_tracking' => (string)($submissionResult['tracking_number'] ?? ''),
-            'trace_meta' => ['kind' => 'browser_steps', 'flow' => 'submission'],
-        ];
-    }
-
-    $reportCfg = connectors_build_legacy_compat_operations_view([
-        'schema_version' => 3,
-        'operations' => [$operation],
-    ], $connector)['report'] ?? [];
-    $targetTable = connectors_normalize_report_table_name((string)($reportCfg['target_table'] ?? ''));
-    connectors_ensure_report_table($GLOBALS['dbcnx'], $targetTable);
-    $downloadInfo = connectors_download_report_file($connector, is_array($reportCfg) ? $reportCfg : [], $periodFrom, $periodTo);
-
+    $browserResult = connectors_execute_browser_steps_operation($connector, $operation, $periodFrom, $periodTo);
     return [
-        'message' => 'Операция browser_steps выполнена (report flow).',
-        'target_table' => $targetTable,
-        'download' => $downloadInfo,
-        'step_log' => isset($downloadInfo['step_log']) && is_array($downloadInfo['step_log']) ? $downloadInfo['step_log'] : [],
-        'artifacts_dir' => (string)($downloadInfo['artifacts_dir'] ?? ''),
-        'trace_meta' => ['kind' => 'browser_steps', 'flow' => 'report'],
+        'message' => (string)($browserResult['message'] ?? 'Операция browser_steps выполнена'),
+        'download' => isset($browserResult['download']) && is_array($browserResult['download']) ? $browserResult['download'] : null,
+        'step_log' => isset($browserResult['step_log']) && is_array($browserResult['step_log']) ? $browserResult['step_log'] : [],
+        'artifacts_dir' => (string)($browserResult['artifacts_dir'] ?? ''),
+        'trace_meta' => ['kind' => 'browser_steps'],
     ];
 }
 
+
+function connectors_execute_manual_test_execution_plan(
+    array $connector,
+    int $connectorId,
+    array $executionPlan,
+    array $runtimeOperations,
+    ?string $periodFrom,
+    ?string $periodTo,
+    string $runId,
+    array &$traceLog
+): array {
+    $executed = [];
+    $stageCollections = [
+        'before' => (array)($executionPlan['before'] ?? []),
+        'main' => [trim((string)($executionPlan['main'] ?? ''))],
+    ];
+
+    foreach ($stageCollections as $stage => $operationIds) {
+        foreach ($operationIds as $operationIdRaw) {
+            $operationId = trim((string)$operationIdRaw);
+            if ($operationId === '' || isset($executed[$operationId])) {
+                continue;
+            }
+            if (!isset($runtimeOperations[$operationId]) || !is_array($runtimeOperations[$operationId])) {
+                throw new InvalidArgumentException('Операция из execution plan не найдена: ' . $operationId);
+            }
+
+            $startedAtTs = microtime(true);
+            $startedAt = date('c');
+            $result = connectors_execute_operation_by_kind_for_manual_test($connector, $runtimeOperations[$operationId], $connectorId, $periodFrom, $periodTo);
+            $finishedAtTs = microtime(true);
+            $finishedAt = date('c');
+
+            connectors_append_operation_executed_event(
+                $traceLog,
+                $runId,
+                $operationId,
+                $stage,
+                'success',
+                (string)($result['message'] ?? 'Операция выполнена'),
+                (int)round(($finishedAtTs - $startedAtTs) * 1000),
+                $startedAt,
+                $finishedAt,
+                isset($result['trace_meta']) && is_array($result['trace_meta']) ? $result['trace_meta'] : []
+            );
+
+            $executed[$operationId] = [
+                'operation_id' => $operationId,
+                'stage' => $stage,
+                'result' => $result,
+            ];
+        }
+    }
+
+    $duringGroups = (array)($executionPlan['during_groups'] ?? ($executionPlan['during'] ?? []));
+    foreach ($duringGroups as $groupIndex => $group) {
+        if (!is_array($group)) {
+            continue;
+        }
+        foreach ($group as $operationIdRaw) {
+            $operationId = trim((string)$operationIdRaw);
+            if ($operationId === '' || isset($executed[$operationId])) {
+                continue;
+            }
+            if (!isset($runtimeOperations[$operationId]) || !is_array($runtimeOperations[$operationId])) {
+                throw new InvalidArgumentException('During-операция из execution plan не найдена: ' . $operationId);
+            }
+
+            $startedAtTs = microtime(true);
+            $startedAt = date('c');
+            $result = connectors_execute_operation_by_kind_for_manual_test($connector, $runtimeOperations[$operationId], $connectorId, $periodFrom, $periodTo);
+            $finishedAtTs = microtime(true);
+            $finishedAt = date('c');
+
+            $stage = 'during';
+            connectors_append_operation_executed_event(
+                $traceLog,
+                $runId,
+                $operationId,
+                $stage,
+                'success',
+                (string)($result['message'] ?? ('Операция выполнена (during группа #' . ($groupIndex + 1) . ')')),
+                (int)round(($finishedAtTs - $startedAtTs) * 1000),
+                $startedAt,
+                $finishedAt,
+                isset($result['trace_meta']) && is_array($result['trace_meta']) ? $result['trace_meta'] : []
+            );
+
+            $executed[$operationId] = [
+                'operation_id' => $operationId,
+                'stage' => $stage,
+                'result' => $result,
+                'during_group' => $groupIndex + 1,
+            ];
+        }
+    }
+
+    foreach ((array)($executionPlan['after'] ?? ($executionPlan['finally'] ?? [])) as $operationIdRaw) {
+        $operationId = trim((string)$operationIdRaw);
+        if ($operationId === '' || isset($executed[$operationId])) {
+            continue;
+        }
+        if (!isset($runtimeOperations[$operationId]) || !is_array($runtimeOperations[$operationId])) {
+            throw new InvalidArgumentException('After-операция из execution plan не найдена: ' . $operationId);
+        }
+
+        $startedAtTs = microtime(true);
+        $startedAt = date('c');
+        $result = connectors_execute_operation_by_kind_for_manual_test($connector, $runtimeOperations[$operationId], $connectorId, $periodFrom, $periodTo);
+        $finishedAtTs = microtime(true);
+        $finishedAt = date('c');
+
+        connectors_append_operation_executed_event(
+            $traceLog,
+            $runId,
+            $operationId,
+            'after',
+            'success',
+            (string)($result['message'] ?? 'Операция выполнена'),
+            (int)round(($finishedAtTs - $startedAtTs) * 1000),
+            $startedAt,
+            $finishedAt,
+            isset($result['trace_meta']) && is_array($result['trace_meta']) ? $result['trace_meta'] : []
+        );
+
+        $executed[$operationId] = [
+            'operation_id' => $operationId,
+            'stage' => 'after',
+            'result' => $result,
+        ];
+    }
+
+    return array_values($executed);
+}
 
 
 function connectors_has_operations_payload_in_post(): bool
@@ -3953,28 +4220,79 @@ switch ($dispatchAction) {
                     throw new InvalidArgumentException('Дата начала периода больше даты окончания');
                 }
 
-                $entrypointOperation = $runtimeOperations[$entrypoint];
-                $operationId = trim((string)($entrypointOperation['operation_id'] ?? $entrypoint));
-                $result = connectors_execute_operation_by_kind_for_manual_test($connector, $entrypointOperation, $connectorId, $periodFrom, $periodTo);
+
+
+                $executedOperations = connectors_execute_manual_test_execution_plan(
+                    $connector,
+                    $connectorId,
+                    $executionPlan,
+                    $runtimeOperations,
+                    $periodFrom,
+                    $periodTo,
+                    $runId,
+                    $traceLog
+                );
                 $manualKindFlowHandled = true;
 
-                connectors_append_operation_executed_event($traceLog, $runId, $operationId, 'main', 'success', 'Операция выполнена через kind-dispatcher', 0, null, null, isset($result['trace_meta']) && is_array($result['trace_meta']) ? $result['trace_meta'] : []);
 
+                $mainOperationId = trim((string)($executionPlan['main'] ?? $entrypoint));
+                if ($mainOperationId === '') {
+                    $mainOperationId = $entrypoint;
+                }
+
+                $mainResult = null;
+                $allStepLog = [];
+                $lastArtifactsDir = '';
+                $lastDownload = null;
+                $lastApiResponse = null;
+                $lastScriptResult = null;
+
+                foreach ($executedOperations as $executedOperation) {
+                    if (!is_array($executedOperation)) {
+                        continue;
+                    }
+                    $result = isset($executedOperation['result']) && is_array($executedOperation['result']) ? $executedOperation['result'] : [];
+                    $opId = trim((string)($executedOperation['operation_id'] ?? ''));
+                    if ($opId === $mainOperationId) {
+                        $mainResult = $result;
+                    }
+                    if (isset($result['step_log']) && is_array($result['step_log'])) {
+                        $allStepLog = array_merge($allStepLog, $result['step_log']);
+                    }
+                    $artifactDir = trim((string)($result['artifacts_dir'] ?? ''));
+                    if ($artifactDir !== '') {
+                        $lastArtifactsDir = $artifactDir;
+                    }
+                    if (isset($result['download']) && is_array($result['download'])) {
+                        $lastDownload = $result['download'];
+                    }
+                    if (isset($result['api_response']) && is_array($result['api_response'])) {
+                        $lastApiResponse = $result['api_response'];
+                    }
+                    if (isset($result['script']) && is_array($result['script'])) {
+                        $lastScriptResult = $result['script'];
+                    }
+                }
+
+                if (!is_array($mainResult)) {
+                    $mainResult = isset($executedOperations[0]['result']) && is_array($executedOperations[0]['result']) ? $executedOperations[0]['result'] : [];
+                }
                 $response = [
                     'status' => 'ok',
                     'test_operation' => $testOperation,
-                    'message' => (string)($result['message'] ?? 'Операция выполнена'),
+                    'message' => (string)($mainResult['message'] ?? 'Операции выполнены'),
                     'connector_id' => $connectorId,
                     'run_id' => $runId,
-                    'target_table' => (string)($result['target_table'] ?? ''),
-                    'download' => isset($result['download']) && is_array($result['download']) ? $result['download'] : null,
-                    'api_response' => isset($result['api_response']) && is_array($result['api_response']) ? $result['api_response'] : null,
-                    'submission_tracking' => (string)($result['submission_tracking'] ?? ''),
-                    'step_log' => isset($result['step_log']) && is_array($result['step_log']) ? $result['step_log'] : [],
+                    'download' => $lastDownload,
+                    'api_response' => $lastApiResponse,
+                    'script' => $lastScriptResult,
+                    'submission_tracking' => (string)($mainResult['submission_tracking'] ?? ''),
+                    'step_log' => $allStepLog,
                     'trace_log' => $traceLog,
                     'execution_plan' => $executionPlan,
-                    'chain_status' => connectors_build_chain_status_map($executionPlan, $operationId, true, $traceLog),
-                    'artifacts_dir' => (string)($result['artifacts_dir'] ?? ''),
+                    'executed_operations' => $executedOperations,
+                    'chain_status' => connectors_build_chain_status_map($executionPlan, $mainOperationId, true, $traceLog),
+                    'artifacts_dir' => $lastArtifactsDir,
                     'graph_errors' => $graphErrors,
                 ];
             }
