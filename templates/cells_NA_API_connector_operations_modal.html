@@ -22,6 +22,17 @@
             <div class="tab-content" id="connector-operations-tab-content"></div>
 
             <div class="d-flex gap-2 mb-3">
+
+              <div class="input-group" style="max-width: 420px;">
+                <label class="input-group-text" for="operation-template-select">Создать из шаблона</label>
+                <select class="form-select" id="operation-template-select">
+                  <option value="">Выберите шаблон…</option>
+                  <option value="flights_list_fetch">Получить список рейсов</option>
+                  <option value="flight_upsert">Создать/обновить рейс</option>
+                  <option value="flight_containers_create">Создать контейнеры рейса</option>
+                </select>
+                <button type="button" class="btn btn-outline-secondary" id="create-from-template-btn">Добавить</button>
+              </div>
               <button type="button" class="btn btn-primary js-core-link" data-core-action="save_connector_operations">Сохранить операции</button>
  
             </div>
@@ -90,6 +101,54 @@
   if (!payload || typeof payload !== 'object') payload = { schema_version: 3, operations: [] };
   if (!Array.isArray(payload.operations)) payload.operations = [];
 
+
+  var operationTemplates = {
+    flights_list_fetch: {
+      operation_id_prefix: 'flights_list_fetch',
+      display_name: 'Получить список рейсов',
+      module: 'warehouse',
+      action: 'warehouse_sync_reports',
+      kind: 'api_call',
+      config: {
+        source: 'flights',
+        mode: 'list_fetch',
+        limit: 100,
+        filters: {
+          status: ['planned', 'active']
+        }
+      }
+    },
+    flight_upsert: {
+      operation_id_prefix: 'flight_upsert',
+      display_name: 'Создать/обновить рейс',
+      module: 'warehouse',
+      action: 'warehouse_sync_item',
+      kind: 'api_call',
+      config: {
+        source: 'flights',
+        mode: 'upsert',
+        unique_key: 'flight_number',
+        payload_map: {
+          flight_number: '{{flight_number}}',
+          departure_date: '{{departure_date}}'
+        }
+      }
+    },
+    flight_containers_create: {
+      operation_id_prefix: 'flight_containers_create',
+      display_name: 'Создать контейнеры рейса',
+      module: 'warehouse',
+      action: 'warehouse_sync_batch_enqueue',
+      kind: 'api_call',
+      config: {
+        source: 'flights',
+        mode: 'containers_create',
+        container_type: 'BOX',
+        quantity: 1
+      }
+    }
+  };
+
   var actionRegistry = { generic: [] };
 
   function nextOperationId() {
@@ -99,6 +158,20 @@
       if (m) maxN = Math.max(maxN, parseInt(m[1], 10) || 0);
     });
     return 'op_' + (maxN + 1);
+  }
+
+  function nextTemplateOperationId(prefix) {
+    var normalizedPrefix = String(prefix || 'op').trim().toLowerCase().replace(/[^a-z0-9_]+/g, '_').replace(/^_+|_+$/g, '');
+    if (!normalizedPrefix) normalizedPrefix = 'op';
+    var occupied = {};
+    payload.operations.forEach(function(op) {
+      var id = String(op && op.operation_id || '').trim();
+      if (id) occupied[id] = true;
+    });
+    if (!occupied[normalizedPrefix]) return normalizedPrefix;
+    var n = 2;
+    while (occupied[normalizedPrefix + '_' + n]) n += 1;
+    return normalizedPrefix + '_' + n;
   }
 
   function parseJsonSafe(s, fallback) {
@@ -344,6 +417,36 @@
           run_finally: [],
           config: {}
         });
+        render();
+      });
+    }
+
+    var createFromTemplateBtn = document.getElementById('create-from-template-btn');
+    var templateSelect = document.getElementById('operation-template-select');
+    if (createFromTemplateBtn && templateSelect) {
+      createFromTemplateBtn.addEventListener('click', function() {
+        if (!updateTextareaFromUi()) return;
+        var templateKey = String(templateSelect.value || '').trim();
+        var template = operationTemplates[templateKey];
+        if (!template) {
+          alert('Выберите шаблон операции.');
+          return;
+        }
+        payload.operations.push({
+          operation_id: nextTemplateOperationId(template.operation_id_prefix),
+          display_name: template.display_name,
+          module: template.module,
+          action: template.action,
+          kind: template.kind,
+          enabled: 0,
+          entrypoint: 0,
+          on_dependency_fail: 'stop',
+          run_after: [],
+          run_with: [],
+          run_finally: [],
+          config: template.config && typeof template.config === 'object' ? JSON.parse(JSON.stringify(template.config)) : {}
+        });
+        templateSelect.value = '';
         render();
       });
     }

@@ -218,6 +218,15 @@ UI:
     noop
     Технический узел графа.
 
+Реализация в коде:
+    - в UI-конструкторе для каждой операции явно задается `kind` (`api_call | browser_steps | script | noop`) и сохраняется в `operations_v3_json`;
+    - добавлена клиентская нормализация перед сохранением: для пустого `module` операция приводится к `module=generic`, `kind=browser_steps`;
+    - сохранена серверная валидация контракта `module/kind/action`:
+      - `kind` проверяется по реестру,
+      - `module != generic + kind=api_call` требует `action`,
+      - `action` дополнительно сверяется с роутером `core_api.php` и модулем handler.
+Статус: выполнено (минимальный runtime-контракт и валидация).
+
 *** - 6) Рейсы: стартовый набор operation templates
 
 Добавить пресеты в UI “Создать из шаблона”:
@@ -233,6 +242,16 @@ UI:
     пример config.
 
 Это позволит быстрее раскатывать сценарии без ручного JSON.
+
+
+Реализация в коде:
+    - в модалку операций добавлен UI-блок **«Создать из шаблона»**;
+    - добавлены пресеты:
+      - `flights_list_fetch` — «Получить список рейсов» (`module=warehouse`, `action=warehouse_sync_reports`, `kind=api_call`);
+      - `flight_upsert` — «Создать/обновить рейс» (`module=warehouse`, `action=warehouse_sync_item`, `kind=api_call`);
+      - `flight_containers_create` — «Создать контейнеры рейса» (`module=warehouse`, `action=warehouse_sync_batch_enqueue`, `kind=api_call`);
+    - для каждого пресета подставляется пример `config` и автоматически генерируется уникальный `operation_id` на базе шаблона.
+Статус: выполнено.
 
 7) Этапы внедрения (рекомендуемый порядок)
 Этап A — Data model + migration (без изменения UI)
