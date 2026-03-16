@@ -55,6 +55,9 @@ $routes = [
     'save_connector_addons' => 'api/connectors/connector_actions.php',
     'test_connector_operations' => 'api/connectors/connector_actions.php',
 
+    // ========== CONNECTORS (meta) ==========
+    'get_module_actions_registry' => '@internal/module_actions_registry',
+
     // ========== TOOLS ==========
     'view_tools_stock'     => 'api/tools/tool_standard_actions.php',
     'tools_stock'          => 'api/tools/tool_standard_actions.php',
@@ -126,6 +129,50 @@ $routes = [
     'item_out'                  => 'api/warehouse/warehouse_sync_actions.php',
     'warehouse_item_out_to_send' => 'api/warehouse/warehouse_sync_actions.php',
 ];
+
+
+function core_api_build_module_actions_registry(array $routes): array
+{
+    $registry = [];
+
+    foreach ($routes as $routeAction => $handlerPath) {
+        if (!is_string($handlerPath) || strpos($handlerPath, 'api/') !== 0) {
+            continue;
+        }
+
+        if (preg_match('#^api/([^/]+)/#', $handlerPath, $matches) !== 1) {
+            continue;
+        }
+
+        $module = trim(strtolower((string)$matches[1]));
+        if ($module === '') {
+            continue;
+        }
+
+        if (!isset($registry[$module])) {
+            $registry[$module] = [];
+        }
+        $registry[$module][] = (string)$routeAction;
+    }
+
+    foreach ($registry as $module => $actions) {
+        $actions = array_values(array_unique($actions));
+        sort($actions, SORT_STRING);
+        $registry[$module] = $actions;
+    }
+
+    ksort($registry, SORT_STRING);
+    return $registry;
+}
+
+if ($action === 'get_module_actions_registry') {
+    $response = [
+        'status' => 'ok',
+        'registry' => core_api_build_module_actions_registry($routes),
+    ];
+    echo json_encode($response, JSON_UNESCAPED_UNICODE);
+    exit;
+}
 
 if (!isset($routes[$action])) {
     // ВРЕМЕННО: fallback на старую логику для не-users действий

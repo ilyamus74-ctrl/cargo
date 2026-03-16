@@ -502,4 +502,5 @@
   - `Связь с системой`: `module`, `kind`, `action`;
   - `Зависимости`: `run_after`, `run_with`, `run_finally` (JSON-массивы `operation_id`);
   - `Параметры`: `config` (JSON-объект).
-  
+- добавлен endpoint `GET/POST /core_api.php?action=get_module_actions_registry`, который возвращает реестр action по module на основе `$routes` в `core_api.php`;
+- в форме операций `module` и `action` стали dropdown-полями: список `action` фильтруется по выбранному `module`, при `module=generic` допустимо пустое `action`.

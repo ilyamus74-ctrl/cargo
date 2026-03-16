@@ -184,7 +184,7 @@
     - для legacy test-runner добавлен compat view: из v3-пакета в памяти собираются `report/submission/track_and_label_info` для существующих тестовых процедур.
 Статус: выполнено.
 
-*** - 4) Реестр действий по модулям (для dropdown action)
+* - 4) Реестр действий по модулям (для dropdown action)
 
 Сделать backend endpoint (или встроенный payload в форму), который отдает:
 {
@@ -198,6 +198,12 @@ UI:
 
     при выборе module фильтрует список action;
     при module=generic поле action не обязательно.
+
+Реализация в коде:
+    - добавлен internal endpoint `get_module_actions_registry` в `core_api.php`, который строит registry из `$routes` и группирует actions по module (по пути handler `api/<module>/...`);
+    - в UI конструктора операций поле `module` переведено на `select`, поле `action` переведено на `select` и динамически фильтруется при смене module;
+    - для `module=generic` `action` можно оставить пустым (и это явно подсвечено в форме).
+Статус: выполнено.
     
 *** - 5) Исполнение операций по kind
 

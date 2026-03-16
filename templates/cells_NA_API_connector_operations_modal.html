@@ -90,6 +90,8 @@
   if (!payload || typeof payload !== 'object') payload = { schema_version: 3, operations: [] };
   if (!Array.isArray(payload.operations)) payload.operations = [];
 
+  var actionRegistry = { generic: [] };
+
   function nextOperationId() {
     var maxN = 0;
     payload.operations.forEach(function(op) {
@@ -186,6 +188,78 @@
   }
 
 
+
+  function buildModuleOptions(currentModule) {
+    var modules = Object.keys(actionRegistry || {});
+    if (modules.indexOf('generic') === -1) modules.unshift('generic');
+    if (currentModule && modules.indexOf(currentModule) === -1) modules.push(currentModule);
+    modules = modules.filter(Boolean).sort();
+    if (modules.indexOf('generic') !== -1) {
+      modules.splice(modules.indexOf('generic'), 1);
+      modules.unshift('generic');
+    }
+    return modules;
+  }
+
+  function refillActionSelect(actionSelect, module, currentAction) {
+    if (!actionSelect) return;
+    var actions = toArray((actionRegistry && actionRegistry[module]) || []);
+    if (currentAction && actions.indexOf(currentAction) === -1) actions.unshift(currentAction);
+
+    var html = '<option value=""></option>';
+    actions.forEach(function(actionValue) {
+      html += '<option value="' + esc(actionValue) + '">' + esc(actionValue) + '</option>';
+    });
+    actionSelect.innerHTML = html;
+    actionSelect.value = currentAction || '';
+  }
+
+  function initOperationCardControls(card, op) {
+    if (!card) return;
+    var moduleSelect = card.querySelector('.js-op-module');
+    var actionSelect = card.querySelector('.js-op-action');
+    if (!moduleSelect || !actionSelect) return;
+
+    var moduleValue = (op.module || 'generic').toLowerCase();
+    var actionValue = op.action || '';
+    var moduleOptions = buildModuleOptions(moduleValue);
+    moduleSelect.innerHTML = moduleOptions.map(function(moduleName) {
+      return '<option value="' + esc(moduleName) + '">' + esc(moduleName) + '</option>';
+    }).join('');
+    moduleSelect.value = moduleValue;
+    if (!moduleSelect.value) moduleSelect.value = 'generic';
+
+    refillActionSelect(actionSelect, moduleSelect.value || 'generic', actionValue);
+
+    moduleSelect.addEventListener('change', function() {
+      var selectedModule = (moduleSelect.value || 'generic').toLowerCase();
+      refillActionSelect(actionSelect, selectedModule, '');
+      updateTextareaFromUi();
+    });
+
+    actionSelect.addEventListener('change', updateTextareaFromUi);
+  }
+
+  function loadActionRegistry() {
+    return fetch('/core_api.php?action=get_module_actions_registry', {
+      credentials: 'same-origin'
+    })
+      .then(function(resp) { return resp.json(); })
+      .then(function(data) {
+        if (!data || data.status !== 'ok' || !data.registry || typeof data.registry !== 'object') {
+          throw new Error('registry payload invalid');
+        }
+        actionRegistry = data.registry;
+        if (!actionRegistry.generic || !Array.isArray(actionRegistry.generic)) {
+          actionRegistry.generic = [];
+        }
+      })
+      .catch(function() {
+        actionRegistry = actionRegistry || {};
+        if (!actionRegistry.generic) actionRegistry.generic = [];
+      });
+  }
+
   function render() {
     tabs.innerHTML = '';
     content.innerHTML = '';
@@ -227,9 +301,9 @@
           </div>\
           <h6 class="mb-3">Связь с системой</h6>\
           <div class="row mb-4">\
-            <div class="col-md-4"><label class="form-label">module</label><input type="text" class="form-control js-op-module" value="' + esc(op.module || 'generic') + '"></div>\
+            <div class="col-md-4"><label class="form-label">module</label><select class="form-select js-op-module"></select></div>\
             <div class="col-md-4"><label class="form-label">kind</label><input type="text" class="form-control js-op-kind" value="' + esc(op.kind || 'browser_steps') + '"></div>\
-            <div class="col-md-4"><label class="form-label">action</label><input type="text" class="form-control js-op-action" value="' + esc(op.action || '') + '"></div>\
+            <div class="col-md-4"><label class="form-label">action</label><select class="form-select js-op-action"></select><div class="form-text">Для module=generic поле action можно оставить пустым.</div></div>\
           </div>\
           <h6 class="mb-3">Зависимости (JSON-массив operation_id)</h6>\
           <div class="row mb-4">\
@@ -243,6 +317,7 @@
           </div>\
         </div>';
       content.appendChild(pane);
+      initOperationCardControls(pane.querySelector('.js-operation-card'), op);
     });
 
     var plusLi = document.createElement('li');
@@ -289,7 +364,7 @@
       }
     }, true);
   }
-  render();
+  loadActionRegistry().finally(render);
 })();
 </script>
 </section>
