@@ -129,12 +129,18 @@
     - подписи для зависимостей явно фиксируют ожидаемый формат: JSON-массив `operation_id`.
 Статус: выполнено.
 
-*** - 2.3. UI-валидации
+* - 2.3. UI-валидации
 
     operation_id уникален (на клиенте до отправки).
     module != generic + kind = api_call => action обязателен.
     generic + пустой module => автозаполнение module=generic, kind=browser_steps.
     run_* должны содержать существующие operation_id.
+Реализация в коде:
+    - клиентская сборка payload проверяет уникальность `operation_id` до отправки формы;
+    - при `module != generic` и `kind=api_call` `action` обязателен, иначе сохранение блокируется;
+    - если `module` пустой, UI принудительно нормализует операцию к `module=generic`, `kind=browser_steps`;
+    - `run_after/run_with/run_finally` валидируются как JSON-массивы и дополнительно проверяются на ссылки только на существующие `operation_id`.
+Статус: выполнено.
 
 *** - 3) Backend: универсальный parser/save/validate
 *** - 3.1. Новый путь обработки формы

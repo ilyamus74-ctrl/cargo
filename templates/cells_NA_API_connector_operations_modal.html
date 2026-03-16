@@ -131,8 +131,12 @@
       if (ids[op.operation_id]) errors.push('operation_id должен быть уникальным: ' + op.operation_id);
       ids[op.operation_id] = 1;
 
-      if (!op.module) op.module = 'generic';
-      if (!op.kind && op.module === 'generic') op.kind = 'browser_steps';
+      if (!op.module) {
+        op.module = 'generic';
+        op.kind = 'browser_steps';
+      } else if (!op.kind && op.module === 'generic') {
+        op.kind = 'browser_steps';
+      }
       if (op.module !== 'generic' && op.kind === 'api_call' && !op.action) {
         errors.push('Операция ' + op.operation_id + ': action обязателен для module != generic + kind=api_call');
       }
