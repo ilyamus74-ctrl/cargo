@@ -476,6 +476,10 @@
 
 
 ДОРОБОТКА
+
+
+    “Implementation roadmap: README/connectors_scenario_roadmap.md”.
+
 ниже отмеченно
 
     *   - Сделанно/готово
