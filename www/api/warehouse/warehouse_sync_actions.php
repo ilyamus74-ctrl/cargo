@@ -765,6 +765,112 @@ if (!function_exists('warehouse_sync_status_target_map_for_connector')) {
     }
 }
 
+
+if (!function_exists('warehouse_sync_report_out_status_map_for_connector')) {
+    function warehouse_sync_report_out_status_map_for_connector(mysqli $dbcnx, string $forwarder, string $countryCode): array
+    {
+        static $cache = [];
+
+        $forwarderNorm = strtolower(warehouse_sync_normalize_key($forwarder));
+        $countryNorm = strtoupper(warehouse_sync_normalize_key($countryCode));
+        $cacheKey = $forwarderNorm . '|' . $countryNorm;
+        if (array_key_exists($cacheKey, $cache)) {
+            return $cache[$cacheKey];
+        }
+
+        if ($forwarderNorm === '' || $countryNorm === '') {
+            $cache[$cacheKey] = [];
+            return [];
+        }
+
+        $sql = "SELECT c.id, c.name, c.countries, ca.report_out_statuses_json
+"
+            . "FROM connectors c
+"
+            . "LEFT JOIN connectors_addons ca ON ca.connector_id = c.id
+"
+            . "WHERE c.is_active = 1 AND c.name <> ''
+"
+            . "ORDER BY c.id DESC";
+
+        $rows = [];
+        if ($res = $dbcnx->query($sql)) {
+            while ($row = $res->fetch_assoc()) {
+                $rows[] = $row;
+            }
+            $res->free();
+        }
+
+        $selectedRow = null;
+        foreach ($rows as $row) {
+            $rowForwarder = strtolower(warehouse_sync_normalize_key((string)($row['name'] ?? '')));
+            if ($rowForwarder !== $forwarderNorm) {
+                continue;
+            }
+
+            $countriesRaw = strtoupper((string)($row['countries'] ?? ''));
+            $countries = array_values(array_filter(array_map(static function ($item) {
+                return strtoupper(warehouse_sync_normalize_key((string)$item));
+            }, explode(',', $countriesRaw)), static function ($item) {
+                return $item !== '';
+            }));
+            if (!empty($countries) && !in_array($countryNorm, $countries, true)) {
+                continue;
+            }
+            $selectedRow = $row;
+            break;
+        }
+
+        if (!$selectedRow) {
+            $cache[$cacheKey] = [];
+            return [];
+        }
+
+        $rawMap = trim((string)($selectedRow['report_out_statuses_json'] ?? ''));
+        if ($rawMap === '') {
+            $cache[$cacheKey] = [];
+            return [];
+        }
+
+        $decodedMap = json_decode($rawMap, true);
+        if (!is_array($decodedMap) || empty($decodedMap)) {
+            $cache[$cacheKey] = [];
+            return [];
+        }
+
+        $allowedOutStatuses = ['error', 'for_sync', 'half_sync', 'confirmed_sync', 'to_send', 'sended', 'success'];
+        $map = [];
+        foreach ($decodedMap as $reportStatus => $outStatus) {
+            $statusKey = mb_strtolower(trim((string)$reportStatus), 'UTF-8');
+            $normalizedOutStatus = strtolower(trim((string)$outStatus));
+            if ($statusKey === '' || $normalizedOutStatus === '' || !in_array($normalizedOutStatus, $allowedOutStatuses, true)) {
+                continue;
+            }
+            $map[$statusKey] = $normalizedOutStatus;
+        }
+
+        $cache[$cacheKey] = $map;
+        return $map;
+    }
+}
+
+if (!function_exists('warehouse_sync_out_status_by_report_status_map')) {
+    function warehouse_sync_out_status_by_report_status_map(mysqli $dbcnx, string $forwarder, string $countryCode, string $reportStatus): string
+    {
+        $statusNorm = mb_strtolower(trim($reportStatus), 'UTF-8');
+        if ($statusNorm === '') {
+            return '';
+        }
+
+        $map = warehouse_sync_report_out_status_map_for_connector($dbcnx, $forwarder, $countryCode);
+        if (isset($map[$statusNorm])) {
+            return trim((string)$map[$statusNorm]);
+        }
+
+        return '';
+    }
+}
+
 if (!function_exists('warehouse_sync_target_table_by_report_status')) {
     function warehouse_sync_target_table_by_report_status(mysqli $dbcnx, string $forwarder, string $countryCode, string $reportStatus): string
     {
@@ -962,19 +1068,23 @@ if (!function_exists('warehouse_sync_reconcile_half_sync')) {
             }
 
             $reportStatus = trim((string)($report['report_status'] ?? ''));
-            $targetTable = warehouse_sync_target_table_by_report_status($dbcnx, $forwarder, $countryCode, $reportStatus);
-            if ($targetTable === '') {
-                if (warehouse_sync_is_error_report_status($reportStatus)) {
-                    $nextStatus = 'error';
+            $nextStatus = warehouse_sync_out_status_by_report_status_map($dbcnx, $forwarder, $countryCode, $reportStatus);
+            $targetTable = '';
+            if ($nextStatus === '') {
+                $targetTable = warehouse_sync_target_table_by_report_status($dbcnx, $forwarder, $countryCode, $reportStatus);
+                if ($targetTable === '') {
+                    if (warehouse_sync_is_error_report_status($reportStatus)) {
+                        $nextStatus = 'error';
+                    } else {
+                        // Если в ДопИнфо нет явного статуса -> таблица, не меняем half_sync.
+                        $stats['unchanged']++;
+                        continue;
+                    }
                 } else {
-                    // Если в ДопИнфо нет явного статуса -> таблица, не меняем half_sync.
-                    $stats['unchanged']++;
-                    continue;
+                    $nextStatus = strtolower($targetTable) === 'warehouse_item_out'
+                        ? 'to_send'
+                        : warehouse_sync_out_status_by_report_status($forwarder, $reportStatus);
                 }
-            } else {
-                $nextStatus = strtolower($targetTable) === 'warehouse_item_out'
-                    ? 'to_send'
-                    : warehouse_sync_out_status_by_report_status($forwarder, $reportStatus);
             }
 
             if ($nextStatus === '') {
@@ -983,7 +1093,7 @@ if (!function_exists('warehouse_sync_reconcile_half_sync')) {
             }
 
             $message = $reportStatus !== ''
-                ? ('report status: ' . $reportStatus . ($targetTable !== '' ? (' -> ' . $targetTable) : ''))
+                ? ('report status: ' . $reportStatus . ($targetTable !== '' ? (' -> ' . $targetTable) : ($nextStatus !== '' ? (' -> out:' . $nextStatus) : '')))
                 : ('report matched in ' . (string)($report['table_name'] ?? 'connector_report'));
 
             warehouse_sync_out_set_status($dbcnx, $itemId, $nextStatus, $message);
@@ -998,6 +1108,9 @@ if (!function_exists('warehouse_sync_reconcile_half_sync')) {
                 'created_by' => $createdBy,
             ]);
 
+            if (!isset($stats[$nextStatus])) {
+                $stats[$nextStatus] = 0;
+            }
             $stats[$nextStatus]++;
         }
 

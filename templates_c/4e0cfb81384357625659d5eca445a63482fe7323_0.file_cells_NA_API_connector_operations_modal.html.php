@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-03-15 08:54:21
+/* Smarty version 5.3.1, created on 2026-03-15 13:53:35
   from 'file:cells_NA_API_connector_operations_modal.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_69b673bd200720_01975846',
+  'unifunc' => 'content_69b6b9dfa82b57_30792534',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '4e0cfb81384357625659d5eca445a63482fe7323' => 
     array (
       0 => 'cells_NA_API_connector_operations_modal.html',
-      1 => 1773564846,
+      1 => 1773582366,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_69b673bd200720_01975846 (\Smarty\Template $_smarty_tpl) {
+function content_69b6b9dfa82b57_30792534 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>
 <section class="section">
@@ -748,6 +748,19 @@ $_smarty_current_dir = '/home/cells/web/templates';
                               placeholder='{"Declared":"warehouse_item_out","Declared. Duty paid":"warehouse_item_out","Legal entity":"warehouse_item_out"}'><?php echo htmlspecialchars((string)$_smarty_tpl->getValue('addons')['status_targets_json'], ENT_QUOTES, 'UTF-8', true);?>
 </textarea>
                     <div class="form-text">JSON-маршрутизация по статусам из репорта форварда: при совпадении статуса система использует указанную таблицу как целевую для перевода в отгрузку (operation #3). ВАЖНО: для backfill (переноса из warehouse_item_stock в warehouse_item_out) поле должно быть заполнено непустым JSON-объектом, иначе записи будут пропускаться как skipped_no_routing.</div>
+                  </div>
+                </div>
+
+                <div class="row mb-3">
+                  <label for="addon_report_out_statuses_json" class="col-md-4 col-lg-3 col-form-label">Статусы репорта -> warehouse_item_out.status</label>
+                  <div class="col-md-8 col-lg-9">
+                    <textarea class="form-control"
+                              id="addon_report_out_statuses_json"
+                              name="addon_report_out_statuses_json"
+                              rows="5"
+                              placeholder='{"Delivered":"confirmed_sync","Rejected":"error","Ready to send":"to_send"}'><?php echo htmlspecialchars((string)$_smarty_tpl->getValue('addons')['report_out_statuses_json'], ENT_QUOTES, 'UTF-8', true);?>
+</textarea>
+                    <div class="form-text">Централизованный JSON-маппинг: какой <code>warehouse_item_out.status</code> установить по статусу из репорта. Ключ — статус из репорта (как приходит в operation #1), значение — один из: <code>confirmed_sync</code>, <code>error</code>, <code>to_send</code>, <code>half_sync</code>, <code>for_sync</code>, <code>sended</code>, <code>success</code>.</div>
                   </div>
                 </div>
 

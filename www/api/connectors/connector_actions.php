@@ -158,6 +158,7 @@ function connectors_ensure_schema(mysqli $dbcnx): void
             addons_json LONGTEXT NULL,
             node_mapping_json LONGTEXT NULL,
             status_targets_json LONGTEXT NULL,
+            report_out_statuses_json LONGTEXT NULL,
             created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
             updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             PRIMARY KEY (id),
@@ -171,6 +172,7 @@ function connectors_ensure_schema(mysqli $dbcnx): void
 
     $addonsColumnsToEnsure = [
         'status_targets_json' => "ALTER TABLE connectors_addons ADD COLUMN status_targets_json LONGTEXT NULL AFTER node_mapping_json",
+        'report_out_statuses_json' => "ALTER TABLE connectors_addons ADD COLUMN report_out_statuses_json LONGTEXT NULL AFTER status_targets_json",
     ];
 
     foreach ($addonsColumnsToEnsure as $column => $alterSql) {
@@ -196,6 +198,7 @@ function connectors_default_addons(): array
         'extra_json' => '',
         'node_mapping_json' => '',
         'status_targets_json' => '',
+        'report_out_statuses_json' => '',
     ];
 }
 
@@ -233,13 +236,22 @@ function connectors_decode_addons(array $row): array
             $addons['status_targets_json'] = json_encode($decodedStatusTargets, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT) ?: '';
         }
     }
+
+    $rawReportOutStatuses = trim((string)($row['report_out_statuses_json'] ?? ''));
+    if ($rawReportOutStatuses !== '') {
+        $decodedReportOutStatuses = json_decode($rawReportOutStatuses, true);
+        if (is_array($decodedReportOutStatuses) && !empty($decodedReportOutStatuses)) {
+            $addons['report_out_statuses_json'] = json_encode($decodedReportOutStatuses, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT) ?: '';
+        }
+    }
+
     return $addons;
 }
 
 function connectors_fetch_addons(mysqli $dbcnx, int $connectorId): array
 {
     $addons = connectors_default_addons();
-    $stmt = $dbcnx->prepare('SELECT addons_json, node_mapping_json, status_targets_json FROM connectors_addons WHERE connector_id = ? LIMIT 1');
+    $stmt = $dbcnx->prepare('SELECT addons_json, node_mapping_json, status_targets_json, report_out_statuses_json FROM connectors_addons WHERE connector_id = ? LIMIT 1');
     if (!$stmt) {
         error_log('connectors addons fetch prepare error: ' . $dbcnx->error);
         return $addons;
@@ -269,6 +281,7 @@ function connectors_build_addons_payload_from_post(): array
     $extraJsonRaw = trim((string)($_POST['addon_extra_json'] ?? ''));
     $nodeMappingJsonRaw = trim((string)($_POST['addon_node_mapping_json'] ?? ''));
     $statusTargetsJsonRaw = trim((string)($_POST['addon_status_targets_json'] ?? ''));
+    $reportOutStatusesJsonRaw = trim((string)($_POST['addon_report_out_statuses_json'] ?? ''));
 
     $extra = [];
     if ($extraJsonRaw !== '') {
@@ -304,6 +317,27 @@ function connectors_build_addons_payload_from_post(): array
         }
     }
 
+    $reportOutStatuses = [];
+    if ($reportOutStatusesJsonRaw !== '') {
+        $decodedReportOutStatuses = json_decode($reportOutStatusesJsonRaw, true);
+        if (!is_array($decodedReportOutStatuses)) {
+            throw new InvalidArgumentException('Некорректный JSON в "Карта статусов репорта -> warehouse_item_out.status"');
+        }
+
+        $allowedOutStatuses = ['error', 'for_sync', 'half_sync', 'confirmed_sync', 'to_send', 'sended', 'success'];
+        foreach ($decodedReportOutStatuses as $reportStatus => $outStatus) {
+            $reportStatusKey = trim((string)$reportStatus);
+            $normalizedOutStatus = strtolower(trim((string)$outStatus));
+            if ($reportStatusKey === '' || $normalizedOutStatus === '') {
+                continue;
+            }
+            if (!in_array($normalizedOutStatus, $allowedOutStatuses, true)) {
+                throw new InvalidArgumentException('Недопустимый warehouse_item_out.status в карте статусов репорта: ' . $normalizedOutStatus);
+            }
+            $reportOutStatuses[$reportStatusKey] = $normalizedOutStatus;
+        }
+    }
+
     return [
         'addons' => [
             'tariff_type' => $tariffType,
@@ -312,6 +346,7 @@ function connectors_build_addons_payload_from_post(): array
         ],
         'node_mapping' => $nodeMapping,
         'status_targets' => $statusTargets,
+        'report_out_statuses' => $reportOutStatuses,
     ];
 }
 function connectors_build_status(array $connector): array
@@ -3183,7 +3218,16 @@ switch ($dispatchAction) {
             break;
         }
 
-        $stmt = $dbcnx->prepare('INSERT INTO connectors_addons (connector_id, connector_name, addons_json, node_mapping_json, status_targets_json) VALUES (?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE connector_name = VALUES(connector_name), addons_json = VALUES(addons_json), node_mapping_json = VALUES(node_mapping_json), status_targets_json = VALUES(status_targets_json)');
+        $reportOutStatusesJson = json_encode($addonsPayload['report_out_statuses'], JSON_UNESCAPED_UNICODE);
+        if ($reportOutStatusesJson === false) {
+            $response = [
+                'status' => 'error',
+                'message' => 'Не удалось сериализовать карту статусов репорта -> warehouse_item_out.status',
+            ];
+            break;
+        }
+
+        $stmt = $dbcnx->prepare('INSERT INTO connectors_addons (connector_id, connector_name, addons_json, node_mapping_json, status_targets_json, report_out_statuses_json) VALUES (?, ?, ?, ?, ?, ?) ON DUPLICATE KEY UPDATE connector_name = VALUES(connector_name), addons_json = VALUES(addons_json), node_mapping_json = VALUES(node_mapping_json), status_targets_json = VALUES(status_targets_json), report_out_statuses_json = VALUES(report_out_statuses_json)');
         if (!$stmt) {
             $response = [
                 'status' => 'error',
@@ -3193,7 +3237,7 @@ switch ($dispatchAction) {
         }
 
         $connectorName = trim((string)($connector['name'] ?? ''));
-        $stmt->bind_param('issss', $connectorId, $connectorName, $addonsJson, $nodeMappingJson, $statusTargetsJson);
+        $stmt->bind_param('isssss', $connectorId, $connectorName, $addonsJson, $nodeMappingJson, $statusTargetsJson, $reportOutStatusesJson);
         if (!$stmt->execute()) {
             $response = [
                 'status' => 'error',
