@@ -1987,6 +1987,147 @@ if (!function_exists('warehouse_sync_run_submission')) {
 }
 
 
+
+if ($action === 'item_out') {
+    auth_require_login();
+    $current = $user;
+
+    $forwarders = [];
+    $sql = "
+        SELECT DISTINCT UPPER(TRIM(receiver_company)) AS forwarder
+        FROM warehouse_item_out
+        WHERE status = 'to_send'
+          AND receiver_company IS NOT NULL
+          AND TRIM(receiver_company) <> ''
+        ORDER BY forwarder ASC
+    ";
+    if ($res = $dbcnx->query($sql)) {
+        while ($row = $res->fetch_assoc()) {
+            $value = trim((string)($row['forwarder'] ?? ''));
+            if ($value !== '') {
+                $forwarders[] = $value;
+            }
+        }
+        $res->free();
+    }
+
+    $smarty->assign('current_user', $current);
+    $smarty->assign('item_out_forwarders', $forwarders);
+
+    ob_start();
+    $smarty->display('cells_NA_API_warehouse_item_out.html');
+    $html = ob_get_clean();
+
+    $response = [
+        'status' => 'ok',
+        'html' => $html,
+    ];
+}
+
+if ($action === 'warehouse_item_out_to_send') {
+    auth_require_login();
+    $current = $user;
+
+    warehouse_sync_ensure_out_table($dbcnx);
+
+    $forwarderFilter = warehouse_sync_normalize_key((string)($_POST['forwarder'] ?? 'ALL'));
+    $search = strtoupper(trim((string)($_POST['search'] ?? '')));
+    $limitRaw = $_POST['limit'] ?? '50';
+    $limit = $limitRaw === 'all' ? null : max(20, (int)$limitRaw);
+    $offset = max(0, (int)($_POST['offset'] ?? 0));
+
+    $conditions = [
+        "wo.status = 'to_send'",
+    ];
+    $params = [];
+    $types = '';
+
+    if ($forwarderFilter !== '' && $forwarderFilter !== 'ALL') {
+        $conditions[] = 'UPPER(TRIM(wo.receiver_company)) = ?';
+        $types .= 's';
+        $params[] = $forwarderFilter;
+    }
+
+    if ($search !== '') {
+        $conditions[] = '(UPPER(wo.tuid) LIKE ? OR UPPER(wo.tracking_no) LIKE ? OR UPPER(wo.receiver_address) LIKE ? OR UPPER(wo.receiver_company) LIKE ?)';
+        $like = '%' . $search . '%';
+        $types .= 'ssss';
+        $params[] = $like;
+        $params[] = $like;
+        $params[] = $like;
+        $params[] = $like;
+    }
+
+    $whereSql = 'WHERE ' . implode(' AND ', $conditions);
+
+    $sql = "
+        SELECT
+            wo.id,
+            wo.stock_item_id,
+            wo.tuid,
+            wo.tracking_no,
+            wo.receiver_company,
+            wo.receiver_country_code,
+            wo.receiver_address,
+            wo.status,
+            wo.status_message,
+            wo.status_updated_at,
+            wo.created_at,
+            c.code AS cell_address,
+            COALESCE(NULLIF(wo.tuid, ''), NULLIF(wo.tracking_no, ''), wo.uid_created) AS parcel_uid
+        FROM warehouse_item_out wo
+        LEFT JOIN warehouse_item_stock wi ON wi.id = wo.stock_item_id
+        LEFT JOIN cells c ON c.id = wi.cell_id
+        {$whereSql}
+        ORDER BY COALESCE(wo.status_updated_at, wo.created_at) DESC, wo.id DESC
+    ";
+
+    $rows = [];
+    if ($types === '') {
+        if ($res = $dbcnx->query($sql)) {
+            while ($row = $res->fetch_assoc()) {
+                $rows[] = $row;
+            }
+            $res->free();
+        }
+    } else {
+        $stmt = $dbcnx->prepare($sql);
+        if ($stmt) {
+            $stmt->bind_param($types, ...$params);
+            $stmt->execute();
+            $res = $stmt->get_result();
+            while ($res && ($row = $res->fetch_assoc())) {
+                $rows[] = $row;
+            }
+            $stmt->close();
+        }
+    }
+
+    $total = count($rows);
+    $paged = $rows;
+    if ($limit !== null) {
+        $paged = array_slice($rows, $offset, $limit);
+    } elseif ($offset > 0) {
+        $paged = [];
+    }
+
+    $smarty->assign('item_out_rows', $paged);
+    $smarty->assign('current_user', $current);
+    $smarty->assign('show_empty', $offset === 0);
+
+    ob_start();
+    $smarty->display('cells_NA_API_warehouse_item_out_rows.html');
+    $html = ob_get_clean();
+
+    $response = [
+        'status' => 'ok',
+        'html' => $html,
+        'total' => $total,
+        'items_count' => count($paged),
+        'has_more' => $limit !== null ? ($offset + count($paged) < $total) : false,
+    ];
+}
+
 if ($action === 'warehouse_sync' || $action === 'warehouse.sync') {
     auth_require_login();
     $current = $user;

@@ -121,6 +121,8 @@ $routes = [
     'warehouse_sync_out_backfill' => 'api/warehouse/warehouse_sync_actions.php',
     'warehouse_sync_reconcile'  => 'api/warehouse/warehouse_sync_actions.php',
     'warehouse_sync_batch_enqueue' => 'api/warehouse/warehouse_sync_actions.php',
+    'item_out'                  => 'api/warehouse/warehouse_sync_actions.php',
+    'warehouse_item_out_to_send' => 'api/warehouse/warehouse_sync_actions.php',
 ];
 
 if (!isset($routes[$action])) {
