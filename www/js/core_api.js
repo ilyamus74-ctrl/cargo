@@ -268,6 +268,9 @@ const CoreAPI = {
                 if (CoreAPI.warehouseMoveBatch?.init) {
                     CoreAPI.warehouseMoveBatch.init();
                 }
+                if (CoreAPI.warehouseItemOut?.init) {
+                    CoreAPI.warehouseItemOut.init();
+                }
             }
         },
         /**
