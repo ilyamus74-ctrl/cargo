@@ -443,6 +443,10 @@ function connectors_default_operations(array $connector): array
         'report' => [
             'schema_version' => 2,
             'operation_id' => 'report',
+            'display_name' => 'Операция #1 (report)',
+            'module' => 'connectors',
+            'action' => 'sync_connector_report',
+            'kind' => 'browser_steps',
             'run_after' => [],
             'run_with' => [],
             'run_finally' => [],
@@ -461,6 +465,10 @@ function connectors_default_operations(array $connector): array
         'submission' => [
             'schema_version' => 2,
             'operation_id' => 'submission',
+            'display_name' => 'Операция #2 (submission)',
+            'module' => 'connectors',
+            'action' => 'submit_connector_shipment',
+            'kind' => 'browser_steps',
             'run_after' => [],
             'run_with' => [],
             'run_finally' => [],
@@ -478,6 +486,10 @@ function connectors_default_operations(array $connector): array
         'track_and_label_info' => [
             'schema_version' => 2,
             'operation_id' => 'track_and_label_info',
+            'display_name' => 'Операция #3 (track_and_label_info)',
+            'module' => 'connectors',
+            'action' => 'track_and_label_info',
+            'kind' => 'noop',
             'run_after' => [],
             'run_with' => [],
             'run_finally' => [],
@@ -520,6 +532,134 @@ function connectors_normalize_dependency_policy($value): string
     return $value;
 }
 
+
+function connectors_operation_module_registry(): array
+{
+    return ['warehouse', 'connectors', 'devices', 'tools', 'users', 'system', 'generic'];
+}
+
+function connectors_operation_kind_registry(): array
+{
+    return ['api_call', 'browser_steps', 'script', 'noop'];
+}
+
+function connectors_normalize_operation_module($value): string
+{
+    $module = strtolower(trim((string)$value));
+    if (!in_array($module, connectors_operation_module_registry(), true)) {
+        return 'generic';
+    }
+
+    return $module;
+}
+
+function connectors_normalize_operation_kind($value, string $module = 'generic'): string
+{
+    $kind = strtolower(trim((string)$value));
+    if (!in_array($kind, connectors_operation_kind_registry(), true)) {
+        return $module === 'generic' ? 'browser_steps' : 'api_call';
+    }
+
+    return $kind;
+}
+
+function connectors_is_v3_operations_payload(array $payload): bool
+{
+    return (int)($payload['schema_version'] ?? 0) === 3
+        && isset($payload['operations'])
+        && is_array($payload['operations']);
+}
+
+function connectors_v3_payload_to_runtime_operations(array $payload): array
+{
+    $result = [];
+    $operations = $payload['operations'] ?? [];
+    if (!is_array($operations)) {
+        return $result;
+    }
+
+    foreach ($operations as $operation) {
+        if (!is_array($operation)) {
+            continue;
+        }
+
+        $operationId = trim((string)($operation['operation_id'] ?? ''));
+        if ($operationId === '') {
+            continue;
+        }
+
+        $module = connectors_normalize_operation_module($operation['module'] ?? 'generic');
+        $kind = connectors_normalize_operation_kind($operation['kind'] ?? '', $module);
+        $config = isset($operation['config']) && is_array($operation['config']) ? $operation['config'] : [];
+
+        $result[$operationId] = [
+            'schema_version' => 3,
+            'operation_id' => $operationId,
+            'display_name' => trim((string)($operation['display_name'] ?? $operationId)),
+            'module' => $module,
+            'action' => trim((string)($operation['action'] ?? '')),
+            'kind' => $kind,
+            'run_after' => connectors_normalize_dependency_links($operation['run_after'] ?? []),
+            'run_with' => connectors_normalize_dependency_links($operation['run_with'] ?? []),
+            'run_finally' => connectors_normalize_dependency_links($operation['run_finally'] ?? []),
+            'entrypoint' => !empty($operation['entrypoint']) ? 1 : 0,
+            'on_dependency_fail' => connectors_normalize_dependency_policy($operation['on_dependency_fail'] ?? 'stop'),
+            'enabled' => !empty($operation['enabled']) ? 1 : 0,
+            'config' => $config,
+        ];
+    }
+
+    return $result;
+}
+
+function connectors_validate_v3_operations_payload(array $operationsPayload): void
+{
+    if ((int)($operationsPayload['schema_version'] ?? 0) !== 3) {
+        throw new InvalidArgumentException('Для нового формата ожидается schema_version = 3');
+    }
+
+    if (!isset($operationsPayload['operations']) || !is_array($operationsPayload['operations']) || $operationsPayload['operations'] === []) {
+        throw new InvalidArgumentException('Операции v3 должны содержать непустой массив operations');
+    }
+
+    $runtimeOperations = connectors_v3_payload_to_runtime_operations($operationsPayload);
+    if ($runtimeOperations === []) {
+        throw new InvalidArgumentException('Операции v3 не содержат валидных operation_id');
+    }
+
+    foreach ($operationsPayload['operations'] as $index => $operation) {
+        if (!is_array($operation)) {
+            throw new InvalidArgumentException('Операция #' . ($index + 1) . ': ожидается JSON-объект');
+        }
+
+        $operationId = trim((string)($operation['operation_id'] ?? ''));
+        if ($operationId === '') {
+            throw new InvalidArgumentException('Операция #' . ($index + 1) . ': operation_id обязателен');
+        }
+
+        $module = connectors_normalize_operation_module($operation['module'] ?? 'generic');
+        $kind = connectors_normalize_operation_kind($operation['kind'] ?? '', $module);
+        $action = trim((string)($operation['action'] ?? ''));
+
+        if ($module === 'generic' && $action === '') {
+            // ok for generic/browser steps
+        } elseif ($kind === 'api_call' && $action === '') {
+            throw new InvalidArgumentException('Операция "' . $operationId . '": для kind=api_call поле action обязательно');
+        }
+
+        if (isset($operation['config']) && !is_array($operation['config'])) {
+            throw new InvalidArgumentException('Операция "' . $operationId . '": config должен быть JSON-объектом');
+        }
+    }
+
+    connectors_validate_operations_runtime($runtimeOperations);
+
+    foreach ($runtimeOperations as $operation) {
+        if (!empty($operation['entrypoint']) && !empty($operation['enabled'])) {
+            connectors_build_execution_plan($runtimeOperations, (string)($operation['operation_id'] ?? ''));
+        }
+    }
+}
 
 function connectors_dependency_graph_rollout_mode(): string
 {
@@ -1029,6 +1169,11 @@ function connectors_build_legacy_execution_plan(string $entrypointOperationId): 
 
 function connectors_validate_operations_payload(array $operationsPayload): void
 {
+    if (connectors_is_v3_operations_payload($operationsPayload)) {
+        connectors_validate_v3_operations_payload($operationsPayload);
+        return;
+    }
+
     if (!isset($operationsPayload['report']) || !isset($operationsPayload['submission'])) {
         throw new InvalidArgumentException('Операции должны содержать как минимум report и submission');
     }
@@ -1056,6 +1201,67 @@ function connectors_decode_operations(array $connector): array
         return $operations;
     }
 
+
+
+    if (connectors_is_v3_operations_payload($decoded)) {
+        $runtimeOperations = connectors_v3_payload_to_runtime_operations($decoded);
+        foreach (['report', 'submission', 'track_and_label_info'] as $operationKey) {
+            if (!isset($runtimeOperations[$operationKey])) {
+                continue;
+            }
+
+            $op = $runtimeOperations[$operationKey];
+            $cfg = isset($op['config']) && is_array($op['config']) ? $op['config'] : [];
+            $operations[$operationKey]['schema_version'] = 3;
+            $operations[$operationKey]['operation_id'] = $op['operation_id'];
+            $operations[$operationKey]['display_name'] = trim((string)($op['display_name'] ?? $operations[$operationKey]['display_name'] ?? $operationKey));
+            $operations[$operationKey]['module'] = connectors_normalize_operation_module($op['module'] ?? 'generic');
+            $operations[$operationKey]['action'] = trim((string)($op['action'] ?? ''));
+            $operations[$operationKey]['kind'] = connectors_normalize_operation_kind($op['kind'] ?? '', (string)($operations[$operationKey]['module'] ?? 'generic'));
+            $operations[$operationKey]['run_after'] = connectors_normalize_dependency_links($op['run_after'] ?? []);
+            $operations[$operationKey]['run_with'] = connectors_normalize_dependency_links($op['run_with'] ?? []);
+            $operations[$operationKey]['run_finally'] = connectors_normalize_dependency_links($op['run_finally'] ?? []);
+            $operations[$operationKey]['entrypoint'] = !empty($op['entrypoint']) ? 1 : 0;
+            $operations[$operationKey]['on_dependency_fail'] = connectors_normalize_dependency_policy($op['on_dependency_fail'] ?? 'stop');
+            $operations[$operationKey]['enabled'] = !empty($op['enabled']) ? 1 : 0;
+
+            if ($operationKey === 'report') {
+                $operations[$operationKey]['page_url'] = trim((string)($cfg['page_url'] ?? ''));
+                $operations[$operationKey]['file_extension'] = trim((string)($cfg['file_extension'] ?? 'xlsx')) ?: 'xlsx';
+                $operations[$operationKey]['download_mode'] = in_array(($cfg['download_mode'] ?? 'browser'), ['browser', 'curl'], true)
+                    ? (string)$cfg['download_mode']
+                    : 'browser';
+                $operations[$operationKey]['log_steps'] = !empty($cfg['log_steps']) ? 1 : 0;
+                if (isset($cfg['steps']) && is_array($cfg['steps'])) {
+                    $operations[$operationKey]['steps_json'] = json_encode($cfg['steps'], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT) ?: '';
+                }
+                if (isset($cfg['curl_config']) && is_array($cfg['curl_config'])) {
+                    $operations[$operationKey]['curl_config_json'] = json_encode($cfg['curl_config'], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT) ?: '';
+                }
+                $operations[$operationKey]['target_table'] = trim((string)($cfg['target_table'] ?? $operations[$operationKey]['target_table']));
+                if (isset($cfg['field_mapping']) && is_array($cfg['field_mapping'])) {
+                    $operations[$operationKey]['field_mapping_json'] = json_encode($cfg['field_mapping'], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT) ?: '';
+                }
+            }
+
+            if ($operationKey === 'submission') {
+                $operations[$operationKey]['page_url'] = trim((string)($cfg['page_url'] ?? ''));
+                $operations[$operationKey]['log_steps'] = !empty($cfg['log_steps']) ? 1 : 0;
+                if (isset($cfg['steps']) && is_array($cfg['steps'])) {
+                    $operations[$operationKey]['steps_json'] = json_encode($cfg['steps'], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT) ?: '';
+                }
+                if (isset($cfg['request_config']) && is_array($cfg['request_config'])) {
+                    $operations[$operationKey]['request_config_json'] = json_encode($cfg['request_config'], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT) ?: '';
+                }
+                $operations[$operationKey]['success_selector'] = trim((string)($cfg['success_selector'] ?? ''));
+                $operations[$operationKey]['success_text'] = trim((string)($cfg['success_text'] ?? ''));
+                $operations[$operationKey]['error_selector'] = trim((string)($cfg['error_selector'] ?? ''));
+            }
+        }
+
+        return $operations;
+    }
+
     if (isset($decoded['report']) && is_array($decoded['report'])) {
         $report = $decoded['report'];
         $operations['report']['schema_version'] = (int)($report['schema_version'] ?? 2) > 0 ? (int)$report['schema_version'] : 2;
@@ -1066,6 +1272,10 @@ function connectors_decode_operations(array $connector): array
         $operations['report']['entrypoint'] = !empty($report['entrypoint']) ? 1 : 0;
         $operations['report']['on_dependency_fail'] = connectors_normalize_dependency_policy($report['on_dependency_fail'] ?? 'stop');
         $operations['report']['enabled'] = !empty($report['enabled']) ? 1 : 0;
+        $operations['report']['display_name'] = trim((string)($report['display_name'] ?? $operations['report']['display_name']));
+        $operations['report']['module'] = connectors_normalize_operation_module($report['module'] ?? $operations['report']['module']);
+        $operations['report']['action'] = trim((string)($report['action'] ?? $operations['report']['action']));
+        $operations['report']['kind'] = connectors_normalize_operation_kind($report['kind'] ?? $operations['report']['kind'], (string)$operations['report']['module']);
         $operations['report']['page_url'] = trim((string)($report['page_url'] ?? ''));
         $operations['report']['file_extension'] = trim((string)($report['file_extension'] ?? 'xlsx')) ?: 'xlsx';
         $operations['report']['download_mode'] = in_array(($report['download_mode'] ?? 'browser'), ['browser', 'curl'], true)
@@ -1097,6 +1307,10 @@ function connectors_decode_operations(array $connector): array
         $operations['submission']['entrypoint'] = !empty($submission['entrypoint']) ? 1 : 0;
         $operations['submission']['on_dependency_fail'] = connectors_normalize_dependency_policy($submission['on_dependency_fail'] ?? 'stop');
         $operations['submission']['enabled'] = !empty($submission['enabled']) ? 1 : 0;
+        $operations['submission']['display_name'] = trim((string)($submission['display_name'] ?? $operations['submission']['display_name']));
+        $operations['submission']['module'] = connectors_normalize_operation_module($submission['module'] ?? $operations['submission']['module']);
+        $operations['submission']['action'] = trim((string)($submission['action'] ?? $operations['submission']['action']));
+        $operations['submission']['kind'] = connectors_normalize_operation_kind($submission['kind'] ?? $operations['submission']['kind'], (string)$operations['submission']['module']);
         $operations['submission']['page_url'] = trim((string)($submission['page_url'] ?? ''));
         $operations['submission']['log_steps'] = !empty($submission['log_steps']) ? 1 : 0;
         $operations['submission']['success_selector'] = trim((string)($submission['success_selector'] ?? ''));
@@ -1122,6 +1336,10 @@ function connectors_decode_operations(array $connector): array
         $operations['track_and_label_info']['entrypoint'] = !empty($trackAndLabel['entrypoint']) ? 1 : 0;
         $operations['track_and_label_info']['on_dependency_fail'] = connectors_normalize_dependency_policy($trackAndLabel['on_dependency_fail'] ?? 'stop');
         $operations['track_and_label_info']['enabled'] = !empty($trackAndLabel['enabled']) ? 1 : 0;
+        $operations['track_and_label_info']['display_name'] = trim((string)($trackAndLabel['display_name'] ?? $operations['track_and_label_info']['display_name']));
+        $operations['track_and_label_info']['module'] = connectors_normalize_operation_module($trackAndLabel['module'] ?? $operations['track_and_label_info']['module']);
+        $operations['track_and_label_info']['action'] = trim((string)($trackAndLabel['action'] ?? $operations['track_and_label_info']['action']));
+        $operations['track_and_label_info']['kind'] = connectors_normalize_operation_kind($trackAndLabel['kind'] ?? $operations['track_and_label_info']['kind'], (string)$operations['track_and_label_info']['module']);
     }
     return $operations;
 }
@@ -2495,6 +2713,7 @@ function connectors_has_operations_payload_in_post(): bool
         'submission_steps_json',
         'track_and_label_info_enabled',
         'track_and_label_info_operation_id',
+        'operations_v3_json',
     ];
 
     foreach ($fields as $field) {
@@ -2509,6 +2728,21 @@ function connectors_has_operations_payload_in_post(): bool
 
 function connectors_build_operations_payload_from_post(): array
 {
+
+    $operationsV3Json = trim((string)($_POST['operations_v3_json'] ?? ''));
+    if ($operationsV3Json !== '') {
+        $decodedV3 = json_decode($operationsV3Json, true);
+        if (!is_array($decodedV3)) {
+            throw new InvalidArgumentException('Некорректный JSON в "operations_v3_json"');
+        }
+
+        if (!connectors_is_v3_operations_payload($decodedV3)) {
+            throw new InvalidArgumentException('Поле "operations_v3_json" должно содержать payload формата v3: {"schema_version":3,"operations":[...]}');
+        }
+
+        return $decodedV3;
+    }
+
     $enabled = !empty($_POST['report_enabled']) ? 1 : 0;
     $pageUrl = trim((string)($_POST['report_page_url'] ?? ''));
     $fileExtension = strtolower(trim((string)($_POST['report_file_extension'] ?? 'xlsx')));

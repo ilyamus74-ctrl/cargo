@@ -64,11 +64,22 @@
     run_after/run_with/run_finally — всегда массивы operation_id (допускается пустой массив).
     config — всегда JSON-объект (допускается пустой объект {}).
 
-*** - 1.2. Справочники
+* - 1.2. Справочники
 
     module: warehouse | connectors | devices | tools | users | system | generic
     kind: api_call | browser_steps | script | noop
     Правило: если модуль не выбран, то module = generic, kind = browser_steps
+
+    Нормализация при сохранении:
+        module = trim(lowercase(module));
+        kind = trim(lowercase(kind));
+        если module пустой/null => module = generic;
+        если module = generic и kind пустой/null => kind = browser_steps.
+    Валидация:
+        module должен входить в справочник module.
+        kind должен входить в справочник kind.
+        при module != generic и kind = api_call поле action обязательно.
+    Статус: выполнено.
     
 *** - 1.3. Почему так
 
