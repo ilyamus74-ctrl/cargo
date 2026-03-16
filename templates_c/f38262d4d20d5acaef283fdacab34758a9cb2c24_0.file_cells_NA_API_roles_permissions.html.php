@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-01-16 21:07:45
+/* Smarty version 5.3.1, created on 2026-03-16 10:38:51
   from 'file:cells_NA_API_roles_permissions.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_696aa8a1cb0630_57058006',
+  'unifunc' => 'content_69b7ddbb868454_38609555',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     'f38262d4d20d5acaef283fdacab34758a9cb2c24' => 
     array (
       0 => 'cells_NA_API_roles_permissions.html',
-      1 => 1768597565,
+      1 => 1773657520,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_696aa8a1cb0630_57058006 (\Smarty\Template $_smarty_tpl) {
+function content_69b7ddbb868454_38609555 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>    <div class="pagetitle">
       <h1>Settings roles & permissions</h1>
@@ -98,6 +98,39 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
                 <div class="d-flex gap-2">
                   <button type="button" class="btn btn-primary js-core-link" data-core-action="save_permission">Сохранить</button>
                   <button type="button" class="btn btn-outline-secondary js-permission-reset">Очистить</button>
+                </div>
+              </form>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-body">
+              <h5 class="card-title">Добавить / обновить группу меню</h5>
+              <form id="menu-group-form" autocomplete="off">
+                <input type="hidden" name="menu_group_id" id="menu_group_id" value="">
+                <div class="mb-3">
+                  <label for="menu_group_code" class="form-label">Code</label>
+                  <input type="text" class="form-control" name="code" id="menu_group_code" placeholder="departures">
+                </div>
+                <div class="mb-3">
+                  <label for="menu_group_title" class="form-label">Название</label>
+                  <input type="text" class="form-control" name="title" id="menu_group_title" placeholder="Departures">
+                </div>
+                <div class="mb-3">
+                  <label for="menu_group_icon" class="form-label">Иконка</label>
+                  <input type="text" class="form-control" name="icon" id="menu_group_icon" placeholder="bi bi-truck">
+                </div>
+                <div class="mb-3">
+                  <label for="menu_group_sort" class="form-label">Порядок</label>
+                  <input type="number" class="form-control" name="sort_order" id="menu_group_sort" value="0">
+                </div>
+                <div class="form-check mb-3">
+                  <input class="form-check-input" type="checkbox" name="is_active" id="menu_group_active" checked>
+                  <label class="form-check-label" for="menu_group_active">Активна</label>
+                </div>
+                <div class="d-flex gap-2">
+                  <button type="button" class="btn btn-primary js-core-link" data-core-action="save_menu_group">Сохранить</button>
+                  <button type="button" class="btn btn-outline-secondary js-menu-group-reset">Очистить</button>
                 </div>
               </form>
             </div>

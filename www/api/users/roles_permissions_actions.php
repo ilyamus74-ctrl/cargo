@@ -47,7 +47,7 @@ switch ($action) {
         $smarty->assign('current_user', $user);
 
         $menuGroups = [];
-        $sqlMenuGroups = "SELECT code, title, icon, sort_order, is_active FROM menu_groups ORDER BY sort_order, code";
+        $sqlMenuGroups = "SELECT id, code, title, icon, sort_order, is_active FROM menu_groups ORDER BY sort_order, code";
         if ($res = $dbcnx->query($sqlMenuGroups)) {
             while ($row = $res->fetch_assoc()) {
                 $menuGroups[] = $row;
@@ -435,6 +435,197 @@ switch ($action) {
         $response = [
             'status'  => 'ok',
             'message' => 'Пункт меню добавлен',
+        ];
+        break;
+
+
+    case 'save_menu_group':
+        $menuGroupId = (int)($_POST['menu_group_id'] ?? 0);
+        $code = trim($_POST['code'] ?? '');
+        $title = trim($_POST['title'] ?? '');
+        $icon = trim($_POST['icon'] ?? '');
+        $sortOrder = (int)($_POST['sort_order'] ?? 0);
+        $isActive = isset($_POST['is_active']) ? 1 : 0;
+
+        if ($code === '' || $title === '') {
+            $response = [
+                'status'  => 'error',
+                'message' => 'Код и название группы обязательны',
+            ];
+            break;
+        }
+
+        if ($menuGroupId > 0) {
+            $stmt = $dbcnx->prepare("SELECT code FROM menu_groups WHERE id = ?");
+            if (!$stmt) {
+                throw new RuntimeException('DB prepare error (menu_groups select by id)');
+            }
+            $stmt->bind_param('i', $menuGroupId);
+            $stmt->execute();
+            $res = $stmt->get_result();
+            $existing = $res->fetch_assoc();
+            $stmt->close();
+
+            if (!$existing) {
+                $response = [
+                    'status'  => 'error',
+                    'message' => 'Группа меню не найдена',
+                ];
+                break;
+            }
+
+            $stmt = $dbcnx->prepare("SELECT id FROM menu_groups WHERE code = ? AND id != ?");
+            if (!$stmt) {
+                throw new RuntimeException('DB prepare error (menu_groups duplicate update)');
+            }
+            $stmt->bind_param('si', $code, $menuGroupId);
+            $stmt->execute();
+            $res = $stmt->get_result();
+            $duplicate = $res->fetch_assoc();
+            $stmt->close();
+
+            if ($duplicate) {
+                $response = [
+                    'status'  => 'error',
+                    'message' => 'Группа меню с таким кодом уже существует',
+                ];
+                break;
+            }
+
+            $oldCode = $existing['code'];
+
+            $dbcnx->begin_transaction();
+            try {
+                $stmt = $dbcnx->prepare("UPDATE menu_groups
+                                            SET code = ?, title = ?, icon = ?, sort_order = ?, is_active = ?
+                                          WHERE id = ?");
+                if (!$stmt) {
+                    throw new RuntimeException('DB prepare error (menu_groups update)');
+                }
+                $stmt->bind_param('sssiii', $code, $title, $icon, $sortOrder, $isActive, $menuGroupId);
+                $stmt->execute();
+                $stmt->close();
+
+                if ($oldCode !== $code) {
+                    $stmt = $dbcnx->prepare("UPDATE menu_items SET group_code = ? WHERE group_code = ?");
+                    if (!$stmt) {
+                        throw new RuntimeException('DB prepare error (menu_items group_code update)');
+                    }
+                    $stmt->bind_param('ss', $code, $oldCode);
+                    $stmt->execute();
+                    $stmt->close();
+                }
+
+                $dbcnx->commit();
+            } catch (Throwable $e) {
+                $dbcnx->rollback();
+                throw $e;
+            }
+
+            $response = [
+                'status'  => 'ok',
+                'message' => 'Группа меню обновлена',
+            ];
+            break;
+        }
+
+        $stmt = $dbcnx->prepare("SELECT id FROM menu_groups WHERE code = ?");
+        if (!$stmt) {
+            throw new RuntimeException('DB prepare error (menu_groups duplicate insert)');
+        }
+        $stmt->bind_param('s', $code);
+        $stmt->execute();
+        $res = $stmt->get_result();
+        $duplicate = $res->fetch_assoc();
+        $stmt->close();
+
+        if ($duplicate) {
+            $response = [
+                'status'  => 'error',
+                'message' => 'Группа меню с таким кодом уже существует',
+            ];
+            break;
+        }
+
+        $stmt = $dbcnx->prepare("INSERT INTO menu_groups (code, title, icon, sort_order, is_active)
+                                 VALUES (?, ?, ?, ?, ?)");
+        if (!$stmt) {
+            throw new RuntimeException('DB prepare error (menu_groups insert)');
+        }
+        $stmt->bind_param('sssii', $code, $title, $icon, $sortOrder, $isActive);
+        if (!$stmt->execute()) {
+            $stmt->close();
+            $response = [
+                'status'  => 'error',
+                'message' => 'Не удалось сохранить группу меню',
+            ];
+            break;
+        }
+        $stmt->close();
+
+        $response = [
+            'status'  => 'ok',
+            'message' => 'Группа меню добавлена',
+        ];
+        break;
+
+    case 'delete_menu_group':
+        $menuGroupId = (int)($_POST['menu_group_id'] ?? 0);
+        if ($menuGroupId <= 0) {
+            $response = [
+                'status'  => 'error',
+                'message' => 'Не указана группа меню',
+            ];
+            break;
+        }
+
+        $stmt = $dbcnx->prepare("SELECT code FROM menu_groups WHERE id = ?");
+        if (!$stmt) {
+            throw new RuntimeException('DB prepare error (menu_groups code select)');
+        }
+        $stmt->bind_param('i', $menuGroupId);
+        $stmt->execute();
+        $res = $stmt->get_result();
+        $group = $res->fetch_assoc();
+        $stmt->close();
+
+        if (!$group) {
+            $response = [
+                'status'  => 'error',
+                'message' => 'Группа меню не найдена',
+            ];
+            break;
+        }
+
+        $stmt = $dbcnx->prepare("SELECT COUNT(*) AS cnt FROM menu_items WHERE group_code = ?");
+        if (!$stmt) {
+            throw new RuntimeException('DB prepare error (menu_items count by group)');
+        }
+        $stmt->bind_param('s', $group['code']);
+        $stmt->execute();
+        $res = $stmt->get_result();
+        $count = (int)($res->fetch_assoc()['cnt'] ?? 0);
+        $stmt->close();
+
+        if ($count > 0) {
+            $response = [
+                'status'  => 'error',
+                'message' => 'Нельзя удалить группу, пока в ней есть пункты меню',
+            ];
+            break;
+        }
+
+        $stmt = $dbcnx->prepare("DELETE FROM menu_groups WHERE id = ?");
+        if (!$stmt) {
+            throw new RuntimeException('DB prepare error (menu_groups delete)');
+        }
+        $stmt->bind_param('i', $menuGroupId);
+        $stmt->execute();
+        $stmt->close();
+
+        $response = [
+            'status'  => 'ok',
+            'message' => 'Группа меню удалена',
         ];
         break;
 

@@ -65,6 +65,7 @@ const CoreAPI = {
                 'add_new_item_in': () => this.getFormById('item-in-modal-form'),
                 'save_item_stock': () => this.getFormById('item-stock-modal-form'),
                 'save_permission': () => this.getFormById('permission-form'),
+                'save_menu_group': () => this.getFormById('menu-group-form'),
                 'save_menu_item': () => this.getFormById('menu-item-form'),
                 'save_system_task': () => this.getFormById('system-task-form'),
                 'delete_system_task': () => this.withAttribute('task_id', link),
@@ -136,6 +137,7 @@ const CoreAPI = {
 
                 'delete_cell': () => this.withAttribute('cell_id', link),
                 'delete_permission': () => this.withAttribute('permission_code', link),
+                'delete_menu_group': () => this.withAttribute('menu_group_id', link),
                 'delete_menu_item': () => this.withAttribute('menu_item_id', link),
                 'delete_item_in': () => {
                     const fd = this.withAttribute('item_id', link);
@@ -318,6 +320,44 @@ const CoreAPI = {
 
     // PERMISSIONS - вспомогательные методы
     // ====================================
+
+    menuGroups: {
+        fillForm(button) {
+            const id = button.getAttribute('data-menu-group-id') || '';
+            const code = button.getAttribute('data-menu-group-code') || '';
+            const title = button.getAttribute('data-menu-group-title') || '';
+            const icon = button.getAttribute('data-menu-group-icon') || '';
+            const sortOrder = button.getAttribute('data-menu-group-sort') || '0';
+            const isActive = button.getAttribute('data-menu-group-active') || '0';
+            const idInput = document.getElementById('menu_group_id');
+            const codeInput = document.getElementById('menu_group_code');
+            const titleInput = document.getElementById('menu_group_title');
+            const iconInput = document.getElementById('menu_group_icon');
+            const sortInput = document.getElementById('menu_group_sort');
+            const activeInput = document.getElementById('menu_group_active');
+            if (idInput) idInput.value = id;
+            if (codeInput) codeInput.value = code;
+            if (titleInput) titleInput.value = title;
+            if (iconInput) iconInput.value = icon;
+            if (sortInput) sortInput.value = sortOrder;
+            if (activeInput) activeInput.checked = isActive === '1';
+        },
+        resetForm() {
+            const idInput = document.getElementById('menu_group_id');
+            const codeInput = document.getElementById('menu_group_code');
+            const titleInput = document.getElementById('menu_group_title');
+            const iconInput = document.getElementById('menu_group_icon');
+            const sortInput = document.getElementById('menu_group_sort');
+            const activeInput = document.getElementById('menu_group_active');
+            if (idInput) idInput.value = '';
+            if (codeInput) codeInput.value = '';
+            if (titleInput) titleInput.value = '';
+            if (iconInput) iconInput.value = '';
+            if (sortInput) sortInput.value = '0';
+            if (activeInput) activeInput.checked = true;
+        }
+    },
+
     permissions: {
         fillForm(button) {
             const id = button.getAttribute('data-permission-id') || '';
@@ -1022,7 +1062,14 @@ const CoreAPI = {
             alert(data.message || 'Удалено');
             await CoreAPI.ui.reloadList('view_role_permissions');
         },
-
+        'save_menu_group': async (data) => {
+            alert(data.message || 'Сохранено');
+            await CoreAPI.ui.reloadList('view_role_permissions');
+        },
+        'delete_menu_group': async (data) => {
+            alert(data.message || 'Удалено');
+            await CoreAPI.ui.reloadList('view_role_permissions');
+        },
         'save_menu_item': async (data) => {
             alert(data.message || 'Сохранено');
             await CoreAPI.ui.reloadList('view_role_permissions');
@@ -1072,6 +1119,18 @@ const CoreAPI = {
                 return;
             }
 
+            const editMenuGroup = e.target.closest('.js-menu-group-edit');
+            if (editMenuGroup) {
+                e.preventDefault();
+                CoreAPI.menuGroups.fillForm(editMenuGroup);
+                return;
+            }
+            const resetMenuGroup = e.target.closest('.js-menu-group-reset');
+            if (resetMenuGroup) {
+                e.preventDefault();
+                CoreAPI.menuGroups.resetForm();
+                return;
+            }
             const editMenuItem = e.target.closest('.js-menu-item-edit');
             if (editMenuItem) {
                 e.preventDefault();
