@@ -2920,20 +2920,13 @@ function connectors_run_submission_test(array $connector, array $submissionCfg):
 
 function connectors_has_operations_payload_in_post(): bool
 {
-    $fields = [
-        'report_enabled',
-        'report_operation_id',
-        'report_target_table',
-        'report_steps_json',
-        'report_curl_config_json',
-        'submission_enabled',
-        'submission_operation_id',
-        'submission_steps_json',
-        'track_and_label_info_enabled',
-        'track_and_label_info_operation_id',
-        'operations_v3_json',
-    ];
+    $fields = ['operations_v3_json'];
 
+    foreach (['report', 'submission', 'track_and_label_info'] as $operationKey) {
+        foreach (['enabled', 'operation_id', 'steps_json', 'run_after_json', 'run_with_json', 'run_finally_json'] as $suffix) {
+            $fields[] = $operationKey . '_' . $suffix;
+        }
+    }
     foreach ($fields as $field) {
         if (array_key_exists($field, $_POST)) {
             return true;
@@ -2961,174 +2954,143 @@ function connectors_build_operations_payload_from_post(): array
         return $decodedV3;
     }
 
-    $enabled = !empty($_POST['report_enabled']) ? 1 : 0;
-    $pageUrl = trim((string)($_POST['report_page_url'] ?? ''));
-    $fileExtension = strtolower(trim((string)($_POST['report_file_extension'] ?? 'xlsx')));
-    $downloadMode = trim((string)($_POST['report_download_mode'] ?? 'browser'));
-    $logSteps = !empty($_POST['report_log_steps']) ? 1 : 0;
-    $stepsJson = trim((string)($_POST['report_steps_json'] ?? ''));
-    $curlConfigJson = trim((string)($_POST['report_curl_config_json'] ?? ''));
-    $targetTable = strtolower(trim((string)($_POST['report_target_table'] ?? '')));
-    $fieldMappingJson = trim((string)($_POST['report_field_mapping_json'] ?? ''));
 
-
-    $submissionEnabled = !empty($_POST['submission_enabled']) ? 1 : 0;
-    $submissionPageUrl = trim((string)($_POST['submission_page_url'] ?? ''));
-    $submissionLogSteps = !empty($_POST['submission_log_steps']) ? 1 : 0;
-    $submissionStepsJson = trim((string)($_POST['submission_steps_json'] ?? ''));
-    $submissionRequestConfigJson = trim((string)($_POST['submission_request_config_json'] ?? ''));
-    $submissionSuccessSelector = trim((string)($_POST['submission_success_selector'] ?? ''));
-    $submissionSuccessText = trim((string)($_POST['submission_success_text'] ?? ''));
-    $submissionErrorSelector = trim((string)($_POST['submission_error_selector'] ?? ''));
-
-    $reportOperationId = trim((string)($_POST['report_operation_id'] ?? 'report'));
-    $reportRunAfter = connectors_decode_dependency_links_json((string)($_POST['report_run_after_json'] ?? ''), 'Report run_after');
-    $reportRunWith = connectors_decode_dependency_links_json((string)($_POST['report_run_with_json'] ?? ''), 'Report run_with');
-    $reportRunFinally = connectors_decode_dependency_links_json((string)($_POST['report_run_finally_json'] ?? ''), 'Report run_finally');
-    $reportEntrypoint = !empty($_POST['report_entrypoint']) ? 1 : 0;
-    $reportOnDependencyFail = connectors_normalize_dependency_policy($_POST['report_on_dependency_fail'] ?? 'stop');
-
-    $submissionOperationId = trim((string)($_POST['submission_operation_id'] ?? 'submission'));
-    $submissionRunAfter = connectors_decode_dependency_links_json((string)($_POST['submission_run_after_json'] ?? ''), 'Submission run_after');
-    $submissionRunWith = connectors_decode_dependency_links_json((string)($_POST['submission_run_with_json'] ?? ''), 'Submission run_with');
-    $submissionRunFinally = connectors_decode_dependency_links_json((string)($_POST['submission_run_finally_json'] ?? ''), 'Submission run_finally');
-    $submissionEntrypoint = !empty($_POST['submission_entrypoint']) ? 1 : 0;
-    $submissionOnDependencyFail = connectors_normalize_dependency_policy($_POST['submission_on_dependency_fail'] ?? 'stop');
-
-    $trackAndLabelEnabled = !empty($_POST['track_and_label_info_enabled']) ? 1 : 0;
-    $trackAndLabelOperationId = trim((string)($_POST['track_and_label_info_operation_id'] ?? 'track_and_label_info'));
-    $trackAndLabelRunAfter = connectors_decode_dependency_links_json((string)($_POST['track_and_label_info_run_after_json'] ?? ''), 'TrackAndLabelInfo run_after');
-    $trackAndLabelRunWith = connectors_decode_dependency_links_json((string)($_POST['track_and_label_info_run_with_json'] ?? ''), 'TrackAndLabelInfo run_with');
-    $trackAndLabelRunFinally = connectors_decode_dependency_links_json((string)($_POST['track_and_label_info_run_finally_json'] ?? ''), 'TrackAndLabelInfo run_finally');
-    $trackAndLabelEntrypoint = !empty($_POST['track_and_label_info_entrypoint']) ? 1 : 0;
-    $trackAndLabelOnDependencyFail = connectors_normalize_dependency_policy($_POST['track_and_label_info_on_dependency_fail'] ?? 'stop');
-
-    if ($reportOperationId === '') {
-        $reportOperationId = 'report';
-    }
-    if ($submissionOperationId === '') {
-        $submissionOperationId = 'submission';
-    }
-    if ($trackAndLabelOperationId === '') {
-        $trackAndLabelOperationId = 'track_and_label_info';
-    }
-
-    $targetTable = preg_replace('/[^a-z0-9_]+/', '_', $targetTable ?? '');
-    if ($targetTable !== '') {
-        $targetTable = trim($targetTable, '_');
-    }
-
-    $steps = [];
-    if ($stepsJson !== '') {
-        $decoded = json_decode($stepsJson, true);
-        if (!is_array($decoded)) {
-            throw new InvalidArgumentException('Некорректный JSON в "Шаги формы/кнопок"');
-        }
-        $steps = $decoded;
-    }
-
-    $curlConfig = [];
-    if ($curlConfigJson !== '') {
-        $decoded = json_decode($curlConfigJson, true);
-        if (!is_array($decoded)) {
-            throw new InvalidArgumentException('Некорректный JSON в "PHP cURL конфиг"');
-        }
-        $isList = array_keys($decoded) === range(0, count($decoded) - 1);
-        if ($isList) {
-            throw new InvalidArgumentException('"PHP cURL конфиг" должен быть JSON-объектом вида {"url":"...","method":"GET|POST",...}, а не массивом browser-шагов. Шаги нужно указывать в "Шаги формы/кнопок".');
-        }
-        $curlConfig = $decoded;
-    }
-
-    $fieldMapping = [];
-    if ($fieldMappingJson !== '') {
-        $decoded = json_decode($fieldMappingJson, true);
-        if (!is_array($decoded)) {
-            throw new InvalidArgumentException('Некорректный JSON в "Маппинг полей"');
-        }
-        $fieldMapping = $decoded;
-    }
-
-    if (!in_array($downloadMode, ['browser', 'curl'], true)) {
-        $downloadMode = 'browser';
-    }
-
-    if ($fileExtension === '') {
-        $fileExtension = 'xlsx';
-    }
-
-
-    $submissionSteps = [];
-    if ($submissionStepsJson !== '') {
-        $decoded = json_decode($submissionStepsJson, true);
-        if (!is_array($decoded)) {
-            throw new InvalidArgumentException('Некорректный JSON в "Шаги формы операции #2"');
-        }
-        $submissionSteps = $decoded;
-    }
-
-    $submissionRequestConfig = [];
-    if ($submissionRequestConfigJson !== '') {
-        $decoded = json_decode($submissionRequestConfigJson, true);
-        if (!is_array($decoded)) {
-            throw new InvalidArgumentException('Некорректный JSON в "AJAX / Request конфиг"');
-        }
-        $isList = array_keys($decoded) === range(0, count($decoded) - 1);
-        if ($isList) {
-            throw new InvalidArgumentException('"AJAX / Request конфиг" должен быть JSON-объектом, а не массивом.');
-        }
-        $submissionRequestConfig = $decoded;
-    }
-
-    return [
+    $legacyOperationDefs = [
         'report' => [
-            'schema_version' => 2,
-            'operation_id' => $reportOperationId,
-            'run_after' => $reportRunAfter,
-            'run_with' => $reportRunWith,
-            'run_finally' => $reportRunFinally,
-            'entrypoint' => $reportEntrypoint,
-            'on_dependency_fail' => $reportOnDependencyFail,
-            'enabled' => $enabled,
-            'page_url' => $pageUrl,
-            'file_extension' => $fileExtension,
-            'download_mode' => $downloadMode,
-            'log_steps' => $logSteps,
-            'steps' => $steps,
-            'curl_config' => $curlConfig,
-            'target_table' => $targetTable,
-            'field_mapping' => $fieldMapping,
-        ],
+            'default_operation_id' => 'report',
+            'label' => 'Report',
+            'config_builder' => static function (): array {
+                $targetTable = strtolower(trim((string)($_POST['report_target_table'] ?? '')));
+                $targetTable = preg_replace('/[^a-z0-9_]+/', '_', $targetTable ?? '');
+                if ($targetTable !== '') {
+                    $targetTable = trim($targetTable, '_');
+                }
 
+                $steps = [];
+                $stepsJson = trim((string)($_POST['report_steps_json'] ?? ''));
+                if ($stepsJson !== '') {
+                    $decoded = json_decode($stepsJson, true);
+                    if (!is_array($decoded)) {
+                        throw new InvalidArgumentException('Некорректный JSON в "Шаги формы/кнопок"');
+                    }
+                    $steps = $decoded;
+                }
+
+                $curlConfig = [];
+                $curlConfigJson = trim((string)($_POST['report_curl_config_json'] ?? ''));
+                if ($curlConfigJson !== '') {
+                    $decoded = json_decode($curlConfigJson, true);
+                    if (!is_array($decoded)) {
+                        throw new InvalidArgumentException('Некорректный JSON в "PHP cURL конфиг"');
+                    }
+                    $isList = array_keys($decoded) === range(0, count($decoded) - 1);
+                    if ($isList) {
+                        throw new InvalidArgumentException('"PHP cURL конфиг" должен быть JSON-объектом вида {"url":"...","method":"GET|POST",...}, а не массивом browser-шагов. Шаги нужно указывать в "Шаги формы/кнопок".');
+                    }
+                    $curlConfig = $decoded;
+                }
+
+                $fieldMapping = [];
+                $fieldMappingJson = trim((string)($_POST['report_field_mapping_json'] ?? ''));
+                if ($fieldMappingJson !== '') {
+                    $decoded = json_decode($fieldMappingJson, true);
+                    if (!is_array($decoded)) {
+                        throw new InvalidArgumentException('Некорректный JSON в "Маппинг полей"');
+                    }
+                    $fieldMapping = $decoded;
+                }
+                $downloadMode = trim((string)($_POST['report_download_mode'] ?? 'browser'));
+                if (!in_array($downloadMode, ['browser', 'curl'], true)) {
+                    $downloadMode = 'browser';
+                }
+
+                $fileExtension = strtolower(trim((string)($_POST['report_file_extension'] ?? 'xlsx')));
+                if ($fileExtension === '') {
+                    $fileExtension = 'xlsx';
+                }
+
+                return [
+                    'page_url' => trim((string)($_POST['report_page_url'] ?? '')),
+                    'file_extension' => $fileExtension,
+                    'download_mode' => $downloadMode,
+                    'log_steps' => !empty($_POST['report_log_steps']) ? 1 : 0,
+                    'steps' => $steps,
+                    'curl_config' => $curlConfig,
+                    'target_table' => $targetTable,
+                    'field_mapping' => $fieldMapping,
+                ];
+            },
+        ],
         'submission' => [
-            'schema_version' => 2,
-            'operation_id' => $submissionOperationId,
-            'run_after' => $submissionRunAfter,
-            'run_with' => $submissionRunWith,
-            'run_finally' => $submissionRunFinally,
-            'entrypoint' => $submissionEntrypoint,
-            'on_dependency_fail' => $submissionOnDependencyFail,
-            'enabled' => $submissionEnabled,
-            'page_url' => $submissionPageUrl,
-            'log_steps' => $submissionLogSteps,
-            'steps' => $submissionSteps,
-            'request_config' => $submissionRequestConfig,
-            'success_selector' => $submissionSuccessSelector,
-            'success_text' => $submissionSuccessText,
-            'error_selector' => $submissionErrorSelector,
+
+            'default_operation_id' => 'submission',
+            'label' => 'Submission',
+            'config_builder' => static function (): array {
+                $steps = [];
+                $stepsJson = trim((string)($_POST['submission_steps_json'] ?? ''));
+                if ($stepsJson !== '') {
+                    $decoded = json_decode($stepsJson, true);
+                    if (!is_array($decoded)) {
+                        throw new InvalidArgumentException('Некорректный JSON в "Шаги формы операции #2"');
+                    }
+                    $steps = $decoded;
+                }
+
+                $requestConfig = [];
+                $requestConfigJson = trim((string)($_POST['submission_request_config_json'] ?? ''));
+                if ($requestConfigJson !== '') {
+                    $decoded = json_decode($requestConfigJson, true);
+                    if (!is_array($decoded)) {
+                        throw new InvalidArgumentException('Некорректный JSON в "AJAX / Request конфиг"');
+                    }
+                    $isList = array_keys($decoded) === range(0, count($decoded) - 1);
+                    if ($isList) {
+                        throw new InvalidArgumentException('"AJAX / Request конфиг" должен быть JSON-объектом, а не массивом.');
+                    }
+                    $requestConfig = $decoded;
+                }
+
+                return [
+                    'page_url' => trim((string)($_POST['submission_page_url'] ?? '')),
+                    'log_steps' => !empty($_POST['submission_log_steps']) ? 1 : 0,
+                    'steps' => $steps,
+                    'request_config' => $requestConfig,
+                    'success_selector' => trim((string)($_POST['submission_success_selector'] ?? '')),
+                    'success_text' => trim((string)($_POST['submission_success_text'] ?? '')),
+                    'error_selector' => trim((string)($_POST['submission_error_selector'] ?? '')),
+                ];
+            },
         ],
 
         'track_and_label_info' => [
-            'schema_version' => 2,
-            'operation_id' => $trackAndLabelOperationId,
-            'run_after' => $trackAndLabelRunAfter,
-            'run_with' => $trackAndLabelRunWith,
-            'run_finally' => $trackAndLabelRunFinally,
-            'entrypoint' => $trackAndLabelEntrypoint,
-            'on_dependency_fail' => $trackAndLabelOnDependencyFail,
-            'enabled' => $trackAndLabelEnabled,
+            'default_operation_id' => 'track_and_label_info',
+            'label' => 'TrackAndLabelInfo',
+            'config_builder' => static function (): array {
+                return [];
+            },
         ],
     ];
+
+    $operations = [];
+    foreach ($legacyOperationDefs as $operationKey => $def) {
+        $operationId = trim((string)($_POST[$operationKey . '_operation_id'] ?? $def['default_operation_id']));
+        if ($operationId === '') {
+            $operationId = $def['default_operation_id'];
+        }
+
+        $operations[$operationKey] = array_merge([
+            'schema_version' => 2,
+            'operation_id' => $operationId,
+            'run_after' => connectors_decode_dependency_links_json((string)($_POST[$operationKey . '_run_after_json'] ?? ''), $def['label'] . ' run_after'),
+            'run_with' => connectors_decode_dependency_links_json((string)($_POST[$operationKey . '_run_with_json'] ?? ''), $def['label'] . ' run_with'),
+            'run_finally' => connectors_decode_dependency_links_json((string)($_POST[$operationKey . '_run_finally_json'] ?? ''), $def['label'] . ' run_finally'),
+            'entrypoint' => !empty($_POST[$operationKey . '_entrypoint']) ? 1 : 0,
+            'on_dependency_fail' => connectors_normalize_dependency_policy($_POST[$operationKey . '_on_dependency_fail'] ?? 'stop'),
+            'enabled' => !empty($_POST[$operationKey . '_enabled']) ? 1 : 0,
+        ], $def['config_builder']());
+    }
+
+    return $operations;
 }
 
 
