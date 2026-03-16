@@ -3520,6 +3520,7 @@ switch ($dispatchAction) {
         }
 
         $operations = connectors_decode_operations($connector);
+        $operationsV3Payload = connectors_migrate_operations_payload($operations);
         $nodeRuntimeAvailable = connectors_is_node_runtime_available();
         if (!$nodeRuntimeAvailable && (($operations['report']['download_mode'] ?? 'browser') === 'curl')) {
             $operations['report']['download_mode'] = 'browser';
@@ -3528,6 +3529,7 @@ switch ($dispatchAction) {
         $addons = connectors_fetch_addons($dbcnx, $connectorId);
 
         $smarty->assign('operations', $operations);
+        $smarty->assign('operations_v3_json', json_encode($operationsV3Payload, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
         $smarty->assign('addons', $addons);
         $openTab = trim((string)($_POST['open_tab'] ?? ''));
         $smarty->assign('open_tab', $openTab);

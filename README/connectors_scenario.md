@@ -477,3 +477,22 @@
 
 
 “Implementation roadmap: README/connectors_scenario_roadmap.md”.
+
+
+## Обновление UI конструктора операций (v3)
+
+Сделано:
+- вместо жестко зашитых вкладок `Операция #1/#2/#3` форма теперь рендерит вкладки динамически из `operations_v3_json`;
+- добавлена вкладка-кнопка `+ Добавить операцию`;
+- при добавлении создается default-операция:
+  - `display_name = "Новая операция"`
+  - `operation_id = "op_<n>"`
+  - `module = "generic"`
+  - `kind = "browser_steps"`
+  - `enabled = 0`, `entrypoint = 0`
+  - `run_after/run_with/run_finally = []`, `config = {}`
+- перед сохранением выполняются клиентские проверки:
+  - уникальность `operation_id`;
+  - `module != generic` + `kind = api_call` требует `action`;
+  - `run_*` должны быть JSON-массивами существующих `operation_id`;
+  - `config` должен быть JSON-объектом.
