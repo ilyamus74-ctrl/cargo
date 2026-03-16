@@ -2951,6 +2951,173 @@ function connectors_run_submission_test(array $connector, array $submissionCfg):
 }
 
 
+
+function connectors_core_api_action_handler_registry(): array
+{
+    static $registry = null;
+    if (is_array($registry)) {
+        return $registry;
+    }
+
+    $registry = [];
+    $coreApiPath = __DIR__ . '/../../core_api.php';
+    if (!is_file($coreApiPath)) {
+        return $registry;
+    }
+
+    $contents = (string)file_get_contents($coreApiPath);
+    if ($contents === '') {
+        return $registry;
+    }
+
+    if (preg_match_all('/[\'"]([a-zA-Z0-9_.-]+)[\'"]\s*=>\s*[\'"]([^\'"]+)[\'"]/', $contents, $matches, PREG_SET_ORDER)) {
+        foreach ($matches as $match) {
+            $action = trim((string)($match[1] ?? ''));
+            $handler = trim((string)($match[2] ?? ''));
+            if ($action === '' || $handler === '' || strpos($handler, 'api/') !== 0) {
+                continue;
+            }
+            $registry[$action] = $handler;
+        }
+    }
+
+    return $registry;
+}
+
+function connectors_execute_api_call_operation(array $operation, int $connectorId): array
+{
+    $action = trim((string)($operation['action'] ?? ''));
+    if ($action === '') {
+        throw new InvalidArgumentException('Для kind=api_call поле action обязательно');
+    }
+
+    $routes = connectors_core_api_action_handler_registry();
+    $handlerPath = trim((string)($routes[$action] ?? ''));
+    if ($handlerPath === '') {
+        throw new InvalidArgumentException('Не найден handler для action "' . $action . '"');
+    }
+
+    $fullHandlerPath = __DIR__ . '/../../' . ltrim($handlerPath, '/');
+    if (!is_file($fullHandlerPath)) {
+        throw new RuntimeException('Файл handler не найден: ' . $handlerPath);
+    }
+
+    if (realpath($fullHandlerPath) === realpath(__FILE__)) {
+        throw new RuntimeException('Рекурсивный вызов action "' . $action . '" запрещен в manual test dispatcher');
+    }
+
+    $postBackup = $_POST;
+    $getBackup = $_GET;
+    $responseBackupSet = array_key_exists('response', $GLOBALS);
+    $responseBackup = $responseBackupSet ? $GLOBALS['response'] : null;
+
+    $config = isset($operation['config']) && is_array($operation['config']) ? $operation['config'] : [];
+    $_POST = [
+        'action' => $action,
+        'connector_id' => $connectorId,
+        'operation_id' => (string)($operation['operation_id'] ?? ''),
+        'operation_config_json' => json_encode($config, JSON_UNESCAPED_UNICODE),
+    ];
+    $_GET = [];
+    $response = null;
+
+    try {
+        require $fullHandlerPath;
+    } finally {
+        $_POST = $postBackup;
+        $_GET = $getBackup;
+    }
+
+    if (!is_array($response)) {
+        if ($responseBackupSet) {
+            $GLOBALS['response'] = $responseBackup;
+        } else {
+            unset($GLOBALS['response']);
+        }
+        throw new RuntimeException('API handler не вернул корректный response для action "' . $action . '"');
+    }
+
+    if ($responseBackupSet) {
+        $GLOBALS['response'] = $responseBackup;
+    } else {
+        unset($GLOBALS['response']);
+    }
+
+    if (($response['status'] ?? '') !== 'ok') {
+        throw new RuntimeException((string)($response['message'] ?? ('api_call failed: ' . $action)));
+    }
+
+    return [
+        'message' => trim((string)($response['message'] ?? ('api_call выполнен: ' . $action))),
+        'payload' => $response,
+    ];
+}
+
+function connectors_execute_operation_by_kind_for_manual_test(array $connector, array $operation, int $connectorId, ?string $periodFrom, ?string $periodTo): array
+{
+    $kind = trim((string)($operation['kind'] ?? ''));
+    $kind = $kind !== '' ? $kind : 'browser_steps';
+
+    if ($kind === 'noop') {
+        return [
+            'message' => 'Операция noop пропущена (технический узел графа).',
+            'trace_meta' => ['kind' => 'noop'],
+        ];
+    }
+
+    if ($kind === 'script') {
+        throw new RuntimeException('kind=script пока не поддержан в runtime теста (feature flag).');
+    }
+
+    if ($kind === 'api_call') {
+        $apiCallResult = connectors_execute_api_call_operation($operation, $connectorId);
+        return [
+            'message' => $apiCallResult['message'],
+            'api_response' => $apiCallResult['payload'],
+            'trace_meta' => ['kind' => 'api_call', 'action' => (string)($operation['action'] ?? '')],
+        ];
+    }
+
+    $operationId = trim((string)($operation['operation_id'] ?? ''));
+    $action = trim((string)($operation['action'] ?? ''));
+    $config = isset($operation['config']) && is_array($operation['config']) ? $operation['config'] : [];
+    $looksLikeSubmission = ($operationId === 'submission') || (strpos($action, 'submit') !== false) || !empty($config['request_config']);
+
+    if ($looksLikeSubmission) {
+        $submissionCfg = connectors_build_legacy_compat_operations_view([
+            'schema_version' => 3,
+            'operations' => [$operation],
+        ], $connector)['submission'] ?? [];
+        $submissionResult = connectors_run_submission_test($connector, is_array($submissionCfg) ? $submissionCfg : []);
+        return [
+            'message' => 'Операция browser_steps выполнена (submission flow).',
+            'step_log' => isset($submissionResult['step_log']) && is_array($submissionResult['step_log']) ? $submissionResult['step_log'] : [],
+            'artifacts_dir' => (string)($submissionResult['artifacts_dir'] ?? ''),
+            'submission_tracking' => (string)($submissionResult['tracking_number'] ?? ''),
+            'trace_meta' => ['kind' => 'browser_steps', 'flow' => 'submission'],
+        ];
+    }
+
+    $reportCfg = connectors_build_legacy_compat_operations_view([
+        'schema_version' => 3,
+        'operations' => [$operation],
+    ], $connector)['report'] ?? [];
+    $targetTable = connectors_normalize_report_table_name((string)($reportCfg['target_table'] ?? ''));
+    connectors_ensure_report_table($GLOBALS['dbcnx'], $targetTable);
+    $downloadInfo = connectors_download_report_file($connector, is_array($reportCfg) ? $reportCfg : [], $periodFrom, $periodTo);
+
+    return [
+        'message' => 'Операция browser_steps выполнена (report flow).',
+        'target_table' => $targetTable,
+        'download' => $downloadInfo,
+        'step_log' => isset($downloadInfo['step_log']) && is_array($downloadInfo['step_log']) ? $downloadInfo['step_log'] : [],
+        'artifacts_dir' => (string)($downloadInfo['artifacts_dir'] ?? ''),
+        'trace_meta' => ['kind' => 'browser_steps', 'flow' => 'report'],
+    ];
+}
+
+
+
 function connectors_has_operations_payload_in_post(): bool
 {
     $fields = ['operations_v3_json'];
@@ -3717,8 +3884,11 @@ switch ($dispatchAction) {
         $graphErrors = [];
         $response = [];
         $targetTable = '';
+        $periodFrom = null;
+        $periodTo = null;
         $reportCfg = [];
         $submissionCfg = [];
+        $manualKindFlowHandled = false;
         $runStartedAtTs = microtime(true);
         $runStartedAt = date('Y-m-d H:i:s');
         if ($connectorId <= 0) {
@@ -3772,10 +3942,48 @@ switch ($dispatchAction) {
             }
 
 
-            $legacyCompatPayload = connectors_build_legacy_compat_operations_view($operationsPayload, $connector);
-            $reportCfg = (array)($legacyCompatPayload['report'] ?? []);
-            $submissionCfg = (array)($legacyCompatPayload['submission'] ?? []);
-            if ($testOperation === 'submission') {
+            $runtimeOperations = connectors_is_v3_operations_payload($operationsPayload)
+                ? connectors_v3_payload_to_runtime_operations($operationsPayload)
+                : connectors_decode_operations_for_runtime($connector);
+
+            if (isset($runtimeOperations[$entrypoint]) && is_array($runtimeOperations[$entrypoint])) {
+                $periodFrom = connectors_validate_iso_date($_POST['test_period_from'] ?? null);
+                $periodTo = connectors_validate_iso_date($_POST['test_period_to'] ?? null);
+                if ($periodFrom !== null && $periodTo !== null && $periodFrom > $periodTo) {
+                    throw new InvalidArgumentException('Дата начала периода больше даты окончания');
+                }
+
+                $entrypointOperation = $runtimeOperations[$entrypoint];
+                $operationId = trim((string)($entrypointOperation['operation_id'] ?? $entrypoint));
+                $result = connectors_execute_operation_by_kind_for_manual_test($connector, $entrypointOperation, $connectorId, $periodFrom, $periodTo);
+                $manualKindFlowHandled = true;
+
+                connectors_append_operation_executed_event($traceLog, $runId, $operationId, 'main', 'success', 'Операция выполнена через kind-dispatcher', 0, null, null, isset($result['trace_meta']) && is_array($result['trace_meta']) ? $result['trace_meta'] : []);
+
+                $response = [
+                    'status' => 'ok',
+                    'test_operation' => $testOperation,
+                    'message' => (string)($result['message'] ?? 'Операция выполнена'),
+                    'connector_id' => $connectorId,
+                    'run_id' => $runId,
+                    'target_table' => (string)($result['target_table'] ?? ''),
+                    'download' => isset($result['download']) && is_array($result['download']) ? $result['download'] : null,
+                    'api_response' => isset($result['api_response']) && is_array($result['api_response']) ? $result['api_response'] : null,
+                    'submission_tracking' => (string)($result['submission_tracking'] ?? ''),
+                    'step_log' => isset($result['step_log']) && is_array($result['step_log']) ? $result['step_log'] : [],
+                    'trace_log' => $traceLog,
+                    'execution_plan' => $executionPlan,
+                    'chain_status' => connectors_build_chain_status_map($executionPlan, $operationId, true, $traceLog),
+                    'artifacts_dir' => (string)($result['artifacts_dir'] ?? ''),
+                    'graph_errors' => $graphErrors,
+                ];
+            }
+
+            if (!$manualKindFlowHandled) {
+                $legacyCompatPayload = connectors_build_legacy_compat_operations_view($operationsPayload, $connector);
+                $reportCfg = (array)($legacyCompatPayload['report'] ?? []);
+                $submissionCfg = (array)($legacyCompatPayload['submission'] ?? []);
+                if ($testOperation === 'submission') {
                 $submissionResult = connectors_run_submission_test($connector, $submissionCfg);
                 $tracking = (string)($submissionResult['tracking_number'] ?? '');
                 $suffix = $tracking !== '' ? (' Трек: ' . $tracking . '.') : '';
@@ -3804,17 +4012,18 @@ switch ($dispatchAction) {
                     'node_payload' => isset($submissionResult['node_payload']) && is_array($submissionResult['node_payload']) ? $submissionResult['node_payload'] : null,
                     'graph_errors' => $graphErrors,
                 ];
-            }
+                }
 
-            if ($testOperation !== 'submission') {
-                $periodFrom = connectors_validate_iso_date($_POST['test_period_from'] ?? null);
-            $periodTo = connectors_validate_iso_date($_POST['test_period_to'] ?? null);
-            if ($periodFrom !== null && $periodTo !== null && $periodFrom > $periodTo) {
-                throw new InvalidArgumentException('Дата начала периода больше даты окончания');
-            }
+                if ($testOperation !== 'submission') {
+                    $periodFrom = connectors_validate_iso_date($_POST['test_period_from'] ?? null);
+                $periodTo = connectors_validate_iso_date($_POST['test_period_to'] ?? null);
+                if ($periodFrom !== null && $periodTo !== null && $periodFrom > $periodTo) {
+                    throw new InvalidArgumentException('Дата начала периода больше даты окончания');
+                }
 
-            $targetTable = connectors_normalize_report_table_name((string)($reportCfg['target_table'] ?? ''));
-            connectors_ensure_report_table($dbcnx, $targetTable);
+                $targetTable = connectors_normalize_report_table_name((string)($reportCfg['target_table'] ?? ''));
+                connectors_ensure_report_table($dbcnx, $targetTable);
+                }
             }
         } catch (InvalidArgumentException $e) {
 
@@ -3867,8 +4076,7 @@ switch ($dispatchAction) {
             ];
         }
 
-
-        if (($response['status'] ?? '') === 'error') {
+        if (($response['status'] ?? '') === 'error' || $manualKindFlowHandled) {
             // Ошибка подготовки: запуск скачивания/импорта пропускаем.
         } else {
             $periodMessage = '';
