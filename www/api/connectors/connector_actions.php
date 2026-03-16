@@ -612,6 +612,89 @@ function connectors_v3_payload_to_runtime_operations(array $payload): array
     return $result;
 }
 
+
+function connectors_build_v3_operation_payload(array $operation): array
+{
+    $operationId = trim((string)($operation['operation_id'] ?? ''));
+    $module = connectors_normalize_operation_module($operation['module'] ?? 'generic');
+    $kind = connectors_normalize_operation_kind($operation['kind'] ?? '', $module);
+    $displayName = trim((string)($operation['display_name'] ?? $operationId));
+
+    if ($displayName === '') {
+        $displayName = $operationId;
+    }
+
+    $config = isset($operation['config']) && is_array($operation['config']) ? $operation['config'] : [];
+
+    return [
+        'operation_id' => $operationId,
+        'display_name' => $displayName,
+        'module' => $module,
+        'action' => trim((string)($operation['action'] ?? '')),
+        'kind' => $kind,
+        'enabled' => !empty($operation['enabled']) ? 1 : 0,
+        'entrypoint' => !empty($operation['entrypoint']) ? 1 : 0,
+        'on_dependency_fail' => connectors_normalize_dependency_policy($operation['on_dependency_fail'] ?? 'stop'),
+        'run_after' => connectors_normalize_dependency_links($operation['run_after'] ?? []),
+        'run_with' => connectors_normalize_dependency_links($operation['run_with'] ?? []),
+        'run_finally' => connectors_normalize_dependency_links($operation['run_finally'] ?? []),
+        'config' => $config,
+    ];
+}
+
+function connectors_legacy_operations_to_v3_payload(array $payload): array
+{
+    $operations = [];
+
+    foreach ($payload as $operationKey => $operation) {
+        if (!is_array($operation)) {
+            continue;
+        }
+
+        $operationId = trim((string)($operation['operation_id'] ?? $operationKey));
+        if ($operationId === '') {
+            continue;
+        }
+
+        $module = connectors_normalize_operation_module($operation['module'] ?? 'connectors');
+        $kind = connectors_normalize_operation_kind($operation['kind'] ?? '', $module);
+        $displayName = trim((string)($operation['display_name'] ?? ''));
+        if ($displayName === '') {
+            $displayName = 'Операция ' . $operationId;
+        }
+
+        $config = [];
+        foreach ([
+            'page_url', 'file_extension', 'download_mode', 'log_steps', 'steps', 'curl_config',
+            'target_table', 'field_mapping', 'request_config', 'success_selector', 'success_text', 'error_selector',
+        ] as $configKey) {
+            if (array_key_exists($configKey, $operation)) {
+                $config[$configKey] = $operation[$configKey];
+            }
+        }
+
+        $operations[] = connectors_build_v3_operation_payload([
+            'operation_id' => $operationId,
+            'display_name' => $displayName,
+            'module' => $module,
+            'action' => trim((string)($operation['action'] ?? '')),
+            'kind' => $kind,
+            'enabled' => !empty($operation['enabled']) ? 1 : 0,
+            'entrypoint' => !empty($operation['entrypoint']) ? 1 : 0,
+            'on_dependency_fail' => $operation['on_dependency_fail'] ?? 'stop',
+            'run_after' => $operation['run_after'] ?? [],
+            'run_with' => $operation['run_with'] ?? [],
+            'run_finally' => $operation['run_finally'] ?? [],
+            'config' => $config,
+        ]);
+    }
+
+    return [
+        'schema_version' => 3,
+        'operations' => $operations,
+    ];
+}
+
 function connectors_validate_v3_operations_payload(array $operationsPayload): void
 {
     if ((int)($operationsPayload['schema_version'] ?? 0) !== 3) {
@@ -637,6 +720,22 @@ function connectors_validate_v3_operations_payload(array $operationsPayload): vo
             throw new InvalidArgumentException('Операция #' . ($index + 1) . ': operation_id обязателен');
         }
 
+
+        $displayName = trim((string)($operation['display_name'] ?? ''));
+        if ($displayName === '') {
+            throw new InvalidArgumentException('Операция "' . $operationId . '": display_name обязателен');
+        }
+
+        foreach (['run_after', 'run_with', 'run_finally'] as $dependencyField) {
+            if (!array_key_exists($dependencyField, $operation) || !is_array($operation[$dependencyField])) {
+                throw new InvalidArgumentException('Операция "' . $operationId . '": поле ' . $dependencyField . ' должно быть JSON-массивом');
+            }
+        }
+
+        if (!array_key_exists('config', $operation) || !is_array($operation['config'])) {
+            throw new InvalidArgumentException('Операция "' . $operationId . '": config должен быть JSON-объектом');
+        }
+
         $module = connectors_normalize_operation_module($operation['module'] ?? 'generic');
         $kind = connectors_normalize_operation_kind($operation['kind'] ?? '', $module);
         $action = trim((string)($operation['action'] ?? ''));
@@ -645,10 +744,6 @@ function connectors_validate_v3_operations_payload(array $operationsPayload): vo
             // ok for generic/browser steps
         } elseif ($kind === 'api_call' && $action === '') {
             throw new InvalidArgumentException('Операция "' . $operationId . '": для kind=api_call поле action обязательно');
-        }
-
-        if (isset($operation['config']) && !is_array($operation['config'])) {
-            throw new InvalidArgumentException('Операция "' . $operationId . '": config должен быть JSON-объектом');
         }
     }
 
@@ -1389,6 +1484,22 @@ function connectors_decode_operations_for_runtime(array $connector): array
 
 function connectors_migrate_operations_payload(array $payload): array
 {
+
+    if (connectors_is_v3_operations_payload($payload)) {
+        $normalized = [];
+        foreach ((array)($payload['operations'] ?? []) as $operation) {
+            if (!is_array($operation)) {
+                continue;
+            }
+            $normalized[] = connectors_build_v3_operation_payload($operation);
+        }
+
+        return [
+            'schema_version' => 3,
+            'operations' => $normalized,
+        ];
+    }
+
     $operationDefaults = [
         'report' => [
             'operation_id' => 'report',
@@ -1451,7 +1562,7 @@ function connectors_migrate_operations_payload(array $payload): array
         }
     }
 
-    return $payload;
+    return connectors_legacy_operations_to_v3_payload($payload);
 }
 
 function connectors_try_migrate_operations_json(mysqli $dbcnx, array $connector): array
