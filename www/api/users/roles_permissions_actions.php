@@ -7,6 +7,25 @@ auth_require_role('ADMIN');
 
 $response = ['status' => 'error', 'message' => 'Unknown roles/permissions action'];
 
+$getTableColumns = static function (mysqli $dbcnx, string $table): array {
+    $columns = [];
+    $tableSafe = str_replace('`', '``', $table);
+    $res = $dbcnx->query("SHOW COLUMNS FROM `{$tableSafe}`");
+    if (!$res) {
+        return $columns;
+    }
+
+    while ($row = $res->fetch_assoc()) {
+        $field = (string)($row['Field'] ?? '');
+        if ($field !== '') {
+            $columns[$field] = true;
+        }
+    }
+    $res->free();
+
+    return $columns;
+};
+
 switch ($action) {
     case 'view_role_permissions':
         $roles = [];
@@ -48,7 +67,20 @@ switch ($action) {
 
         $menuGroups = [];
         try {
-            $sqlMenuGroups = "SELECT id, code, title, icon, sort_order, is_active FROM menu_groups ORDER BY sort_order, code";
+            $menuGroupColumns = $getTableColumns($dbcnx, 'menu_groups');
+            $hasMenuGroupId = isset($menuGroupColumns['id']);
+            $hasMenuGroupIcon = isset($menuGroupColumns['icon']);
+            $hasMenuGroupSort = isset($menuGroupColumns['sort_order']);
+            $hasMenuGroupActive = isset($menuGroupColumns['is_active']);
+
+            $sqlMenuGroups = "SELECT " . ($hasMenuGroupId ? 'id' : 'NULL AS id') . ",
+                                     code,
+                                     title,
+                                     " . ($hasMenuGroupIcon ? 'icon' : "'' AS icon") . ",
+                                     " . ($hasMenuGroupSort ? 'sort_order' : '0 AS sort_order') . ",
+                                     " . ($hasMenuGroupActive ? 'is_active' : '1 AS is_active') . "
+                               FROM menu_groups
+                           ORDER BY " . ($hasMenuGroupSort ? 'sort_order, ' : '') . "code";
             if ($res = $dbcnx->query($sqlMenuGroups)) {
                 while ($row = $res->fetch_assoc()) {
                     $menuGroups[] = $row;
@@ -507,13 +539,36 @@ switch ($action) {
 
             $dbcnx->begin_transaction();
             try {
-                $stmt = $dbcnx->prepare("UPDATE menu_groups
-                                            SET code = ?, title = ?, icon = ?, sort_order = ?, is_active = ?
-                                          WHERE id = ?");
+                $menuGroupColumns = $getTableColumns($dbcnx, 'menu_groups');
+                $setParts = ['code = ?', 'title = ?'];
+                $updateValues = [$code, $title];
+                $updateTypes = 'ss';
+
+                if (isset($menuGroupColumns['icon'])) {
+                    $setParts[] = 'icon = ?';
+                    $updateValues[] = $icon;
+                    $updateTypes .= 's';
+                }
+                if (isset($menuGroupColumns['sort_order'])) {
+                    $setParts[] = 'sort_order = ?';
+                    $updateValues[] = $sortOrder;
+                    $updateTypes .= 'i';
+                }
+                if (isset($menuGroupColumns['is_active'])) {
+                    $setParts[] = 'is_active = ?';
+                    $updateValues[] = $isActive;
+                    $updateTypes .= 'i';
+                }
+
+                $updateTypes .= 'i';
+                $updateValues[] = $menuGroupId;
+
+                $setSql = implode(', ', $setParts);
+                $stmt = $dbcnx->prepare("UPDATE menu_groups SET {$setSql} WHERE id = ?");
                 if (!$stmt) {
                     throw new RuntimeException('DB prepare error (menu_groups update)');
                 }
-                $stmt->bind_param('sssiii', $code, $title, $icon, $sortOrder, $isActive, $menuGroupId);
+                $stmt->bind_param($updateTypes, ...$updateValues);
                 $stmt->execute();
                 $stmt->close();
 
@@ -558,12 +613,34 @@ switch ($action) {
             break;
         }
 
-        $stmt = $dbcnx->prepare("INSERT INTO menu_groups (code, title, icon, sort_order, is_active)
-                                 VALUES (?, ?, ?, ?, ?)");
+        $menuGroupColumns = $getTableColumns($dbcnx, 'menu_groups');
+        $insertColumns = ['code', 'title'];
+        $insertValues = [$code, $title];
+        $insertTypes = 'ss';
+
+        if (isset($menuGroupColumns['icon'])) {
+            $insertColumns[] = 'icon';
+            $insertValues[] = $icon;
+            $insertTypes .= 's';
+        }
+        if (isset($menuGroupColumns['sort_order'])) {
+            $insertColumns[] = 'sort_order';
+            $insertValues[] = $sortOrder;
+            $insertTypes .= 'i';
+        }
+        if (isset($menuGroupColumns['is_active'])) {
+            $insertColumns[] = 'is_active';
+            $insertValues[] = $isActive;
+            $insertTypes .= 'i';
+        }
+
+        $columnsSql = implode(', ', $insertColumns);
+        $placeholders = implode(', ', array_fill(0, count($insertColumns), '?'));
+        $stmt = $dbcnx->prepare("INSERT INTO menu_groups ({$columnsSql}) VALUES ({$placeholders})");
         if (!$stmt) {
             throw new RuntimeException('DB prepare error (menu_groups insert)');
         }
-        $stmt->bind_param('sssii', $code, $title, $icon, $sortOrder, $isActive);
+        $stmt->bind_param($insertTypes, ...$insertValues);
         if (!$stmt->execute()) {
             $stmt->close();
             $response = [
