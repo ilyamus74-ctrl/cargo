@@ -47,23 +47,34 @@ switch ($action) {
         $smarty->assign('current_user', $user);
 
         $menuGroups = [];
-        $sqlMenuGroups = "SELECT id, code, title, icon, sort_order, is_active FROM menu_groups ORDER BY sort_order, code";
-        if ($res = $dbcnx->query($sqlMenuGroups)) {
-            while ($row = $res->fetch_assoc()) {
-                $menuGroups[] = $row;
+        try {
+            $sqlMenuGroups = "SELECT id, code, title, icon, sort_order, is_active FROM menu_groups ORDER BY sort_order, code";
+            if ($res = $dbcnx->query($sqlMenuGroups)) {
+                while ($row = $res->fetch_assoc()) {
+                    $menuGroups[] = $row;
+                }
+                $res->free();
             }
-            $res->free();
+        } catch (Throwable $e) {
+            // На старых инсталляциях раздел меню может отсутствовать или иметь старую схему.
+            // Не блокируем открытие экрана прав доступа из-за необязательных данных.
+            $menuGroups = [];
         }
 
         $menuItems = [];
-        $sqlMenuItems = "SELECT id, menu_key, group_code, title, icon, action, sort_order, is_active
-                           FROM menu_items
-                       ORDER BY group_code, sort_order, id";
-        if ($res = $dbcnx->query($sqlMenuItems)) {
-            while ($row = $res->fetch_assoc()) {
-                $menuItems[] = $row;
+        try {
+            $sqlMenuItems = "SELECT id, menu_key, group_code, title, icon, action, sort_order, is_active
+                               FROM menu_items
+                           ORDER BY group_code, sort_order, id";
+            if ($res = $dbcnx->query($sqlMenuItems)) {
+                while ($row = $res->fetch_assoc()) {
+                    $menuItems[] = $row;
+                }
+                $res->free();
             }
-            $res->free();
+        } catch (Throwable $e) {
+            // Аналогично: если таблица menu_items ещё не развернута, основной экран должен открыться.
+            $menuItems = [];
         }
 
         $smarty->assign('menu_groups', $menuGroups);

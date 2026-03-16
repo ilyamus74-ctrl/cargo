@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-03-16 10:38:51
+/* Smarty version 5.3.1, created on 2026-03-16 10:49:20
   from 'file:cells_NA_API_roles_permissions.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_69b7ddbb868454_38609555',
+  'unifunc' => 'content_69b7e030263a84_08143929',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     'f38262d4d20d5acaef283fdacab34758a9cb2c24' => 
     array (
       0 => 'cells_NA_API_roles_permissions.html',
-      1 => 1773657520,
+      1 => 1773657584,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_69b7ddbb868454_38609555 (\Smarty\Template $_smarty_tpl) {
+function content_69b7e030263a84_08143929 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>    <div class="pagetitle">
       <h1>Settings roles & permissions</h1>
@@ -333,6 +333,81 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
             </div>
           </div>
 
+          <div class="card">
+            <div class="card-body">
+              <h5 class="card-title">Группы меню</h5>
+              <div class="table-responsive">
+                <table class="table table-sm align-middle">
+                  <thead>
+                    <tr>
+                      <th scope="col">Code</th>
+                      <th scope="col">Название</th>
+                      <th scope="col">Иконка</th>
+                      <th scope="col">Статус</th>
+                      <th scope="col" class="text-end">Действия</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <?php if ($_smarty_tpl->getSmarty()->getModifierCallback('count')($_smarty_tpl->getValue('menu_groups')) > 0) {?>
+                      <?php
+$_from = $_smarty_tpl->getSmarty()->getRuntime('Foreach')->init($_smarty_tpl, $_smarty_tpl->getValue('menu_groups'), 'group');
+$foreach6DoElse = true;
+foreach ($_from ?? [] as $_smarty_tpl->getVariable('group')->value) {
+$foreach6DoElse = false;
+?>
+                        <tr>
+                          <td><code><?php echo $_smarty_tpl->getValue('group')['code'];?>
+</code></td>
+                          <td><?php echo htmlspecialchars((string)$_smarty_tpl->getValue('group')['title'], ENT_QUOTES, 'UTF-8', true);?>
+</td>
+                          <td><code><?php echo htmlspecialchars((string)$_smarty_tpl->getValue('group')['icon'], ENT_QUOTES, 'UTF-8', true);?>
+</code></td>
+                          <td>
+                            <?php if ($_smarty_tpl->getValue('group')['is_active']) {?>
+                              <span class="badge bg-success">Активна</span>
+                            <?php } else { ?>
+                              <span class="badge bg-secondary">Выключена</span>
+                            <?php }?>
+                          </td>
+                          <td class="text-end">
+                            <button type="button"
+                                    class="btn btn-sm btn-outline-primary js-menu-group-edit"
+                                    data-menu-group-id="<?php echo $_smarty_tpl->getValue('group')['id'];?>
+"
+                                    data-menu-group-code="<?php echo htmlspecialchars((string)$_smarty_tpl->getValue('group')['code'], ENT_QUOTES, 'UTF-8', true);?>
+"
+                                    data-menu-group-title="<?php echo htmlspecialchars((string)$_smarty_tpl->getValue('group')['title'], ENT_QUOTES, 'UTF-8', true);?>
+"
+                                    data-menu-group-icon="<?php echo htmlspecialchars((string)$_smarty_tpl->getValue('group')['icon'], ENT_QUOTES, 'UTF-8', true);?>
+"
+                                    data-menu-group-sort="<?php echo $_smarty_tpl->getValue('group')['sort_order'];?>
+"
+                                    data-menu-group-active="<?php echo $_smarty_tpl->getValue('group')['is_active'];?>
+">
+                              Изменить
+                            </button>
+                            <button type="button"
+                                    class="btn btn-sm btn-outline-danger js-core-link"
+                                    data-core-action="delete_menu_group"
+                                    data-menu-group-id="<?php echo $_smarty_tpl->getValue('group')['id'];?>
+">
+                              Удалить
+                            </button>
+                          </td>
+                        </tr>
+                      <?php
+}
+$_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
+                    <?php } else { ?>
+                      <tr>
+                        <td colspan="5" class="text-muted">Группы меню не найдены</td>
+                      </tr>
+                    <?php }?>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
 
           <div class="card">
             <div class="card-body">
@@ -353,16 +428,16 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
                     <?php if ($_smarty_tpl->getSmarty()->getModifierCallback('count')($_smarty_tpl->getValue('menu_items')) > 0) {?>
                       <?php
 $_from = $_smarty_tpl->getSmarty()->getRuntime('Foreach')->init($_smarty_tpl, $_smarty_tpl->getValue('menu_items'), 'item');
-$foreach6DoElse = true;
+$foreach7DoElse = true;
 foreach ($_from ?? [] as $_smarty_tpl->getVariable('item')->value) {
-$foreach6DoElse = false;
+$foreach7DoElse = false;
 ?>
                         <?php $_smarty_tpl->assign('groupTitle', '', false, NULL);?>
                         <?php
 $_from = $_smarty_tpl->getSmarty()->getRuntime('Foreach')->init($_smarty_tpl, $_smarty_tpl->getValue('menu_groups'), 'group');
-$foreach7DoElse = true;
+$foreach8DoElse = true;
 foreach ($_from ?? [] as $_smarty_tpl->getVariable('group')->value) {
-$foreach7DoElse = false;
+$foreach8DoElse = false;
 ?>
                           <?php if ($_smarty_tpl->getValue('group')['code'] == $_smarty_tpl->getValue('item')['group_code']) {?>
                             <?php $_smarty_tpl->assign('groupTitle', $_smarty_tpl->getValue('group')['title'], false, NULL);?>
