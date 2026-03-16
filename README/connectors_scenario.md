@@ -496,3 +496,9 @@
   - `module != generic` + `kind = api_call` требует `action`;
   - `run_*` должны быть JSON-массивами существующих `operation_id`;
   - `config` должен быть JSON-объектом.
+- карточка операции приведена к единой форме с явными секциями:
+  - `Основные`: `display_name`, `operation_id`, `enabled`, `entrypoint`, `on_dependency_fail`;
+  - `Связь с системой`: `module`, `kind`, `action`;
+  - `Зависимости`: `run_after`, `run_with`, `run_finally` (JSON-массивы `operation_id`);
+  - `Параметры`: `config` (JSON-объект).
+  

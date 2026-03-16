@@ -116,13 +116,18 @@
     - перед сохранением выполняется клиентская проверка (уникальность operation_id, валидный JSON для run_*/config, ссылки только на существующие operation_id).
 Статус: выполнено.
 
-*** - 2.2. Карточка операции (единая форма)
+* - 2.2. Карточка операции (единая форма)
 
 Поля:
     Основные: display_name, operation_id, enabled, entrypoint, on_dependency_fail
     Связь с системой: module, kind, action
     Зависимости: run_after, run_with, run_finally (JSON-массив operation_id)
     config (JSON объект) — универсальное поле для параметров.
+Реализация в коде:
+    - карточка операции в модалке собрана в единую форму с секциями: "Основные", "Связь с системой", "Зависимости", "Параметры";
+    - сохранены все обязательные поля контракта v3: `display_name`, `operation_id`, `enabled`, `entrypoint`, `on_dependency_fail`, `module`, `kind`, `action`, `run_after`, `run_with`, `run_finally`, `config`;
+    - подписи для зависимостей явно фиксируют ожидаемый формат: JSON-массив `operation_id`.
+Статус: выполнено.
 
 *** - 2.3. UI-валидации
 

@@ -205,6 +205,7 @@
       pane.setAttribute('aria-labelledby', tabId);
       pane.innerHTML = '\
         <div class="js-operation-card border rounded p-3 mt-2">\
+          <h6 class="mb-3">Основные</h6>\
           <div class="row mb-3">\
             <div class="col-md-6">\
               <label class="form-label">display_name</label>\
@@ -215,21 +216,24 @@
               <input type="text" class="form-control js-op-id" value="' + esc(op.operation_id || '') + '">\
             </div>\
           </div>\
-          <div class="row mb-3">\
-            <div class="col-md-4"><label class="form-label">module</label><input type="text" class="form-control js-op-module" value="' + esc(op.module || 'generic') + '"></div>\
-            <div class="col-md-4"><label class="form-label">kind</label><input type="text" class="form-control js-op-kind" value="' + esc(op.kind || 'browser_steps') + '"></div>\
-            <div class="col-md-4"><label class="form-label">action</label><input type="text" class="form-control js-op-action" value="' + esc(op.action || '') + '"></div>\
-          </div>\
-          <div class="row mb-3">\
+          <div class="row mb-4">\
             <div class="col-md-4 form-check mt-4"><input class="form-check-input js-op-enabled" type="checkbox" ' + (op.enabled ? 'checked' : '') + '> <label class="form-check-label">enabled</label></div>\
             <div class="col-md-4 form-check mt-4"><input class="form-check-input js-op-entrypoint" type="checkbox" ' + (op.entrypoint ? 'checked' : '') + '> <label class="form-check-label">entrypoint</label></div>\
             <div class="col-md-4"><label class="form-label">on_dependency_fail</label><select class="form-select js-op-on-dependency-fail"><option value="stop" ' + (op.on_dependency_fail === 'stop' ? 'selected' : '') + '>stop</option><option value="skip" ' + (op.on_dependency_fail === 'skip' ? 'selected' : '') + '>skip</option><option value="continue" ' + (op.on_dependency_fail === 'continue' ? 'selected' : '') + '>continue</option></select></div>\
           </div>\
-          <div class="row mb-3">\
+          <h6 class="mb-3">Связь с системой</h6>\
+          <div class="row mb-4">\
+            <div class="col-md-4"><label class="form-label">module</label><input type="text" class="form-control js-op-module" value="' + esc(op.module || 'generic') + '"></div>\
+            <div class="col-md-4"><label class="form-label">kind</label><input type="text" class="form-control js-op-kind" value="' + esc(op.kind || 'browser_steps') + '"></div>\
+            <div class="col-md-4"><label class="form-label">action</label><input type="text" class="form-control js-op-action" value="' + esc(op.action || '') + '"></div>\
+          </div>\
+          <h6 class="mb-3">Зависимости (JSON-массив operation_id)</h6>\
+          <div class="row mb-4">\
             <div class="col-md-4"><label class="form-label">run_after</label><textarea class="form-control js-op-run-after" rows="3">' + esc(JSON.stringify(toArray(op.run_after), null, 2)) + '</textarea></div>\
             <div class="col-md-4"><label class="form-label">run_with</label><textarea class="form-control js-op-run-with" rows="3">' + esc(JSON.stringify(toArray(op.run_with), null, 2)) + '</textarea></div>\
             <div class="col-md-4"><label class="form-label">run_finally</label><textarea class="form-control js-op-run-finally" rows="3">' + esc(JSON.stringify(toArray(op.run_finally), null, 2)) + '</textarea></div>\
           </div>\
+          <h6 class="mb-3">Параметры</h6>\
           <div class="row">\
             <div class="col-12"><label class="form-label">config (JSON object)</label><textarea class="form-control js-op-config" rows="8">' + esc(JSON.stringify(op.config && typeof op.config === 'object' ? op.config : {}, null, 2)) + '</textarea></div>\
           </div>\
