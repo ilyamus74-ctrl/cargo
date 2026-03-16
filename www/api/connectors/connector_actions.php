@@ -542,6 +542,66 @@ function connectors_operation_kind_registry(): array
 {
     return ['api_call', 'browser_steps', 'script', 'noop'];
 }
+
+function connectors_extract_module_from_handler_path(string $handlerPath): string
+{
+    if (preg_match('#^api/([^/]+)/#', trim($handlerPath), $matches)) {
+        return strtolower(trim((string)$matches[1]));
+    }
+
+    return 'generic';
+}
+
+function connectors_core_api_action_module_registry(): array
+{
+    static $registry = null;
+    if (is_array($registry)) {
+        return $registry;
+    }
+
+    $registry = [];
+    $coreApiPath = __DIR__ . '/../../core_api.php';
+    if (!is_file($coreApiPath)) {
+        return $registry;
+    }
+
+    $contents = (string)file_get_contents($coreApiPath);
+    if ($contents === '') {
+        return $registry;
+    }
+
+    if (preg_match_all("/['\"]([a-zA-Z0-9_.-]+)['\"]\s*=>\s*['\"](api\/[a-zA-Z0-9_\/-]+\.php)['\"]/", $contents, $matches, PREG_SET_ORDER)) {
+        foreach ($matches as $match) {
+            $action = trim((string)($match[1] ?? ''));
+            $handlerPath = trim((string)($match[2] ?? ''));
+            if ($action === '' || $handlerPath === '') {
+                continue;
+            }
+
+            $registry[$action] = connectors_extract_module_from_handler_path($handlerPath);
+        }
+    }
+
+    return $registry;
+}
+
+function connectors_validate_operation_action_module(string $operationId, string $module, string $kind, string $action): void
+{
+    if ($module === 'generic' || $kind !== 'api_call' || $action === '') {
+        return;
+    }
+
+    $registry = connectors_core_api_action_module_registry();
+    if (!isset($registry[$action])) {
+        throw new InvalidArgumentException('Операция "' . $operationId . '": action "' . $action . '" не найден в core_api router');
+    }
+
+    $routerModule = (string)$registry[$action];
+    if ($routerModule !== $module) {
+        throw new InvalidArgumentException('Операция "' . $operationId . '": module="' . $module . '" не совпадает с модулем action "' . $action . '" из router ("' . $routerModule . '")');
+    }
+}
+
 function connectors_is_valid_operation_module(string $module): bool
 {
     return in_array($module, connectors_operation_module_registry(), true);
@@ -763,7 +823,9 @@ function connectors_validate_v3_operations_payload(array $operationsPayload): vo
         } elseif ($kind === 'api_call' && $action === '') {
             throw new InvalidArgumentException('Операция "' . $operationId . '": для kind=api_call поле action обязательно');
         }
+        connectors_validate_operation_action_module($operationId, $module, $kind, $action);
     }
+
 
     connectors_validate_operations_runtime($runtimeOperations);
 
@@ -924,6 +986,7 @@ function connectors_validate_single_operation_schema(string $operationKey, array
         if ($module !== 'generic' && $kind === 'api_call' && $action === '') {
             throw new InvalidArgumentException('Операция "' . $operationKey . '": для module != generic и kind=api_call поле "action" обязательно');
         }
+        connectors_validate_operation_action_module($operationKey, $module, $kind, $action);
     }
 }
 
