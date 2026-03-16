@@ -235,7 +235,8 @@ UI:
         Сейчас это явный RuntimeException (“feature flag”).
 
     browser_steps всё ещё опирается на legacy-эвристику submission/report
-        Выбор идет по признакам operation_id/action/request_config, а дальше вызываются legacy-флоу (connectors_run_submission_test или connectors_download_report_file).
+        Выбор идет по признакам operation_id/action/request_config, а дальше вызываются legacy-флоу (connectors_run_submission_test 
+        или connectors_download_report_file).
         То есть нет полностью унифицированного раннера “исполнить config.steps как общий движок” вне legacy-сценариев.
 
     Исполняется только entrypoint, а не полный граф (before/during/after)
@@ -243,7 +244,8 @@ UI:
         Нет цикла исполнения всех операций из плана по стадиям.
 
     Roadmap-текст частично устарел
-        В roadmap всё ещё написано, что “в runtime теста пока нет универсального диспетчера”, хотя минимальный dispatcher уже есть в коде
+        В roadmap всё ещё написано, что “в runtime теста пока нет универсального диспетчера”, хотя минимальный dispatcher уже есть
+         в коде
 
 * - 6) Рейсы: стартовый набор operation templates
 
