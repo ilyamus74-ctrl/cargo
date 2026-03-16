@@ -542,11 +542,20 @@ function connectors_operation_kind_registry(): array
 {
     return ['api_call', 'browser_steps', 'script', 'noop'];
 }
+function connectors_is_valid_operation_module(string $module): bool
+{
+    return in_array($module, connectors_operation_module_registry(), true);
+}
+
+function connectors_is_valid_operation_kind(string $kind): bool
+{
+    return in_array($kind, connectors_operation_kind_registry(), true);
+}
 
 function connectors_normalize_operation_module($value): string
 {
     $module = strtolower(trim((string)$value));
-    if (!in_array($module, connectors_operation_module_registry(), true)) {
+    if ($module === '') {
         return 'generic';
     }
 
@@ -556,8 +565,8 @@ function connectors_normalize_operation_module($value): string
 function connectors_normalize_operation_kind($value, string $module = 'generic'): string
 {
     $kind = strtolower(trim((string)$value));
-    if (!in_array($kind, connectors_operation_kind_registry(), true)) {
-        return $module === 'generic' ? 'browser_steps' : 'api_call';
+    if ($kind === '' && $module === 'generic') {
+        return 'browser_steps';
     }
 
     return $kind;
@@ -740,6 +749,15 @@ function connectors_validate_v3_operations_payload(array $operationsPayload): vo
         $kind = connectors_normalize_operation_kind($operation['kind'] ?? '', $module);
         $action = trim((string)($operation['action'] ?? ''));
 
+
+        if (!connectors_is_valid_operation_module($module)) {
+            throw new InvalidArgumentException('Операция "' . $operationId . '": module должен входить в справочник [' . implode(', ', connectors_operation_module_registry()) . ']');
+        }
+
+        if (!connectors_is_valid_operation_kind($kind)) {
+            throw new InvalidArgumentException('Операция "' . $operationId . '": kind должен входить в справочник [' . implode(', ', connectors_operation_kind_registry()) . ']');
+        }
+
         if ($module === 'generic' && $action === '') {
             // ok for generic/browser steps
         } elseif ($kind === 'api_call' && $action === '') {
@@ -857,8 +875,8 @@ function connectors_validate_single_operation_schema(string $operationKey, array
     }
 
     $schemaVersion = (int)$operation['schema_version'];
-    if ($schemaVersion !== 2) {
-        throw new InvalidArgumentException('Операция "' . $operationKey . '": поддерживается только schema_version = 2');
+    if (!in_array($schemaVersion, [2, 3], true)) {
+        throw new InvalidArgumentException('Операция "' . $operationKey . '": поддерживается schema_version = 2|3');
     }
 
     $operationId = trim((string)$operation['operation_id']);
@@ -880,6 +898,32 @@ function connectors_validate_single_operation_schema(string $operationKey, array
     $onDependencyFail = strtolower(trim((string)$operation['on_dependency_fail']));
     if (!in_array($onDependencyFail, ['stop', 'skip', 'continue'], true)) {
         throw new InvalidArgumentException('Операция "' . $operationKey . '": поле "on_dependency_fail" должно быть stop|skip|continue');
+    }
+
+    if ($schemaVersion === 3) {
+        $displayName = trim((string)($operation['display_name'] ?? ''));
+        if ($displayName === '') {
+            throw new InvalidArgumentException('Операция "' . $operationKey . '": для schema_version=3 поле "display_name" обязательно');
+        }
+
+        $module = connectors_normalize_operation_module($operation['module'] ?? '');
+        if (!connectors_is_valid_operation_module($module)) {
+            throw new InvalidArgumentException('Операция "' . $operationKey . '": module должен входить в справочник [' . implode(', ', connectors_operation_module_registry()) . ']');
+        }
+
+        $kind = connectors_normalize_operation_kind($operation['kind'] ?? '', $module);
+        if (!connectors_is_valid_operation_kind($kind)) {
+            throw new InvalidArgumentException('Операция "' . $operationKey . '": kind должен входить в справочник [' . implode(', ', connectors_operation_kind_registry()) . ']');
+        }
+
+        if (!array_key_exists('config', $operation) || !is_array($operation['config'])) {
+            throw new InvalidArgumentException('Операция "' . $operationKey . '": для schema_version=3 поле "config" должно быть JSON-объектом');
+        }
+
+        $action = trim((string)($operation['action'] ?? ''));
+        if ($module !== 'generic' && $kind === 'api_call' && $action === '') {
+            throw new InvalidArgumentException('Операция "' . $operationKey . '": для module != generic и kind=api_call поле "action" обязательно');
+        }
     }
 }
 
