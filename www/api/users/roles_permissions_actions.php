@@ -595,7 +595,9 @@ switch ($action) {
             break;
         }
 
-        $stmt = $dbcnx->prepare("SELECT id FROM menu_groups WHERE code = ?");
+        // В старых схемах у menu_groups может не быть столбца id.
+        // Для проверки дубляжа достаточно факта существования записи.
+        $stmt = $dbcnx->prepare("SELECT 1 FROM menu_groups WHERE code = ? LIMIT 1");
         if (!$stmt) {
             throw new RuntimeException('DB prepare error (menu_groups duplicate insert)');
         }
