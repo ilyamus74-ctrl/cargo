@@ -1568,6 +1568,16 @@ function connectors_decode_operations_payload(array $connector): array
     return connectors_migrate_operations_payload($decoded);
 }
 
+function connectors_decode_operations_for_runtime(array $connector): array
+{
+    $operationsPayload = connectors_decode_operations_payload($connector);
+
+    if (connectors_is_v3_operations_payload($operationsPayload)) {
+        return connectors_v3_payload_to_runtime_operations($operationsPayload);
+    }
+
+    return connectors_decode_operations($connector);
+}
 
 function connectors_fetch_last_run_status_by_operation(mysqli $dbcnx, int $connectorId, array $operationsPayload): array
 {

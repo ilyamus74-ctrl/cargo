@@ -131,8 +131,8 @@ function system_tasks_seed_defaults(mysqli $dbcnx): void
         ],
         [
             'code' => 'connectors_report_operation_1_hourly',
-            'name' => 'Коннекторы: Операция #1 (обновление репортов, раз в час)',
-            'description' => 'Для активных коннекторов с включенной операцией #1 скачивает и импортирует репорты.',
+            'name' => 'Коннекторы: report/entrypoint (раз в час)',
+            'description' => 'Для активных коннекторов запускает report (или entrypoint), скачивает и импортирует репорты. Через payload_json можно указать operation_id и connector_id(s).',
             'endpoint_action' => 'connectors_report_operation_1',
             'interval_minutes' => 60,
         ],
@@ -413,6 +413,29 @@ function system_tasks_run_connectors_report_operation_1(mysqli $dbcnx, array $ta
         }
     }
 
+    $payloadRaw = trim((string)($task['payload_json'] ?? ''));
+    $payload = $payloadRaw !== '' ? json_decode($payloadRaw, true) : [];
+    if (!is_array($payload)) {
+        $payload = [];
+    }
+
+    $forcedOperationId = trim((string)($payload['operation_id'] ?? ''));
+    $forcedConnectorIds = [];
+    if (isset($payload['connector_id'])) {
+        $forcedConnectorId = (int)$payload['connector_id'];
+        if ($forcedConnectorId > 0) {
+            $forcedConnectorIds[$forcedConnectorId] = true;
+        }
+    }
+    if (isset($payload['connector_ids']) && is_array($payload['connector_ids'])) {
+        foreach ($payload['connector_ids'] as $rawConnectorId) {
+            $forcedConnectorId = (int)$rawConnectorId;
+            if ($forcedConnectorId > 0) {
+                $forcedConnectorIds[$forcedConnectorId] = true;
+            }
+        }
+    }
+
     $processed = 0;
     $ok = 0;
     $fail = 0;
@@ -428,11 +451,12 @@ function system_tasks_run_connectors_report_operation_1(mysqli $dbcnx, array $ta
         if ($connectorId <= 0) {
             continue;
         }
+        if ($forcedConnectorIds !== [] && !isset($forcedConnectorIds[$connectorId])) {
+            continue;
+        }
 
-
-        $operationsPayload = connectors_decode_operations_payload($connector);
-        $operations = connectors_v3_payload_to_runtime_operations($operationsPayload);
-        $reportOperationId = connectors_resolve_report_operation_id($operations);
+        $operations = connectors_decode_operations_for_runtime($connector);
+        $reportOperationId = $forcedOperationId !== '' ? $forcedOperationId : connectors_resolve_report_operation_id($operations);
         if ($reportOperationId === null || !isset($operations[$reportOperationId]) || !is_array($operations[$reportOperationId])) {
             continue;
         }
@@ -486,7 +510,7 @@ function system_tasks_run_connectors_report_operation_1(mysqli $dbcnx, array $ta
         $graphErrors = [];
         $traceLog = [];
         if (function_exists('connectors_append_trace_event')) {
-            connectors_append_trace_event($traceLog, $runId, $reportOperationId, 'start', 'start', 'Запуск cron операции #1');
+            connectors_append_trace_event($traceLog, $runId, $reportOperationId, 'start', 'start', 'Запуск cron операции коннектора');
         }
         try {
 
@@ -597,7 +621,7 @@ function system_tasks_run_connectors_report_operation_1(mysqli $dbcnx, array $ta
             }
 
             if (function_exists('connectors_append_trace_event')) {
-                connectors_append_operation_executed_event($traceLog, $runId, $reportOperationId, 'main', 'failed', 'Cron операция #1 завершилась ошибкой', 0, null, null, [
+                connectors_append_operation_executed_event($traceLog, $runId, $reportOperationId, 'main', 'failed', 'Cron операция коннектора завершилась ошибкой', 0, null, null, [
                     'error' => $e->getMessage(),
                     'graph_errors' => $graphErrors,
                 ]);
@@ -646,6 +670,8 @@ function system_tasks_run_connectors_report_operation_1(mysqli $dbcnx, array $ta
             'processed' => $processed,
             'ok' => $ok,
             'fail' => $fail,
+            'forced_operation_id' => $forcedOperationId,
+            'forced_connector_ids' => array_keys($forcedConnectorIds),
             'details' => $details,
         ],
     ];
