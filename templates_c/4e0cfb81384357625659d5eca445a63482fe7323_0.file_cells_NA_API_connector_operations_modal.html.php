@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-03-17 09:50:38
+/* Smarty version 5.3.1, created on 2026-03-17 10:25:04
   from 'file:cells_NA_API_connector_operations_modal.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_69b923ee623ab9_85801340',
+  'unifunc' => 'content_69b92c00d90a13_16477538',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '4e0cfb81384357625659d5eca445a63482fe7323' => 
     array (
       0 => 'cells_NA_API_connector_operations_modal.html',
-      1 => 1773739864,
+      1 => 1773742553,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_69b923ee623ab9_85801340 (\Smarty\Template $_smarty_tpl) {
+function content_69b92c00d90a13_16477538 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?><section class="section">
   <div class="row">
@@ -43,7 +43,8 @@ $_smarty_current_dir = '/home/cells/web/templates';
 ">
             <input type="hidden" id="operations_v3_json" name="operations_v3_json" value="<?php echo htmlspecialchars((string)(($tmp = $_smarty_tpl->getValue('operations_v3_json') ?? null)===null||$tmp==='' ? '{"schema_version":3,"operations":[]}' ?? null : $tmp), ENT_QUOTES, 'UTF-8', true);?>
 ">
-
+            <input type="hidden" id="operations_last_status_json" value="<?php echo htmlspecialchars((string)(($tmp = $_smarty_tpl->getValue('operations_last_status_json') ?? null)===null||$tmp==='' ? '{}' ?? null : $tmp), ENT_QUOTES, 'UTF-8', true);?>
+">
             <div id="operations-existing-summary" class="alert alert-secondary py-2 small mb-3 d-none"></div>
 
             <ul class="nav nav-tabs mb-3" id="connector-operations-tabs" role="tablist"></ul>
@@ -120,6 +121,7 @@ $_smarty_current_dir = '/home/cells/web/templates';
   var tabs = root ? root.querySelector('#connector-operations-tabs') : document.getElementById('connector-operations-tabs');
   var content = root ? root.querySelector('#connector-operations-tab-content') : document.getElementById('connector-operations-tab-content');
   var summary = root ? root.querySelector('#operations-existing-summary') : document.getElementById('operations-existing-summary');
+  var statusJsonEl = root ? root.querySelector('#operations_last_status_json') : document.getElementById('operations_last_status_json');
   if (!textarea || !tabs || !content) return;
 
   function toArray(v) { return Array.isArray(v) ? v : []; }
@@ -193,6 +195,7 @@ $_smarty_current_dir = '/home/cells/web/templates';
   }
 
   var payload;
+  var operationLastStatus = parseJsonSafe(statusJsonEl && statusJsonEl.value ? statusJsonEl.value : '{}', {});
   try {
     payload = JSON.parse(textarea.value || '{"schema_version":3,"operations":[]}');
   } catch (e) {
@@ -249,6 +252,16 @@ $_smarty_current_dir = '/home/cells/web/templates';
 
   var actionRegistry = { generic: [] };
 
+  function statusMeta(status) {
+    var normalized = String(status || '').toLowerCase();
+    if (normalized === 'ok' || normalized === 'success') {
+      return { cls: 'success', title: 'OK' };
+    }
+    if (normalized === 'error' || normalized === 'failed' || normalized === 'fail') {
+      return { cls: 'danger', title: 'ERR' };
+    }
+    return { cls: 'secondary', title: 'N/A' };
+  }
   function nextOperationId() {
     var maxN = 0;
     payload.operations.forEach(function(op) {
@@ -511,7 +524,14 @@ $_smarty_current_dir = '/home/cells/web/templates';
       var li = document.createElement('li');
       li.className = 'nav-item';
       li.setAttribute('role', 'presentation');
-      li.innerHTML = '<button class="nav-link ' + active + '" id="' + tabId + '" data-bs-toggle="tab" data-bs-target="#' + paneId + '" type="button" role="tab" aria-controls="' + paneId + '" aria-selected="' + (idx === 0 ? 'true' : 'false') + '">' + esc(op.display_name || op.operation_id || ('Операция #' + (idx + 1))) + '</button>';
+      var opId = String(op.operation_id || '').trim();
+      var statusData = opId && operationLastStatus && operationLastStatus[opId] ? operationLastStatus[opId] : null;
+      var badge = statusMeta(statusData && typeof statusData === 'object' ? (statusData.status || '') : '');
+      var statusTitle = statusData && typeof statusData === 'object'
+        ? String(statusData.finished_at || statusData.message || statusData.status || '').trim()
+        : 'Статус теста отсутствует';
+      var statusBadge = ' <span class="badge text-bg-' + badge.cls + ' ms-1" data-op-status-for="' + esc(opId) + '" title="' + esc(statusTitle) + '">' + badge.title + '</span>';
+      li.innerHTML = '<button class="nav-link ' + active + '" id="' + tabId + '" data-bs-toggle="tab" data-bs-target="#' + paneId + '" type="button" role="tab" aria-controls="' + paneId + '" aria-selected="' + (idx === 0 ? 'true' : 'false') + '">' + esc(op.display_name || op.operation_id || ('Операция #' + (idx + 1))) + statusBadge + '</button>';
       tabs.appendChild(li);
 
       var pane = document.createElement('div');
@@ -556,6 +576,10 @@ $_smarty_current_dir = '/home/cells/web/templates';
           <div class="row">\
             <div class="col-12"><label class="form-label">config (JSON object)</label><textarea class="form-control js-op-config" rows="8">' + esc(JSON.stringify(op.config && typeof op.config === 'object' ? op.config : {}, null, 2)) + '</textarea></div>\
           </div>\
+          <div class="d-flex gap-2 mt-3">\
+            <button type="button" class="btn btn-outline-primary js-core-link" data-core-action="test_connector_operations" data-test-operation="' + esc(op.operation_id || '') + '">Проверить операцию</button>\
+          </div>\
+          <div class="alert alert-light border mt-3 py-2 small d-none" data-op-report-for="' + esc(op.operation_id || '') + '"></div>\
         </div>';
       content.appendChild(pane);
       initOperationCardControls(pane.querySelector('.js-operation-card'), op);
@@ -639,17 +663,29 @@ $_smarty_current_dir = '/home/cells/web/templates';
 
     updateTextareaFromUi();
   }
-  var saveBtn = root
-    ? root.querySelector('.js-core-link[data-core-action="save_connector_operations"]')
-    : document.querySelector('.js-core-link[data-core-action="save_connector_operations"]');
-  if (saveBtn) {
+  var saveButtons = root
+    ? root.querySelectorAll('.js-core-link[data-core-action="save_connector_operations"]')
+    : document.querySelectorAll('.js-core-link[data-core-action="save_connector_operations"]');
+  saveButtons.forEach(function(saveBtn) {
     saveBtn.addEventListener('click', function(e) {
       if (!updateTextareaFromUi()) {
         e.preventDefault();
         e.stopPropagation();
       }
     }, true);
-  }
+
+  });
+  var testButtons = root
+    ? root.querySelectorAll('.js-core-link[data-core-action="test_connector_operations"]')
+    : document.querySelectorAll('.js-core-link[data-core-action="test_connector_operations"]');
+  testButtons.forEach(function(testBtn) {
+    testBtn.addEventListener('click', function(e) {
+      if (!updateTextareaFromUi()) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    }, true);
+  });
   render();
   loadActionRegistry().then(render, function(){});
 })();

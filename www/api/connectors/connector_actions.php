@@ -1556,6 +1556,74 @@ function connectors_decode_operations_payload(array $connector): array
     return connectors_migrate_operations_payload($decoded);
 }
 
+
+function connectors_fetch_last_run_status_by_operation(mysqli $dbcnx, int $connectorId, array $operationsPayload): array
+{
+    if ($connectorId <= 0) {
+        return [];
+    }
+
+    $runtimeOperations = connectors_is_v3_operations_payload($operationsPayload)
+        ? connectors_v3_payload_to_runtime_operations($operationsPayload)
+        : $operationsPayload;
+
+    $allowedOperationIds = [];
+    foreach ($runtimeOperations as $operationId => $operation) {
+        if (!is_array($operation)) {
+            continue;
+        }
+        $resolvedId = trim((string)($operation['operation_id'] ?? $operationId));
+        if ($resolvedId === '') {
+            continue;
+        }
+        $allowedOperationIds[$resolvedId] = true;
+    }
+
+    if (empty($allowedOperationIds)) {
+        return [];
+    }
+
+    $stmt = $dbcnx->prepare('SELECT test_operation, status, message, finished_at, run_id FROM connector_operation_runs WHERE connector_id = ? ORDER BY finished_at DESC, id DESC LIMIT 300');
+    if (!$stmt) {
+        return [];
+    }
+
+    $stmt->bind_param('i', $connectorId);
+    if (!$stmt->execute()) {
+        $stmt->close();
+        return [];
+    }
+
+    $res = $stmt->get_result();
+    if (!$res) {
+        $stmt->close();
+        return [];
+    }
+
+    $byOperation = [];
+    while ($row = $res->fetch_assoc()) {
+        $operationId = trim((string)($row['test_operation'] ?? ''));
+        if ($operationId === '' || !isset($allowedOperationIds[$operationId])) {
+            continue;
+        }
+        if (isset($byOperation[$operationId])) {
+            continue;
+        }
+
+        $byOperation[$operationId] = [
+            'status' => trim((string)($row['status'] ?? '')),
+            'message' => trim((string)($row['message'] ?? '')),
+            'finished_at' => trim((string)($row['finished_at'] ?? '')),
+            'run_id' => trim((string)($row['run_id'] ?? '')),
+        ];
+    }
+
+    $res->free();
+    $stmt->close();
+
+    return $byOperation;
+}
+
 function connectors_resolve_report_operation_id(array $runtimeOperations): ?string
 {
     if (isset($runtimeOperations['report']) && is_array($runtimeOperations['report'])) {
@@ -3994,6 +4062,7 @@ switch ($dispatchAction) {
 
         $operations = connectors_decode_operations($connector);
         $operationsV3Payload = connectors_decode_operations_payload($connector);
+        $lastRunStatusByOperation = connectors_fetch_last_run_status_by_operation($dbcnx, $connectorId, $operationsV3Payload);
         $nodeRuntimeAvailable = connectors_is_node_runtime_available();
         if (!$nodeRuntimeAvailable && (($operations['report']['download_mode'] ?? 'browser') === 'curl')) {
             $operations['report']['download_mode'] = 'browser';
@@ -4003,6 +4072,7 @@ switch ($dispatchAction) {
 
         $smarty->assign('operations', $operations);
         $smarty->assign('operations_v3_json', json_encode($operationsV3Payload, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+        $smarty->assign('operations_last_status_json', json_encode($lastRunStatusByOperation, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
         $smarty->assign('addons', $addons);
         $openTab = trim((string)($_POST['open_tab'] ?? ''));
         $smarty->assign('open_tab', $openTab);
@@ -4566,6 +4636,7 @@ switch ($dispatchAction) {
 
         $runFinishedAt = date('Y-m-d H:i:s');
         $runDurationMs = max(0, (int)round((microtime(true) - $runStartedAtTs) * 1000));
+        $response['finished_at'] = $runFinishedAt;
         connectors_persist_run_trace($dbcnx, [
             'connector_id' => $connectorId,
             'run_id' => $runId,

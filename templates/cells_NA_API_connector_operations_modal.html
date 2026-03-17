@@ -16,7 +16,7 @@
           <form id="connector-operations-form" autocomplete="off">
             <input type="hidden" name="connector_id" value="{$connector.id|default:0}">
             <input type="hidden" id="operations_v3_json" name="operations_v3_json" value="{$operations_v3_json|default:'{"schema_version":3,"operations":[]}'|escape}">
-
+            <input type="hidden" id="operations_last_status_json" value="{$operations_last_status_json|default:'{}'|escape}">
             <div id="operations-existing-summary" class="alert alert-secondary py-2 small mb-3 d-none"></div>
 
             <ul class="nav nav-tabs mb-3" id="connector-operations-tabs" role="tablist"></ul>
@@ -88,6 +88,7 @@
   var tabs = root ? root.querySelector('#connector-operations-tabs') : document.getElementById('connector-operations-tabs');
   var content = root ? root.querySelector('#connector-operations-tab-content') : document.getElementById('connector-operations-tab-content');
   var summary = root ? root.querySelector('#operations-existing-summary') : document.getElementById('operations-existing-summary');
+  var statusJsonEl = root ? root.querySelector('#operations_last_status_json') : document.getElementById('operations_last_status_json');
   if (!textarea || !tabs || !content) return;
 
   function toArray(v) { return Array.isArray(v) ? v : []; }
@@ -161,6 +162,7 @@
   }
 
   var payload;
+  var operationLastStatus = parseJsonSafe(statusJsonEl && statusJsonEl.value ? statusJsonEl.value : '{}', {});
   try {
     payload = JSON.parse(textarea.value || '{"schema_version":3,"operations":[]}');
   } catch (e) {
@@ -217,6 +219,16 @@
 
   var actionRegistry = { generic: [] };
 
+  function statusMeta(status) {
+    var normalized = String(status || '').toLowerCase();
+    if (normalized === 'ok' || normalized === 'success') {
+      return { cls: 'success', title: 'OK' };
+    }
+    if (normalized === 'error' || normalized === 'failed' || normalized === 'fail') {
+      return { cls: 'danger', title: 'ERR' };
+    }
+    return { cls: 'secondary', title: 'N/A' };
+  }
   function nextOperationId() {
     var maxN = 0;
     payload.operations.forEach(function(op) {
@@ -479,7 +491,14 @@
       var li = document.createElement('li');
       li.className = 'nav-item';
       li.setAttribute('role', 'presentation');
-      li.innerHTML = '<button class="nav-link ' + active + '" id="' + tabId + '" data-bs-toggle="tab" data-bs-target="#' + paneId + '" type="button" role="tab" aria-controls="' + paneId + '" aria-selected="' + (idx === 0 ? 'true' : 'false') + '">' + esc(op.display_name || op.operation_id || ('Операция #' + (idx + 1))) + '</button>';
+      var opId = String(op.operation_id || '').trim();
+      var statusData = opId && operationLastStatus && operationLastStatus[opId] ? operationLastStatus[opId] : null;
+      var badge = statusMeta(statusData && typeof statusData === 'object' ? (statusData.status || '') : '');
+      var statusTitle = statusData && typeof statusData === 'object'
+        ? String(statusData.finished_at || statusData.message || statusData.status || '').trim()
+        : 'Статус теста отсутствует';
+      var statusBadge = ' <span class="badge text-bg-' + badge.cls + ' ms-1" data-op-status-for="' + esc(opId) + '" title="' + esc(statusTitle) + '">' + badge.title + '</span>';
+      li.innerHTML = '<button class="nav-link ' + active + '" id="' + tabId + '" data-bs-toggle="tab" data-bs-target="#' + paneId + '" type="button" role="tab" aria-controls="' + paneId + '" aria-selected="' + (idx === 0 ? 'true' : 'false') + '">' + esc(op.display_name || op.operation_id || ('Операция #' + (idx + 1))) + statusBadge + '</button>';
       tabs.appendChild(li);
 
       var pane = document.createElement('div');
@@ -524,6 +543,10 @@
           <div class="row">\
             <div class="col-12"><label class="form-label">config (JSON object)</label><textarea class="form-control js-op-config" rows="8">' + esc(JSON.stringify(op.config && typeof op.config === 'object' ? op.config : {}, null, 2)) + '</textarea></div>\
           </div>\
+          <div class="d-flex gap-2 mt-3">\
+            <button type="button" class="btn btn-outline-primary js-core-link" data-core-action="test_connector_operations" data-test-operation="' + esc(op.operation_id || '') + '">Проверить операцию</button>\
+          </div>\
+          <div class="alert alert-light border mt-3 py-2 small d-none" data-op-report-for="' + esc(op.operation_id || '') + '"></div>\
         </div>';
       content.appendChild(pane);
       initOperationCardControls(pane.querySelector('.js-operation-card'), op);
@@ -607,17 +630,29 @@
 
     updateTextareaFromUi();
   }
-  var saveBtn = root
-    ? root.querySelector('.js-core-link[data-core-action="save_connector_operations"]')
-    : document.querySelector('.js-core-link[data-core-action="save_connector_operations"]');
-  if (saveBtn) {
+  var saveButtons = root
+    ? root.querySelectorAll('.js-core-link[data-core-action="save_connector_operations"]')
+    : document.querySelectorAll('.js-core-link[data-core-action="save_connector_operations"]');
+  saveButtons.forEach(function(saveBtn) {
     saveBtn.addEventListener('click', function(e) {
       if (!updateTextareaFromUi()) {
         e.preventDefault();
         e.stopPropagation();
       }
     }, true);
-  }
+
+  });
+  var testButtons = root
+    ? root.querySelectorAll('.js-core-link[data-core-action="test_connector_operations"]')
+    : document.querySelectorAll('.js-core-link[data-core-action="test_connector_operations"]');
+  testButtons.forEach(function(testBtn) {
+    testBtn.addEventListener('click', function(e) {
+      if (!updateTextareaFromUi()) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    }, true);
+  });
   render();
   loadActionRegistry().then(render, function(){});
 })();

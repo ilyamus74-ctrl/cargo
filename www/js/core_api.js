@@ -185,6 +185,14 @@ const CoreAPI = {
             if (closestForm) {
                 return new FormData(closestForm);
             }
+
+            const scopedContainer = currentLink?.closest?.('.modal, section, .card, [role="dialog"], body');
+            if (scopedContainer) {
+                const scopedForm = scopedContainer.querySelector(`#${id}`);
+                if (scopedForm) {
+                    return new FormData(scopedForm);
+                }
+            }
             const form = document.getElementById(id);
             return form ? new FormData(form) : new FormData();
         },
@@ -741,8 +749,7 @@ const CoreAPI = {
                 }).join('')}</div>${stageSummaryHtml}${currentEventHtml}${timelineHtml}`;
             };
 
-            const renderRunReport = (boxId, payload, fallbackTitle) => {
-                const box = document.getElementById(boxId);
+            const renderRunReport = (box, payload, fallbackTitle) => {
                 if (!box) return;
 
                 const lines = [];
@@ -770,17 +777,43 @@ const CoreAPI = {
                 }
 
                 box.innerHTML = lines.join('');
-                box.style.display = 'block';
+
+                box.classList.remove('d-none');
+            };
+
+            const updateOperationStatusBadge = (operationId, status, message, finishedAt) => {
+                const normalizedOperationId = String(operationId || '').trim();
+                if (!normalizedOperationId) return;
+
+                const badges = Array.from(document.querySelectorAll('[data-op-status-for]')).filter((el) => {
+                    return String(el.getAttribute('data-op-status-for') || '').trim() === normalizedOperationId;
+                });
+                if (badges.length === 0) return;
+
+                const normalizedStatus = String(status || '').toLowerCase();
+                const className = (normalizedStatus === 'ok' || normalizedStatus === 'success')
+                    ? 'success'
+                    : ((normalizedStatus === 'error' || normalizedStatus === 'failed' || normalizedStatus === 'fail') ? 'danger' : 'secondary');
+                const title = (normalizedStatus === 'ok' || normalizedStatus === 'success') ? 'OK' : ((normalizedStatus === 'error' || normalizedStatus === 'failed' || normalizedStatus === 'fail') ? 'ERR' : 'N/A');
+                const tooltip = [finishedAt, message, status].map((v) => String(v || '').trim()).filter(Boolean).join(' · ');
+
+                badges.forEach((badge) => {
+                    badge.className = `badge text-bg-${className} ms-1`;
+                    badge.textContent = title;
+                    badge.setAttribute('title', tooltip);
+                });
             };
 
             const testOperation = String(data?.test_operation || '').trim();
-            if (testOperation === 'submission') {
-                console.log('[test_connector_operations][submission][node_payload]', data?.node_payload || null);
-                renderRunReport('submission-test-report', data, 'Тест операции #2 выполнен');
-                alert(data.message || 'Тест операции #2 выполнен');
-                return;
-            }
-            renderRunReport('report-test-report', data, 'Тест операции #1 выполнен');
+
+            const reportBoxes = Array.from(document.querySelectorAll('[data-op-report-for]')).filter((el) => {
+                return String(el.getAttribute('data-op-report-for') || '').trim() === testOperation;
+            });
+            reportBoxes.forEach((box) => {
+                renderRunReport(box, data, `Тест операции ${testOperation || ''} выполнен`);
+            });
+
+            updateOperationStatusBadge(testOperation, data?.status || '', data?.message || '', data?.finished_at || '');
 
             alert(data.message || 'Тест операции выполнен');
 
