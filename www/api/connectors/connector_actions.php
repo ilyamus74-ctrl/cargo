@@ -4339,11 +4339,6 @@ switch ($dispatchAction) {
                 $executionPlan = connectors_build_legacy_execution_plan($entrypoint);
             }
 
-
-            $runtimeOperations = connectors_is_v3_operations_payload($operationsPayload)
-                ? connectors_v3_payload_to_runtime_operations($operationsPayload)
-                : connectors_decode_operations_for_runtime($connector);
-
             if (isset($runtimeOperations[$entrypoint]) && is_array($runtimeOperations[$entrypoint])) {
                 $periodFrom = connectors_validate_iso_date($_POST['test_period_from'] ?? null);
                 $periodTo = connectors_validate_iso_date($_POST['test_period_to'] ?? null);
@@ -4522,6 +4517,21 @@ switch ($dispatchAction) {
                 'step_log' => $e->getStepLog(),
                 'trace_log' => $traceLog,
                 'artifacts_dir' => $e->getArtifactsDir(),
+            ];
+
+        } catch (Throwable $e) {
+            connectors_append_trace_event($traceLog, $runId, $testOperation ?: 'report', 'validate', 'failed', 'Фатальная ошибка подготовки операции', [
+                'error' => $e->getMessage(),
+            ]);
+            error_log('test_connector_operations fatal (prepare): ' . $e->getMessage());
+            $response = [
+                'status' => 'error',
+                'message' => 'Фатальная ошибка подготовки операции: ' . $e->getMessage(),
+                'connector_id' => $connectorId,
+                'test_operation' => $testOperation,
+                'run_id' => $runId,
+                'trace_log' => $traceLog,
+                'graph_errors' => $graphErrors,
             ];
         }
 
