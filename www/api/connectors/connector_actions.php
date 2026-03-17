@@ -4318,6 +4318,15 @@ switch ($dispatchAction) {
             }
             connectors_validate_operations_payload($operationsPayload);
             $entrypoint = connectors_resolve_legacy_test_entrypoint($operationsPayload, $testOperation);
+            $runtimeOperations = connectors_is_v3_operations_payload($operationsPayload)
+                ? connectors_v3_payload_to_runtime_operations($operationsPayload)
+                : $operationsPayload;
+            if (!is_array($runtimeOperations) || $runtimeOperations === []) {
+                $runtimeOperations = connectors_decode_operations_for_runtime($connector);
+            }
+            if (!is_array($runtimeOperations) || $runtimeOperations === []) {
+                throw new InvalidArgumentException('Не удалось подготовить runtime-операции для тестового запуска');
+            }
 
             if (connectors_is_dependency_graph_enabled($connector)) {
                 try {
