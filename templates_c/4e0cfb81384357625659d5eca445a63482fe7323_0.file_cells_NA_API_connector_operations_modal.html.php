@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-03-17 09:25:50
+/* Smarty version 5.3.1, created on 2026-03-17 09:32:46
   from 'file:cells_NA_API_connector_operations_modal.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_69b91e1eb18b36_44732305',
+  'unifunc' => 'content_69b91fbe1f9c79_67670057',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '4e0cfb81384357625659d5eca445a63482fe7323' => 
     array (
       0 => 'cells_NA_API_connector_operations_modal.html',
-      1 => 1773739480,
+      1 => 1773739864,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_69b91e1eb18b36_44732305 (\Smarty\Template $_smarty_tpl) {
+function content_69b91fbe1f9c79_67670057 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?><section class="section">
   <div class="row">
@@ -41,8 +41,8 @@ $_smarty_current_dir = '/home/cells/web/templates';
           <form id="connector-operations-form" autocomplete="off">
             <input type="hidden" name="connector_id" value="<?php echo (($tmp = $_smarty_tpl->getValue('connector')['id'] ?? null)===null||$tmp==='' ? 0 ?? null : $tmp);?>
 ">
-            <textarea class="d-none" id="operations_v3_json" name="operations_v3_json"><?php echo htmlspecialchars((string)(($tmp = $_smarty_tpl->getValue('operations_v3_json') ?? null)===null||$tmp==='' ? '{"schema_version":3,"operations":[]}' ?? null : $tmp), ENT_QUOTES, 'UTF-8', true);?>
-</textarea>
+            <input type="hidden" id="operations_v3_json" name="operations_v3_json" value="<?php echo htmlspecialchars((string)(($tmp = $_smarty_tpl->getValue('operations_v3_json') ?? null)===null||$tmp==='' ? '{"schema_version":3,"operations":[]}' ?? null : $tmp), ENT_QUOTES, 'UTF-8', true);?>
+">
 
             <div id="operations-existing-summary" class="alert alert-secondary py-2 small mb-3 d-none"></div>
 

@@ -3452,6 +3452,20 @@ function connectors_build_operations_payload_from_post(): array
     }
 
 
+    $hasLegacyOperationFields = false;
+    foreach (['report', 'submission', 'track_and_label_info'] as $operationKey) {
+        foreach (['enabled', 'operation_id', 'steps_json', 'run_after_json', 'run_with_json', 'run_finally_json'] as $suffix) {
+            if (array_key_exists($operationKey . '_' . $suffix, $_POST)) {
+                $hasLegacyOperationFields = true;
+                break 2;
+            }
+        }
+    }
+
+    if (!$hasLegacyOperationFields) {
+        throw new InvalidArgumentException('Не переданы данные операций (operations_v3_json отсутствует)');
+    }
+
     $legacyOperationDefs = [
         'report' => [
             'default_operation_id' => 'report',

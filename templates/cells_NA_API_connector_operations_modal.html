@@ -15,7 +15,7 @@
 
           <form id="connector-operations-form" autocomplete="off">
             <input type="hidden" name="connector_id" value="{$connector.id|default:0}">
-            <textarea class="d-none" id="operations_v3_json" name="operations_v3_json">{$operations_v3_json|default:'{"schema_version":3,"operations":[]}'|escape}</textarea>
+            <input type="hidden" id="operations_v3_json" name="operations_v3_json" value="{$operations_v3_json|default:'{"schema_version":3,"operations":[]}'|escape}">
 
             <div id="operations-existing-summary" class="alert alert-secondary py-2 small mb-3 d-none"></div>
 
