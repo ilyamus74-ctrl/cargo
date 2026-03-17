@@ -257,6 +257,16 @@
     try { return JSON.parse(s); } catch (e) { return fallback; }
   }
 
+  function parseJsonStrict(raw, fallback, errorMessage, errors) {
+    if (!String(raw || '').trim()) return fallback;
+    try {
+      return JSON.parse(raw);
+    } catch (e) {
+      errors.push(errorMessage + ' (' + (e && e.message ? e.message : 'ошибка парсинга') + ')');
+      return fallback;
+    }
+  }
+
   function collectPayloadFromUi() {
     var errors = [];
     var ids = {};
@@ -264,8 +274,11 @@
     var operations = [];
 
     rows.forEach(function(row, idx) {
+
+      var operationLabel = 'Операция #' + (idx + 1);
+      var opIdRaw = row.querySelector('.js-op-id').value.trim();
       var op = {
-        operation_id: row.querySelector('.js-op-id').value.trim(),
+        operation_id: opIdRaw,
         display_name: row.querySelector('.js-op-display-name').value.trim(),
         module: row.querySelector('.js-op-module').value.trim().toLowerCase(),
         kind: row.querySelector('.js-op-kind').value.trim().toLowerCase(),
@@ -273,10 +286,11 @@
         enabled: row.querySelector('.js-op-enabled').checked ? 1 : 0,
         entrypoint: row.querySelector('.js-op-entrypoint').checked ? 1 : 0,
         on_dependency_fail: row.querySelector('.js-op-on-dependency-fail').value,
-        run_after: parseJsonSafe(row.querySelector('.js-op-run-after').value, []),
-        run_with: parseJsonSafe(row.querySelector('.js-op-run-with').value, []),
-        run_finally: parseJsonSafe(row.querySelector('.js-op-run-finally').value, []),
-        config: parseJsonSafe(row.querySelector('.js-op-config').value, {})
+
+        run_after: parseJsonStrict(row.querySelector('.js-op-run-after').value, [], operationLabel + ': некорректный JSON в run_after', errors),
+        run_with: parseJsonStrict(row.querySelector('.js-op-run-with').value, [], operationLabel + ': некорректный JSON в run_with', errors),
+        run_finally: parseJsonStrict(row.querySelector('.js-op-run-finally').value, [], operationLabel + ': некорректный JSON в run_finally', errors),
+        config: parseJsonStrict(row.querySelector('.js-op-config').value, {}, operationLabel + ': некорректный JSON в config', errors)
       };
 
       if (!op.operation_id) errors.push('Операция #' + (idx + 1) + ': operation_id обязателен');

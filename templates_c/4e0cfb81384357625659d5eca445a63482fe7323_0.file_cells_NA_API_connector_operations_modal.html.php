@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-03-17 11:58:51
+/* Smarty version 5.3.1, created on 2026-03-17 12:12:57
   from 'file:cells_NA_API_connector_operations_modal.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_69b941fb430698_11799837',
+  'unifunc' => 'content_69b9454902c1b8_70909781',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '4e0cfb81384357625659d5eca445a63482fe7323' => 
     array (
       0 => 'cells_NA_API_connector_operations_modal.html',
-      1 => 1773742553,
+      1 => 1773749274,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_69b941fb430698_11799837 (\Smarty\Template $_smarty_tpl) {
+function content_69b9454902c1b8_70909781 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?><section class="section">
   <div class="row">
@@ -290,6 +290,16 @@ $_smarty_current_dir = '/home/cells/web/templates';
     try { return JSON.parse(s); } catch (e) { return fallback; }
   }
 
+  function parseJsonStrict(raw, fallback, errorMessage, errors) {
+    if (!String(raw || '').trim()) return fallback;
+    try {
+      return JSON.parse(raw);
+    } catch (e) {
+      errors.push(errorMessage + ' (' + (e && e.message ? e.message : 'ошибка парсинга') + ')');
+      return fallback;
+    }
+  }
+
   function collectPayloadFromUi() {
     var errors = [];
     var ids = {};
@@ -297,8 +307,11 @@ $_smarty_current_dir = '/home/cells/web/templates';
     var operations = [];
 
     rows.forEach(function(row, idx) {
+
+      var operationLabel = 'Операция #' + (idx + 1);
+      var opIdRaw = row.querySelector('.js-op-id').value.trim();
       var op = {
-        operation_id: row.querySelector('.js-op-id').value.trim(),
+        operation_id: opIdRaw,
         display_name: row.querySelector('.js-op-display-name').value.trim(),
         module: row.querySelector('.js-op-module').value.trim().toLowerCase(),
         kind: row.querySelector('.js-op-kind').value.trim().toLowerCase(),
@@ -306,10 +319,11 @@ $_smarty_current_dir = '/home/cells/web/templates';
         enabled: row.querySelector('.js-op-enabled').checked ? 1 : 0,
         entrypoint: row.querySelector('.js-op-entrypoint').checked ? 1 : 0,
         on_dependency_fail: row.querySelector('.js-op-on-dependency-fail').value,
-        run_after: parseJsonSafe(row.querySelector('.js-op-run-after').value, []),
-        run_with: parseJsonSafe(row.querySelector('.js-op-run-with').value, []),
-        run_finally: parseJsonSafe(row.querySelector('.js-op-run-finally').value, []),
-        config: parseJsonSafe(row.querySelector('.js-op-config').value, {})
+
+        run_after: parseJsonStrict(row.querySelector('.js-op-run-after').value, [], operationLabel + ': некорректный JSON в run_after', errors),
+        run_with: parseJsonStrict(row.querySelector('.js-op-run-with').value, [], operationLabel + ': некорректный JSON в run_with', errors),
+        run_finally: parseJsonStrict(row.querySelector('.js-op-run-finally').value, [], operationLabel + ': некорректный JSON в run_finally', errors),
+        config: parseJsonStrict(row.querySelector('.js-op-config').value, {}, operationLabel + ': некорректный JSON в config', errors)
       };
 
       if (!op.operation_id) errors.push('Операция #' + (idx + 1) + ': operation_id обязателен');
