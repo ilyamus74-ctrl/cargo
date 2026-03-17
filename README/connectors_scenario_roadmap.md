@@ -445,3 +445,14 @@ UI:
     1. Стартуем с PHP-only (быстрее внедрить и проще сопровождать).
     2. Сохраняем точку расширения под Node без обязательной миграции всего runtime.
     3. Подключаем Node точечно только там, где есть явная техническая выгода.
+
+
+Что уже готово
+
+    Runtime уже поддерживает вызов subrunner из операции browser_steps через action=connectors_run_subrunner.
+
+    В subrunner-реестре есть оба варианта: flight_list_colibri и flight_list_dev_colibri.
+
+    Таблица теперь выбирается динамически и может быть разной для colibri и dev_colibri.
+
+    Это соответствует roadmap-подходу для flight list через /api/connectors/subrunners/connector_modules.php
