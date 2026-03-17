@@ -78,6 +78,7 @@
     </div>
   </div>
 <script>
+{literal}
 (function() {
   var textarea = document.getElementById('operations_v3_json');
   var tabs = document.getElementById('connector-operations-tabs');
@@ -129,8 +130,8 @@
         mode: 'upsert',
         unique_key: 'flight_number',
         payload_map: {
-          flight_number: '{{flight_number}}',
-          departure_date: '{{departure_date}}'
+          flight_number: '{ldelim}{ldelim}flight_number{rdelim}{rdelim}',
+          departure_date: '{ldelim}{ldelim}departure_date{rdelim}{rdelim}'
         }
       }
     },
@@ -469,5 +470,6 @@
   }
   loadActionRegistry().finally(render);
 })();
+{/literal}
 </script>
 </section>
