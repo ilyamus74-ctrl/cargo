@@ -95,7 +95,7 @@ const CoreAPI = {
                     return fd;
                 },
                 'save_connector_operations': (currentLink) => {
-                    const fd = this.getFormById('connector-operations-form');
+                    const fd = this.getFormById('connector-operations-form', currentLink);
                     const openTab = currentLink?.getAttribute('data-open-tab') || '';
                     if (openTab) {
                         fd.append('open_tab', openTab);
@@ -103,7 +103,7 @@ const CoreAPI = {
                     return fd;
                 },
                 'test_connector_operations': (currentLink) => {
-                    const fd = this.getFormById('connector-operations-form');
+                    const fd = this.getFormById('connector-operations-form', currentLink);
                     const testOperation = currentLink?.getAttribute('data-test-operation') || '';
                     if (testOperation) {
                         fd.append('test_operation', testOperation);
@@ -114,7 +114,7 @@ const CoreAPI = {
                     }
                     return fd;
                 },
-                'save_connector_addons': () => this.getFormById('connector-operations-form'),
+                'save_connector_addons': (currentLink) => this.getFormById('connector-operations-form', currentLink),
 
                 'warehouse_sync_process_helper': () => {
                     const fd = new FormData();
@@ -180,7 +180,11 @@ const CoreAPI = {
             fd.append('action', action);
             return fd;
         },
-        getFormById(id) {
+        getFormById(id, currentLink = null) {
+            const closestForm = currentLink?.closest?.('form');
+            if (closestForm) {
+                return new FormData(closestForm);
+            }
             const form = document.getElementById(id);
             return form ? new FormData(form) : new FormData();
         },
