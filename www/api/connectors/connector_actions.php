@@ -1539,12 +1539,18 @@ function connectors_decode_operations_payload(array $connector): array
 {
     $raw = trim((string)($connector['operations_json'] ?? ''));
     if ($raw === '') {
-        return connectors_migrate_operations_payload(connectors_default_operations($connector));
+        return [
+            'schema_version' => 3,
+            'operations' => [],
+        ];
     }
 
     $decoded = json_decode($raw, true);
     if (!is_array($decoded)) {
-        return connectors_migrate_operations_payload(connectors_default_operations($connector));
+        return [
+            'schema_version' => 3,
+            'operations' => [],
+        ];
     }
 
     return connectors_migrate_operations_payload($decoded);

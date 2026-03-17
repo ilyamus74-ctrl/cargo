@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-03-17 08:50:24
+/* Smarty version 5.3.1, created on 2026-03-17 09:25:50
   from 'file:cells_NA_API_connector_operations_modal.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_69b915d00f4741_81410038',
+  'unifunc' => 'content_69b91e1eb18b36_44732305',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '4e0cfb81384357625659d5eca445a63482fe7323' => 
     array (
       0 => 'cells_NA_API_connector_operations_modal.html',
-      1 => 1773737332,
+      1 => 1773739480,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_69b915d00f4741_81410038 (\Smarty\Template $_smarty_tpl) {
+function content_69b91e1eb18b36_44732305 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?><section class="section">
   <div class="row">
@@ -324,8 +324,12 @@ $_smarty_current_dir = '/home/cells/web/templates';
       });
 
       if (Object.prototype.toString.call(op.config) !== '[object Object]') {
-        errors.push('Операция ' + op.operation_id + ': config должен быть JSON-объектом');
-        op.config = {};
+        if (Array.isArray(op.config) && op.config.length === 0) {
+          op.config = {};
+        } else {
+          errors.push('Операция ' + op.operation_id + ': config должен быть JSON-объектом');
+          op.config = {};
+        }
       }
 
       operations.push(op);
@@ -357,6 +361,42 @@ $_smarty_current_dir = '/home/cells/web/templates';
     textarea.value = JSON.stringify(payload, null, 2);
     return true;
   }
+
+
+  function removeOperationAt(indexToRemove) {
+    var latest = collectPayloadFromUi();
+    if (latest && Array.isArray(latest.operations)) {
+      payload = latest;
+    } else {
+      var fromTextarea = parseJsonSafe(textarea.value, payload);
+      payload = normalizePayload(fromTextarea);
+    }
+
+    if (!Array.isArray(payload.operations)) payload.operations = [];
+    if (indexToRemove < 0 || indexToRemove >= payload.operations.length) return;
+
+    var removedOperation = payload.operations[indexToRemove] || {};
+    var removedOperationId = String(removedOperation.operation_id || '').trim();
+    payload.operations.splice(indexToRemove, 1);
+
+    if (removedOperationId) {
+      payload.operations.forEach(function(op) {
+        ['run_after', 'run_with', 'run_finally'].forEach(function(key) {
+          if (!Array.isArray(op[key])) {
+            op[key] = [];
+            return;
+          }
+          op[key] = op[key].filter(function(depId) {
+            return String(depId || '').trim() !== removedOperationId;
+          });
+        });
+      });
+    }
+
+    textarea.value = JSON.stringify(payload, null, 2);
+    render();
+  }
+
 
 
 
@@ -481,7 +521,10 @@ $_smarty_current_dir = '/home/cells/web/templates';
       pane.setAttribute('aria-labelledby', tabId);
       pane.innerHTML = '\
         <div class="js-operation-card border rounded p-3 mt-2">\
-          <h6 class="mb-3">Основные</h6>\
+          <div class="d-flex justify-content-between align-items-center mb-3">\
+            <h6 class="mb-0">Основные</h6>\
+            <button type="button" class="btn btn-sm btn-outline-danger js-remove-operation" data-op-index="' + idx + '">Удалить операцию</button>\
+          </div>\
           <div class="row mb-3">\
             <div class="col-md-6">\
               <label class="form-label">display_name</label>\
@@ -580,6 +623,19 @@ $_smarty_current_dir = '/home/cells/web/templates';
       el.addEventListener('change', updateTextareaFromUi);
       el.addEventListener('blur', updateTextareaFromUi);
     });
+
+    content.querySelectorAll('.js-remove-operation').forEach(function(btn){
+      btn.addEventListener('click', function() {
+        var idx = parseInt(btn.getAttribute('data-op-index') || '-1', 10);
+        if (isNaN(idx) || idx < 0) return;
+        var row = content.querySelectorAll('.js-operation-card')[idx];
+        var opIdEl = row ? row.querySelector('.js-op-id') : null;
+        var opLabel = opIdEl && opIdEl.value ? opIdEl.value : ('#' + (idx + 1));
+        if (!confirm('Удалить операцию ' + opLabel + '?')) return;
+        removeOperationAt(idx);
+      });
+    });
+
 
     updateTextareaFromUi();
   }
