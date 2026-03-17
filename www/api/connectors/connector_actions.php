@@ -1672,19 +1672,28 @@ function connectors_resolve_report_operation_id(array $runtimeOperations): ?stri
 
 function connectors_resolve_legacy_test_entrypoint(array $operationsPayload, string $testOperation): string
 {
-    $testOperation = strtolower(trim($testOperation));
+    $testOperation = trim($testOperation);
+    $testOperationLower = strtolower($testOperation);
 
     if (connectors_is_v3_operations_payload($operationsPayload)) {
         $runtimeOperations = connectors_v3_payload_to_runtime_operations($operationsPayload);
-        $preferred = $testOperation === 'submission' ? 'submission' : 'report';
+        if ($testOperation !== '') {
+            if (isset($runtimeOperations[$testOperation])) {
+                return (string)($runtimeOperations[$testOperation]['operation_id'] ?? $testOperation);
+            }
+
+            throw new InvalidArgumentException('Операция для теста не найдена: ' . $testOperation);
+        }
+
+        $preferred = $testOperationLower === 'submission' ? 'submission' : 'report';
         if (isset($runtimeOperations[$preferred])) {
             return (string)($runtimeOperations[$preferred]['operation_id'] ?? $preferred);
         }
 
-        return $testOperation === 'submission' ? 'submission' : 'report';
+        return $testOperationLower === 'submission' ? 'submission' : 'report';
     }
 
-    return $testOperation === 'submission'
+    return $testOperationLower === 'submission'
         ? (string)($operationsPayload['submission']['operation_id'] ?? 'submission')
         : (string)($operationsPayload['report']['operation_id'] ?? 'report');
 }
@@ -3269,7 +3278,6 @@ function connectors_execute_browser_steps_operation(array $connector, array $ope
 }
 
 
-
 function connectors_execute_subrunner(array $connector, array $operation, int $connectorId, ?string $periodFrom, ?string $periodTo): array
 {
     $config = isset($operation['config']) && is_array($operation['config']) ? $operation['config'] : [];
@@ -3307,7 +3315,6 @@ function connectors_execute_subrunner(array $connector, array $operation, int $c
         'subrunner' => $subrunnerResult,
     ];
 }
-
 
 function connectors_execute_script_operation(array $operation): array
 {
@@ -3402,6 +3409,7 @@ function connectors_execute_operation_by_kind_for_manual_test(array $connector, 
         ];
     }
 
+
     if ($kind === 'subrunner' || ($kind === 'browser_steps' && (string)($operation['action'] ?? '') === 'connectors_run_subrunner')) {
         $subrunnerResult = connectors_execute_subrunner($connector, $operation, $connectorId, $periodFrom, $periodTo);
         return [
@@ -3412,6 +3420,7 @@ function connectors_execute_operation_by_kind_for_manual_test(array $connector, 
             'trace_meta' => ['kind' => 'subrunner', 'subrunner_name' => (string)($operation['config']['subrunner']['name'] ?? '')],
         ];
     }
+
 
     $browserResult = connectors_execute_browser_steps_operation($connector, $operation, $periodFrom, $periodTo);
     return [
