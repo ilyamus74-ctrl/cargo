@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-03-16 19:49:32
+/* Smarty version 5.3.1, created on 2026-03-17 07:26:36
   from 'file:cells_NA_API_connector_operations_modal.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_69b85ecc78bae6_31760934',
+  'unifunc' => 'content_69b9022c936410_43385022',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '4e0cfb81384357625659d5eca445a63482fe7323' => 
     array (
       0 => 'cells_NA_API_connector_operations_modal.html',
-      1 => 1773690566,
+      1 => 1773732258,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_69b85ecc78bae6_31760934 (\Smarty\Template $_smarty_tpl) {
+function content_69b9022c936410_43385022 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?><section class="section">
   <div class="row">
@@ -43,6 +43,8 @@ $_smarty_current_dir = '/home/cells/web/templates';
 ">
             <textarea class="d-none" id="operations_v3_json" name="operations_v3_json"><?php echo htmlspecialchars((string)(($tmp = $_smarty_tpl->getValue('operations_v3_json') ?? null)===null||$tmp==='' ? '{"schema_version":3,"operations":[]}' ?? null : $tmp), ENT_QUOTES, 'UTF-8', true);?>
 </textarea>
+
+            <div id="operations-existing-summary" class="alert alert-secondary py-2 small mb-3 d-none"></div>
 
             <ul class="nav nav-tabs mb-3" id="connector-operations-tabs" role="tablist"></ul>
 
@@ -115,6 +117,7 @@ $_smarty_current_dir = '/home/cells/web/templates';
   var textarea = document.getElementById('operations_v3_json');
   var tabs = document.getElementById('connector-operations-tabs');
   var content = document.getElementById('connector-operations-tab-content');
+  var summary = document.getElementById('operations-existing-summary');
   if (!textarea || !tabs || !content) return;
 
   function toArray(v) { return Array.isArray(v) ? v : []; }
@@ -369,6 +372,22 @@ $_smarty_current_dir = '/home/cells/web/templates';
   function render() {
     tabs.innerHTML = '';
     content.innerHTML = '';
+
+    if (summary) {
+      var ops = Array.isArray(payload.operations) ? payload.operations : [];
+      if (ops.length > 0) {
+        var parts = ops.map(function(op, idx) {
+          var opId = String(op && op.operation_id || '').trim() || ('#' + (idx + 1));
+          var opName = String(op && op.display_name || '').trim();
+          return opName ? (opId + ' — ' + opName) : opId;
+        });
+        summary.classList.remove('d-none');
+        summary.innerHTML = '<strong>Найдено операций:</strong> ' + ops.length + '<br><span class="text-muted">' + esc(parts.join(' | ')) + '</span>';
+      } else {
+        summary.classList.remove('d-none');
+        summary.innerHTML = '<strong>Найдено операций:</strong> 0<br><span class="text-muted">Пустой payload. Можно добавить операцию кнопкой + или через шаблон.</span>';
+      }
+    }
 
     payload.operations.forEach(function(op, idx) {
       var tabId = 'dyn-op-tab-' + idx;

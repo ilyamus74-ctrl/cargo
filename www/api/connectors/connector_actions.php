@@ -1535,22 +1535,6 @@ function connectors_decode_runtime_json_fields(array $operation): array
     return $operation;
 }
 
-function connectors_decode_operations_for_runtime(array $connector): array
-{
-    $operationsPayload = connectors_decode_operations_payload($connector);
-    $operations = connectors_is_v3_operations_payload($operationsPayload)
-        ? connectors_v3_payload_to_runtime_operations($operationsPayload)
-        : connectors_decode_operations($connector);
-    foreach ($operations as $operationKey => $operation) {
-        if (!is_array($operation)) {
-            continue;
-        }
-        $operations[$operationKey] = connectors_decode_runtime_json_fields($operation);
-    }
-
-    return $operations;
-}
-
 function connectors_decode_operations_payload(array $connector): array
 {
     $raw = trim((string)($connector['operations_json'] ?? ''));
