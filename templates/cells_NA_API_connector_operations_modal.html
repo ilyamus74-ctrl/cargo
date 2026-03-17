@@ -98,15 +98,75 @@
       .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;');
   }
+
+  function isPlainObject(v) {
+    return Object.prototype.toString.call(v) === '[object Object]';
+  }
+  function normalizeOperation(rawOp, fallbackId) {
+    var op = (rawOp && typeof rawOp === 'object') ? Object.assign({}, rawOp) : {};
+    if (!op.operation_id) op.operation_id = String(fallbackId || '').trim();
+    if (!op.display_name) op.display_name = String(op.operation_id || '').trim();
+    if (!op.module) op.module = 'generic';
+    if (!op.kind && String(op.module).toLowerCase() === 'generic') op.kind = 'browser_steps';
+    if (!Array.isArray(op.run_after)) op.run_after = [];
+    if (!Array.isArray(op.run_with)) op.run_with = [];
+    if (!Array.isArray(op.run_finally)) op.run_finally = [];
+    if (!isPlainObject(op.config)) op.config = {};
+    return op;
+  }
+  function normalizePayload(rawPayload) {
+    if (Array.isArray(rawPayload)) {
+      return {
+        schema_version: 3,
+        operations: rawPayload.map(function(op, idx) {
+          return normalizeOperation(op, 'op_' + (idx + 1));
+        })
+      };
+    }
+
+    if (!rawPayload || typeof rawPayload !== 'object') {
+      return { schema_version: 3, operations: [] };
+    }
+
+    if (Array.isArray(rawPayload.operations)) {
+      return {
+        schema_version: 3,
+        operations: rawPayload.operations.map(function(op, idx) {
+          return normalizeOperation(op, 'op_' + (idx + 1));
+        })
+      };
+    }
+
+    if (rawPayload.operations && typeof rawPayload.operations === 'object') {
+      var mapped = [];
+      Object.keys(rawPayload.operations).forEach(function(opKey) {
+        var candidate = rawPayload.operations[opKey];
+        if (!candidate || typeof candidate !== 'object') return;
+        mapped.push(normalizeOperation(candidate, opKey));
+      });
+      return { schema_version: 3, operations: mapped };
+    }
+
+    var legacyOps = [];
+    Object.keys(rawPayload).forEach(function(opKey) {
+      if (opKey === 'schema_version' || opKey === 'operations') return;
+      var candidate = rawPayload[opKey];
+      if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) return;
+      if (candidate.operation_id || candidate.display_name || candidate.module || candidate.kind || candidate.action || candidate.config) {
+        legacyOps.push(normalizeOperation(candidate, opKey));
+      }
+    });
+
+    return { schema_version: 3, operations: legacyOps };
+  }
+
   var payload;
   try {
     payload = JSON.parse(textarea.value || '{"schema_version":3,"operations":[]}');
   } catch (e) {
     payload = { schema_version: 3, operations: [] };
   }
-  if (!payload || typeof payload !== 'object') payload = { schema_version: 3, operations: [] };
-  if (!Array.isArray(payload.operations)) payload.operations = [];
-
+  payload = normalizePayload(payload);
 
   var operationTemplates = {
     flights_list_fetch: {

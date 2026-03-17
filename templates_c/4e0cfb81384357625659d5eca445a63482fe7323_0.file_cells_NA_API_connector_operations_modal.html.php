@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-03-17 08:32:00
+/* Smarty version 5.3.1, created on 2026-03-17 08:50:24
   from 'file:cells_NA_API_connector_operations_modal.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_69b91180caf610_08876947',
+  'unifunc' => 'content_69b915d00f4741_81410038',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '4e0cfb81384357625659d5eca445a63482fe7323' => 
     array (
       0 => 'cells_NA_API_connector_operations_modal.html',
-      1 => 1773736043,
+      1 => 1773737332,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_69b91180caf610_08876947 (\Smarty\Template $_smarty_tpl) {
+function content_69b915d00f4741_81410038 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?><section class="section">
   <div class="row">
@@ -130,15 +130,75 @@ $_smarty_current_dir = '/home/cells/web/templates';
       .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;');
   }
+
+  function isPlainObject(v) {
+    return Object.prototype.toString.call(v) === '[object Object]';
+  }
+  function normalizeOperation(rawOp, fallbackId) {
+    var op = (rawOp && typeof rawOp === 'object') ? Object.assign({}, rawOp) : {};
+    if (!op.operation_id) op.operation_id = String(fallbackId || '').trim();
+    if (!op.display_name) op.display_name = String(op.operation_id || '').trim();
+    if (!op.module) op.module = 'generic';
+    if (!op.kind && String(op.module).toLowerCase() === 'generic') op.kind = 'browser_steps';
+    if (!Array.isArray(op.run_after)) op.run_after = [];
+    if (!Array.isArray(op.run_with)) op.run_with = [];
+    if (!Array.isArray(op.run_finally)) op.run_finally = [];
+    if (!isPlainObject(op.config)) op.config = {};
+    return op;
+  }
+  function normalizePayload(rawPayload) {
+    if (Array.isArray(rawPayload)) {
+      return {
+        schema_version: 3,
+        operations: rawPayload.map(function(op, idx) {
+          return normalizeOperation(op, 'op_' + (idx + 1));
+        })
+      };
+    }
+
+    if (!rawPayload || typeof rawPayload !== 'object') {
+      return { schema_version: 3, operations: [] };
+    }
+
+    if (Array.isArray(rawPayload.operations)) {
+      return {
+        schema_version: 3,
+        operations: rawPayload.operations.map(function(op, idx) {
+          return normalizeOperation(op, 'op_' + (idx + 1));
+        })
+      };
+    }
+
+    if (rawPayload.operations && typeof rawPayload.operations === 'object') {
+      var mapped = [];
+      Object.keys(rawPayload.operations).forEach(function(opKey) {
+        var candidate = rawPayload.operations[opKey];
+        if (!candidate || typeof candidate !== 'object') return;
+        mapped.push(normalizeOperation(candidate, opKey));
+      });
+      return { schema_version: 3, operations: mapped };
+    }
+
+    var legacyOps = [];
+    Object.keys(rawPayload).forEach(function(opKey) {
+      if (opKey === 'schema_version' || opKey === 'operations') return;
+      var candidate = rawPayload[opKey];
+      if (!candidate || typeof candidate !== 'object' || Array.isArray(candidate)) return;
+      if (candidate.operation_id || candidate.display_name || candidate.module || candidate.kind || candidate.action || candidate.config) {
+        legacyOps.push(normalizeOperation(candidate, opKey));
+      }
+    });
+
+    return { schema_version: 3, operations: legacyOps };
+  }
+
   var payload;
   try {
     payload = JSON.parse(textarea.value || '{"schema_version":3,"operations":[]}');
   } catch (e) {
     payload = { schema_version: 3, operations: [] };
   }
-  if (!payload || typeof payload !== 'object') payload = { schema_version: 3, operations: [] };
-  if (!Array.isArray(payload.operations)) payload.operations = [];
-
+  payload = normalizePayload(payload);
 
   var operationTemplates = {
     flights_list_fetch: {

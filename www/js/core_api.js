@@ -218,6 +218,20 @@ const CoreAPI = {
         },
 
 
+        runScriptsInElement(container) {
+            if (!container) return;
+            const scripts = Array.from(container.querySelectorAll('script'));
+            scripts.forEach((oldScript) => {
+                const newScript = document.createElement('script');
+                Array.from(oldScript.attributes || []).forEach((attr) => {
+                    newScript.setAttribute(attr.name, attr.value);
+                });
+                if (!newScript.src) {
+                    newScript.textContent = oldScript.textContent || '';
+                }
+                oldScript.parentNode?.replaceChild(newScript, oldScript);
+            });
+        },
         /**
          * Показать HTML в модальном окне
          */
@@ -226,6 +240,7 @@ const CoreAPI = {
             const modalBody = document.querySelector('#fullscreenModal .modal-body');
             if (modalBody) {
                 modalBody.innerHTML = html;
+                this.runScriptsInElement(modalBody);
             }
 
             const modalEl = document.getElementById('fullscreenModal');
