@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-03-17 07:26:36
+/* Smarty version 5.3.1, created on 2026-03-17 08:32:00
   from 'file:cells_NA_API_connector_operations_modal.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_69b9022c936410_43385022',
+  'unifunc' => 'content_69b91180caf610_08876947',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '4e0cfb81384357625659d5eca445a63482fe7323' => 
     array (
       0 => 'cells_NA_API_connector_operations_modal.html',
-      1 => 1773732258,
+      1 => 1773736043,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_69b9022c936410_43385022 (\Smarty\Template $_smarty_tpl) {
+function content_69b91180caf610_08876947 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?><section class="section">
   <div class="row">
@@ -114,10 +114,12 @@ $_smarty_current_dir = '/home/cells/web/templates';
 >
 
 (function() {
-  var textarea = document.getElementById('operations_v3_json');
-  var tabs = document.getElementById('connector-operations-tabs');
-  var content = document.getElementById('connector-operations-tab-content');
-  var summary = document.getElementById('operations-existing-summary');
+  var scriptEl = document.currentScript;
+  var root = scriptEl && scriptEl.closest ? scriptEl.closest('section.section') : null;
+  var textarea = root ? root.querySelector('#operations_v3_json') : document.getElementById('operations_v3_json');
+  var tabs = root ? root.querySelector('#connector-operations-tabs') : document.getElementById('connector-operations-tabs');
+  var content = root ? root.querySelector('#connector-operations-tab-content') : document.getElementById('connector-operations-tab-content');
+  var summary = root ? root.querySelector('#operations-existing-summary') : document.getElementById('operations-existing-summary');
   if (!textarea || !tabs || !content) return;
 
   function toArray(v) { return Array.isArray(v) ? v : []; }
@@ -350,6 +352,14 @@ $_smarty_current_dir = '/home/cells/web/templates';
   }
 
   function loadActionRegistry() {
+    if (typeof fetch !== 'function') {
+      actionRegistry = actionRegistry || {};
+      if (!actionRegistry.generic || !Array.isArray(actionRegistry.generic)) {
+        actionRegistry.generic = [];
+      }
+      return Promise.resolve();
+    }
+
     return fetch('/core_api.php?action=get_module_actions_registry', {
       credentials: 'same-origin'
     })
@@ -373,6 +383,8 @@ $_smarty_current_dir = '/home/cells/web/templates';
     tabs.innerHTML = '';
     content.innerHTML = '';
 
+
+
     if (summary) {
       var ops = Array.isArray(payload.operations) ? payload.operations : [];
       if (ops.length > 0) {
@@ -388,6 +400,7 @@ $_smarty_current_dir = '/home/cells/web/templates';
         summary.innerHTML = '<strong>Найдено операций:</strong> 0<br><span class="text-muted">Пустой payload. Можно добавить операцию кнопкой + или через шаблон.</span>';
       }
     }
+
 
     payload.operations.forEach(function(op, idx) {
       var tabId = 'dyn-op-tab-' + idx;
@@ -451,7 +464,7 @@ $_smarty_current_dir = '/home/cells/web/templates';
     plusLi.innerHTML = '<button class="nav-link" type="button" id="add-operation-tab">+ Добавить операцию</button>';
     tabs.appendChild(plusLi);
 
-    var addBtn = document.getElementById('add-operation-tab');
+    var addBtn = tabs.querySelector('#add-operation-tab');
     if (addBtn) {
       addBtn.addEventListener('click', function() {
         if (!updateTextareaFromUi()) return;
@@ -473,8 +486,8 @@ $_smarty_current_dir = '/home/cells/web/templates';
       });
     }
 
-    var createFromTemplateBtn = document.getElementById('create-from-template-btn');
-    var templateSelect = document.getElementById('operation-template-select');
+    var createFromTemplateBtn = root ? root.querySelector('#create-from-template-btn') : document.getElementById('create-from-template-btn');
+    var templateSelect = root ? root.querySelector('#operation-template-select') : document.getElementById('operation-template-select');
     if (createFromTemplateBtn && templateSelect) {
       createFromTemplateBtn.addEventListener('click', function() {
         if (!updateTextareaFromUi()) return;
@@ -510,7 +523,9 @@ $_smarty_current_dir = '/home/cells/web/templates';
 
     updateTextareaFromUi();
   }
-  var saveBtn = document.querySelector('.js-core-link[data-core-action="save_connector_operations"]');
+  var saveBtn = root
+    ? root.querySelector('.js-core-link[data-core-action="save_connector_operations"]')
+    : document.querySelector('.js-core-link[data-core-action="save_connector_operations"]');
   if (saveBtn) {
     saveBtn.addEventListener('click', function(e) {
       if (!updateTextareaFromUi()) {
@@ -519,7 +534,8 @@ $_smarty_current_dir = '/home/cells/web/templates';
       }
     }, true);
   }
-  loadActionRegistry().finally(render);
+  render();
+  loadActionRegistry().then(render, function(){});
 })();
 
 <?php echo '</script'; ?>

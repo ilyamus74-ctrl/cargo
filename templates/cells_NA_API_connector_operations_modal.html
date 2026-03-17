@@ -82,10 +82,12 @@
 <script>
 {literal}
 (function() {
-  var textarea = document.getElementById('operations_v3_json');
-  var tabs = document.getElementById('connector-operations-tabs');
-  var content = document.getElementById('connector-operations-tab-content');
-  var summary = document.getElementById('operations-existing-summary');
+  var scriptEl = document.currentScript;
+  var root = scriptEl && scriptEl.closest ? scriptEl.closest('section.section') : null;
+  var textarea = root ? root.querySelector('#operations_v3_json') : document.getElementById('operations_v3_json');
+  var tabs = root ? root.querySelector('#connector-operations-tabs') : document.getElementById('connector-operations-tabs');
+  var content = root ? root.querySelector('#connector-operations-tab-content') : document.getElementById('connector-operations-tab-content');
+  var summary = root ? root.querySelector('#operations-existing-summary') : document.getElementById('operations-existing-summary');
   if (!textarea || !tabs || !content) return;
 
   function toArray(v) { return Array.isArray(v) ? v : []; }
@@ -318,6 +320,14 @@
   }
 
   function loadActionRegistry() {
+    if (typeof fetch !== 'function') {
+      actionRegistry = actionRegistry || {};
+      if (!actionRegistry.generic || !Array.isArray(actionRegistry.generic)) {
+        actionRegistry.generic = [];
+      }
+      return Promise.resolve();
+    }
+
     return fetch('/core_api.php?action=get_module_actions_registry', {
       credentials: 'same-origin'
     })
@@ -341,6 +351,8 @@
     tabs.innerHTML = '';
     content.innerHTML = '';
 
+
+
     if (summary) {
       var ops = Array.isArray(payload.operations) ? payload.operations : [];
       if (ops.length > 0) {
@@ -356,6 +368,7 @@
         summary.innerHTML = '<strong>Найдено операций:</strong> 0<br><span class="text-muted">Пустой payload. Можно добавить операцию кнопкой + или через шаблон.</span>';
       }
     }
+
 
     payload.operations.forEach(function(op, idx) {
       var tabId = 'dyn-op-tab-' + idx;
@@ -419,7 +432,7 @@
     plusLi.innerHTML = '<button class="nav-link" type="button" id="add-operation-tab">+ Добавить операцию</button>';
     tabs.appendChild(plusLi);
 
-    var addBtn = document.getElementById('add-operation-tab');
+    var addBtn = tabs.querySelector('#add-operation-tab');
     if (addBtn) {
       addBtn.addEventListener('click', function() {
         if (!updateTextareaFromUi()) return;
@@ -441,8 +454,8 @@
       });
     }
 
-    var createFromTemplateBtn = document.getElementById('create-from-template-btn');
-    var templateSelect = document.getElementById('operation-template-select');
+    var createFromTemplateBtn = root ? root.querySelector('#create-from-template-btn') : document.getElementById('create-from-template-btn');
+    var templateSelect = root ? root.querySelector('#operation-template-select') : document.getElementById('operation-template-select');
     if (createFromTemplateBtn && templateSelect) {
       createFromTemplateBtn.addEventListener('click', function() {
         if (!updateTextareaFromUi()) return;
@@ -478,7 +491,9 @@
 
     updateTextareaFromUi();
   }
-  var saveBtn = document.querySelector('.js-core-link[data-core-action="save_connector_operations"]');
+  var saveBtn = root
+    ? root.querySelector('.js-core-link[data-core-action="save_connector_operations"]')
+    : document.querySelector('.js-core-link[data-core-action="save_connector_operations"]');
   if (saveBtn) {
     saveBtn.addEventListener('click', function(e) {
       if (!updateTextareaFromUi()) {
@@ -487,7 +502,8 @@
       }
     }, true);
   }
-  loadActionRegistry().finally(render);
+  render();
+  loadActionRegistry().then(render, function(){});
 })();
 {/literal}
 </script>

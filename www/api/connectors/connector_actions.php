@@ -3988,6 +3988,10 @@ switch ($dispatchAction) {
         $smarty->assign('open_tab', $openTab);
         $smarty->assign('node_runtime_available', $nodeRuntimeAvailable);
 
+        if (method_exists($smarty, 'clearCompiledTemplate')) {
+            $smarty->clearCompiledTemplate('cells_NA_API_connector_operations_modal.html');
+        }
+
         ob_start();
         $smarty->display('cells_NA_API_connector_operations_modal.html');
         $html = ob_get_clean();

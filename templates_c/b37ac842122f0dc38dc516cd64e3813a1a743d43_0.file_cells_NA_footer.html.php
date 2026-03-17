@@ -1,11 +1,11 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-02-01 13:06:07
+/* Smarty version 5.3.1, created on 2026-03-17 08:10:11
   from 'file:cells_NA_footer.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_697f4fbf954ca6_63277454',
+  'unifunc' => 'content_69b90c6358aca4_98662457',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_697f4fbf954ca6_63277454 (\Smarty\Template $_smarty_tpl) {
+function content_69b90c6358aca4_98662457 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>
   <!-- ======= Footer ======= -->
