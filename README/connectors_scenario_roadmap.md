@@ -307,3 +307,141 @@ UI:
     Риск: UX перегружается.
     Мера: “базовый режим” (простые поля) + “расширенный JSON”.
 
+
+
+10) Flight-list: альтернативный путь через subrunners (рекомендуется)
+
+Контекст:
+
+    Для разных коннекторов слишком разная структура страниц и бизнес-правила.
+    Полностью универсальный декларативный mapping/extract DSL может усложнить систему,
+    увеличить количество edge-cases и сделать отладку тяжелее.
+
+Предложение:
+
+    Вынести прикладной процессинг в отдельный исполнительный слой:
+
+        /api/connectors/subrunners/connector_modules.php
+
+    Где для каждой задачи (или типа задачи) есть явная функция-обработчик.
+
+Идея архитектуры (гибрид):
+
+    - `operations_v3_json` продолжает хранить оркестрацию (steps, зависимости, entrypoint, run_after и т.д.),
+    - извлечение/парсинг/запись в БД выполняет `subrunner`,
+    - browser steps отвечают только за “дойти до нужного состояния страницы”.
+
+Минимальный контракт операции для такого подхода:
+
+    {
+      "operation_id": "flight_list",
+      "display_name": "Получить список рейсов",
+      "module": "connectors",
+      "kind": "browser_steps",
+      "action": "connectors_run_subrunner",
+      "config": {
+        "steps": [ ... ],
+        "subrunner": {
+          "name": "flight_list_colibri",
+          "options": {
+            "table_selector": "#flights_table",
+            "timezone": "Asia/Baku",
+            "write_mode": "upsert"
+          }
+        }
+      }
+    }
+
+Как это работает в runtime:
+
+    1) Выполняются `config.steps` (логин, переходы, ожидания).
+    2) После успешных шагов вызывается subrunner по `subrunner.name`.
+    3) Subrunner получает browser context + options и делает:
+       - парсинг нужной таблицы,
+       - нормализацию данных,
+       - валидацию,
+       - upsert/insert в локальную БД коннектора.
+    4) Возвращает структурированный результат (rows_extracted, rows_written, errors).
+
+Почему это лучше для “сложных” коннекторов:
+
+    - меньше магии в JSON и меньше хрупких универсальных правил;
+    - проще отладка (точка входа — конкретная функция);
+    - проще писать кастомные исключения под сайт/поставщика;
+    - быстрее вносить hotfix без ломки общей схемы.
+
+Рекомендации по `connector_modules.php`:
+
+    - Реестр обработчиков:
+      `flight_list_colibri => run_flight_list_colibri`,
+      `flight_list_vendor_x => run_flight_list_vendor_x`, ...
+    - Единый интерфейс функции:
+      `function run_x(array $ctx, array $options): array`.
+    - Единый формат ответа:
+      {
+        "status": "ok|error",
+        "message": "...",
+        "metrics": {
+          "rows_extracted": 0,
+          "rows_written": 0,
+          "rows_skipped": 0
+        },
+        "errors": []
+      }
+
+Что оставить в UI:
+
+    Для `kind=browser_steps` добавить не сложный DSL, а 2 поля:
+    - `subrunner.name` (select из реестра),
+    - `subrunner.options` (JSON object).
+
+    Это даст баланс: UI остается универсальным, а логика — расширяемой кодом.
+
+Что проверить на backend:
+
+    1. Валидация `subrunner.name` по whitelist/registry.
+    2. Защита от запуска неразрешенных функций.
+    3. Таймауты и лимиты на обработку.
+    4. Транзакционность записи в БД там, где нужно.
+    5. Понятный лог успеха/ошибки без hardcoded “Файл успешно скачан...”.
+
+Совместимость:
+
+    - Если `subrunner` не задан, сценарий работает как текущий browser_steps.
+    - Старые операции не ломаются.
+    - Новые сложные операции идут через subrunner-подход.
+
+11) Runtime stack: Node.js + PHP или только PHP?
+
+Короткий ответ:
+
+    Не обязательно делать жесткую связку Node.js + PHP.
+    Базовый и предпочтительный путь для текущей архитектуры — PHP-оркестратор + subrunners в PHP.
+
+Рекомендуемый baseline:
+
+    - PHP (core_api + connectors runtime) управляет графом операций,
+    - browser steps и вызов subrunner идут из существующего PHP-пайплайна,
+    - subrunner-функции реализуются в `/api/connectors/subrunners/connector_modules.php`.
+
+Когда добавлять Node.js имеет смысл:
+
+    - если нужен тяжелый браузерный scraping/JS-eval на сложных SPA,
+    - если требуются npm-библиотеки, которых нет/неудобно в PHP,
+    - если нужны отдельные worker-процессы для долгих задач.
+
+Тогда схема гибридная:
+
+    - PHP остается orchestrator/source of truth,
+    - Node.js запускается как опциональный execution backend (worker/service) для конкретных subrunner-задач,
+    - контракт между PHP и Node — через явный task payload + structured result.
+
+Минимальный принцип выбора backend для subrunner:
+
+    `subrunner.backend = "php" | "node"` (по умолчанию `php`).
+
+Практический вывод для текущего этапа:
+
+    1. Стартуем с PHP-only (быстрее внедрить и проще сопровождать).
+    2. Сохраняем точку расширения под Node без обязательной миграции всего runtime.
+    3. Подключаем Node точечно только там, где есть явная техническая выгода.
