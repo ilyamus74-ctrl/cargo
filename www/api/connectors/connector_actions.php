@@ -1537,7 +1537,10 @@ function connectors_decode_runtime_json_fields(array $operation): array
 
 function connectors_decode_operations_for_runtime(array $connector): array
 {
-    $operations = connectors_decode_operations($connector);
+    $operationsPayload = connectors_decode_operations_payload($connector);
+    $operations = connectors_is_v3_operations_payload($operationsPayload)
+        ? connectors_v3_payload_to_runtime_operations($operationsPayload)
+        : connectors_decode_operations($connector);
     foreach ($operations as $operationKey => $operation) {
         if (!is_array($operation)) {
             continue;
@@ -1548,6 +1551,43 @@ function connectors_decode_operations_for_runtime(array $connector): array
     return $operations;
 }
 
+function connectors_decode_operations_payload(array $connector): array
+{
+    $raw = trim((string)($connector['operations_json'] ?? ''));
+    if ($raw === '') {
+        return connectors_migrate_operations_payload(connectors_default_operations($connector));
+    }
+
+    $decoded = json_decode($raw, true);
+    if (!is_array($decoded)) {
+        return connectors_migrate_operations_payload(connectors_default_operations($connector));
+    }
+
+    return connectors_migrate_operations_payload($decoded);
+}
+
+function connectors_resolve_report_operation_id(array $runtimeOperations): ?string
+{
+    if (isset($runtimeOperations['report']) && is_array($runtimeOperations['report'])) {
+        return 'report';
+    }
+
+    foreach ($runtimeOperations as $operationId => $operation) {
+        if (!is_array($operation) || empty($operation['enabled']) || empty($operation['entrypoint'])) {
+            continue;
+        }
+        return trim((string)$operationId) ?: null;
+    }
+
+    foreach ($runtimeOperations as $operationId => $operation) {
+        if (!is_array($operation) || empty($operation['enabled'])) {
+            continue;
+        }
+        return trim((string)$operationId) ?: null;
+    }
+
+    return null;
+}
 
 function connectors_resolve_legacy_test_entrypoint(array $operationsPayload, string $testOperation): string
 {
@@ -3949,7 +3989,7 @@ switch ($dispatchAction) {
         }
 
         $operations = connectors_decode_operations($connector);
-        $operationsV3Payload = connectors_migrate_operations_payload($operations);
+        $operationsV3Payload = connectors_decode_operations_payload($connector);
         $nodeRuntimeAvailable = connectors_is_node_runtime_available();
         if (!$nodeRuntimeAvailable && (($operations['report']['download_mode'] ?? 'browser') === 'curl')) {
             $operations['report']['download_mode'] = 'browser';
@@ -4184,7 +4224,7 @@ switch ($dispatchAction) {
             if (connectors_has_operations_payload_in_post()) {
                 $operationsPayload = connectors_build_operations_payload_from_post();
             } else {
-                $operationsPayload = connectors_decode_operations($connector);
+                $operationsPayload = connectors_decode_operations_payload($connector);
             }
             connectors_validate_operations_payload($operationsPayload);
             $entrypoint = connectors_resolve_legacy_test_entrypoint($operationsPayload, $testOperation);

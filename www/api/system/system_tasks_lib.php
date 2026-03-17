@@ -387,7 +387,10 @@ function system_tasks_run_connectors_report_operation_1(mysqli $dbcnx, array $ta
     }
 
     $requiredFns = [
+        'connectors_decode_operations_payload',
         'connectors_decode_operations_for_runtime',
+        'connectors_v3_payload_to_runtime_operations',
+        'connectors_resolve_report_operation_id',
         'connectors_normalize_report_table_name',
         'connectors_ensure_report_table',
         'connectors_download_report_file',
@@ -426,8 +429,21 @@ function system_tasks_run_connectors_report_operation_1(mysqli $dbcnx, array $ta
             continue;
         }
 
-        $operations = connectors_decode_operations_for_runtime($connector);
-        $reportCfg = (array)($operations['report'] ?? []);
+
+        $operationsPayload = connectors_decode_operations_payload($connector);
+        $operations = connectors_v3_payload_to_runtime_operations($operationsPayload);
+        $reportOperationId = connectors_resolve_report_operation_id($operations);
+        if ($reportOperationId === null || !isset($operations[$reportOperationId]) || !is_array($operations[$reportOperationId])) {
+            continue;
+        }
+
+        $reportCfg = (array)$operations[$reportOperationId];
+        $reportConfig = isset($reportCfg['config']) && is_array($reportCfg['config']) ? $reportCfg['config'] : [];
+        foreach ($reportConfig as $configKey => $configValue) {
+            if (!array_key_exists($configKey, $reportCfg)) {
+                $reportCfg[$configKey] = $configValue;
+            }
+        }
         if (!isset($reportCfg['steps']) && !empty($reportCfg['steps_json'])) {
             $decodedSteps = json_decode((string)$reportCfg['steps_json'], true);
             if (is_array($decodedSteps)) {
@@ -457,7 +473,7 @@ function system_tasks_run_connectors_report_operation_1(mysqli $dbcnx, array $ta
         $runId = function_exists('connectors_generate_run_id')
             ? connectors_generate_run_id($connectorId)
             : ('run-' . date('YmdHis') . '-c' . $connectorId . '-' . bin2hex(random_bytes(4)));
-        $reportOperationId = trim((string)($reportCfg['operation_id'] ?? 'report'));
+        $reportOperationId = trim((string)($reportCfg['operation_id'] ?? $reportOperationId));
         if ($reportOperationId === '') {
             $reportOperationId = 'report';
         }
