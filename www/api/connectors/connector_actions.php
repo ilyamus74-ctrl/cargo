@@ -1012,6 +1012,9 @@ function connectors_validate_operations_runtime(array $operations): void
 
     foreach ($operations as $operationKey => $operation) {
         if (!is_array($operation)) {
+            if (in_array((string)$operationKey, ['schema_version'], true)) {
+                continue;
+            }
             throw new InvalidArgumentException('Операция "' . $operationKey . '": неверный формат');
         }
 
@@ -1036,6 +1039,9 @@ function connectors_validate_operations_runtime(array $operations): void
     }
 
     foreach ($operations as $operationKey => $operation) {
+        if (!is_array($operation)) {
+            continue;
+        }
         $operationId = trim((string)$operation['operation_id']);
         foreach (['run_after', 'run_with', 'run_finally'] as $field) {
             foreach ($operation[$field] as $linkedOperationIdRaw) {
@@ -1072,6 +1078,9 @@ function connectors_validate_operations_runtime(array $operations): void
     $stableOrder = [];
     $index = 0;
     foreach ($operations as $operation) {
+        if (!is_array($operation)) {
+            continue;
+        }
         $operationId = trim((string)($operation['operation_id'] ?? ''));
         if ($operationId === '') {
             continue;
@@ -1172,6 +1181,9 @@ function connectors_build_execution_plan(array $operations, ?string $entrypointO
     $index = 0;
 
     foreach ($operations as $operationKey => $operation) {
+        if (!is_array($operation)) {
+            continue;
+        }
         $operationId = trim((string)($operation['operation_id'] ?? ''));
         if ($operationId === '' || empty($operation['enabled'])) {
             continue;
@@ -4306,9 +4318,10 @@ switch ($dispatchAction) {
             }
             connectors_validate_operations_payload($operationsPayload);
             $entrypoint = connectors_resolve_legacy_test_entrypoint($operationsPayload, $testOperation);
+
             if (connectors_is_dependency_graph_enabled($connector)) {
                 try {
-                    $executionPlan = connectors_build_execution_plan($operationsPayload, $entrypoint);
+                    $executionPlan = connectors_build_execution_plan($runtimeOperations, $entrypoint);
                 } catch (InvalidArgumentException $graphException) {
                     $graphErrors[] = connectors_build_graph_error(
                         $runId,
