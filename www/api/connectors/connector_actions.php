@@ -36,6 +36,7 @@ if ($normalizedRouteAction !== '' && $normalizedPostAction !== '' && $normalized
 $response = ['status' => 'error', 'message' => 'Unknown connector action: ' . $normalizedAction];
 
 require_once __DIR__ . '/connector_engine.php';
+require_once __DIR__ . '/subrunners/connector_modules.php';
 
 final class ConnectorStepLogException extends RuntimeException
 {
@@ -539,7 +540,7 @@ function connectors_operation_module_registry(): array
 
 function connectors_operation_kind_registry(): array
 {
-    return ['api_call', 'browser_steps', 'script', 'noop'];
+    return ['api_call', 'browser_steps', 'script', 'noop', 'subrunner'];
 }
 
 function connectors_extract_module_from_handler_path(string $handlerPath): string
@@ -3246,6 +3247,7 @@ function connectors_execute_browser_steps_operation(array $connector, array $ope
         'message' => trim((string)($decoded['message'] ?? 'Операция browser_steps выполнена')),
         'step_log' => isset($decoded['step_log']) && is_array($decoded['step_log']) ? $decoded['step_log'] : [],
         'artifacts_dir' => trim((string)($decoded['artifacts_dir'] ?? '')),
+        'final_html_path' => trim((string)($decoded['final_html_path'] ?? '')),
     ];
 
     if ($expectDownload) {
@@ -3265,6 +3267,47 @@ function connectors_execute_browser_steps_operation(array $connector, array $ope
 
     return $result;
 }
+
+
+
+function connectors_execute_subrunner(array $connector, array $operation, int $connectorId, ?string $periodFrom, ?string $periodTo): array
+{
+    $config = isset($operation['config']) && is_array($operation['config']) ? $operation['config'] : [];
+    $subrunner = isset($config['subrunner']) && is_array($config['subrunner']) ? $config['subrunner'] : [];
+    $subrunnerName = trim((string)($subrunner['name'] ?? ''));
+
+    if ($subrunnerName === '') {
+        throw new InvalidArgumentException('Для subrunner нужно заполнить operation.config.subrunner.name');
+    }
+
+    $options = isset($subrunner['options']) && is_array($subrunner['options']) ? $subrunner['options'] : [];
+
+    $browserResult = connectors_execute_browser_steps_operation($connector, $operation, $periodFrom, $periodTo);
+
+    $ctx = [
+        'connector' => $connector,
+        'connector_id' => $connectorId,
+        'operation' => $operation,
+        'operation_id' => (string)($operation['operation_id'] ?? ''),
+        'period_from' => $periodFrom,
+        'period_to' => $periodTo,
+        'browser' => $browserResult,
+    ];
+
+    $subrunnerResult = connectors_subrunners_run($subrunnerName, $ctx, $options);
+    $status = trim((string)($subrunnerResult['status'] ?? ''));
+    if ($status !== 'ok') {
+        throw new RuntimeException((string)($subrunnerResult['message'] ?? ('Subrunner завершился с ошибкой: ' . $subrunnerName)));
+    }
+
+    return [
+        'message' => trim((string)($subrunnerResult['message'] ?? ('Операция subrunner выполнена: ' . $subrunnerName))),
+        'step_log' => isset($browserResult['step_log']) && is_array($browserResult['step_log']) ? $browserResult['step_log'] : [],
+        'artifacts_dir' => (string)($browserResult['artifacts_dir'] ?? ''),
+        'subrunner' => $subrunnerResult,
+    ];
+}
+
 
 function connectors_execute_script_operation(array $operation): array
 {
@@ -3356,6 +3399,17 @@ function connectors_execute_operation_by_kind_for_manual_test(array $connector, 
             'message' => $apiCallResult['message'],
             'api_response' => $apiCallResult['payload'],
             'trace_meta' => ['kind' => 'api_call', 'action' => (string)($operation['action'] ?? '')],
+        ];
+    }
+
+    if ($kind === 'subrunner' || ($kind === 'browser_steps' && (string)($operation['action'] ?? '') === 'connectors_run_subrunner')) {
+        $subrunnerResult = connectors_execute_subrunner($connector, $operation, $connectorId, $periodFrom, $periodTo);
+        return [
+            'message' => (string)($subrunnerResult['message'] ?? 'Операция subrunner выполнена'),
+            'subrunner' => isset($subrunnerResult['subrunner']) && is_array($subrunnerResult['subrunner']) ? $subrunnerResult['subrunner'] : null,
+            'step_log' => isset($subrunnerResult['step_log']) && is_array($subrunnerResult['step_log']) ? $subrunnerResult['step_log'] : [],
+            'artifacts_dir' => (string)($subrunnerResult['artifacts_dir'] ?? ''),
+            'trace_meta' => ['kind' => 'subrunner', 'subrunner_name' => (string)($operation['config']['subrunner']['name'] ?? '')],
         ];
     }
 

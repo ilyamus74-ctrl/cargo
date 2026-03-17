@@ -383,6 +383,19 @@ async function saveStepScreenshot(page, dir, stepNo, action) {
 }
 
 
+async function saveFinalHtmlSnapshot(page, artifactsDir) {
+  if (!page || !artifactsDir) return '';
+
+  try {
+    const html = await page.content();
+    const fullPath = path.join(artifactsDir, 'final_page.html');
+    fs.writeFileSync(fullPath, html, 'utf8');
+    return fullPath;
+  } catch (_) {
+    return '';
+  }
+}
+
 function writeArtifactNote(dir, fileName, text) {
   if (!dir || !fileName) return null;
   const fullPath = path.join(dir, fileName);
@@ -1150,6 +1163,7 @@ function persistDownloadedFileIfNeeded(downloaded, runtimeHomeDir, stableDownloa
             min_file_size_bytes: minFileSizeBytes,
             effective_min_file_size_bytes: effectiveMinSizeBytes,
             expected_download_size_bytes: expectedDownloadSizeBytes || undefined,
+            final_html_path: await saveFinalHtmlSnapshot(page, artifactsDir) || undefined,
             step_log: stepLog,
             artifacts_dir: artifactsDir,
             network_log: debugDownloadNetwork ? downloadNetworkLog : undefined,
@@ -1181,6 +1195,7 @@ function persistDownloadedFileIfNeeded(downloaded, runtimeHomeDir, stableDownloa
       const capturedErrorText = await collectErrorTextIfAny();
       const finalShot = captureScreenshots ? await saveStepScreenshot(page, artifactsDir, stepNo + 1, 'final') : null;
       stepLog.push({ time: new Date().toISOString(), step: stepNo + 1, action: 'final_no_download', status: 'ok', screenshot: finalShot || undefined });
+      const finalHtmlPath = await saveFinalHtmlSnapshot(page, artifactsDir);
 
       process.stdout.write(
         JSON.stringify({
@@ -1190,6 +1205,7 @@ function persistDownloadedFileIfNeeded(downloaded, runtimeHomeDir, stableDownloa
           browser_product: resolvedBrowserProduct,
           resolved_error_selector: errorSelector || undefined,
           captured_error_text: capturedErrorText || undefined,
+          final_html_path: finalHtmlPath || undefined,
           step_log: stepLog,
           artifacts_dir: artifactsDir,
           network_log: debugDownloadNetwork ? downloadNetworkLog : undefined,
@@ -1216,6 +1232,7 @@ function persistDownloadedFileIfNeeded(downloaded, runtimeHomeDir, stableDownloa
 
     const finalShot = captureScreenshots ? await saveStepScreenshot(page, artifactsDir, stepNo + 1, 'final') : null;
     stepLog.push({ time: new Date().toISOString(), step: stepNo + 1, action: 'final_download_probe', status: 'ok', screenshot: finalShot || undefined });
+    const finalHtmlPath = await saveFinalHtmlSnapshot(page, artifactsDir);
 
     process.stdout.write(
       JSON.stringify({
@@ -1231,6 +1248,7 @@ function persistDownloadedFileIfNeeded(downloaded, runtimeHomeDir, stableDownloa
         file_is_zip_container: downloaded.is_zip_container,
         min_file_size_bytes: minFileSizeBytes,
         expected_download_size_bytes: expectedDownloadSizeBytes || undefined,
+        final_html_path: finalHtmlPath || undefined,
         step_log: stepLog,
         artifacts_dir: artifactsDir,
         network_log: debugDownloadNetwork ? downloadNetworkLog : undefined,
