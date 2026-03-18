@@ -3395,6 +3395,23 @@ function connectors_execute_script_operation(array $operation): array
     ];
 }
 
+
+function connectors_resolve_manual_test_target_table(array $operation, array $result = []): string
+{
+    $subrunnerTable = trim((string)($result['subrunner']['meta']['table_name'] ?? ''));
+    if ($subrunnerTable !== '') {
+        return $subrunnerTable;
+    }
+
+    $config = isset($operation['config']) && is_array($operation['config']) ? $operation['config'] : [];
+    $configTargetTable = trim((string)($config['target_table'] ?? ''));
+    if ($configTargetTable !== '') {
+        return connectors_normalize_report_table_name($configTargetTable);
+    }
+
+    return '';
+}
+
 function connectors_execute_operation_by_kind_for_manual_test(array $connector, array $operation, int $connectorId, ?string $periodFrom, ?string $periodTo): array
 {
     $kind = trim((string)($operation['kind'] ?? ''));
@@ -3433,6 +3450,7 @@ function connectors_execute_operation_by_kind_for_manual_test(array $connector, 
             'subrunner' => isset($subrunnerResult['subrunner']) && is_array($subrunnerResult['subrunner']) ? $subrunnerResult['subrunner'] : null,
             'step_log' => isset($subrunnerResult['step_log']) && is_array($subrunnerResult['step_log']) ? $subrunnerResult['step_log'] : [],
             'artifacts_dir' => (string)($subrunnerResult['artifacts_dir'] ?? ''),
+            'target_table' => connectors_resolve_manual_test_target_table($operation, $subrunnerResult),
             'trace_meta' => ['kind' => 'subrunner', 'subrunner_name' => (string)($operation['config']['subrunner']['name'] ?? '')],
         ];
     }
@@ -3444,6 +3462,7 @@ function connectors_execute_operation_by_kind_for_manual_test(array $connector, 
         'download' => isset($browserResult['download']) && is_array($browserResult['download']) ? $browserResult['download'] : null,
         'step_log' => isset($browserResult['step_log']) && is_array($browserResult['step_log']) ? $browserResult['step_log'] : [],
         'artifacts_dir' => (string)($browserResult['artifacts_dir'] ?? ''),
+        'target_table' => connectors_resolve_manual_test_target_table($operation, $browserResult),
         'trace_meta' => ['kind' => 'browser_steps'],
     ];
 }
@@ -4503,12 +4522,27 @@ switch ($dispatchAction) {
                 if (!is_array($mainResult)) {
                     $mainResult = isset($executedOperations[0]['result']) && is_array($executedOperations[0]['result']) ? $executedOperations[0]['result'] : [];
                 }
+                $targetTable = trim((string)($mainResult['target_table'] ?? ''));
+                if ($targetTable === '') {
+                    foreach ($executedOperations as $executedOperation) {
+                        if (!is_array($executedOperation)) {
+                            continue;
+                        }
+                        $operationResult = isset($executedOperation['result']) && is_array($executedOperation['result']) ? $executedOperation['result'] : [];
+                        $candidateTargetTable = trim((string)($operationResult['target_table'] ?? ''));
+                        if ($candidateTargetTable !== '') {
+                            $targetTable = $candidateTargetTable;
+                            break;
+                        }
+                    }
+                }
                 $response = [
                     'status' => 'ok',
                     'test_operation' => $testOperation,
                     'message' => (string)($mainResult['message'] ?? 'Операции выполнены'),
                     'connector_id' => $connectorId,
                     'run_id' => $runId,
+                    'target_table' => $targetTable,
                     'download' => $lastDownload,
                     'api_response' => $lastApiResponse,
                     'script' => $lastScriptResult,
