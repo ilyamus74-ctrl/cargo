@@ -54,23 +54,42 @@
 
             <div id="departures-add-flight-panel" class="card border border-dashed bg-light d-none mb-3">
               <div class="card-body py-3">
+
+                <div class="alert alert-info py-2 small mb-3">
+                  Для добавления рейса выберите одного форварда, укажите дату рейса и AWB без префикса <code>AWB</code>.
+                </div>
                 <div class="row g-2 align-items-end">
+                  <div class="col-12 col-md-3">
+                    <label class="form-label small mb-1" for="departures-add-flight-date">Дата рейса</label>
+                    <input type="date"
+                           id="departures-add-flight-date"
+                           class="form-control form-control-sm">
+                  </div>
                   <div class="col-12 col-md-4">
                     <label class="form-label small mb-1" for="departures-add-flight-awb">AWB</label>
                     <input type="text"
                            id="departures-add-flight-awb"
                            class="form-control form-control-sm"
-                           placeholder="AWB 50118620604">
+                           inputmode="numeric"
+                           autocomplete="off"
+                           placeholder="50118620604">
                   </div>
                   <div class="col-12 col-md-auto">
                     <button type="button"
-                            class="btn btn-sm btn-success js-departure-placeholder-action"
+                            class="btn btn-sm btn-success js-departure-placeholder-action d-inline-flex align-items-center gap-2 px-3 shadow-sm"
                             data-operation="add_flight"
-                            data-input="#departures-add-flight-awb">
-                      Добавить рейс
+                            data-input="#departures-add-flight-awb"
+                            data-date-input="#departures-add-flight-date"
+                            data-refresh-operation="flight_list"
+                            data-label="Добавить рейс"
+                            data-busy-label="Добавляю рейс..."
+                            style="min-width: 180px;">
+                      <i class="bi bi-plus-circle-fill" aria-hidden="true"></i>
+                      <span class="js-departure-placeholder-label">Добавить рейс</span>
                     </button>
                   </div>
                 </div>
+                <div id="departures-add-flight-status" class="small text-muted mt-2" aria-live="polite"></div>
               </div>
             </div>
 

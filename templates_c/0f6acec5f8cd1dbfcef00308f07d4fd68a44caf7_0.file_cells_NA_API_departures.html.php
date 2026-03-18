@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-03-18 12:55:35
+/* Smarty version 5.3.1, created on 2026-03-18 13:59:49
   from 'file:cells_NA_API_departures.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_69baa0c734d3a5_75283154',
+  'unifunc' => 'content_69baafd54f1a21_50466761',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '0f6acec5f8cd1dbfcef00308f07d4fd68a44caf7' => 
     array (
       0 => 'cells_NA_API_departures.html',
-      1 => 1773838468,
+      1 => 1773842383,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_69baa0c734d3a5_75283154 (\Smarty\Template $_smarty_tpl) {
+function content_69baafd54f1a21_50466761 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?><div class="pagetitle">
   <h1>Отправления</h1>
@@ -88,23 +88,42 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
 
             <div id="departures-add-flight-panel" class="card border border-dashed bg-light d-none mb-3">
               <div class="card-body py-3">
+
+                <div class="alert alert-info py-2 small mb-3">
+                  Для добавления рейса выберите одного форварда, укажите дату рейса и AWB без префикса <code>AWB</code>.
+                </div>
                 <div class="row g-2 align-items-end">
+                  <div class="col-12 col-md-3">
+                    <label class="form-label small mb-1" for="departures-add-flight-date">Дата рейса</label>
+                    <input type="date"
+                           id="departures-add-flight-date"
+                           class="form-control form-control-sm">
+                  </div>
                   <div class="col-12 col-md-4">
                     <label class="form-label small mb-1" for="departures-add-flight-awb">AWB</label>
                     <input type="text"
                            id="departures-add-flight-awb"
                            class="form-control form-control-sm"
-                           placeholder="AWB 50118620604">
+                           inputmode="numeric"
+                           autocomplete="off"
+                           placeholder="50118620604">
                   </div>
                   <div class="col-12 col-md-auto">
                     <button type="button"
-                            class="btn btn-sm btn-success js-departure-placeholder-action"
+                            class="btn btn-sm btn-success js-departure-placeholder-action d-inline-flex align-items-center gap-2 px-3 shadow-sm"
                             data-operation="add_flight"
-                            data-input="#departures-add-flight-awb">
-                      Добавить рейс
+                            data-input="#departures-add-flight-awb"
+                            data-date-input="#departures-add-flight-date"
+                            data-refresh-operation="flight_list"
+                            data-label="Добавить рейс"
+                            data-busy-label="Добавляю рейс..."
+                            style="min-width: 180px;">
+                      <i class="bi bi-plus-circle-fill" aria-hidden="true"></i>
+                      <span class="js-departure-placeholder-label">Добавить рейс</span>
                     </button>
                   </div>
                 </div>
+                <div id="departures-add-flight-status" class="small text-muted mt-2" aria-live="polite"></div>
               </div>
             </div>
 

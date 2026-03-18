@@ -3041,6 +3041,22 @@ function connectors_build_submission_test_vars(array $connector): array
         }
     }
 
+
+    $runtimeVarsRaw = trim((string)($_POST['runtime_vars_json'] ?? ''));
+    if ($runtimeVarsRaw !== '') {
+        $runtimeVars = json_decode($runtimeVarsRaw, true);
+        if (is_array($runtimeVars)) {
+            foreach ($runtimeVars as $key => $value) {
+                if (!is_string($key) || trim($key) === '') {
+                    continue;
+                }
+                if (is_scalar($value) || $value === null) {
+                    $vars[$key] = (string)($value ?? '');
+                }
+            }
+        }
+    }
+
     return $vars;
 }
 

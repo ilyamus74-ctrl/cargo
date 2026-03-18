@@ -2564,6 +2564,10 @@ const CoreAPI = {
         total: null,
         forwarderFilter: null,
         statusFilter: null,
+        addFlightDateInput: null,
+        addFlightAwbInput: null,
+        addFlightStatus: null,
+        activeActionButton: null,
         initialized: false,
         init() {
             const root = document.getElementById('departures-page');
@@ -2575,9 +2579,20 @@ const CoreAPI = {
             this.total = document.getElementById('departures-total');
             this.forwarderFilter = root.querySelector('#departures-forwarder-filter');
             this.statusFilter = root.querySelector('#departures-status-filter');
+            this.addFlightDateInput = root.querySelector('#departures-add-flight-date');
+            this.addFlightAwbInput = root.querySelector('#departures-add-flight-awb');
+            this.addFlightStatus = root.querySelector('#departures-add-flight-status');
 
             if (!this.tbody || !this.total || !this.forwarderFilter || !this.statusFilter) {
                 return;
+            }
+
+            if (this.addFlightDateInput && !this.addFlightDateInput.value) {
+                const today = new Date();
+                const yyyy = today.getFullYear();
+                const mm = String(today.getMonth() + 1).padStart(2, '0');
+                const dd = String(today.getDate()).padStart(2, '0');
+                this.addFlightDateInput.value = `${yyyy}-${mm}-${dd}`;
             }
 
             if (shouldBindEvents) {
@@ -2590,6 +2605,14 @@ const CoreAPI = {
         bindEvents() {
             this.forwarderFilter.addEventListener('change', () => this.load());
             this.statusFilter.addEventListener('change', () => this.load());
+            if (this.addFlightAwbInput) {
+                this.addFlightAwbInput.addEventListener('input', () => {
+                    const normalized = this.normalizeAwb(this.addFlightAwbInput.value || '');
+                    if (this.addFlightAwbInput.value !== normalized) {
+                        this.addFlightAwbInput.value = normalized;
+                    }
+                });
+            }
             this.root.addEventListener('click', (event) => {
 
                 const actionToggle = event.target.closest('.js-departure-action-toggle');
@@ -2610,14 +2633,14 @@ const CoreAPI = {
                 const placeholderButton = event.target.closest('.js-departure-placeholder-action');
                 if (placeholderButton) {
                     const operation = placeholderButton.getAttribute('data-operation') || '';
-                    const inputSelector = placeholderButton.getAttribute('data-input') || '';
-                    const input = inputSelector ? this.root.querySelector(inputSelector) : null;
+                    if (operation === 'add_flight') {
+                        this.triggerAddFlight(placeholderButton);
+                        return;
+                    }
                     const payload = {
                         operation,
-                        awb: input ? input.value.trim() : '',
                         flight: placeholderButton.getAttribute('data-flight') || ''
                     };
-
                     console.info('Departure placeholder action', payload);
                     return;
                 }
@@ -2640,6 +2663,116 @@ const CoreAPI = {
                     icon.classList.toggle('bi-chevron-up', !isOpen);
                 }
             });
+        },
+
+        normalizeAwb(value) {
+            return String(value || '').replace(/\D+/g, '');
+        },
+        setActionStatus(message, tone) {
+            if (!this.addFlightStatus) return;
+            const text = String(message || '').trim();
+            this.addFlightStatus.textContent = text;
+            this.addFlightStatus.classList.remove('text-muted', 'text-success', 'text-danger', 'text-primary');
+            if (!text) {
+                this.addFlightStatus.classList.add('text-muted');
+                return;
+            }
+            const toneClassMap = {
+                success: 'text-success',
+                danger: 'text-danger',
+                primary: 'text-primary'
+            };
+            this.addFlightStatus.classList.add(toneClassMap[tone] || 'text-muted');
+        },
+        setActionBusy(button, isBusy) {
+            if (!button) return;
+            if (isBusy) {
+                if (!button.dataset.originalLabel) {
+                    button.dataset.originalLabel = button.textContent || '';
+                }
+                button.disabled = true;
+                button.textContent = 'Выполняется...';
+                this.activeActionButton = button;
+                return;
+            }
+
+            button.disabled = false;
+            if (button.dataset.originalLabel) {
+                button.textContent = button.dataset.originalLabel;
+            }
+            if (this.activeActionButton === button) {
+                this.activeActionButton = null;
+            }
+        },
+        async runConnectorOperation(connectorId, operationId, runtimeVars) {
+            const fd = new FormData();
+            fd.append('action', 'test_connector_operations');
+            fd.append('connector_id', String(connectorId));
+            fd.append('test_operation', String(operationId || ''));
+            if (runtimeVars && typeof runtimeVars === 'object') {
+                fd.append('runtime_vars_json', JSON.stringify(runtimeVars));
+            }
+            const data = await CoreAPI.client.call(fd);
+            if (!data || data.status !== 'ok') {
+                const err = new Error(data?.message || `Операция ${operationId} завершилась ошибкой`);
+                err.payload = data;
+                throw err;
+            }
+            return data;
+        },
+        async triggerAddFlight(button) {
+            const connectorId = Number(this.forwarderFilter?.value || 0);
+            if (!connectorId) {
+                alert('Сначала выберите конкретного форварда вместо "Все форварды".');
+                return;
+            }
+
+            const dateSelector = button?.getAttribute('data-date-input') || '';
+            const awbSelector = button?.getAttribute('data-input') || '';
+            const dateInput = dateSelector ? this.root.querySelector(dateSelector) : this.addFlightDateInput;
+            const awbInput = awbSelector ? this.root.querySelector(awbSelector) : this.addFlightAwbInput;
+            const refreshOperation = button?.getAttribute('data-refresh-operation') || 'flight_list';
+            const setDate = (dateInput?.value || '').trim();
+            const awb = this.normalizeAwb(awbInput?.value || '');
+
+            if (!setDate) {
+                alert('Укажите дату рейса.');
+                dateInput?.focus();
+                return;
+            }
+            if (!awb) {
+                alert('Укажите AWB цифрами без префикса AWB.');
+                awbInput?.focus();
+                return;
+            }
+
+            if (awbInput) {
+                awbInput.value = awb;
+            }
+
+            this.setActionBusy(button, true);
+            this.setActionStatus(`Запускаю add_flight для AWB ${awb}...`, 'primary');
+
+            try {
+                const runtimeVars = {
+                    set_date: setDate,
+                    add_flight: awb
+                };
+                const addFlightResult = await this.runConnectorOperation(connectorId, 'add_flight', runtimeVars);
+                this.setActionStatus(addFlightResult?.message || 'Рейс добавлен. Обновляю список рейсов...', 'primary');
+                if (refreshOperation) {
+                    await this.runConnectorOperation(connectorId, refreshOperation, runtimeVars);
+                }
+                await this.load();
+                this.setActionStatus(`Рейс для AWB ${awb} добавлен, список рейсов обновлён.`, 'success');
+                showToast('Рейс добавлен и список рейсов обновлён', 2500);
+            } catch (err) {
+                console.error('core_api error (departures add_flight):', err?.payload || err);
+                this.setActionStatus(err?.message || 'Не удалось выполнить add_flight.', 'danger');
+                alert(err?.message || 'Не удалось выполнить add_flight');
+            } finally {
+                this.setActionBusy(button, false);
+            }
         },
         async load() {
             if (!this.tbody) return;

@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-03-18 13:36:13
+/* Smarty version 5.3.1, created on 2026-03-18 14:11:21
   from 'file:cells_NA_API_connector_operations_modal.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_69baaa4d299a24_00813420',
+  'unifunc' => 'content_69bab2893196f2_70982554',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '4e0cfb81384357625659d5eca445a63482fe7323' => 
     array (
       0 => 'cells_NA_API_connector_operations_modal.html',
-      1 => 1773749274,
+      1 => 1773841605,
       2 => 'file',
     ),
   ),
@@ -20,9 +20,27 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_69baaa4d299a24_00813420 (\Smarty\Template $_smarty_tpl) {
+function content_69bab2893196f2_70982554 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?><section class="section">
+  <style>
+    #connector-operations-tabs .nav-link {
+      color: var(--bs-body-color, #212529);
+      border-bottom-width: 2px;
+    }
+
+    #connector-operations-tabs .nav-link.active {
+      color: #0d6efd;
+      background: #eef4ff;
+      border-color: #86b7fe #86b7fe #eef4ff;
+      box-shadow: inset 0 -2px 0 #0d6efd;
+      font-weight: 600;
+    }
+
+    #connector-operations-tabs .nav-link.active .badge {
+      box-shadow: 0 0 0 1px rgba(13, 110, 253, 0.15);
+    }
+  </style>
   <div class="row">
     <div class="col-lg-10">
       <div class="card">
