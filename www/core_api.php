@@ -54,10 +54,10 @@ $routes = [
     'save_connector_operations' => 'api/connectors/connector_actions.php',
     'save_connector_addons' => 'api/connectors/connector_actions.php',
     'test_connector_operations' => 'api/connectors/connector_actions.php',
-    'departures'            => 'api/connectors/connector_actions.php',
-    'flight_list'           => 'api/connectors/connector_actions.php',
-    'view_departures'       => 'api/connectors/connector_actions.php',
-    'departures_flights'    => 'api/connectors/connector_actions.php',
+    'departures'            => 'api/departures/departures_actions.php',
+    'flight_list'           => 'api/departures/departures_actions.php',
+    'view_departures'       => 'api/departures/departures_actions.php',
+    'departures_flights'    => 'api/departures/departures_actions.php',
 
     // ========== CONNECTORS (meta) ==========
     'get_module_actions_registry' => '@internal/module_actions_registry',
