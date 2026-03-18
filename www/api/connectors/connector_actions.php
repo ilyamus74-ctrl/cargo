@@ -2112,7 +2112,7 @@ function connectors_curl_request(array $cfg, array $vars, bool $sslIgnore): arra
 
 
 
-function connectors_clear_directory(string $directory): void
+function connectors_clear_directory(string $directory, ?int $olderThanSeconds = null): void
 {
     if (!is_dir($directory)) {
         return;
@@ -2122,6 +2122,7 @@ function connectors_clear_directory(string $directory): void
     if (!is_array($items)) {
         return;
     }
+    $minMtime = $olderThanSeconds !== null ? (time() - max(0, $olderThanSeconds)) : null;
 
     foreach ($items as $item) {
         if ($item === '.' || $item === '..') {
@@ -2129,6 +2130,14 @@ function connectors_clear_directory(string $directory): void
         }
 
         $path = $directory . DIRECTORY_SEPARATOR . $item;
+
+        if ($minMtime !== null) {
+            $pathMtime = @filemtime($path);
+            if ($pathMtime !== false && $pathMtime >= $minMtime) {
+                continue;
+            }
+        }
+
         if (is_dir($path) && !is_link($path)) {
             connectors_clear_directory($path);
             @rmdir($path);
@@ -2607,7 +2616,7 @@ function connectors_download_report_file(array $connector, array $reportCfg, ?st
         if (!is_dir($tempDir)) {
             @mkdir($tempDir, 0775, true);
         }
-        connectors_clear_directory($tempDir);
+        connectors_clear_directory($tempDir, 21600);
 
         $payload = [
             'steps' => $steps,
@@ -3060,6 +3069,71 @@ function connectors_build_submission_test_vars(array $connector): array
     return $vars;
 }
 
+function connectors_run_shell_command_with_timeout(string $cmd, int $timeoutSeconds = 50): string
+{
+    $timeoutSeconds = max(1, $timeoutSeconds);
+    $descriptorSpec = [
+        0 => ['pipe', 'r'],
+        1 => ['pipe', 'w'],
+        2 => ['pipe', 'w'],
+    ];
+
+    $process = @proc_open($cmd, $descriptorSpec, $pipes);
+    if (!is_resource($process)) {
+        throw new RuntimeException('Не удалось запустить внешний процесс');
+    }
+
+    fclose($pipes[0]);
+    stream_set_blocking($pipes[1], false);
+    stream_set_blocking($pipes[2], false);
+
+    $stdout = '';
+    $stderr = '';
+    $start = microtime(true);
+
+    while (true) {
+        $status = proc_get_status($process);
+        $stdout .= stream_get_contents($pipes[1]);
+        $stderr .= stream_get_contents($pipes[2]);
+
+        if (!$status['running']) {
+            break;
+        }
+
+        if ((microtime(true) - $start) >= $timeoutSeconds) {
+            proc_terminate($process, 15);
+            usleep(300000);
+            $status = proc_get_status($process);
+            if (!empty($status['running'])) {
+                proc_terminate($process, 9);
+            }
+
+            $stdout .= stream_get_contents($pipes[1]);
+            $stderr .= stream_get_contents($pipes[2]);
+            foreach ([1, 2] as $pipeIndex) {
+                if (isset($pipes[$pipeIndex]) && is_resource($pipes[$pipeIndex])) {
+                    fclose($pipes[$pipeIndex]);
+                }
+            }
+            proc_close($process);
+
+            $combinedOutput = trim($stdout . ($stderr !== '' ? "\n" . $stderr : ''));
+            throw new RuntimeException('Внешний процесс превысил timeout ' . $timeoutSeconds . 's' . ($combinedOutput !== '' ? ': ' . $combinedOutput : ''));
+        }
+
+        usleep(100000);
+    }
+
+    foreach ([1, 2] as $pipeIndex) {
+        if (isset($pipes[$pipeIndex]) && is_resource($pipes[$pipeIndex])) {
+            fclose($pipes[$pipeIndex]);
+        }
+    }
+    proc_close($process);
+
+    return $stdout . ($stderr !== '' ? "\n" . $stderr : '');
+}
+
 function connectors_run_shell_command_with_timeout(string $cmd, int $timeoutSeconds = 90): string
 {
     $timeoutSeconds = max(1, $timeoutSeconds);
@@ -3141,7 +3215,7 @@ function connectors_run_submission_test(array $connector, array $submissionCfg):
     if (!is_dir($tempDir)) {
         @mkdir($tempDir, 0775, true);
     }
-    connectors_clear_directory($tempDir);
+    connectors_clear_directory($tempDir, 21600);
 
     $vars = connectors_build_submission_test_vars($connector);
     $payload = [
@@ -3316,7 +3390,7 @@ function connectors_execute_browser_steps_operation(array $connector, array $ope
     if (!is_dir($tempDir)) {
         @mkdir($tempDir, 0775, true);
     }
-    connectors_clear_directory($tempDir);
+    connectors_clear_directory($tempDir, 21600);
 
     $today = date('Y-m-d');
     $defaultDateFrom = date('Y-m-d', strtotime('-2 years', strtotime($today)));
