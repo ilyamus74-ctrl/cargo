@@ -60,7 +60,17 @@
         <div class="p-2">
           <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
             <div class="fw-semibold">Контейнеры рейса {$flight.flight_no|default:'—'|escape}</div>
-            <div class="small text-muted">Всего: {$flight.containers_total|default:0}</div>
+            <div class="d-flex flex-wrap align-items-center gap-2">
+              <div class="small text-muted">Всего: {$flight.containers_total|default:0}</div>
+              {if $flight.status|lower == 'open'}
+                <button type="button"
+                        class="btn btn-sm btn-outline-primary js-departure-placeholder-action"
+                        data-operation="add_container"
+                        data-flight="{$flight.flight_no|default:''|escape:'htmlattr'}">
+                  Добавить контейнер
+                </button>
+              {/if}
+            </div>
           </div>
 
           {if $flight.containers|@count > 0}

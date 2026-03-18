@@ -2591,6 +2591,36 @@ const CoreAPI = {
             this.forwarderFilter.addEventListener('change', () => this.load());
             this.statusFilter.addEventListener('change', () => this.load());
             this.root.addEventListener('click', (event) => {
+
+                const actionToggle = event.target.closest('.js-departure-action-toggle');
+                if (actionToggle) {
+                    const targetId = actionToggle.getAttribute('data-target') || '';
+                    if (!targetId) return;
+
+                    const target = document.getElementById(targetId);
+                    if (!target) return;
+
+                    const isOpen = actionToggle.getAttribute('data-open') === '1';
+                    actionToggle.setAttribute('data-open', isOpen ? '0' : '1');
+                    actionToggle.setAttribute('aria-expanded', isOpen ? 'false' : 'true');
+                    target.classList.toggle('d-none', isOpen);
+                    return;
+                }
+
+                const placeholderButton = event.target.closest('.js-departure-placeholder-action');
+                if (placeholderButton) {
+                    const operation = placeholderButton.getAttribute('data-operation') || '';
+                    const inputSelector = placeholderButton.getAttribute('data-input') || '';
+                    const input = inputSelector ? this.root.querySelector(inputSelector) : null;
+                    const payload = {
+                        operation,
+                        awb: input ? input.value.trim() : '',
+                        flight: placeholderButton.getAttribute('data-flight') || ''
+                    };
+
+                    console.info('Departure placeholder action', payload);
+                    return;
+                }
                 const button = event.target.closest('.js-departure-toggle');
                 if (!button) return;
 

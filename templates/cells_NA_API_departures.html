@@ -40,6 +40,38 @@
                   <option value="CLOSED">closed</option>
                 </select>
               </div>
+
+              <div class="col-12 col-md-auto">
+                <button type="button"
+                        class="btn btn-sm btn-primary js-departure-action-toggle"
+                        data-target="departures-add-flight-panel"
+                        data-open="0"
+                        aria-expanded="false">
+                  Добавить рейс
+                </button>
+              </div>
+            </div>
+
+            <div id="departures-add-flight-panel" class="card border border-dashed bg-light d-none mb-3">
+              <div class="card-body py-3">
+                <div class="row g-2 align-items-end">
+                  <div class="col-12 col-md-4">
+                    <label class="form-label small mb-1" for="departures-add-flight-awb">AWB</label>
+                    <input type="text"
+                           id="departures-add-flight-awb"
+                           class="form-control form-control-sm"
+                           placeholder="AWB 50118620604">
+                  </div>
+                  <div class="col-12 col-md-auto">
+                    <button type="button"
+                            class="btn btn-sm btn-success js-departure-placeholder-action"
+                            data-operation="add_flight"
+                            data-input="#departures-add-flight-awb">
+                      Добавить рейс
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
 
             <div class="table-responsive">

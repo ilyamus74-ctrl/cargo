@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-03-18 11:46:03
+/* Smarty version 5.3.1, created on 2026-03-18 12:55:35
   from 'file:cells_NA_API_departures_rows.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_69ba907b1c37d5_96406588',
+  'unifunc' => 'content_69baa0c7440d70_23586799',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '04916a2971ae525b97127d32f509a85cd4ad4d24' => 
     array (
       0 => 'cells_NA_API_departures_rows.html',
-      1 => 1773832495,
+      1 => 1773838494,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_69ba907b1c37d5_96406588 (\Smarty\Template $_smarty_tpl) {
+function content_69baa0c7440d70_23586799 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 if ($_smarty_tpl->getSmarty()->getModifierCallback('count')($_smarty_tpl->getValue('departure_rows')) > 0) {?>
   <?php
@@ -112,8 +112,19 @@ $foreach0DoElse = false;
           <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
             <div class="fw-semibold">Контейнеры рейса <?php echo htmlspecialchars((string)(($tmp = $_smarty_tpl->getValue('flight')['flight_no'] ?? null)===null||$tmp==='' ? '—' ?? null : $tmp), ENT_QUOTES, 'UTF-8', true);?>
 </div>
-            <div class="small text-muted">Всего: <?php echo (($tmp = $_smarty_tpl->getValue('flight')['containers_total'] ?? null)===null||$tmp==='' ? 0 ?? null : $tmp);?>
+            <div class="d-flex flex-wrap align-items-center gap-2">
+              <div class="small text-muted">Всего: <?php echo (($tmp = $_smarty_tpl->getValue('flight')['containers_total'] ?? null)===null||$tmp==='' ? 0 ?? null : $tmp);?>
 </div>
+              <?php if (mb_strtolower((string) $_smarty_tpl->getValue('flight')['status'], 'UTF-8') == 'open') {?>
+                <button type="button"
+                        class="btn btn-sm btn-outline-primary js-departure-placeholder-action"
+                        data-operation="add_container"
+                        data-flight="<?php echo $_smarty_tpl->getSmarty()->getModifierCallback('escape')((($tmp = $_smarty_tpl->getValue('flight')['flight_no'] ?? null)===null||$tmp==='' ? '' ?? null : $tmp), 'htmlattr');?>
+">
+                  Добавить контейнер
+                </button>
+              <?php }?>
+            </div>
           </div>
 
           <?php if ($_smarty_tpl->getSmarty()->getModifierCallback('count')($_smarty_tpl->getValue('flight')['containers']) > 0) {?>

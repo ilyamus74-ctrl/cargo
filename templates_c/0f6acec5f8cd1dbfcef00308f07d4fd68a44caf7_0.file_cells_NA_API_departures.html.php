@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-03-18 11:46:02
+/* Smarty version 5.3.1, created on 2026-03-18 12:55:35
   from 'file:cells_NA_API_departures.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_69ba907abe5994_81944747',
+  'unifunc' => 'content_69baa0c734d3a5_75283154',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '0f6acec5f8cd1dbfcef00308f07d4fd68a44caf7' => 
     array (
       0 => 'cells_NA_API_departures.html',
-      1 => 1773832464,
+      1 => 1773838468,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_69ba907abe5994_81944747 (\Smarty\Template $_smarty_tpl) {
+function content_69baa0c734d3a5_75283154 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?><div class="pagetitle">
   <h1>Отправления</h1>
@@ -73,6 +73,38 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
                   <option value="OPEN">open</option>
                   <option value="CLOSED">closed</option>
                 </select>
+              </div>
+
+              <div class="col-12 col-md-auto">
+                <button type="button"
+                        class="btn btn-sm btn-primary js-departure-action-toggle"
+                        data-target="departures-add-flight-panel"
+                        data-open="0"
+                        aria-expanded="false">
+                  Добавить рейс
+                </button>
+              </div>
+            </div>
+
+            <div id="departures-add-flight-panel" class="card border border-dashed bg-light d-none mb-3">
+              <div class="card-body py-3">
+                <div class="row g-2 align-items-end">
+                  <div class="col-12 col-md-4">
+                    <label class="form-label small mb-1" for="departures-add-flight-awb">AWB</label>
+                    <input type="text"
+                           id="departures-add-flight-awb"
+                           class="form-control form-control-sm"
+                           placeholder="AWB 50118620604">
+                  </div>
+                  <div class="col-12 col-md-auto">
+                    <button type="button"
+                            class="btn btn-sm btn-success js-departure-placeholder-action"
+                            data-operation="add_flight"
+                            data-input="#departures-add-flight-awb">
+                      Добавить рейс
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
 
