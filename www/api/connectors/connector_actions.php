@@ -43,12 +43,15 @@ final class ConnectorStepLogException extends RuntimeException
     /** @var array<int,array<string,mixed>> */
     private array $stepLog;
     private string $artifactsDir;
+    /** @var array<string,mixed> */
+    private array $context;
 
-    public function __construct(string $message, array $stepLog = [], int $code = 0, ?Throwable $previous = null, string $artifactsDir = '')
+    public function __construct(string $message, array $stepLog = [], int $code = 0, ?Throwable $previous = null, string $artifactsDir = '', array $context = [])
     {
         parent::__construct($message, $code, $previous);
         $this->stepLog = $stepLog;
         $this->artifactsDir = trim($artifactsDir);
+        $this->context = $context;
     }
 
     /** @return array<int,array<string,mixed>> */
@@ -60,6 +63,11 @@ final class ConnectorStepLogException extends RuntimeException
     public function getArtifactsDir(): string
     {
         return $this->artifactsDir;
+    }
+    /** @return array<string,mixed> */
+    public function getContext(): array
+    {
+        return $this->context;
     }
 }
 
@@ -3321,7 +3329,38 @@ function connectors_execute_subrunner(array $connector, array $operation, int $c
     $subrunnerResult = connectors_subrunners_run($subrunnerName, $ctx, $options);
     $status = trim((string)($subrunnerResult['status'] ?? ''));
     if ($status !== 'ok') {
-        throw new RuntimeException((string)($subrunnerResult['message'] ?? ('Subrunner завершился с ошибкой: ' . $subrunnerName)));
+
+        $targetTable = trim((string)($subrunnerResult['meta']['table_name'] ?? ''));
+        $errors = isset($subrunnerResult['errors']) && is_array($subrunnerResult['errors']) ? $subrunnerResult['errors'] : [];
+        $errorMessages = [];
+        foreach (array_slice($errors, 0, 3) as $error) {
+            if (!is_array($error)) {
+                continue;
+            }
+            $rowLabel = isset($error['row']) ? ('row ' . (string)$error['row'] . ': ') : '';
+            $errorMessage = trim((string)($error['message'] ?? ''));
+            if ($errorMessage !== '') {
+                $errorMessages[] = $rowLabel . $errorMessage;
+            }
+        }
+
+        $message = trim((string)($subrunnerResult['message'] ?? ('Subrunner завершился с ошибкой: ' . $subrunnerName)));
+        if ($errorMessages !== []) {
+            $message .= ' Details: ' . implode('; ', $errorMessages);
+        }
+
+        throw new ConnectorStepLogException(
+            $message,
+            isset($browserResult['step_log']) && is_array($browserResult['step_log']) ? $browserResult['step_log'] : [],
+            0,
+            null,
+            (string)($browserResult['artifacts_dir'] ?? ''),
+            [
+                'target_table' => $targetTable,
+                'subrunner_errors' => $errors,
+                'subrunner_name' => $subrunnerName,
+            ]
+        );
     }
 
     return [
@@ -4644,15 +4683,18 @@ switch ($dispatchAction) {
             connectors_append_trace_event($traceLog, $runId, $testOperation ?: 'report', 'validate', 'failed', 'Ошибка выполнения шага', [
                 'error' => $e->getMessage(),
             ]);
+            $exceptionContext = $e->getContext();
             $response = [
                 'status' => 'error',
                 'message' => $e->getMessage(),
                 'connector_id' => $connectorId,
                 'test_operation' => $testOperation,
                 'run_id' => $runId,
+                'target_table' => trim((string)($exceptionContext['target_table'] ?? '')),
                 'step_log' => $e->getStepLog(),
                 'trace_log' => $traceLog,
                 'artifacts_dir' => $e->getArtifactsDir(),
+                'subrunner_errors' => isset($exceptionContext['subrunner_errors']) && is_array($exceptionContext['subrunner_errors']) ? $exceptionContext['subrunner_errors'] : [],
             ];
 
         } catch (Throwable $e) {
@@ -4747,17 +4789,19 @@ switch ($dispatchAction) {
                 connectors_append_operation_executed_event($traceLog, $runId, $reportOperationId, 'main', 'failed', 'Ошибка шага операции #1', 0, null, null, [
                     'error' => $e->getMessage(),
                 ]);
+                $exceptionContext = $e->getContext();
                 $response = [
                     'status' => 'error',
                     'message' => $e->getMessage(),
                     'connector_id' => $connectorId,
                     'run_id' => $runId,
-                    'target_table' => $targetTable,
+                    'target_table' => trim((string)($exceptionContext['target_table'] ?? $targetTable)),
                     'step_log' => $e->getStepLog(),
                     'trace_log' => $traceLog,
                     'execution_plan' => $executionPlan,
                     'chain_status' => connectors_build_chain_status_map($executionPlan, $reportOperationId, false, $traceLog),
                     'artifacts_dir' => $e->getArtifactsDir(),
+                    'subrunner_errors' => isset($exceptionContext['subrunner_errors']) && is_array($exceptionContext['subrunner_errors']) ? $exceptionContext['subrunner_errors'] : [],
                 ];
             } catch (RuntimeException $e) {
                 $reportOperationId = trim((string)($reportCfg['operation_id'] ?? 'report'));
