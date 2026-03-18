@@ -363,6 +363,34 @@ UI:
        - upsert/insert в локальную БД коннектора.
     4) Возвращает структурированный результат (rows_extracted, rows_written, errors).
 
+Пример маппинга колонок flight-list (какие данные парсить и куда писать):
+
+    {
+      "subrunner": {
+        "name": "flight_list_dev_colibri",
+        "options": {
+          "table_selector": "table.references-table",
+          "timezone": "Asia/Baku",
+          "write_mode": "upsert",
+          "field_mapping": {
+            "external_id": "No",
+            "name": "Name",
+            "flight_time": "Flight Time",
+            "carrier": "Carrier",
+            "flight_number": "Flight",
+            "awb": "AWB",
+            "departure": "Departure",
+            "destination": "Destination",
+            "packages_count": "Packages count",
+            "total_weight": "Total weight",
+            "closed_at": "Closed date"
+          }
+        }
+      }
+    }
+
+Замечание по хранению в БД: оптимально использовать гибридный подход — ключевые поля в отдельных колонках (для WHERE/JOIN/индексов) + `raw_json` для полного сырого слепка строки.
+
 Почему это лучше для “сложных” коннекторов:
 
     - меньше магии в JSON и меньше хрупких универсальных правил;

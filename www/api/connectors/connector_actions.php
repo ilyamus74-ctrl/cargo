@@ -1698,6 +1698,22 @@ function connectors_resolve_legacy_test_entrypoint(array $operationsPayload, str
         : (string)($operationsPayload['report']['operation_id'] ?? 'report');
 }
 
+
+function connectors_force_enable_test_entrypoint(array $runtimeOperations, string $entrypointOperationId): array
+{
+    $entrypointOperationId = trim($entrypointOperationId);
+    if ($entrypointOperationId === '' || !isset($runtimeOperations[$entrypointOperationId]) || !is_array($runtimeOperations[$entrypointOperationId])) {
+        return $runtimeOperations;
+    }
+
+    if (!empty($runtimeOperations[$entrypointOperationId]['enabled'])) {
+        return $runtimeOperations;
+    }
+
+    $runtimeOperations[$entrypointOperationId]['enabled'] = 1;
+    return $runtimeOperations;
+}
+
 function connectors_migrate_operations_payload(array $payload): array
 {
 
@@ -4400,6 +4416,8 @@ switch ($dispatchAction) {
             if (!is_array($runtimeOperations) || $runtimeOperations === []) {
                 throw new InvalidArgumentException('Не удалось подготовить runtime-операции для тестового запуска');
             }
+
+            $runtimeOperations = connectors_force_enable_test_entrypoint($runtimeOperations, $entrypoint);
 
             if (connectors_is_dependency_graph_enabled($connector)) {
                 try {

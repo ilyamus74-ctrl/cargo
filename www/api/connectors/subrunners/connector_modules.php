@@ -87,9 +87,14 @@ function connectors_subrunner_run_flight_list_colibri(array $ctx, array $options
         $writeMode = 'upsert';
     }
 
-    $rows = connectors_subrunner_extract_table_rows($html, $tableSelector);
+    $parsed = connectors_subrunner_extract_table_rows($html, $tableSelector);
+    $headers = (array)($parsed['headers'] ?? []);
+    $rows = (array)($parsed['rows'] ?? []);
+
     $tableName = connectors_subrunner_resolve_flight_table_name($connector, $options);
     connectors_subrunner_ensure_flight_table($db, $tableName);
+
+    $mapping = connectors_subrunner_resolve_flight_mapping($options);
 
     $written = 0;
     $skipped = 0;
@@ -97,7 +102,7 @@ function connectors_subrunner_run_flight_list_colibri(array $ctx, array $options
 
     foreach ($rows as $rowIndex => $row) {
         try {
-            $normalized = connectors_subrunner_normalize_flight_row($row, $timezone, $rowIndex + 1);
+            $normalized = connectors_subrunner_normalize_flight_row($row, $headers, $mapping, $timezone, $rowIndex + 1);
             if ($normalized === null) {
                 $skipped++;
                 continue;
@@ -135,6 +140,8 @@ function connectors_subrunner_run_flight_list_colibri(array $ctx, array $options
             'timezone' => $timezone,
             'write_mode' => $writeMode,
             'connector_name' => (string)($connector['name'] ?? ''),
+            'detected_headers' => $headers,
+            'mapping' => $mapping,
         ],
     ];
 }
@@ -155,36 +162,52 @@ function connectors_subrunner_extract_table_rows(string $html, string $tableSele
 
     $table = $tables->item(0);
     if (!$table) {
-        return [];
+
+        return ['headers' => [], 'rows' => []];
+    }
+
+    $headers = [];
+    foreach ($xpath->query('.//thead/tr[1]/th', $table) ?: [] as $th) {
+        $headers[] = trim(preg_replace('/\s+/u', ' ', (string)$th->textContent) ?? '');
     }
 
     $rows = [];
-    foreach ($xpath->query('.//tr', $table) ?: [] as $tr) {
+    foreach ($xpath->query('.//tbody/tr', $table) ?: [] as $tr) {
         $cols = [];
-        $cellNodes = $xpath->query('./th|./td', $tr);
-        if (!$cellNodes) {
-            continue;
-        }
-        foreach ($cellNodes as $cell) {
+        foreach ($xpath->query('./th|./td', $tr) ?: [] as $cell) {
             $cols[] = trim(preg_replace('/\s+/u', ' ', (string)$cell->textContent) ?? '');
         }
-
         if (!empty($cols)) {
             $rows[] = $cols;
         }
     }
 
-    if (!empty($rows) && connectors_subrunner_row_looks_like_header($rows[0])) {
-        array_shift($rows);
-    }
 
-    return $rows;
+    if (empty($rows)) {
+        foreach ($xpath->query('.//tr', $table) ?: [] as $tr) {
+            $cols = [];
+            foreach ($xpath->query('./th|./td', $tr) ?: [] as $cell) {
+                $cols[] = trim(preg_replace('/\s+/u', ' ', (string)$cell->textContent) ?? '');
+            }
+            if (!empty($cols)) {
+                $rows[] = $cols;
+            }
+        }
+
+        if (!empty($rows) && (empty($headers) || connectors_subrunner_row_looks_like_header($rows[0]))) {
+            if (empty($headers)) {
+                $headers = $rows[0];
+            }
+            array_shift($rows);
+        }
+    }
+    return ['headers' => $headers, 'rows' => $rows];
 }
 
 function connectors_subrunner_row_looks_like_header(array $row): bool
 {
     $joined = mb_strtolower(implode(' ', $row));
-    foreach (['flight', 'рейс', 'номер', 'дата'] as $marker) {
+    foreach (['flight', 'рейс', 'номер', 'дата', 'awb', 'destination', 'departure', 'name'] as $marker) {
         if (mb_strpos($joined, $marker) !== false) {
             return true;
         }
@@ -193,33 +216,118 @@ function connectors_subrunner_row_looks_like_header(array $row): bool
     return false;
 }
 
-function connectors_subrunner_normalize_flight_row(array $row, string $timezone, int $rowNo): ?array
+function connectors_subrunner_default_flight_mapping(): array
 {
-    $flightNo = trim((string)($row[0] ?? ''));
-    $departureDateRaw = trim((string)($row[1] ?? ''));
-    $route = trim((string)($row[2] ?? ''));
-    $status = trim((string)($row[3] ?? ''));
+    return [
+        'external_id' => ['No', 0],
+        'name' => ['Name', 1],
+        'flight_time' => ['Flight Time', 2],
+        'carrier' => ['Carrier', 3],
+        'flight_number' => ['Flight', 4],
+        'awb' => ['AWB', 5],
+        'departure' => ['Departure', 6],
+        'destination' => ['Destination', 7],
+        'packages_count' => ['Packages count', 8],
+        'total_weight' => ['Total weight', 9],
+        'closed_at' => ['Closed date', 10],
+    ];
+}
 
-    if ($flightNo === '' && $departureDateRaw === '' && $route === '' && $status === '') {
+
+function connectors_subrunner_resolve_flight_mapping(array $options): array
+{
+    $mapping = connectors_subrunner_default_flight_mapping();
+
+    $custom = $options['field_mapping'] ?? null;
+    if (!is_array($custom)) {
+        return $mapping;
+    }
+
+
+    foreach ($custom as $field => $resolver) {
+        if (!array_key_exists($field, $mapping)) {
+            continue;
+        }
+        if (is_string($resolver) || is_int($resolver)) {
+            $mapping[$field] = [$resolver];
+        } elseif (is_array($resolver) && $resolver !== []) {
+            $mapping[$field] = array_values($resolver);
+        }
+    }
+
+
+    return $mapping;
+}
+
+function connectors_subrunner_normalize_header_key(string $value): string
+{
+    $value = mb_strtolower(trim($value));
+    $value = preg_replace('/\s+/u', ' ', $value) ?? $value;
+    $value = str_replace(['ё'], ['е'], $value);
+    return $value;
+}
+
+function connectors_subrunner_pick_by_mapping(array $row, array $headers, array $resolver): string
+{
+    foreach ($resolver as $candidate) {
+        if (is_int($candidate) || (is_string($candidate) && preg_match('/^\d+$/', $candidate))) {
+            $index = (int)$candidate;
+            if (array_key_exists($index, $row)) {
+                return trim((string)$row[$index]);
+            }
+            continue;
+        }
+
+        $headerNeedle = connectors_subrunner_normalize_header_key((string)$candidate);
+        foreach ($headers as $index => $header) {
+            if (connectors_subrunner_normalize_header_key((string)$header) === $headerNeedle) {
+                return trim((string)($row[$index] ?? ''));
+            }
+        }
+    }
+
+    return '';
+}
+
+function connectors_subrunner_normalize_flight_row(array $row, array $headers, array $mapping, string $timezone, int $rowNo): ?array
+{
+    $raw = [];
+    foreach ($mapping as $field => $resolver) {
+        $raw[$field] = connectors_subrunner_pick_by_mapping($row, $headers, (array)$resolver);
+    }
+
+    if (implode('', $raw) === '') {
         return null;
     }
 
-    if ($flightNo === '') {
-        throw new RuntimeException('Пустой номер рейса');
-    }
+    $closedAt = connectors_subrunner_parse_datetime((string)$raw['closed_at'], $timezone);
+    $packagesCount = preg_replace('/[^0-9\-]/', '', (string)$raw['packages_count']) ?? '';
+    $totalWeight = str_replace(',', '.', preg_replace('/[^0-9,\.\-]/', '', (string)$raw['total_weight']) ?? '');
 
-    $departureAt = null;
-    if ($departureDateRaw !== '') {
-        $departureAt = connectors_subrunner_parse_datetime($departureDateRaw, $timezone);
+    $legacyFlightNo = trim((string)($raw['flight_number'] ?: ($raw['name'] ?: $raw['external_id'])));
+    if ($legacyFlightNo === '') {
+        throw new RuntimeException('Пустой идентификатор рейса (external_id/name/flight_number)');
     }
 
     return [
-        'flight_no' => $flightNo,
-        'departure_at' => $departureAt,
-        'departure_raw' => $departureDateRaw,
-        'route' => $route,
-        'status' => $status,
-        'raw_json' => json_encode(['row_no' => $rowNo, 'cells' => $row], JSON_UNESCAPED_UNICODE),
+
+        'flight_no' => $legacyFlightNo,
+        'departure_at' => $closedAt,
+        'departure_raw' => (string)$raw['flight_time'],
+        'route' => trim((string)$raw['departure']) . '-' . trim((string)$raw['destination']),
+        'status' => $closedAt ? 'closed' : 'open',
+        'external_id' => (string)$raw['external_id'],
+        'name' => (string)$raw['name'],
+        'flight_time' => (string)$raw['flight_time'],
+        'carrier' => (string)$raw['carrier'],
+        'flight_number' => (string)$raw['flight_number'],
+        'awb' => (string)$raw['awb'],
+        'departure' => (string)$raw['departure'],
+        'destination' => (string)$raw['destination'],
+        'packages_count' => $packagesCount === '' ? null : (int)$packagesCount,
+        'total_weight' => $totalWeight === '' ? null : (float)$totalWeight,
+        'closed_at' => $closedAt,
+        'raw_json' => json_encode(['row_no' => $rowNo, 'headers' => $headers, 'cells' => $row, 'parsed' => $raw], JSON_UNESCAPED_UNICODE),
     ];
 }
 
@@ -299,6 +407,17 @@ function connectors_subrunner_ensure_flight_table(mysqli $db, string $tableName)
             departure_raw VARCHAR(128) NOT NULL DEFAULT '',
             route VARCHAR(255) NOT NULL DEFAULT '',
             status VARCHAR(128) NOT NULL DEFAULT '',
+            external_id VARCHAR(128) NOT NULL DEFAULT '',
+            name VARCHAR(255) NOT NULL DEFAULT '',
+            flight_time VARCHAR(255) NOT NULL DEFAULT '',
+            carrier VARCHAR(128) NOT NULL DEFAULT '',
+            flight_number VARCHAR(128) NOT NULL DEFAULT '',
+            awb VARCHAR(128) NOT NULL DEFAULT '',
+            departure VARCHAR(128) NOT NULL DEFAULT '',
+            destination VARCHAR(128) NOT NULL DEFAULT '',
+            packages_count INT NULL,
+            total_weight DECIMAL(12,3) NULL,
+            closed_at DATETIME NULL,
             raw_json LONGTEXT NULL,
             created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
             updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -317,12 +436,23 @@ function connectors_subrunner_upsert_flight_row(mysqli $db, string $tableName, i
     $safeTable = '`' . str_replace('`', '``', $tableName) . '`';
     $sql = "
         INSERT INTO {$safeTable}
-            (connector_id, flight_no, departure_at, departure_raw, route, status, raw_json)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+            (connector_id, flight_no, departure_at, departure_raw, route, status, external_id, name, flight_time, carrier, flight_number, awb, departure, destination, packages_count, total_weight, closed_at, raw_json)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         ON DUPLICATE KEY UPDATE
             departure_raw = VALUES(departure_raw),
             route = VALUES(route),
             status = VALUES(status),
+            external_id = VALUES(external_id),
+            name = VALUES(name),
+            flight_time = VALUES(flight_time),
+            carrier = VALUES(carrier),
+            flight_number = VALUES(flight_number),
+            awb = VALUES(awb),
+            departure = VALUES(departure),
+            destination = VALUES(destination),
+            packages_count = VALUES(packages_count),
+            total_weight = VALUES(total_weight),
+            closed_at = VALUES(closed_at),
             raw_json = VALUES(raw_json)
     ";
 
@@ -332,14 +462,30 @@ function connectors_subrunner_upsert_flight_row(mysqli $db, string $tableName, i
     }
 
     $departureAt = $row['departure_at'] ?? null;
+
+    $packagesCount = $row['packages_count'];
+    $totalWeight = $row['total_weight'];
+    $closedAt = $row['closed_at'] ?? null;
+
     $stmt->bind_param(
-        'issssss',
+        'isssssssssssssidds',
         $connectorId,
         $row['flight_no'],
         $departureAt,
         $row['departure_raw'],
         $row['route'],
         $row['status'],
+        $row['external_id'],
+        $row['name'],
+        $row['flight_time'],
+        $row['carrier'],
+        $row['flight_number'],
+        $row['awb'],
+        $row['departure'],
+        $row['destination'],
+        $packagesCount,
+        $totalWeight,
+        $closedAt,
         $row['raw_json']
     );
 
@@ -357,8 +503,8 @@ function connectors_subrunner_insert_flight_row(mysqli $db, string $tableName, i
     $safeTable = '`' . str_replace('`', '``', $tableName) . '`';
     $sql = "
         INSERT INTO {$safeTable}
-            (connector_id, flight_no, departure_at, departure_raw, route, status, raw_json)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+            (connector_id, flight_no, departure_at, departure_raw, route, status, external_id, name, flight_time, carrier, flight_number, awb, departure, destination, packages_count, total_weight, closed_at, raw_json)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ";
 
     $stmt = $db->prepare($sql);
@@ -367,14 +513,30 @@ function connectors_subrunner_insert_flight_row(mysqli $db, string $tableName, i
     }
 
     $departureAt = $row['departure_at'] ?? null;
+
+    $packagesCount = $row['packages_count'];
+    $totalWeight = $row['total_weight'];
+    $closedAt = $row['closed_at'] ?? null;
+
     $stmt->bind_param(
-        'issssss',
+        'isssssssssssssidds',
         $connectorId,
         $row['flight_no'],
         $departureAt,
         $row['departure_raw'],
         $row['route'],
         $row['status'],
+        $row['external_id'],
+        $row['name'],
+        $row['flight_time'],
+        $row['carrier'],
+        $row['flight_number'],
+        $row['awb'],
+        $row['departure'],
+        $row['destination'],
+        $packagesCount,
+        $totalWeight,
+        $closedAt,
         $row['raw_json']
     );
 
@@ -385,4 +547,5 @@ function connectors_subrunner_insert_flight_row(mysqli $db, string $tableName, i
     }
 
     $stmt->close();
+
 }
