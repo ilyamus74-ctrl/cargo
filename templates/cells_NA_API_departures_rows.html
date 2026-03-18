@@ -69,6 +69,8 @@
                         data-refresh-operation="add_flight"
                         data-connector-id="{$flight.connector_id|default:0|escape:'htmlattr'}"
                         data-flight="{$flight.flight_no|default:''|escape:'htmlattr'}"
+                        data-flight-id="{$flight.flight_id|default:''|escape:'htmlattr'}"
+                        data-flight-record-id="{$flight.flight_record_id|default:0|escape:'htmlattr'}"
                         data-container-name="NEW"
                         data-status-target="#{$flight.row_uid|escape:'htmlattr'}_status"
                         data-busy-label="Добавляю контейнер..."
