@@ -417,6 +417,22 @@ function ensureDirExists(dir) {
   }
 }
 
+async function serializePageCookies(page) {
+  if (!page || typeof page.cookies !== 'function') return '';
+
+  try {
+    const cookies = await page.cookies();
+    if (!Array.isArray(cookies) || cookies.length === 0) return '';
+
+    return cookies
+      .filter((cookie) => cookie && cookie.name)
+      .map((cookie) => `${cookie.name}=${cookie.value ?? ''}`)
+      .join('; ');
+  } catch (_) {
+    return '';
+  }
+}
+
 function mkTempDir(preferredBaseDir, prefix) {
   const normalizedBase = (preferredBaseDir || '').trim();
   if (normalizedBase !== '' && ensureDirExists(normalizedBase)) {
@@ -1164,6 +1180,7 @@ function persistDownloadedFileIfNeeded(downloaded, runtimeHomeDir, stableDownloa
             effective_min_file_size_bytes: effectiveMinSizeBytes,
             expected_download_size_bytes: expectedDownloadSizeBytes || undefined,
             final_html_path: await saveFinalHtmlSnapshot(page, artifactsDir) || undefined,
+            cookies: await serializePageCookies(page) || undefined,
             step_log: stepLog,
             artifacts_dir: artifactsDir,
             network_log: debugDownloadNetwork ? downloadNetworkLog : undefined,
@@ -1206,6 +1223,7 @@ function persistDownloadedFileIfNeeded(downloaded, runtimeHomeDir, stableDownloa
           resolved_error_selector: errorSelector || undefined,
           captured_error_text: capturedErrorText || undefined,
           final_html_path: finalHtmlPath || undefined,
+          cookies: await serializePageCookies(page) || undefined,
           step_log: stepLog,
           artifacts_dir: artifactsDir,
           network_log: debugDownloadNetwork ? downloadNetworkLog : undefined,
@@ -1249,6 +1267,7 @@ function persistDownloadedFileIfNeeded(downloaded, runtimeHomeDir, stableDownloa
         min_file_size_bytes: minFileSizeBytes,
         expected_download_size_bytes: expectedDownloadSizeBytes || undefined,
         final_html_path: finalHtmlPath || undefined,
+        cookies: await serializePageCookies(page) || undefined,
         step_log: stepLog,
         artifacts_dir: artifactsDir,
         network_log: debugDownloadNetwork ? downloadNetworkLog : undefined,

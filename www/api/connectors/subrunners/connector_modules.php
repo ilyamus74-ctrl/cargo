@@ -136,6 +136,7 @@ function connectors_subrunner_run_flight_list_colibri(array $ctx, array $options
                         'container_table_selector' => $containerTableSelector,
                         'ssl_ignore' => !empty($connector['ssl_ignore']),
                         'container_url_template' => (string)($options['container_url_template'] ?? ''),
+                        'runtime_cookies' => (string)($ctx['browser']['cookies'] ?? ''),
                     ]
                 );
                 $containersFetched += (int)($containerSync['fetched'] ?? 0);
@@ -930,7 +931,13 @@ function connectors_subrunner_sync_flight_containers(
     }
 
     try {
-        $html = connectors_subrunner_http_get($url, $connector, !empty($options['ssl_ignore']));
+        $requestConnector = $connector;
+        $runtimeCookies = trim((string)($options['runtime_cookies'] ?? ''));
+        if ($runtimeCookies !== '') {
+            $requestConnector['runtime_cookies'] = $runtimeCookies;
+        }
+
+        $html = connectors_subrunner_http_get($url, $requestConnector, !empty($options['ssl_ignore']));
         $selector = trim((string)($options['container_table_selector'] ?? 'table.references-table'));
         $parsed = connectors_subrunner_extract_table_rows($html, $selector);
         $headers = (array)($parsed['headers'] ?? []);
@@ -1019,7 +1026,10 @@ function connectors_subrunner_http_get(string $url, array $connector, bool $sslI
         $headers[] = 'Authorization: Bearer ' . $authToken;
     }
 
-    $cookieValue = trim((string)($connector['auth_cookies'] ?? ''));
+    $cookieValue = trim((string)($connector['runtime_cookies'] ?? ''));
+    if ($cookieValue === '') {
+        $cookieValue = trim((string)($connector['auth_cookies'] ?? ''));
+    }
     $opts = [
         CURLOPT_URL => $url,
         CURLOPT_RETURNTRANSFER => true,

@@ -3281,6 +3281,7 @@ function connectors_execute_browser_steps_operation(array $connector, array $ope
         'step_log' => isset($decoded['step_log']) && is_array($decoded['step_log']) ? $decoded['step_log'] : [],
         'artifacts_dir' => trim((string)($decoded['artifacts_dir'] ?? '')),
         'final_html_path' => trim((string)($decoded['final_html_path'] ?? '')),
+        'cookies' => trim((string)($decoded['cookies'] ?? '')),
     ];
 
     if ($expectDownload) {
