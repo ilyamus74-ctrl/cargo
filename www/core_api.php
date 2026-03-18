@@ -54,6 +54,8 @@ $routes = [
     'save_connector_operations' => 'api/connectors/connector_actions.php',
     'save_connector_addons' => 'api/connectors/connector_actions.php',
     'test_connector_operations' => 'api/connectors/connector_actions.php',
+    'view_departures'       => 'api/connectors/connector_actions.php',
+    'departures_flights'    => 'api/connectors/connector_actions.php'
 
     // ========== CONNECTORS (meta) ==========
     'get_module_actions_registry' => '@internal/module_actions_registry',

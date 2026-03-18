@@ -1,0 +1,71 @@
+<div class="pagetitle">
+  <h1>Отправления</h1>
+  <nav>
+    <ol class="breadcrumb">
+      <li class="breadcrumb-item"><a href="index.html">Main</a></li>
+      <li class="breadcrumb-item">Connectors</li>
+      <li class="breadcrumb-item active">Отправления</li>
+    </ol>
+  </nav>
+</div>
+
+<section class="section" data-page-init="departures">
+  <div class="row">
+    <div class="col-12">
+      <div class="card">
+        <div class="card-body">
+          <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
+            <h5 class="card-title mb-0">Рейсы форвардов</h5>
+            <div class="small text-muted">
+              Найдено рейсов: <span id="departures-total">0</span>
+            </div>
+          </div>
+
+          <div id="departures-page" class="mt-3">
+            <div class="row g-2 align-items-end mb-3">
+              <div class="col-12 col-md-4">
+                <label class="form-label small mb-1" for="departures-forwarder-filter">Форвард</label>
+                <select id="departures-forwarder-filter" class="form-select form-select-sm">
+                  <option value="ALL" selected>Все форварды</option>
+                  {foreach $departure_forwarders as $forwarder}
+                    <option value="{$forwarder.id}">{$forwarder.name|escape}{if $forwarder.countries} — {$forwarder.countries|escape}{/if}</option>
+                  {/foreach}
+                </select>
+              </div>
+              <div class="col-12 col-md-3">
+                <label class="form-label small mb-1" for="departures-status-filter">Статус рейса</label>
+                <select id="departures-status-filter" class="form-select form-select-sm">
+                  <option value="ALL" selected>Все статусы</option>
+                  <option value="OPEN">open</option>
+                  <option value="CLOSED">closed</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="table-responsive">
+              <table class="table table-sm align-middle">
+                <thead>
+                  <tr>
+                    <th scope="col" style="width: 52px;"></th>
+                    <th scope="col">Рейс</th>
+                    <th scope="col">Форвард</th>
+                    <th scope="col">Маршрут</th>
+                    <th scope="col">Статус</th>
+                    <th scope="col">Контейнеры</th>
+                    <th scope="col">Синхронизация контейнеров</th>
+                    <th scope="col">Обновлено</th>
+                  </tr>
+                </thead>
+                <tbody id="departures-tbody">
+                  <tr>
+                    <td colspan="8" class="text-center text-muted">Загрузка...</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>

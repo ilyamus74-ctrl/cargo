@@ -2558,6 +2558,95 @@ const CoreAPI = {
         }
     },
 
+    departures: {
+        root: null,
+        tbody: null,
+        total: null,
+        forwarderFilter: null,
+        statusFilter: null,
+        initialized: false,
+        init() {
+            const root = document.getElementById('departures-page');
+            if (!root) return;
+
+            const shouldBindEvents = !this.initialized || this.root !== root;
+            this.root = root;
+            this.tbody = root.querySelector('#departures-tbody');
+            this.total = document.getElementById('departures-total');
+            this.forwarderFilter = root.querySelector('#departures-forwarder-filter');
+            this.statusFilter = root.querySelector('#departures-status-filter');
+
+            if (!this.tbody || !this.total || !this.forwarderFilter || !this.statusFilter) {
+                return;
+            }
+
+            if (shouldBindEvents) {
+                this.bindEvents();
+            }
+
+            this.load();
+            this.initialized = true;
+        },
+        bindEvents() {
+            this.forwarderFilter.addEventListener('change', () => this.load());
+            this.statusFilter.addEventListener('change', () => this.load());
+            this.root.addEventListener('click', (event) => {
+                const button = event.target.closest('.js-departure-toggle');
+                if (!button) return;
+
+                const targetId = button.getAttribute('data-target') || '';
+                if (!targetId) return;
+
+                const detailRow = document.getElementById(targetId);
+                if (!detailRow) return;
+
+                const isOpen = button.getAttribute('data-open') === '1';
+                button.setAttribute('data-open', isOpen ? '0' : '1');
+                detailRow.classList.toggle('d-none', isOpen);
+
+                const icon = button.querySelector('i');
+                if (icon) {
+                    icon.classList.toggle('bi-chevron-down', isOpen);
+                    icon.classList.toggle('bi-chevron-up', !isOpen);
+                }
+            });
+        },
+        async load() {
+            if (!this.tbody) return;
+
+            this.tbody.innerHTML = `
+                <tr>
+                    <td colspan="8" class="text-center text-muted">Загрузка...</td>
+                </tr>
+            `;
+
+            const fd = new FormData();
+            fd.append('action', 'departures_flights');
+            fd.append('forwarder_id', this.forwarderFilter?.value || 'ALL');
+            fd.append('flight_status', this.statusFilter?.value || 'ALL');
+
+            try {
+                const data = await CoreAPI.client.call(fd);
+                if (!data || data.status !== 'ok') {
+                    console.error('core_api error (departures_flights):', data);
+                    return;
+                }
+
+                this.tbody.innerHTML = data.html || '';
+                if (this.total) {
+                    this.total.textContent = String(data.total ?? 0);
+                }
+            } catch (err) {
+                console.error('core_api fetch error (departures_flights):', err);
+                this.tbody.innerHTML = `
+                    <tr>
+                        <td colspan="8" class="text-center text-danger">Не удалось загрузить список рейсов.</td>
+                    </tr>
+                `;
+            }
+        }
+    },
+
     warehouseSyncReports: {
         root: null,
         tbody: null,
@@ -3073,6 +3162,7 @@ const CoreAPI = {
         this.warehouseMoveBatch.init();
         this.warehouseMoveBox.init();
         this.warehouseItemOut.init();
+        this.departures.init();
         console.log('CoreAPI initialized');
     }
 };
@@ -4064,6 +4154,12 @@ CoreAPI.pageInits.tools_management = function toolsManagementInit() {
     }
 };
 
+
+CoreAPI.pageInits.departures = function departuresInit() {
+    if (CoreAPI.departures?.init) {
+        CoreAPI.departures.init();
+    }
+};
 
 
 // Инициализация при загрузке страницы
