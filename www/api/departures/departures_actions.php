@@ -285,6 +285,7 @@ function departures_fetch_rows(mysqli $dbcnx, array $connector, string $statusFi
 
                 $rows[] = [
                     'row_uid' => 'departure_' . $tableName . '_' . (int)($flight['id'] ?? 0),
+                    'connector_id' => (int)($connector['id'] ?? 0),
                     'flight_no' => trim((string)($flight['flight_no'] ?? '')),
                     'name' => trim((string)($flight['name'] ?? '')),
                     'flight_number' => trim((string)($flight['flight_number'] ?? '')),

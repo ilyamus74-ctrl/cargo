@@ -2637,11 +2637,10 @@ const CoreAPI = {
                         this.triggerAddFlight(placeholderButton);
                         return;
                     }
-                    const payload = {
-                        operation,
-                        flight: placeholderButton.getAttribute('data-flight') || ''
-                    };
-                    console.info('Departure placeholder action', payload);
+                    if (operation) {
+                        this.triggerPlaceholderOperation(placeholderButton);
+                        return;
+                    }
                     return;
                 }
                 const button = event.target.closest('.js-departure-toggle');
@@ -2668,13 +2667,29 @@ const CoreAPI = {
         normalizeAwb(value) {
             return String(value || '').replace(/\D+/g, '');
         },
-        setActionStatus(message, tone) {
-            if (!this.addFlightStatus) return;
+
+        resolveActionStatusElement(button) {
+            const selector = String(button?.getAttribute('data-status-target') || '').trim();
+            if (selector) {
+                const scoped = this.root?.querySelector(selector);
+                if (scoped) {
+                    return scoped;
+                }
+                const global = document.querySelector(selector);
+                if (global) {
+                    return global;
+                }
+            }
+            return this.addFlightStatus || null;
+        },
+        setActionStatus(message, tone, target = null) {
+            const statusEl = target || this.addFlightStatus;
+            if (!statusEl) return;
             const text = String(message || '').trim();
-            this.addFlightStatus.textContent = text;
-            this.addFlightStatus.classList.remove('text-muted', 'text-success', 'text-danger', 'text-primary');
+            statusEl.textContent = text;
+            statusEl.classList.remove('text-muted', 'text-success', 'text-danger', 'text-primary');
             if (!text) {
-                this.addFlightStatus.classList.add('text-muted');
+                statusEl.classList.add('text-muted');
                 return;
             }
             const toneClassMap = {
@@ -2682,22 +2697,34 @@ const CoreAPI = {
                 danger: 'text-danger',
                 primary: 'text-primary'
             };
-            this.addFlightStatus.classList.add(toneClassMap[tone] || 'text-muted');
+            statusEl.classList.add(toneClassMap[tone] || 'text-muted');
         },
         setActionBusy(button, isBusy) {
             if (!button) return;
+            const labelNode = button.querySelector('.js-departure-placeholder-label');
             if (isBusy) {
                 if (!button.dataset.originalLabel) {
                     button.dataset.originalLabel = button.textContent || '';
                 }
+
+                if (labelNode && !button.dataset.originalInlineLabel) {
+                    button.dataset.originalInlineLabel = labelNode.textContent || '';
+                }
                 button.disabled = true;
-                button.textContent = 'Выполняется...';
+                const busyLabel = button.getAttribute('data-busy-label') || 'Выполняется...';
+                if (labelNode) {
+                    labelNode.textContent = busyLabel;
+                } else {
+                    button.textContent = busyLabel;
+                }
                 this.activeActionButton = button;
                 return;
             }
 
             button.disabled = false;
-            if (button.dataset.originalLabel) {
+            if (labelNode && button.dataset.originalInlineLabel) {
+                labelNode.textContent = button.dataset.originalInlineLabel;
+            } else if (button.dataset.originalLabel) {
                 button.textContent = button.dataset.originalLabel;
             }
             if (this.activeActionButton === button) {
@@ -2719,6 +2746,61 @@ const CoreAPI = {
                 throw err;
             }
             return data;
+        },
+
+        buildFlightRuntimeVars(button) {
+            const flight = String(button?.getAttribute('data-flight') || '').trim();
+            const containerName = String(button?.getAttribute('data-container-name') || 'NEW').trim() || 'NEW';
+            return {
+                flight,
+                flight_no: flight,
+                selected_flight: flight,
+                departure_date: flight,
+                add_container_to_flight: flight,
+                container_name: containerName,
+                container_label: containerName,
+                container_code: containerName
+            };
+        },
+        async triggerPlaceholderOperation(button) {
+            const operationId = String(button?.getAttribute('data-operation') || '').trim();
+            if (!operationId) {
+                return;
+            }
+
+            const connectorId = Number(button?.getAttribute('data-connector-id') || this.forwarderFilter?.value || 0);
+            if (!connectorId) {
+                alert('Не удалось определить форварда для запуска операции.');
+                return;
+            }
+
+            const statusEl = this.resolveActionStatusElement(button);
+            const refreshOperation = String(button?.getAttribute('data-refresh-operation') || '').trim();
+            const successMessage = String(button?.getAttribute('data-success-message') || '').trim();
+            const runtimeVars = this.buildFlightRuntimeVars(button);
+            const flight = runtimeVars.flight || '—';
+
+            this.setActionBusy(button, true);
+            this.setActionStatus(`Запускаю ${operationId} для рейса ${flight}...`, 'primary', statusEl);
+
+            try {
+                const result = await this.runConnectorOperation(connectorId, operationId, runtimeVars);
+                this.setActionStatus(result?.message || `Операция ${operationId} завершена.`, 'primary', statusEl);
+                if (refreshOperation) {
+                    await this.runConnectorOperation(connectorId, refreshOperation, runtimeVars);
+                }
+                await this.load();
+                const finalStatusEl = statusEl && statusEl.isConnected ? statusEl : this.addFlightStatus;
+                this.setActionStatus(successMessage || `Операция ${operationId} выполнена, список рейсов обновлён.`, 'success', finalStatusEl);
+                showToast(successMessage || `Операция ${operationId} выполнена`, 2500);
+            } catch (err) {
+                console.error(`core_api error (departures ${operationId}):`, err?.payload || err);
+                const errorMessage = err?.message || `Не удалось выполнить ${operationId}.`;
+                this.setActionStatus(errorMessage, 'danger', statusEl);
+                alert(errorMessage);
+            } finally {
+                this.setActionBusy(button, false);
+            }
         },
         async triggerAddFlight(button) {
             const connectorId = Number(this.forwarderFilter?.value || 0);
@@ -2749,9 +2831,10 @@ const CoreAPI = {
             if (awbInput) {
                 awbInput.value = awb;
             }
+            const statusEl = this.resolveActionStatusElement(button);
 
             this.setActionBusy(button, true);
-            this.setActionStatus(`Запускаю add_flight для AWB ${awb}...`, 'primary');
+            this.setActionStatus(`Запускаю add_flight для AWB ${awb}...`, 'primary', statusEl);
 
             try {
                 const runtimeVars = {
@@ -2759,16 +2842,16 @@ const CoreAPI = {
                     add_flight: awb
                 };
                 const addFlightResult = await this.runConnectorOperation(connectorId, 'add_flight', runtimeVars);
-                this.setActionStatus(addFlightResult?.message || 'Рейс добавлен. Обновляю список рейсов...', 'primary');
+                this.setActionStatus(addFlightResult?.message || 'Рейс добавлен. Обновляю список рейсов...', 'primary', statusEl);
                 if (refreshOperation) {
                     await this.runConnectorOperation(connectorId, refreshOperation, runtimeVars);
                 }
                 await this.load();
-                this.setActionStatus(`Рейс для AWB ${awb} добавлен, список рейсов обновлён.`, 'success');
+                this.setActionStatus(`Рейс для AWB ${awb} добавлен, список рейсов обновлён.`, 'success', statusEl);
                 showToast('Рейс добавлен и список рейсов обновлён', 2500);
             } catch (err) {
                 console.error('core_api error (departures add_flight):', err?.payload || err);
-                this.setActionStatus(err?.message || 'Не удалось выполнить add_flight.', 'danger');
+                this.setActionStatus(err?.message || 'Не удалось выполнить add_flight.', 'danger', statusEl);
                 alert(err?.message || 'Не удалось выполнить add_flight');
             } finally {
                 this.setActionBusy(button, false);

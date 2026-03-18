@@ -65,13 +65,20 @@
               {if $flight.status|lower == 'open'}
                 <button type="button"
                         class="btn btn-sm btn-outline-primary js-departure-placeholder-action"
-                        data-operation="add_container"
-                        data-flight="{$flight.flight_no|default:''|escape:'htmlattr'}">
-                  Добавить контейнер
+                        data-operation="add_container_to_flight"
+                        data-refresh-operation="add_flight"
+                        data-connector-id="{$flight.connector_id|default:0|escape:'htmlattr'}"
+                        data-flight="{$flight.flight_no|default:''|escape:'htmlattr'}"
+                        data-container-name="NEW"
+                        data-status-target="#{$flight.row_uid|escape:'htmlattr'}_status"
+                        data-busy-label="Добавляю контейнер..."
+                        data-success-message="Контейнер добавлен, рейс синхронизирован и список обновлён.">
+                  <span class="js-departure-placeholder-label">Добавить контейнер</span>
                 </button>
               {/if}
             </div>
           </div>
+          <div id="{$flight.row_uid|escape}_status" class="small text-muted mb-2" aria-live="polite"></div>
 
           {if $flight.containers|@count > 0}
             <div class="table-responsive">

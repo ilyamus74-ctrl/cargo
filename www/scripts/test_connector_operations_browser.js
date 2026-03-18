@@ -993,11 +993,40 @@ function persistDownloadedFileIfNeeded(downloaded, runtimeHomeDir, stableDownloa
       if (action === 'select') {
         const selector = applyVars(step.selector || '', vars);
         if (!selector) throw new Error('select.selector is required');
-        const rawValue = step.value ?? step.text ?? (typeof step.var === 'string' ? vars[step.var] : '');
+        const rawValue = step.value ?? (typeof step.var === 'string' ? vars[step.var] : '');
         const value = applyVars(String(rawValue ?? ''), vars);
+
+        const textValue = applyVars(String(step.text ?? step.label ?? ''), vars).trim();
+        const matchMode = String(step.match || (textValue ? 'text' : 'value')).trim().toLowerCase();
 
         await runWithTransientRetry(async () => {
           const matchedSelector = await findSelectorWithFallback(page, selector, { visible: step.visible !== false });
+          if (matchMode === 'text' || matchMode === 'label' || matchMode === 'contains') {
+            const selectedValue = await page.$eval(matchedSelector, (el, desiredText, desiredMode) => {
+              const normalize = (input) => String(input || '').replace(/\s+/g, ' ').trim().toLowerCase();
+              const wanted = normalize(desiredText);
+              if (!wanted) return '';
+              const select = el;
+              const options = Array.from(select.options || []);
+              const option = options.find((item) => {
+                const label = normalize(item.textContent || item.label || '');
+                if (desiredMode === 'contains') {
+                  return label.includes(wanted);
+                }
+                return label === wanted;
+              });
+              if (!option) return '';
+              select.value = option.value;
+              select.dispatchEvent(new Event('input', { bubbles: true }));
+              select.dispatchEvent(new Event('change', { bubbles: true }));
+              return option.value;
+            }, textValue, matchMode);
+            if (!selectedValue) {
+              throw new Error(`No option selected for ${selector} by text: ${textValue}`);
+            }
+            return;
+          }
+
           const selected = await page.select(matchedSelector, value);
           if (!selected || selected.length === 0) {
             throw new Error(`No option selected for ${selector} by value: ${value}`);
@@ -1005,7 +1034,7 @@ function persistDownloadedFileIfNeeded(downloaded, runtimeHomeDir, stableDownloa
         });
 
         const shot = captureScreenshots ? await saveStepScreenshot(page, artifactsDir, stepNo, action) : null;
-        stepLog.push({ time: new Date().toISOString(), step: stepNo, action, status: 'ok', screenshot: shot || undefined, meta: { selector, value } });
+        stepLog.push({ time: new Date().toISOString(), step: stepNo, action, status: 'ok', screenshot: shot || undefined, meta: { selector, value, text: textValue || undefined, match: matchMode } });
         continue;
       }
 

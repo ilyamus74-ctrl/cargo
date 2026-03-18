@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-03-18 12:55:35
+/* Smarty version 5.3.1, created on 2026-03-18 14:40:25
   from 'file:cells_NA_API_departures_rows.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_69baa0c7440d70_23586799',
+  'unifunc' => 'content_69bab959bc49f6_26845587',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '04916a2971ae525b97127d32f509a85cd4ad4d24' => 
     array (
       0 => 'cells_NA_API_departures_rows.html',
-      1 => 1773838494,
+      1 => 1773844185,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_69baa0c7440d70_23586799 (\Smarty\Template $_smarty_tpl) {
+function content_69bab959bc49f6_26845587 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 if ($_smarty_tpl->getSmarty()->getModifierCallback('count')($_smarty_tpl->getValue('departure_rows')) > 0) {?>
   <?php
@@ -118,14 +118,24 @@ $foreach0DoElse = false;
               <?php if (mb_strtolower((string) $_smarty_tpl->getValue('flight')['status'], 'UTF-8') == 'open') {?>
                 <button type="button"
                         class="btn btn-sm btn-outline-primary js-departure-placeholder-action"
-                        data-operation="add_container"
+                        data-operation="add_container_to_flight"
+                        data-refresh-operation="add_flight"
+                        data-connector-id="<?php echo $_smarty_tpl->getSmarty()->getModifierCallback('escape')((($tmp = $_smarty_tpl->getValue('flight')['connector_id'] ?? null)===null||$tmp==='' ? 0 ?? null : $tmp), 'htmlattr');?>
+"
                         data-flight="<?php echo $_smarty_tpl->getSmarty()->getModifierCallback('escape')((($tmp = $_smarty_tpl->getValue('flight')['flight_no'] ?? null)===null||$tmp==='' ? '' ?? null : $tmp), 'htmlattr');?>
-">
-                  Добавить контейнер
+"
+                        data-container-name="NEW"
+                        data-status-target="#<?php echo $_smarty_tpl->getSmarty()->getModifierCallback('escape')($_smarty_tpl->getValue('flight')['row_uid'], 'htmlattr');?>
+_status"
+                        data-busy-label="Добавляю контейнер..."
+                        data-success-message="Контейнер добавлен, рейс синхронизирован и список обновлён.">
+                  <span class="js-departure-placeholder-label">Добавить контейнер</span>
                 </button>
               <?php }?>
             </div>
           </div>
+          <div id="<?php echo htmlspecialchars((string)$_smarty_tpl->getValue('flight')['row_uid'], ENT_QUOTES, 'UTF-8', true);?>
+_status" class="small text-muted mb-2" aria-live="polite"></div>
 
           <?php if ($_smarty_tpl->getSmarty()->getModifierCallback('count')($_smarty_tpl->getValue('flight')['containers']) > 0) {?>
             <div class="table-responsive">
