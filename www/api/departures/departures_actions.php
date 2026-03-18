@@ -197,6 +197,11 @@ function departures_decode_containers($rawContainers): array
             continue;
         }
 
+        $packagesCountRaw = $container['packages_count'] ?? null;
+        $totalWeightRaw = $container['total_weight'] ?? null;
+        $hasZeroPackages = is_numeric($packagesCountRaw) && (float)$packagesCountRaw == 0.0;
+        $hasZeroWeight = is_numeric($totalWeightRaw) && (float)$totalWeightRaw == 0.0;
+
         $containers[] = [
             'container_external_id' => trim((string)($container['container_external_id'] ?? '')),
             'name' => trim((string)($container['name'] ?? '')),
@@ -204,8 +209,9 @@ function departures_decode_containers($rawContainers): array
             'departure' => trim((string)($container['departure'] ?? '')),
             'destination' => trim((string)($container['destination'] ?? '')),
             'awb' => trim((string)($container['awb'] ?? '')),
-            'packages_count' => departures_format_value($container['packages_count'] ?? null, 0),
-            'total_weight' => departures_format_value($container['total_weight'] ?? null),
+            'packages_count' => departures_format_value($packagesCountRaw, 0),
+            'total_weight' => departures_format_value($totalWeightRaw),
+            'is_empty_placeholder' => $hasZeroPackages && $hasZeroWeight,
         ];
     }
 

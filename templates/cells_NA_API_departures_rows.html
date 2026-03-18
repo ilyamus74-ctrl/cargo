@@ -93,6 +93,7 @@
                     <th scope="col">AWB</th>
                     <th scope="col">Мест</th>
                     <th scope="col">Вес</th>
+                    <th scope="col" class="text-end">Действие</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -109,6 +110,28 @@
                       <td>{$container.awb|default:'—'|escape}</td>
                       <td>{$container.packages_count|default:'—'|escape}</td>
                       <td>{$container.total_weight|default:'—'|escape}</td>
+
+                      <td class="text-end">
+                        {if $flight.status|lower == 'open' && $container.is_empty_placeholder && $container.container_external_id}
+                          <button type="button"
+                                  class="btn btn-sm btn-outline-danger js-departure-placeholder-action"
+                                  data-operation="delete_container"
+                                  data-refresh-operation="flight_list"
+                                  data-connector-id="{$flight.connector_id|default:0|escape:'htmlattr'}"
+                                  data-flight="{$flight.flight_no|default:''|escape:'htmlattr'}"
+                                  data-flight-id="{$flight.flight_id|default:''|escape:'htmlattr'}"
+                                  data-flight-record-id="{$flight.flight_record_id|default:0|escape:'htmlattr'}"
+                                  data-container-id="{$container.container_external_id|escape:'htmlattr'}"
+                                  data-container-name="{$container.name|default:$container.container_external_id|default:'container'|escape:'htmlattr'}"
+                                  data-status-target="#{$flight.row_uid|escape:'htmlattr'}_status"
+                                  data-busy-label="Удаляю контейнер..."
+                                  data-success-message="Пустой контейнер удалён, рейс синхронизирован и список обновлён.">
+                            <span class="js-departure-placeholder-label">Удалить контейнер</span>
+                          </button>
+                        {else}
+                          <span class="text-muted">—</span>
+                        {/if}
+                      </td>
                     </tr>
                   {/foreach}
                 </tbody>

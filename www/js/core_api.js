@@ -2753,6 +2753,7 @@ const CoreAPI = {
             const flightId = String(button?.getAttribute('data-flight-id') || '').trim();
             const flightRecordId = String(button?.getAttribute('data-flight-record-id') || '').trim();
             const containerName = String(button?.getAttribute('data-container-name') || 'NEW').trim() || 'NEW';
+            const containerId = String(button?.getAttribute('data-container-id') || '').trim();
             return {
                 flight,
                 flight_id: flightId,
@@ -2764,6 +2765,7 @@ const CoreAPI = {
                 departure_date: flight,
                 add_container_to_flight: flight,
                 add_container_to_flight_id: flightId,
+                container_id: containerId,
                 container_name: containerName,
                 container_label: containerName,
                 container_code: containerName
