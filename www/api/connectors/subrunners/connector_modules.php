@@ -81,11 +81,15 @@ function connectors_subrunner_run_flight_list_colibri(array $ctx, array $options
     $html = connectors_subrunner_resolve_html($ctx, $options);
 
     $tableSelector = trim((string)($options['table_selector'] ?? '#flights_table'));
+    $containerTableSelector = trim((string)($options['container_table_selector'] ?? 'table.references-table'));
     $timezone = trim((string)($options['timezone'] ?? 'UTC'));
     $writeMode = strtolower(trim((string)($options['write_mode'] ?? 'upsert')));
     if (!in_array($writeMode, ['upsert', 'insert'], true)) {
         $writeMode = 'upsert';
     }
+    $syncContainers = array_key_exists('sync_containers', $options)
+        ? (bool)$options['sync_containers']
+        : true;
 
     $parsed = connectors_subrunner_extract_table_rows($html, $tableSelector);
     $headers = (array)($parsed['headers'] ?? []);
@@ -93,11 +97,16 @@ function connectors_subrunner_run_flight_list_colibri(array $ctx, array $options
 
     $tableName = connectors_subrunner_resolve_flight_table_name($connector, $options);
     connectors_subrunner_ensure_flight_table($db, $tableName);
+    $containersTableName = connectors_subrunner_resolve_flight_containers_table_name($tableName, $options);
+    connectors_subrunner_ensure_flight_containers_table($db, $containersTableName);
 
     $mapping = connectors_subrunner_resolve_flight_mapping($options);
 
     $written = 0;
     $skipped = 0;
+    $containersFetched = 0;
+    $containersWritten = 0;
+    $containerPagesChecked = 0;
     $errors = [];
 
     foreach ($rows as $rowIndex => $row) {
@@ -109,10 +118,31 @@ function connectors_subrunner_run_flight_list_colibri(array $ctx, array $options
             }
 
             if ($writeMode === 'insert') {
-                connectors_subrunner_insert_flight_row($db, $tableName, $connectorId, $normalized);
+                $flightRowId = connectors_subrunner_insert_flight_row($db, $tableName, $connectorId, $normalized);
             } else {
-                connectors_subrunner_upsert_flight_row($db, $tableName, $connectorId, $normalized);
+                $flightRowId = connectors_subrunner_upsert_flight_row($db, $tableName, $connectorId, $normalized);
             }
+
+            if ($syncContainers) {
+                $containerSync = connectors_subrunner_sync_flight_containers(
+                    $db,
+                    $connector,
+                    $connectorId,
+                    $tableName,
+                    $containersTableName,
+                    $flightRowId,
+                    $normalized,
+                    [
+                        'container_table_selector' => $containerTableSelector,
+                        'ssl_ignore' => !empty($connector['ssl_ignore']),
+                        'container_url_template' => (string)($options['container_url_template'] ?? ''),
+                    ]
+                );
+                $containersFetched += (int)($containerSync['fetched'] ?? 0);
+                $containersWritten += (int)($containerSync['written'] ?? 0);
+                $containerPagesChecked += (int)($containerSync['pages_checked'] ?? 0);
+            }
+
             $written++;
         } catch (Throwable $e) {
             $errors[] = [
@@ -131,14 +161,20 @@ function connectors_subrunner_run_flight_list_colibri(array $ctx, array $options
             'rows_extracted' => count($rows),
             'rows_written' => $written,
             'rows_skipped' => $skipped,
+            'container_pages_checked' => $containerPagesChecked,
+            'containers_fetched' => $containersFetched,
+            'containers_written' => $containersWritten,
         ],
         'errors' => $errors,
         'meta' => [
             'table_name' => $tableName,
+            'containers_table_name' => $containersTableName,
             'connector_id' => $connectorId,
             'table_selector' => $tableSelector,
+            'container_table_selector' => $containerTableSelector,
             'timezone' => $timezone,
             'write_mode' => $writeMode,
+            'sync_containers' => $syncContainers,
             'connector_name' => (string)($connector['name'] ?? ''),
             'detected_headers' => $headers,
             'mapping' => $mapping,
@@ -178,7 +214,7 @@ function connectors_subrunner_extract_table_rows(string $html, string $tableSele
             $cols[] = trim(preg_replace('/\s+/u', ' ', (string)$cell->textContent) ?? '');
         }
         if (!empty($cols)) {
-            $rows[] = $cols;
+            $rows[] = connectors_subrunner_make_table_row_payload($tr, $cols);
         }
     }
 
@@ -190,18 +226,80 @@ function connectors_subrunner_extract_table_rows(string $html, string $tableSele
                 $cols[] = trim(preg_replace('/\s+/u', ' ', (string)$cell->textContent) ?? '');
             }
             if (!empty($cols)) {
-                $rows[] = $cols;
+                $rows[] = connectors_subrunner_make_table_row_payload($tr, $cols);
             }
         }
 
-        if (!empty($rows) && (empty($headers) || connectors_subrunner_row_looks_like_header($rows[0]))) {
+        if (!empty($rows) && (empty($headers) || connectors_subrunner_row_looks_like_header(connectors_subrunner_extract_row_cells($rows[0])))) {
             if (empty($headers)) {
-                $headers = $rows[0];
+                $headers = connectors_subrunner_extract_row_cells($rows[0]);
             }
             array_shift($rows);
         }
     }
     return ['headers' => $headers, 'rows' => $rows];
+}
+
+function connectors_subrunner_make_table_row_payload(DOMElement $tr, array $cols): array
+{
+    $attrs = [];
+    if ($tr->hasAttributes()) {
+        foreach ($tr->attributes ?? [] as $attr) {
+            $attrs[$attr->nodeName] = trim((string)$attr->nodeValue);
+        }
+    }
+
+    return [
+        'cells' => $cols,
+        'attrs' => $attrs,
+        'containers_url' => connectors_subrunner_extract_containers_url_from_attrs($attrs),
+    ];
+}
+
+function connectors_subrunner_extract_row_cells(array $row): array
+{
+    if (isset($row['cells']) && is_array($row['cells'])) {
+        return array_values($row['cells']);
+    }
+
+    return array_values($row);
+}
+
+function connectors_subrunner_extract_row_attrs(array $row): array
+{
+    return isset($row['attrs']) && is_array($row['attrs'])
+        ? $row['attrs']
+        : [];
+}
+
+function connectors_subrunner_extract_containers_url_from_attrs(array $attrs): string
+{
+    $candidates = [
+        (string)($attrs['data-containers-url'] ?? ''),
+        (string)($attrs['ondblclick'] ?? ''),
+        (string)($attrs['onclick'] ?? ''),
+    ];
+
+    foreach ($candidates as $candidate) {
+        $candidate = html_entity_decode(trim($candidate), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        if ($candidate === '') {
+            continue;
+        }
+
+        if (preg_match("/https?:\/\/[^'\"\\s)]+/i", $candidate, $m)) {
+            return trim((string)$m[0]);
+        }
+
+        if (preg_match("/'([^']*containers[^']*)'/i", $candidate, $m)) {
+            return trim((string)$m[1]);
+        }
+
+        if (preg_match('/"([^"]*containers[^"]*)"/i', $candidate, $m)) {
+            return trim((string)$m[1]);
+        }
+    }
+
+    return '';
 }
 
 function connectors_subrunner_row_looks_like_header(array $row): bool
@@ -291,9 +389,11 @@ function connectors_subrunner_pick_by_mapping(array $row, array $headers, array 
 
 function connectors_subrunner_normalize_flight_row(array $row, array $headers, array $mapping, string $timezone, int $rowNo): ?array
 {
+    $cells = connectors_subrunner_extract_row_cells($row);
+    $attrs = connectors_subrunner_extract_row_attrs($row);
     $raw = [];
     foreach ($mapping as $field => $resolver) {
-        $raw[$field] = connectors_subrunner_pick_by_mapping($row, $headers, (array)$resolver);
+        $raw[$field] = connectors_subrunner_pick_by_mapping($cells, $headers, (array)$resolver);
     }
 
     if (implode('', $raw) === '') {
@@ -309,6 +409,13 @@ function connectors_subrunner_normalize_flight_row(array $row, array $headers, a
         throw new RuntimeException('Пустой идентификатор рейса (external_id/name/flight_number)');
     }
 
+    $externalId = trim((string)$raw['external_id']);
+    if ($externalId === '' && !empty($attrs['id']) && preg_match('/(\d+)/', (string)$attrs['id'], $m)) {
+        $externalId = (string)$m[1];
+    }
+
+    $containersUrl = trim((string)($row['containers_url'] ?? ''));
+
     return [
 
         'flight_no' => $legacyFlightNo,
@@ -316,7 +423,7 @@ function connectors_subrunner_normalize_flight_row(array $row, array $headers, a
         'departure_raw' => (string)$raw['flight_time'],
         'route' => trim((string)$raw['departure']) . '-' . trim((string)$raw['destination']),
         'status' => $closedAt ? 'closed' : 'open',
-        'external_id' => (string)$raw['external_id'],
+        'external_id' => $externalId,
         'name' => (string)$raw['name'],
         'flight_time' => (string)$raw['flight_time'],
         'carrier' => (string)$raw['carrier'],
@@ -327,7 +434,21 @@ function connectors_subrunner_normalize_flight_row(array $row, array $headers, a
         'packages_count' => $packagesCount === '' ? null : (int)$packagesCount,
         'total_weight' => $totalWeight === '' ? null : (float)$totalWeight,
         'closed_at' => $closedAt,
-        'raw_json' => json_encode(['row_no' => $rowNo, 'headers' => $headers, 'cells' => $row, 'parsed' => $raw], JSON_UNESCAPED_UNICODE),
+        'source_row_id' => (string)($attrs['id'] ?? ''),
+        'containers_url' => $containersUrl,
+        'containers_json' => null,
+        'containers_count' => null,
+        'containers_synced_at' => null,
+        'containers_sync_status' => 'pending',
+        'containers_sync_error' => null,
+        'raw_json' => json_encode([
+            'row_no' => $rowNo,
+            'headers' => $headers,
+            'cells' => $cells,
+            'attrs' => $attrs,
+            'containers_url' => $containersUrl,
+            'parsed' => $raw,
+        ], JSON_UNESCAPED_UNICODE),
     ];
 }
 
@@ -355,6 +476,15 @@ function connectors_subrunner_parse_datetime(string $value, string $timezone): ?
     return null;
 }
 
+function connectors_subrunner_resolve_flight_containers_table_name(string $flightTableName, array $options): string
+{
+    $explicit = trim((string)($options['containers_table_name'] ?? ''));
+    if ($explicit !== '') {
+        return connectors_subrunner_sanitize_table_name($explicit);
+    }
+
+    return connectors_subrunner_sanitize_table_name($flightTableName . '_containers');
+}
 
 function connectors_subrunner_resolve_flight_table_name(array $connector, array $options): string
 {
@@ -418,57 +548,263 @@ function connectors_subrunner_ensure_flight_table(mysqli $db, string $tableName)
             packages_count INT NULL,
             total_weight DECIMAL(12,3) NULL,
             closed_at DATETIME NULL,
+            source_row_id VARCHAR(128) NOT NULL DEFAULT '',
+            containers_url TEXT NULL,
+            containers_json LONGTEXT NULL,
+            containers_count INT NULL,
+            containers_synced_at DATETIME NULL,
+            containers_sync_status VARCHAR(32) NOT NULL DEFAULT 'pending',
+            containers_sync_error TEXT NULL,
             raw_json LONGTEXT NULL,
             created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
             updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             PRIMARY KEY (id),
-            UNIQUE KEY uniq_connector_flight_departure (connector_id, flight_no, departure_at)
+            UNIQUE KEY uniq_connector_flight_departure (connector_id, flight_no, departure_at),
+            KEY idx_connector_external_id (connector_id, external_id)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
     ";
 
     if (!$db->query($sql)) {
         throw new RuntimeException('Не удалось создать таблицу flight_list: ' . $db->error);
     }
+
+    connectors_subrunner_ensure_column(
+        $db,
+        $tableName,
+        'source_row_id',
+        "ALTER TABLE {$safeTable} ADD COLUMN source_row_id VARCHAR(128) NOT NULL DEFAULT '' AFTER closed_at"
+    );
+    connectors_subrunner_ensure_column(
+        $db,
+        $tableName,
+        'containers_url',
+        "ALTER TABLE {$safeTable} ADD COLUMN containers_url TEXT NULL AFTER source_row_id"
+    );
+    connectors_subrunner_ensure_column(
+        $db,
+        $tableName,
+        'containers_json',
+        "ALTER TABLE {$safeTable} ADD COLUMN containers_json LONGTEXT NULL AFTER containers_url"
+    );
+    connectors_subrunner_ensure_column(
+        $db,
+        $tableName,
+        'containers_count',
+        "ALTER TABLE {$safeTable} ADD COLUMN containers_count INT NULL AFTER containers_json"
+    );
+    connectors_subrunner_ensure_column(
+        $db,
+        $tableName,
+        'containers_synced_at',
+        "ALTER TABLE {$safeTable} ADD COLUMN containers_synced_at DATETIME NULL AFTER containers_count"
+    );
+    connectors_subrunner_ensure_column(
+        $db,
+        $tableName,
+        'containers_sync_status',
+        "ALTER TABLE {$safeTable} ADD COLUMN containers_sync_status VARCHAR(32) NOT NULL DEFAULT 'pending' AFTER containers_synced_at"
+    );
+    connectors_subrunner_ensure_column(
+        $db,
+        $tableName,
+        'containers_sync_error',
+        "ALTER TABLE {$safeTable} ADD COLUMN containers_sync_error TEXT NULL AFTER containers_sync_status"
+    );
+    connectors_subrunner_ensure_index(
+        $db,
+        $tableName,
+        'idx_connector_external_id',
+        "ALTER TABLE {$safeTable} ADD INDEX idx_connector_external_id (connector_id, external_id)"
+    );
 }
 
-function connectors_subrunner_upsert_flight_row(mysqli $db, string $tableName, int $connectorId, array $row): void
+function connectors_subrunner_ensure_flight_containers_table(mysqli $db, string $tableName): void
 {
     $safeTable = '`' . str_replace('`', '``', $tableName) . '`';
     $sql = "
-        INSERT INTO {$safeTable}
-            (connector_id, flight_no, departure_at, departure_raw, route, status, external_id, name, flight_time, carrier, flight_number, awb, departure, destination, packages_count, total_weight, closed_at, raw_json)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ON DUPLICATE KEY UPDATE
-            departure_raw = VALUES(departure_raw),
-            route = VALUES(route),
-            status = VALUES(status),
-            external_id = VALUES(external_id),
-            name = VALUES(name),
-            flight_time = VALUES(flight_time),
-            carrier = VALUES(carrier),
-            flight_number = VALUES(flight_number),
-            awb = VALUES(awb),
-            departure = VALUES(departure),
-            destination = VALUES(destination),
-            packages_count = VALUES(packages_count),
-            total_weight = VALUES(total_weight),
-            closed_at = VALUES(closed_at),
-            raw_json = VALUES(raw_json)
+        CREATE TABLE IF NOT EXISTS {$safeTable} (
+            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+            connector_id INT UNSIGNED NOT NULL,
+            flight_record_id BIGINT UNSIGNED NULL,
+            flight_external_id VARCHAR(128) NOT NULL DEFAULT '',
+            flight_no VARCHAR(128) NOT NULL DEFAULT '',
+            container_external_id VARCHAR(128) NOT NULL,
+            name VARCHAR(255) NOT NULL DEFAULT '',
+            flight VARCHAR(255) NOT NULL DEFAULT '',
+            departure VARCHAR(128) NOT NULL DEFAULT '',
+            destination VARCHAR(128) NOT NULL DEFAULT '',
+            awb VARCHAR(128) NOT NULL DEFAULT '',
+            packages_count INT NULL,
+            total_weight DECIMAL(12,3) NULL,
+            is_active TINYINT(1) NOT NULL DEFAULT 1,
+            raw_json LONGTEXT NULL,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            PRIMARY KEY (id),
+            UNIQUE KEY uniq_connector_container (connector_id, container_external_id),
+            KEY idx_connector_flight_external (connector_id, flight_external_id),
+            KEY idx_connector_flight_record (connector_id, flight_record_id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
     ";
 
-    $stmt = $db->prepare($sql);
+
+    if (!$db->query($sql)) {
+        throw new RuntimeException('Не удалось создать таблицу flight_list_containers: ' . $db->error);
+    }
+}
+
+function connectors_subrunner_ensure_column(mysqli $db, string $tableName, string $columnName, string $alterSql): void
+{
+    $safeTableName = str_replace("'", "\\'", $tableName);
+    $safeColumnName = str_replace("'", "\\'", $columnName);
+    $sql = "SHOW COLUMNS FROM `" . str_replace('`', '``', $tableName) . "` LIKE '" . $safeColumnName . "'";
+    $result = $db->query($sql);
+    if ($result instanceof mysqli_result) {
+        $exists = $result->num_rows > 0;
+        $result->close();
+        if ($exists) {
+            return;
+        }
+    }
+
+    if (!$db->query($alterSql)) {
+        throw new RuntimeException("Не удалось обновить схему таблицы {$safeTableName}: " . $db->error);
+    }
+}
+
+function connectors_subrunner_ensure_index(mysqli $db, string $tableName, string $indexName, string $alterSql): void
+{
+    $sql = "SHOW INDEX FROM `" . str_replace('`', '``', $tableName) . "` WHERE Key_name = '" . str_replace("'", "\\'", $indexName) . "'";
+    $result = $db->query($sql);
+    if ($result instanceof mysqli_result) {
+        $exists = $result->num_rows > 0;
+        $result->close();
+        if ($exists) {
+            return;
+        }
+    }
+
+    if (!$db->query($alterSql)) {
+        throw new RuntimeException("Не удалось создать индекс {$indexName}: " . $db->error);
+    }
+}
+
+function connectors_subrunner_upsert_flight_row(mysqli $db, string $tableName, int $connectorId, array $row): int
+{
+    $existingId = connectors_subrunner_find_existing_flight_row_id($db, $tableName, $connectorId, $row);
+    if ($existingId !== null) {
+        connectors_subrunner_update_flight_row($db, $tableName, $connectorId, $existingId, $row);
+        return $existingId;
+    }
+
+    return connectors_subrunner_insert_flight_row($db, $tableName, $connectorId, $row);
+}
+
+function connectors_subrunner_find_existing_flight_row_id(mysqli $db, string $tableName, int $connectorId, array $row): ?int
+{
+    $safeTable = '`' . str_replace('`', '``', $tableName) . '`';
+    $externalId = trim((string)($row['external_id'] ?? ''));
+
+    if ($externalId !== '') {
+        $stmt = $db->prepare("SELECT id FROM {$safeTable} WHERE connector_id = ? AND external_id = ? ORDER BY id DESC LIMIT 1");
+        if (!$stmt) {
+            throw new RuntimeException('DB prepare error (find flight by external_id): ' . $db->error);
+        }
+
+        $stmt->bind_param('is', $connectorId, $externalId);
+        if (!$stmt->execute()) {
+            $err = $stmt->error;
+            $stmt->close();
+            throw new RuntimeException('DB execute error (find flight by external_id): ' . $err);
+        }
+
+        $result = $stmt->get_result();
+        $found = $result instanceof mysqli_result ? $result->fetch_assoc() : null;
+        if ($result instanceof mysqli_result) {
+            $result->close();
+        }
+        $stmt->close();
+
+        if (is_array($found) && isset($found['id'])) {
+            return (int)$found['id'];
+        }
+    }
+
+    $stmt = $db->prepare("SELECT id FROM {$safeTable} WHERE connector_id = ? AND flight_no = ? AND ((departure_at IS NULL AND ? IS NULL) OR departure_at = ?) ORDER BY id DESC LIMIT 1");
+
     if (!$stmt) {
-        throw new RuntimeException('DB prepare error (upsert flight row): ' . $db->error);
+        throw new RuntimeException('DB prepare error (find flight by fallback key): ' . $db->error);
     }
 
     $departureAt = $row['departure_at'] ?? null;
 
-    $packagesCount = $row['packages_count'];
-    $totalWeight = $row['total_weight'];
+    $stmt->bind_param('isss', $connectorId, $row['flight_no'], $departureAt, $departureAt);
+    if (!$stmt->execute()) {
+        $err = $stmt->error;
+        $stmt->close();
+        throw new RuntimeException('DB execute error (find flight by fallback key): ' . $err);
+    }
+
+
+    $result = $stmt->get_result();
+    $found = $result instanceof mysqli_result ? $result->fetch_assoc() : null;
+    if ($result instanceof mysqli_result) {
+        $result->close();
+    }
+    $stmt->close();
+
+    return is_array($found) && isset($found['id']) ? (int)$found['id'] : null;
+}
+
+function connectors_subrunner_update_flight_row(mysqli $db, string $tableName, int $connectorId, int $rowId, array $row): void
+{
+    $safeTable = '`' . str_replace('`', '``', $tableName) . '`';
+    $sql = "
+        UPDATE {$safeTable}
+           SET connector_id = ?,
+               flight_no = ?,
+               departure_at = ?,
+               departure_raw = ?,
+               route = ?,
+               status = ?,
+               external_id = ?,
+               name = ?,
+               flight_time = ?,
+               carrier = ?,
+               flight_number = ?,
+               awb = ?,
+               departure = ?,
+               destination = ?,
+               packages_count = ?,
+               total_weight = ?,
+               closed_at = ?,
+               source_row_id = ?,
+               containers_url = ?,
+               containers_json = ?,
+               containers_count = ?,
+               containers_synced_at = ?,
+               containers_sync_status = ?,
+               containers_sync_error = ?,
+               raw_json = ?
+         WHERE id = ?
+         LIMIT 1
+    ";
+
+    $stmt = $db->prepare($sql);
+    if (!$stmt) {
+        throw new RuntimeException('DB prepare error (update flight row): ' . $db->error);
+    }
+
+    $departureAt = $row['departure_at'] ?? null;
+    $packagesCount = $row['packages_count'] ?? null;
+    $totalWeight = $row['total_weight'] ?? null;
     $closedAt = $row['closed_at'] ?? null;
+    $containersCount = $row['containers_count'] ?? null;
+    $containersSyncedAt = $row['containers_synced_at'] ?? null;
+    $containersSyncError = $row['containers_sync_error'] ?? null;
 
     $stmt->bind_param(
-        'isssssssssssssidds',
+        'isssssssssssssidssssissssi',
         $connectorId,
         $row['flight_no'],
         $departureAt,
@@ -486,25 +822,33 @@ function connectors_subrunner_upsert_flight_row(mysqli $db, string $tableName, i
         $packagesCount,
         $totalWeight,
         $closedAt,
-        $row['raw_json']
+        $row['source_row_id'],
+        $row['containers_url'],
+        $row['containers_json'],
+        $containersCount,
+        $containersSyncedAt,
+        $row['containers_sync_status'],
+        $containersSyncError,
+        $row['raw_json'],
+        $rowId
     );
 
     if (!$stmt->execute()) {
         $err = $stmt->error;
         $stmt->close();
-        throw new RuntimeException('DB execute error (upsert flight row): ' . $err);
+        throw new RuntimeException('DB execute error (update flight row): ' . $err);
     }
 
     $stmt->close();
 }
 
-function connectors_subrunner_insert_flight_row(mysqli $db, string $tableName, int $connectorId, array $row): void
+function connectors_subrunner_insert_flight_row(mysqli $db, string $tableName, int $connectorId, array $row): int
 {
     $safeTable = '`' . str_replace('`', '``', $tableName) . '`';
     $sql = "
         INSERT INTO {$safeTable}
-            (connector_id, flight_no, departure_at, departure_raw, route, status, external_id, name, flight_time, carrier, flight_number, awb, departure, destination, packages_count, total_weight, closed_at, raw_json)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (connector_id, flight_no, departure_at, departure_raw, route, status, external_id, name, flight_time, carrier, flight_number, awb, departure, destination, packages_count, total_weight, closed_at, source_row_id, containers_url, containers_json, containers_count, containers_synced_at, containers_sync_status, containers_sync_error, raw_json)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ";
 
     $stmt = $db->prepare($sql);
@@ -517,9 +861,12 @@ function connectors_subrunner_insert_flight_row(mysqli $db, string $tableName, i
     $packagesCount = $row['packages_count'];
     $totalWeight = $row['total_weight'];
     $closedAt = $row['closed_at'] ?? null;
+    $containersCount = $row['containers_count'] ?? null;
+    $containersSyncedAt = $row['containers_synced_at'] ?? null;
+    $containersSyncError = $row['containers_sync_error'] ?? null;
 
     $stmt->bind_param(
-        'isssssssssssssidds',
+        'isssssssssssssidssssissss',
         $connectorId,
         $row['flight_no'],
         $departureAt,
@@ -537,6 +884,13 @@ function connectors_subrunner_insert_flight_row(mysqli $db, string $tableName, i
         $packagesCount,
         $totalWeight,
         $closedAt,
+        $row['source_row_id'],
+        $row['containers_url'],
+        $row['containers_json'],
+        $containersCount,
+        $containersSyncedAt,
+        $row['containers_sync_status'],
+        $containersSyncError,
         $row['raw_json']
     );
 
@@ -546,6 +900,363 @@ function connectors_subrunner_insert_flight_row(mysqli $db, string $tableName, i
         throw new RuntimeException('DB execute error (insert flight row): ' . $err);
     }
 
+
+    $insertId = (int)$stmt->insert_id;
     $stmt->close();
 
+    return $insertId;
+}
+
+function connectors_subrunner_sync_flight_containers(
+    mysqli $db,
+    array $connector,
+    int $connectorId,
+    string $flightTableName,
+    string $containersTableName,
+    int $flightRowId,
+    array $flightRow,
+    array $options
+): array {
+    $url = connectors_subrunner_resolve_containers_url($connector, $flightRow, $options);
+    if ($url === '') {
+        $flightRow['containers_json'] = '[]';
+        $flightRow['containers_count'] = 0;
+        $flightRow['containers_synced_at'] = gmdate('Y-m-d H:i:s');
+        $flightRow['containers_sync_status'] = 'missing_url';
+        $flightRow['containers_sync_error'] = null;
+        connectors_subrunner_update_flight_container_snapshot($db, $flightTableName, $flightRowId, $flightRow);
+
+        return ['pages_checked' => 0, 'fetched' => 0, 'written' => 0];
+    }
+
+    try {
+        $html = connectors_subrunner_http_get($url, $connector, !empty($options['ssl_ignore']));
+        $selector = trim((string)($options['container_table_selector'] ?? 'table.references-table'));
+        $parsed = connectors_subrunner_extract_table_rows($html, $selector);
+        $headers = (array)($parsed['headers'] ?? []);
+        $rows = (array)($parsed['rows'] ?? []);
+
+        $containers = [];
+        foreach ($rows as $rowIndex => $row) {
+            $normalized = connectors_subrunner_normalize_container_row($row, $headers, $flightRow, $rowIndex + 1);
+            if ($normalized !== null) {
+                $containers[] = $normalized;
+            }
+        }
+
+        $written = 0;
+        $activeIds = [];
+        foreach ($containers as $containerRow) {
+            connectors_subrunner_upsert_container_row($db, $containersTableName, $connectorId, $flightRowId, $flightRow, $containerRow);
+            $written++;
+            $activeIds[] = (string)$containerRow['container_external_id'];
+        }
+
+        connectors_subrunner_mark_missing_containers_inactive(
+            $db,
+            $containersTableName,
+            $connectorId,
+            (string)$flightRow['external_id'],
+            $activeIds
+        );
+
+        $flightRow['containers_json'] = (string)json_encode($containers, JSON_UNESCAPED_UNICODE);
+        $flightRow['containers_count'] = count($containers);
+        $flightRow['containers_synced_at'] = gmdate('Y-m-d H:i:s');
+        $flightRow['containers_sync_status'] = empty($containers) ? 'empty' : 'synced';
+        $flightRow['containers_sync_error'] = null;
+        $flightRow['containers_url'] = $url;
+        connectors_subrunner_update_flight_container_snapshot($db, $flightTableName, $flightRowId, $flightRow);
+
+        return [
+            'pages_checked' => 1,
+            'fetched' => count($containers),
+            'written' => $written,
+        ];
+    } catch (Throwable $e) {
+        $flightRow['containers_json'] = $flightRow['containers_json'] ?? '[]';
+        $flightRow['containers_count'] = $flightRow['containers_count'] ?? 0;
+        $flightRow['containers_synced_at'] = gmdate('Y-m-d H:i:s');
+        $flightRow['containers_sync_status'] = 'error';
+        $flightRow['containers_sync_error'] = $e->getMessage();
+        $flightRow['containers_url'] = $url;
+        connectors_subrunner_update_flight_container_snapshot($db, $flightTableName, $flightRowId, $flightRow);
+        throw $e;
+    }
+}
+
+function connectors_subrunner_resolve_containers_url(array $connector, array $flightRow, array $options): string
+{
+    $url = trim((string)($flightRow['containers_url'] ?? ''));
+    if ($url !== '') {
+        return $url;
+    }
+
+    $template = trim((string)($options['container_url_template'] ?? ''));
+    $externalId = trim((string)($flightRow['external_id'] ?? ''));
+    if ($template !== '' && $externalId !== '') {
+        return str_replace('{external_id}', rawurlencode($externalId), $template);
+    }
+
+    $baseUrl = rtrim(trim((string)($connector['base_url'] ?? '')), '/');
+    if ($baseUrl !== '' && $externalId !== '') {
+        return $baseUrl . '/collector/containers?search=1&flight=' . rawurlencode($externalId);
+    }
+
+    return '';
+}
+
+function connectors_subrunner_http_get(string $url, array $connector, bool $sslIgnore = false): string
+{
+    $ch = curl_init();
+    if ($ch === false) {
+        throw new RuntimeException('Не удалось инициализировать cURL для загрузки containers');
+    }
+
+    $headers = ['User-Agent: CargoConnector/1.0'];
+    $authToken = trim((string)($connector['auth_token'] ?? ''));
+    if ($authToken !== '') {
+        $headers[] = 'Authorization: Bearer ' . $authToken;
+    }
+
+    $cookieValue = trim((string)($connector['auth_cookies'] ?? ''));
+    $opts = [
+        CURLOPT_URL => $url,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_FOLLOWLOCATION => true,
+        CURLOPT_CONNECTTIMEOUT => 10,
+        CURLOPT_TIMEOUT => 20,
+        CURLOPT_HTTPHEADER => $headers,
+    ];
+    if ($cookieValue !== '') {
+        $opts[CURLOPT_COOKIE] = $cookieValue;
+    }
+    if ($sslIgnore) {
+        $opts[CURLOPT_SSL_VERIFYPEER] = false;
+        $opts[CURLOPT_SSL_VERIFYHOST] = 0;
+    }
+
+    curl_setopt_array($ch, $opts);
+    $body = curl_exec($ch);
+    $err = curl_error($ch);
+    $status = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+    curl_close($ch);
+
+    if ($body === false) {
+        throw new RuntimeException('Ошибка cURL при загрузке containers: ' . ($err !== '' ? $err : 'unknown'));
+    }
+
+    if ($status >= 400) {
+        throw new RuntimeException('Ошибка загрузки containers: HTTP ' . $status);
+    }
+
+    return (string)$body;
+}
+
+function connectors_subrunner_normalize_container_row(array $row, array $headers, array $flightRow, int $rowNo): ?array
+{
+    $cells = connectors_subrunner_extract_row_cells($row);
+    $attrs = connectors_subrunner_extract_row_attrs($row);
+    if ($cells === [] || implode('', $cells) === '') {
+        return null;
+    }
+
+    $packagesCount = preg_replace('/[^0-9\-]/', '', (string)($cells[5] ?? '')) ?? '';
+    $totalWeight = str_replace(',', '.', preg_replace('/[^0-9,\.\-]/', '', (string)($cells[6] ?? '')) ?? '');
+
+    $containerExternalId = '';
+    if (!empty($attrs['id']) && preg_match('/(\d+)/', (string)$attrs['id'], $m)) {
+        $containerExternalId = (string)$m[1];
+    }
+    if ($containerExternalId === '') {
+        $containerExternalId = trim((string)($cells[0] ?? ''));
+    }
+
+    if ($containerExternalId === '') {
+        throw new RuntimeException('Пустой идентификатор контейнера');
+    }
+
+    return [
+        'container_external_id' => $containerExternalId,
+        'name' => trim((string)($cells[0] ?? '')),
+        'flight' => trim((string)($cells[1] ?? '')),
+        'departure' => trim((string)($cells[2] ?? '')),
+        'destination' => trim((string)($cells[3] ?? '')),
+        'awb' => trim((string)($cells[4] ?? '')),
+        'packages_count' => $packagesCount === '' ? null : (int)$packagesCount,
+        'total_weight' => $totalWeight === '' ? null : (float)$totalWeight,
+        'is_active' => 1,
+        'raw_json' => json_encode([
+            'row_no' => $rowNo,
+            'headers' => $headers,
+            'cells' => $cells,
+            'attrs' => $attrs,
+            'flight_external_id' => (string)($flightRow['external_id'] ?? ''),
+        ], JSON_UNESCAPED_UNICODE),
+    ];
+}
+
+function connectors_subrunner_upsert_container_row(
+    mysqli $db,
+    string $tableName,
+    int $connectorId,
+    int $flightRowId,
+    array $flightRow,
+    array $containerRow
+): void {
+    $safeTable = '`' . str_replace('`', '``', $tableName) . '`';
+    $sql = "
+        INSERT INTO {$safeTable}
+            (connector_id, flight_record_id, flight_external_id, flight_no, container_external_id, name, flight, departure, destination, awb, packages_count, total_weight, is_active, raw_json)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON DUPLICATE KEY UPDATE
+            flight_record_id = VALUES(flight_record_id),
+            flight_external_id = VALUES(flight_external_id),
+            flight_no = VALUES(flight_no),
+            name = VALUES(name),
+            flight = VALUES(flight),
+            departure = VALUES(departure),
+            destination = VALUES(destination),
+            awb = VALUES(awb),
+            packages_count = VALUES(packages_count),
+            total_weight = VALUES(total_weight),
+            is_active = VALUES(is_active),
+            raw_json = VALUES(raw_json)
+    ";
+
+    $stmt = $db->prepare($sql);
+    if (!$stmt) {
+        throw new RuntimeException('DB prepare error (upsert container row): ' . $db->error);
+    }
+
+    $packagesCount = $containerRow['packages_count'] ?? null;
+    $totalWeight = $containerRow['total_weight'] ?? null;
+    $isActive = (int)($containerRow['is_active'] ?? 1);
+    $flightExternalId = (string)($flightRow['external_id'] ?? '');
+    $flightNo = (string)($flightRow['flight_no'] ?? '');
+
+    $stmt->bind_param(
+        'iissssssssidis',
+        $connectorId,
+        $flightRowId,
+        $flightExternalId,
+        $flightNo,
+        $containerRow['container_external_id'],
+        $containerRow['name'],
+        $containerRow['flight'],
+        $containerRow['departure'],
+        $containerRow['destination'],
+        $containerRow['awb'],
+        $packagesCount,
+        $totalWeight,
+        $isActive,
+        $containerRow['raw_json']
+    );
+
+    if (!$stmt->execute()) {
+        $err = $stmt->error;
+        $stmt->close();
+        throw new RuntimeException('DB execute error (upsert container row): ' . $err);
+    }
+
+    $stmt->close();
+}
+
+function connectors_subrunner_mark_missing_containers_inactive(
+    mysqli $db,
+    string $tableName,
+    int $connectorId,
+    string $flightExternalId,
+    array $activeIds
+): void {
+    if ($flightExternalId === '') {
+        return;
+    }
+
+    $safeTable = '`' . str_replace('`', '``', $tableName) . '`';
+    if ($activeIds === []) {
+        $stmt = $db->prepare("UPDATE {$safeTable} SET is_active = 0 WHERE connector_id = ? AND flight_external_id = ?");
+        if (!$stmt) {
+            throw new RuntimeException('DB prepare error (deactivate empty containers set): ' . $db->error);
+        }
+        $stmt->bind_param('is', $connectorId, $flightExternalId);
+    } else {
+        $placeholders = implode(', ', array_fill(0, count($activeIds), '?'));
+        $sql = "UPDATE {$safeTable} SET is_active = 0 WHERE connector_id = ? AND flight_external_id = ? AND container_external_id NOT IN ({$placeholders})";
+        $stmt = $db->prepare($sql);
+        if (!$stmt) {
+            throw new RuntimeException('DB prepare error (deactivate missing containers): ' . $db->error);
+        }
+
+        $types = 'is' . str_repeat('s', count($activeIds));
+        $params = [$connectorId, $flightExternalId];
+        foreach ($activeIds as $activeId) {
+            $params[] = (string)$activeId;
+        }
+        connectors_subrunner_bind_dynamic_params($stmt, $types, $params);
+    }
+
+    if (!$stmt->execute()) {
+        $err = $stmt->error;
+        $stmt->close();
+        throw new RuntimeException('DB execute error (deactivate missing containers): ' . $err);
+    }
+    $stmt->close();
+   }
+
+function connectors_subrunner_update_flight_container_snapshot(mysqli $db, string $tableName, int $rowId, array $flightRow): void
+{
+    $safeTable = '`' . str_replace('`', '``', $tableName) . '`';
+    $sql = "
+        UPDATE {$safeTable}
+           SET containers_url = ?,
+               containers_json = ?,
+               containers_count = ?,
+               containers_synced_at = ?,
+               containers_sync_status = ?,
+               containers_sync_error = ?
+         WHERE id = ?
+         LIMIT 1
+    ";
+
+    $stmt = $db->prepare($sql);
+    if (!$stmt) {
+        throw new RuntimeException('DB prepare error (update flight container snapshot): ' . $db->error);
+    }
+
+    $containersCount = $flightRow['containers_count'] ?? null;
+    $containersSyncedAt = $flightRow['containers_synced_at'] ?? null;
+    $containersSyncError = $flightRow['containers_sync_error'] ?? null;
+    $stmt->bind_param(
+        'ssisssi',
+        $flightRow['containers_url'],
+        $flightRow['containers_json'],
+        $containersCount,
+        $containersSyncedAt,
+        $flightRow['containers_sync_status'],
+        $containersSyncError,
+        $rowId
+    );
+
+    if (!$stmt->execute()) {
+        $err = $stmt->error;
+        $stmt->close();
+        throw new RuntimeException('DB execute error (update flight container snapshot): ' . $err);
+    }
+
+    $stmt->close();
+}
+
+function connectors_subrunner_bind_dynamic_params(mysqli_stmt $stmt, string $types, array $params): void
+{
+    $refs = [];
+    $bindArgs = [$types];
+    foreach ($params as $index => $value) {
+        $refs[$index] = $value;
+        $bindArgs[] = &$refs[$index];
+    }
+
+    if (!call_user_func_array([$stmt, 'bind_param'], $bindArgs)) {
+        throw new RuntimeException('Не удалось привязать динамические параметры');
+    }
 }
