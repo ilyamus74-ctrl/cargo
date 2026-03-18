@@ -3395,7 +3395,6 @@ function connectors_execute_script_operation(array $operation): array
     ];
 }
 
-
 function connectors_resolve_manual_test_target_table(array $operation, array $result = []): string
 {
     $subrunnerTable = trim((string)($result['subrunner']['meta']['table_name'] ?? ''));
@@ -3416,6 +3415,9 @@ function connectors_execute_operation_by_kind_for_manual_test(array $connector, 
 {
     $kind = trim((string)($operation['kind'] ?? ''));
     $kind = $kind !== '' ? $kind : 'browser_steps';
+    $config = isset($operation['config']) && is_array($operation['config']) ? $operation['config'] : [];
+    $hasSubrunnerConfig = isset($config['subrunner']) && is_array($config['subrunner'])
+        && trim((string)($config['subrunner']['name'] ?? '')) !== '';
 
     if ($kind === 'noop') {
         return [
@@ -3443,7 +3445,7 @@ function connectors_execute_operation_by_kind_for_manual_test(array $connector, 
     }
 
 
-    if ($kind === 'subrunner' || ($kind === 'browser_steps' && (string)($operation['action'] ?? '') === 'connectors_run_subrunner')) {
+    if ($kind === 'subrunner' || ($kind === 'browser_steps' && (((string)($operation['action'] ?? '') === 'connectors_run_subrunner') || $hasSubrunnerConfig))) {
         $subrunnerResult = connectors_execute_subrunner($connector, $operation, $connectorId, $periodFrom, $periodTo);
         return [
             'message' => (string)($subrunnerResult['message'] ?? 'Операция subrunner выполнена'),
@@ -3451,7 +3453,7 @@ function connectors_execute_operation_by_kind_for_manual_test(array $connector, 
             'step_log' => isset($subrunnerResult['step_log']) && is_array($subrunnerResult['step_log']) ? $subrunnerResult['step_log'] : [],
             'artifacts_dir' => (string)($subrunnerResult['artifacts_dir'] ?? ''),
             'target_table' => connectors_resolve_manual_test_target_table($operation, $subrunnerResult),
-            'trace_meta' => ['kind' => 'subrunner', 'subrunner_name' => (string)($operation['config']['subrunner']['name'] ?? '')],
+            'trace_meta' => ['kind' => 'subrunner', 'subrunner_name' => (string)($config['subrunner']['name'] ?? '')],
         ];
     }
 
