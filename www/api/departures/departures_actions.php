@@ -199,11 +199,15 @@ function departures_decode_containers($rawContainers): array
 
         $packagesCountRaw = $container['packages_count'] ?? null;
         $totalWeightRaw = $container['total_weight'] ?? null;
+
+        $containerExternalId = trim((string)($container['container_external_id'] ?? ''));
         $hasZeroPackages = is_numeric($packagesCountRaw) && (float)$packagesCountRaw == 0.0;
         $hasZeroWeight = is_numeric($totalWeightRaw) && (float)$totalWeightRaw == 0.0;
+        $hasPackages = is_numeric($packagesCountRaw) && (float)$packagesCountRaw > 0.0;
+        $hasWeight = is_numeric($totalWeightRaw) && (float)$totalWeightRaw > 0.0;
 
         $containers[] = [
-            'container_external_id' => trim((string)($container['container_external_id'] ?? '')),
+            'container_external_id' => $containerExternalId,
             'name' => trim((string)($container['name'] ?? '')),
             'flight' => trim((string)($container['flight'] ?? '')),
             'departure' => trim((string)($container['departure'] ?? '')),
@@ -212,6 +216,7 @@ function departures_decode_containers($rawContainers): array
             'packages_count' => departures_format_value($packagesCountRaw, 0),
             'total_weight' => departures_format_value($totalWeightRaw),
             'is_empty_placeholder' => $hasZeroPackages && $hasZeroWeight,
+            'can_close_flight' => $containerExternalId !== '' && $hasPackages && $hasWeight,
         ];
     }
 
@@ -286,6 +291,14 @@ function departures_fetch_rows(mysqli $dbcnx, array $connector, string $statusFi
                 $containersTotal = isset($flight['containers_count']) && $flight['containers_count'] !== null
                     ? (int)$flight['containers_count']
                     : count($containers);
+
+                $canCloseFlight = false;
+                foreach ($containers as $container) {
+                    if (!empty($container['can_close_flight'])) {
+                        $canCloseFlight = true;
+                        break;
+                    }
+                }
                 $updatedAtRaw = trim((string)($flight['updated_at'] ?? ''));
                 $closedAtRaw = trim((string)($flight['closed_at'] ?? ''));
 
@@ -306,6 +319,7 @@ function departures_fetch_rows(mysqli $dbcnx, array $connector, string $statusFi
                     'status' => trim((string)($flight['status'] ?? '')),
                     'status_badge_class' => departures_status_badge_class((string)($flight['status'] ?? '')),
                     'containers_total' => $containersTotal,
+                    'can_close_flight' => $canCloseFlight,
                     'packages_count' => departures_format_value($flight['packages_count'] ?? null, 0),
                     'total_weight' => departures_format_value($flight['total_weight'] ?? null),
                     'containers_sync_status' => trim((string)($flight['containers_sync_status'] ?? 'pending')),
