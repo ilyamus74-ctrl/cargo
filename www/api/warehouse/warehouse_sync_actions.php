@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 $response = ['status' => 'error', 'message' => 'Unknown warehouse sync action'];
 require_once __DIR__ . '/../system/system_tasks_lib.php';
+require_once __DIR__ . '/../connectors/subrunners/connector_modules.php';
 
 if (!function_exists('warehouse_sync_normalize_key')) {
     function warehouse_sync_normalize_key(string $value): string
@@ -100,6 +101,244 @@ if (!function_exists('warehouse_sync_report_identifiers')) {
     }
 }
 
+
+
+if (!function_exists('warehouse_sync_extract_runtime_operations')) {
+    function warehouse_sync_extract_runtime_operations(array $connector): array
+    {
+        $raw = trim((string)($connector['operations_json'] ?? ''));
+        if ($raw === '') {
+            return [];
+        }
+
+        $decoded = json_decode($raw, true);
+        if (!is_array($decoded)) {
+            return [];
+        }
+
+        if (isset($decoded['operations']) && is_array($decoded['operations'])) {
+            $operations = [];
+            foreach ($decoded['operations'] as $operation) {
+                if (!is_array($operation)) {
+                    continue;
+                }
+
+                $operationId = trim((string)($operation['operation_id'] ?? ''));
+                if ($operationId === '') {
+                    continue;
+                }
+
+                $operations[$operationId] = [
+                    'operation_id' => $operationId,
+                    'config' => isset($operation['config']) && is_array($operation['config']) ? $operation['config'] : [],
+                ];
+            }
+
+            return $operations;
+        }
+
+        $operations = [];
+        foreach ($decoded as $operationKey => $operation) {
+            if (!is_array($operation)) {
+                continue;
+            }
+
+            $operationId = trim((string)($operation['operation_id'] ?? $operationKey));
+            if ($operationId === '') {
+                continue;
+            }
+
+            $config = [];
+            foreach ([
+                'page_url', 'file_extension', 'download_mode', 'log_steps', 'steps', 'curl_config',
+                'target_table', 'field_mapping', 'request_config', 'success_selector', 'success_text', 'error_selector',
+                'subrunner',
+            ] as $configKey) {
+                if (array_key_exists($configKey, $operation)) {
+                    $config[$configKey] = $operation[$configKey];
+                }
+            }
+
+            $operations[$operationId] = [
+                'operation_id' => $operationId,
+                'config' => $config,
+            ];
+        }
+
+        return $operations;
+    }
+}
+
+if (!function_exists('warehouse_sync_resolve_departure_table_names')) {
+    function warehouse_sync_resolve_departure_table_names(array $connector): array
+    {
+        $tableNames = [];
+        $runtimeOperations = warehouse_sync_extract_runtime_operations($connector);
+
+        foreach ($runtimeOperations as $operation) {
+            if (!is_array($operation)) {
+                continue;
+            }
+
+            $config = isset($operation['config']) && is_array($operation['config']) ? $operation['config'] : [];
+            $subrunner = isset($config['subrunner']) && is_array($config['subrunner']) ? $config['subrunner'] : [];
+            $subrunnerName = trim((string)($subrunner['name'] ?? ''));
+            if ($subrunnerName === '' || stripos($subrunnerName, 'flight_list') !== 0) {
+                continue;
+            }
+
+            $options = isset($subrunner['options']) && is_array($subrunner['options']) ? $subrunner['options'] : [];
+
+            try {
+                $tableNames[] = connectors_subrunner_resolve_flight_table_name($connector, $options);
+            } catch (Throwable $e) {
+                error_log('warehouse_sync resolve departure table error: ' . $e->getMessage());
+            }
+        }
+
+        if ($tableNames === []) {
+            try {
+                $tableNames[] = connectors_subrunner_resolve_flight_table_name($connector, []);
+            } catch (Throwable $e) {
+                error_log('warehouse_sync resolve default departure table error: ' . $e->getMessage());
+            }
+        }
+
+        return array_values(array_unique(array_filter(array_map('strval', $tableNames))));
+    }
+}
+
+if (!function_exists('warehouse_sync_decode_flight_containers')) {
+    function warehouse_sync_decode_flight_containers($rawContainers): array
+    {
+        $decoded = json_decode((string)$rawContainers, true);
+        if (!is_array($decoded)) {
+            return [];
+        }
+
+        $containers = [];
+        foreach ($decoded as $container) {
+            if (!is_array($container)) {
+                continue;
+            }
+
+            $containerExternalId = trim((string)($container['container_external_id'] ?? ''));
+            $containerName = trim((string)($container['name'] ?? ''));
+            $labelPart = $containerName !== '' ? $containerName : $containerExternalId;
+            if ($labelPart === '') {
+                continue;
+            }
+
+            $containers[] = [
+                'container_external_id' => $containerExternalId,
+                'name' => $containerName,
+                'label' => $labelPart,
+            ];
+        }
+
+        return $containers;
+    }
+}
+
+if (!function_exists('warehouse_sync_fetch_open_departure_containers')) {
+    function warehouse_sync_fetch_open_departure_containers(mysqli $dbcnx): array
+    {
+        $connectors = [];
+        if ($res = $dbcnx->query('SELECT id, name, countries, operations_json, is_active FROM connectors ORDER BY name ASC, id ASC')) {
+            while ($row = $res->fetch_assoc()) {
+                if (is_array($row)) {
+                    $connectors[] = $row;
+                }
+            }
+            $res->free();
+        }
+
+        $options = [];
+        $seen = [];
+
+        foreach ($connectors as $connector) {
+            $connectorId = (int)($connector['id'] ?? 0);
+            if ($connectorId <= 0) {
+                continue;
+            }
+
+            foreach (warehouse_sync_resolve_departure_table_names($connector) as $tableName) {
+                if (!warehouse_sync_table_exists($dbcnx, $tableName)) {
+                    continue;
+                }
+
+                $safeTable = '`' . str_replace('`', '``', $tableName) . '`';
+                $sql = "
+                    SELECT id, external_id, flight_no, name, containers_json, updated_at
+                    FROM {$safeTable}
+                    WHERE connector_id = ? AND UPPER(TRIM(status)) = 'OPEN'
+                    ORDER BY COALESCE(updated_at, closed_at) DESC, id DESC
+                    LIMIT 250";
+
+                $stmt = $dbcnx->prepare($sql);
+                if (!$stmt) {
+                    error_log('warehouse_sync open containers prepare error: ' . $dbcnx->error . '; table=' . $tableName);
+                    continue;
+                }
+
+                $stmt->bind_param('i', $connectorId);
+                if (!$stmt->execute()) {
+                    error_log('warehouse_sync open containers execute error: ' . $stmt->error . '; table=' . $tableName);
+                    $stmt->close();
+                    continue;
+                }
+
+                $res = $stmt->get_result();
+                if ($res instanceof mysqli_result) {
+                    while ($flight = $res->fetch_assoc()) {
+                        $flightNo = trim((string)($flight['flight_no'] ?? ''));
+                        $flightName = trim((string)($flight['name'] ?? ''));
+                        $flightLabel = $flightNo !== '' ? $flightNo : ($flightName !== '' ? $flightName : '—');
+
+                        foreach (warehouse_sync_decode_flight_containers($flight['containers_json'] ?? '') as $container) {
+                            $optionValue = trim((string)($container['container_external_id'] ?? ''));
+                            if ($optionValue === '') {
+                                $optionValue = trim((string)($container['name'] ?? ''));
+                            }
+                            if ($optionValue === '') {
+                                continue;
+                            }
+
+                            $key = implode('|', [
+                                (string)$connectorId,
+                                (string)($flight['id'] ?? 0),
+                                $optionValue,
+                            ]);
+                            if (isset($seen[$key])) {
+                                continue;
+                            }
+                            $seen[$key] = true;
+
+                            $containerLabel = trim((string)($container['label'] ?? ''));
+                            $options[] = [
+                                'value' => $optionValue,
+                                'label' => 'рейс ' . $flightLabel . ' - ' . $containerLabel,
+                                'connector_id' => $connectorId,
+                                'connector_name' => trim((string)($connector['name'] ?? '')),
+                                'flight_record_id' => (int)($flight['id'] ?? 0),
+                                'flight_id' => trim((string)($flight['external_id'] ?? '')),
+                                'flight_no' => $flightNo,
+                                'flight_name' => $flightName,
+                                'container_external_id' => trim((string)($container['container_external_id'] ?? '')),
+                                'container_name' => trim((string)($container['name'] ?? '')),
+                            ];
+                        }
+                    }
+                    $res->free();
+                }
+
+                $stmt->close();
+            }
+        }
+
+        return $options;
+    }
+}
 
 if (!function_exists('warehouse_sync_table_columns')) {
     function warehouse_sync_table_columns(mysqli $dbcnx, string $tableName): array
@@ -2010,9 +2249,11 @@ if ($action === 'item_out') {
         }
         $res->free();
     }
+    $openContainers = warehouse_sync_fetch_open_departure_containers($dbcnx);
 
     $smarty->assign('current_user', $current);
     $smarty->assign('item_out_forwarders', $forwarders);
+    $smarty->assign('item_out_open_containers', $openContainers);
 
     ob_start();
     $smarty->display('cells_NA_API_warehouse_item_out.html');
