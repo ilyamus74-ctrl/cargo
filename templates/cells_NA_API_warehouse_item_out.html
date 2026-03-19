@@ -34,9 +34,11 @@
               <div class="col-12 col-md-5">
                 <label class="form-label small mb-1" for="warehouse-item-out-container">Контейнер из open рейса</label>
                 <select id="warehouse-item-out-container" class="form-select form-select-sm">
-                  <option value="" selected>Выберите контейнер</option>
+                  <option value="" selected>Сначала выберите форварда</option>
                   {foreach $item_out_open_containers as $container}
                     <option value="{$container.value|escape}"
+                            data-forwarder-key="{$container.forwarder_key|default:''|escape:'htmlattr'}"
+                            data-forwarder-alt-key="{$container.forwarder_alt_key|default:''|escape:'htmlattr'}"
                             data-connector-id="{$container.connector_id|default:0|escape:'htmlattr'}"
                             data-flight-record-id="{$container.flight_record_id|default:0|escape:'htmlattr'}"
                             data-flight-id="{$container.flight_id|default:''|escape:'htmlattr'}"
@@ -61,7 +63,7 @@
                 </select>
               </div>
               <div class="col-12">
-                <div class="form-text">Список контейнеров собирается из рейсов со статусом open в формате: рейс HHN02092025 - CONTAINER23896.</div>
+                <div class="form-text">Список контейнеров появляется только после выбора форварда и собирается из open-рейсов выбранного форварда в формате: рейс HHN21032026 - CONTAINER23896.</div>
               </div>
             </div>
 

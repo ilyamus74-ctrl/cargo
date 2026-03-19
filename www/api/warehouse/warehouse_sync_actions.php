@@ -293,7 +293,13 @@ if (!function_exists('warehouse_sync_fetch_open_departure_containers')) {
                     while ($flight = $res->fetch_assoc()) {
                         $flightNo = trim((string)($flight['flight_no'] ?? ''));
                         $flightName = trim((string)($flight['name'] ?? ''));
-                        $flightLabel = $flightNo !== '' ? $flightNo : ($flightName !== '' ? $flightName : '—');
+                        $flightLabel = $flightName !== '' ? $flightName : ($flightNo !== '' ? $flightNo : '—');
+                        $connectorName = trim((string)($connector['name'] ?? ''));
+                        $forwarderKey = warehouse_sync_normalize_key($connectorName);
+                        $forwarderAltKey = '';
+                        if ($forwarderKey !== '' && strpos($forwarderKey, 'DEV_') === 0) {
+                            $forwarderAltKey = substr($forwarderKey, 4);
+                        }
 
                         foreach (warehouse_sync_decode_flight_containers($flight['containers_json'] ?? '') as $container) {
                             $optionValue = trim((string)($container['container_external_id'] ?? ''));
@@ -319,7 +325,9 @@ if (!function_exists('warehouse_sync_fetch_open_departure_containers')) {
                                 'value' => $optionValue,
                                 'label' => 'рейс ' . $flightLabel . ' - ' . $containerLabel,
                                 'connector_id' => $connectorId,
-                                'connector_name' => trim((string)($connector['name'] ?? '')),
+                                'connector_name' => $connectorName,
+                                'forwarder_key' => $forwarderKey,
+                                'forwarder_alt_key' => $forwarderAltKey,
                                 'flight_record_id' => (int)($flight['id'] ?? 0),
                                 'flight_id' => trim((string)($flight['external_id'] ?? '')),
                                 'flight_no' => $flightNo,

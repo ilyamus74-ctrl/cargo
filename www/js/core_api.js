@@ -2420,6 +2420,8 @@ const CoreAPI = {
         searchInput: null,
         limitSelect: null,
         forwarderSelect: null,
+        containerSelect: null,
+        containerOptionCache: [],
         sentinel: null,
         observer: null,
         searchTimer: null,
@@ -2448,18 +2450,27 @@ const CoreAPI = {
             this.searchInput = root.querySelector('#warehouse-item-out-search');
             this.limitSelect = root.querySelector('#warehouse-item-out-limit');
             this.forwarderSelect = root.querySelector('#warehouse-item-out-forwarder');
+            this.containerSelect = root.querySelector('#warehouse-item-out-container');
             this.sentinel = root.querySelector('#warehouse-item-out-sentinel');
 
-            if (!this.tbody || !this.total || !this.searchInput || !this.limitSelect || !this.forwarderSelect || !this.sentinel) {
+            if (!this.tbody || !this.total || !this.searchInput || !this.limitSelect || !this.forwarderSelect || !this.containerSelect || !this.sentinel) {
                 return;
             }
+
+            this.containerOptionCache = Array.from(this.containerSelect.querySelectorAll('option[value]'))
+                .filter((option) => String(option.value || '').trim() !== '')
+                .map((option) => ({
+                    value: option.value,
+                    label: option.textContent || '',
+                    dataset: { ...option.dataset }
+                }));
 
             this.state.limit = this.limitSelect.value || '50';
             this.state.forwarder = this.forwarderSelect.value || 'ALL';
             this.state.search = '';
             this.state.offset = 0;
             this.state.done = false;
-
+            this.updateContainerOptions();
             this.bindEvents();
             this.setupObserver();
             this.resetAndLoad();
@@ -2473,6 +2484,7 @@ const CoreAPI = {
 
             this.forwarderSelect.addEventListener('change', () => {
                 this.state.forwarder = this.forwarderSelect.value || 'ALL';
+                this.updateContainerOptions();
                 this.resetAndLoad();
             });
 
@@ -2503,6 +2515,50 @@ const CoreAPI = {
             if (this.sentinel) {
                 this.sentinel.textContent = isLoading ? 'Загрузка...' : '';
             }
+        },
+
+        updateContainerOptions() {
+            if (!this.containerSelect) {
+                return;
+            }
+
+            const selectedForwarder = String(this.state.forwarder || 'ALL').trim();
+            const placeholder = document.createElement('option');
+            placeholder.value = '';
+            placeholder.selected = true;
+
+            if (!selectedForwarder || selectedForwarder === 'ALL') {
+                placeholder.textContent = 'Сначала выберите форварда';
+                this.containerSelect.innerHTML = '';
+                this.containerSelect.appendChild(placeholder);
+                this.containerSelect.disabled = true;
+                return;
+            }
+
+            const matchedOptions = this.containerOptionCache.filter((item) => {
+                const forwarderKey = String(item.dataset.forwarderKey || '').trim();
+                const forwarderAltKey = String(item.dataset.forwarderAltKey || '').trim();
+                return selectedForwarder === forwarderKey || selectedForwarder === forwarderAltKey;
+            });
+
+            placeholder.textContent = matchedOptions.length > 0
+                ? 'Выберите контейнер'
+                : 'Для выбранного форварда нет open-рейсов';
+
+            this.containerSelect.innerHTML = '';
+            this.containerSelect.appendChild(placeholder);
+
+            matchedOptions.forEach((item) => {
+                const option = document.createElement('option');
+                option.value = item.value;
+                option.textContent = item.label;
+                Object.entries(item.dataset || {}).forEach(([key, value]) => {
+                    option.dataset[key] = value;
+                });
+                this.containerSelect.appendChild(option);
+            });
+
+            this.containerSelect.disabled = matchedOptions.length === 0;
         },
         async resetAndLoad() {
             this.state.offset = 0;
