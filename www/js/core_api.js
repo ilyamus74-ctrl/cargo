@@ -2784,6 +2784,7 @@ const CoreAPI = {
 
         buildFlightRuntimeVars(button) {
             const flight = String(button?.getAttribute('data-flight') || '').trim();
+            const flightName = String(button?.getAttribute('data-flight-name') || flight).trim();
             const flightId = String(button?.getAttribute('data-flight-id') || '').trim();
             const flightRecordId = String(button?.getAttribute('data-flight-record-id') || '').trim();
             const containerName = String(button?.getAttribute('data-container-name') || 'NEW').trim() || 'NEW';
@@ -2805,8 +2806,17 @@ const CoreAPI = {
                 flight_record_id: flightRecordId,
                 external_id: flightId,
                 flight_no: flight,
-                selected_flight: flight,
+                flight_name: flight,
+                flight_search_value: flight,
+                flight_name: flightName,
+                flight_search_value: flightName,
+                selected_flight: flightNam
                 selected_flight_id: flightId,
+                selected_flight_external_id: flightId,
+                selected_flight_name: flightName,
+                target_flight_id: flightId,
+                target_flight_external_id: flightId,
+                target_flight_name: flightName,
                 departure_date: flight,
                 add_container_to_flight: flight,
                 add_container_to_flight_id: flightId,

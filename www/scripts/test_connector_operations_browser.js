@@ -119,6 +119,84 @@ async function findSelectorWithFallback(page, selector, options = {}) {
 }
 
 
+async function findElementHandleByText(page, selector, text, options = {}) {
+  const timeout = Number(options.timeout || 30000);
+  const visible = options.visible !== false;
+  const matchMode = String(options.match || 'contains').trim().toLowerCase();
+  const normalizedText = String(text || '').replace(/\s+/g, ' ').trim().toLowerCase();
+  if (!selector) {
+    throw new Error('findElementHandleByText.selector is required');
+  }
+  if (!normalizedText) {
+    throw new Error('findElementHandleByText.text is required');
+  }
+
+  await page.waitForFunction(
+    ({ selector: selectorValue, text: expectedText, visibleOnly, match }) => {
+      const normalize = (input) => String(input || '').replace(/\s+/g, ' ').trim().toLowerCase();
+      const isVisible = (node) => {
+        if (!node) return false;
+        const style = window.getComputedStyle(node);
+        if (!style) return false;
+        if (style.display === 'none' || style.visibility === 'hidden' || Number(style.opacity || '1') === 0) {
+          return false;
+        }
+        const rect = node.getBoundingClientRect();
+        return rect.width > 0 && rect.height > 0;
+      };
+      return Array.from(document.querySelectorAll(selectorValue)).some((node) => {
+        if (visibleOnly && !isVisible(node)) {
+          return false;
+        }
+        const haystack = normalize(node.textContent || node.innerText || '');
+        if (!haystack) {
+          return false;
+        }
+        if (match === 'exact') {
+          return haystack === expectedText;
+        }
+        return haystack.includes(expectedText);
+      });
+    },
+    { timeout },
+    { selector, text: normalizedText, visibleOnly: visible, match: matchMode }
+  );
+
+  const handles = await page.$$(selector);
+  for (const handle of handles) {
+    const isMatch = await page.evaluate((node, expectedText, visibleOnly, match) => {
+      const normalize = (input) => String(input || '').replace(/\s+/g, ' ').trim().toLowerCase();
+      const isVisible = (element) => {
+        if (!element) return false;
+        const style = window.getComputedStyle(element);
+        if (!style) return false;
+        if (style.display === 'none' || style.visibility === 'hidden' || Number(style.opacity || '1') === 0) {
+          return false;
+        }
+        const rect = element.getBoundingClientRect();
+        return rect.width > 0 && rect.height > 0;
+      };
+      if (visibleOnly && !isVisible(node)) {
+        return false;
+      }
+      const haystack = normalize(node.textContent || node.innerText || '');
+      if (!haystack) {
+        return false;
+      }
+      if (match === 'exact') {
+        return haystack === expectedText;
+      }
+      return haystack.includes(expectedText);
+    }, handle, normalizedText, visible, matchMode);
+    if (isMatch) {
+      return handle;
+    }
+    await handle.dispose();
+  }
+
+  throw new Error(`No element found for selector ${selector} with text ${text}`);
+}
+
 function resolveViewport(payload) {
   const DEFAULT_WIDTH = 1600;
   const DEFAULT_HEIGHT = 900;
@@ -847,6 +925,47 @@ function persistDownloadedFileIfNeeded(downloaded, runtimeHomeDir, stableDownloa
         stepLog.push({ time: new Date().toISOString(), step: stepNo, action, status: 'ok', screenshot: shot || undefined, meta: { selector, beforeClickWaitMs, isExportClick } });
         continue;
       }
+
+
+      if (action === 'click_by_text') {
+        const selector = applyVars(step.selector || '', vars);
+        const text = applyVars(String(step.text ?? step.value ?? ''), vars);
+        if (!selector) throw new Error('click_by_text.selector is required');
+        if (!text) throw new Error('click_by_text.text is required');
+        const requireVisible = step.visible !== false;
+        const matchMode = String(step.match || 'contains').trim().toLowerCase();
+        const beforeClickWaitMs = Math.max(0, Number(step.before_click_wait_ms || 0));
+
+        await runWithTransientRetry(async () => {
+          const handle = await findElementHandleByText(page, selector, text, {
+            timeout: Number(step.timeout_ms || 30000),
+            visible: requireVisible,
+            match: matchMode,
+          });
+          try {
+            if (beforeClickWaitMs > 0) {
+              await sleep(beforeClickWaitMs);
+            }
+            await handle.evaluate((node) => {
+              node.scrollIntoView({ block: 'center', inline: 'center', behavior: 'instant' });
+            });
+            await handle.click();
+          } finally {
+            await handle.dispose();
+          }
+        });
+        const shot = captureScreenshots ? await saveStepScreenshot(page, artifactsDir, stepNo, action) : null;
+        stepLog.push({
+          time: new Date().toISOString(),
+          step: stepNo,
+          action,
+          status: 'ok',
+          screenshot: shot || undefined,
+          meta: { selector, text, match: matchMode, beforeClickWaitMs }
+        });
+        continue;
+      }
+
 
       // "fill" = ввести текст в поле
       if (action === 'fill' || action === 'type') {
