@@ -77,94 +77,10 @@
                         data-success-message="Контейнер добавлен, рейс синхронизирован и список обновлён.">
                   <span class="js-departure-placeholder-label">Добавить контейнер</span>
                 </button>
-                <button type="button"
-                        class="btn btn-sm btn-outline-secondary js-departure-edit-toggle"
-                        data-target="{$flight.row_uid|escape:'htmlattr'}_edit"
-                        data-open="0"
-                        aria-expanded="false">
-                  Редактировать рейс
-                </button>
-                <button type="button"
-                        class="btn btn-sm btn-outline-warning js-departure-placeholder-action"
-                        data-operation="close_flight"
-                        data-refresh-operation="flight_list"
-                        data-connector-id="{$flight.connector_id|default:0|escape:'htmlattr'}"
-                        data-flight="{$flight.flight_no|default:''|escape:'htmlattr'}"
-                        data-flight-id="{$flight.flight_id|default:''|escape:'htmlattr'}"
-                        data-flight-record-id="{$flight.flight_record_id|default:0|escape:'htmlattr'}"
-                        data-status-target="#{$flight.row_uid|escape:'htmlattr'}_status"
-                        data-busy-label="Закрываю рейс..."
-                        data-success-message="Рейс закрыт, список рейсов обновлён.">
-                  <span class="js-departure-placeholder-label">Закрыть рейс</span>
-                </button>
-                <button type="button"
-                        class="btn btn-sm btn-outline-danger js-departure-placeholder-action"
-                        data-operation="delete_flight"
-                        data-refresh-operation="flight_list"
-                        data-connector-id="{$flight.connector_id|default:0|escape:'htmlattr'}"
-                        data-flight="{$flight.flight_no|default:''|escape:'htmlattr'}"
-                        data-flight-id="{$flight.flight_id|default:''|escape:'htmlattr'}"
-                        data-flight-record-id="{$flight.flight_record_id|default:0|escape:'htmlattr'}"
-                        data-status-target="#{$flight.row_uid|escape:'htmlattr'}_status"
-                        data-busy-label="Удаляю рейс..."
-                        data-success-message="Рейс удалён, список рейсов обновлён."
-                        {if $flight.containers_total|default:0 > 0}disabled title="Удаление доступно только для рейса без контейнеров."{/if}>
-                  <span class="js-departure-placeholder-label">Удалить рейс</span>
-                </button>
               {/if}
             </div>
           </div>
           <div id="{$flight.row_uid|escape}_status" class="small text-muted mb-2" aria-live="polite"></div>
-
-          {if $flight.status|lower == 'open'}
-            <div id="{$flight.row_uid|escape}_edit" class="card border border-dashed bg-white d-none mb-3">
-              <div class="card-body py-3">
-                <div class="row g-2 align-items-end">
-                  <div class="col-12 col-md-3">
-                    <label class="form-label small mb-1" for="{$flight.row_uid|escape:'htmlattr'}_date">Новая дата</label>
-                    <input type="date"
-                           id="{$flight.row_uid|escape:'htmlattr'}_date"
-                           class="form-control form-control-sm js-departure-edit-date"
-                           value="{$flight.flight_time|default:''|escape:'htmlattr'}">
-                  </div>
-                  <div class="col-12 col-md-4">
-                    <label class="form-label small mb-1" for="{$flight.row_uid|escape:'htmlattr'}_awb">Новый AWB</label>
-                    <input type="text"
-                           id="{$flight.row_uid|escape:'htmlattr'}_awb"
-                           class="form-control form-control-sm js-departure-edit-awb"
-                           inputmode="numeric"
-                           autocomplete="off"
-                           placeholder="50118620604"
-                           value="{$flight.awb|default:''|escape:'htmlattr'}">
-                  </div>
-                  <div class="col-12 col-md-auto d-flex flex-wrap gap-2">
-                    <button type="button"
-                            class="btn btn-sm btn-success js-departure-placeholder-action"
-                            data-operation="edit_flight"
-                            data-refresh-operation="flight_list"
-                            data-connector-id="{$flight.connector_id|default:0|escape:'htmlattr'}"
-                            data-flight="{$flight.flight_no|default:''|escape:'htmlattr'}"
-                            data-flight-id="{$flight.flight_id|default:''|escape:'htmlattr'}"
-                            data-flight-record-id="{$flight.flight_record_id|default:0|escape:'htmlattr'}"
-                            data-awb-input="#{$flight.row_uid|escape:'htmlattr'}_awb"
-                            data-date-input="#{$flight.row_uid|escape:'htmlattr'}_date"
-                            data-status-target="#{$flight.row_uid|escape:'htmlattr'}_status"
-                            data-busy-label="Сохраняю изменения..."
-                            data-success-message="Изменения рейса сохранены, список рейсов обновлён.">
-                      <span class="js-departure-placeholder-label">Сохранить</span>
-                    </button>
-                    <button type="button"
-                            class="btn btn-sm btn-outline-secondary js-departure-edit-toggle"
-                            data-target="{$flight.row_uid|escape:'htmlattr'}_edit"
-                            data-open="1"
-                            aria-expanded="true">
-                      Отмена
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </div>
-          {/if}
 
           {if $flight.containers|@count > 0}
             <div class="table-responsive">

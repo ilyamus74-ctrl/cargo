@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-03-18 20:19:37
+/* Smarty version 5.3.1, created on 2026-03-19 11:57:29
   from 'file:cells_NA_API_departures_rows.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_69bb08d96963b5_97481750',
+  'unifunc' => 'content_69bbe4a9113374_67813016',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '04916a2971ae525b97127d32f509a85cd4ad4d24' => 
     array (
       0 => 'cells_NA_API_departures_rows.html',
-      1 => 1773865093,
+      1 => 1773921287,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_69bb08d96963b5_97481750 (\Smarty\Template $_smarty_tpl) {
+function content_69bbe4a9113374_67813016 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 if ($_smarty_tpl->getSmarty()->getModifierCallback('count')($_smarty_tpl->getValue('departure_rows')) > 0) {?>
   <?php
@@ -135,11 +135,121 @@ _status"
                         data-success-message="Контейнер добавлен, рейс синхронизирован и список обновлён.">
                   <span class="js-departure-placeholder-label">Добавить контейнер</span>
                 </button>
+                <button type="button"
+                        class="btn btn-sm btn-outline-secondary js-departure-edit-toggle"
+                        data-target="<?php echo $_smarty_tpl->getSmarty()->getModifierCallback('escape')($_smarty_tpl->getValue('flight')['row_uid'], 'htmlattr');?>
+_edit"
+                        data-open="0"
+                        aria-expanded="false">
+                  Редактировать рейс
+                </button>
+                <button type="button"
+                        class="btn btn-sm btn-outline-warning js-departure-placeholder-action"
+                        data-operation="close_flight"
+                        data-refresh-operation="flight_list"
+                        data-connector-id="<?php echo $_smarty_tpl->getSmarty()->getModifierCallback('escape')((($tmp = $_smarty_tpl->getValue('flight')['connector_id'] ?? null)===null||$tmp==='' ? 0 ?? null : $tmp), 'htmlattr');?>
+"
+                        data-flight="<?php echo $_smarty_tpl->getSmarty()->getModifierCallback('escape')((($tmp = $_smarty_tpl->getValue('flight')['flight_no'] ?? null)===null||$tmp==='' ? '' ?? null : $tmp), 'htmlattr');?>
+"
+                        data-flight-id="<?php echo $_smarty_tpl->getSmarty()->getModifierCallback('escape')((($tmp = $_smarty_tpl->getValue('flight')['flight_id'] ?? null)===null||$tmp==='' ? '' ?? null : $tmp), 'htmlattr');?>
+"
+                        data-flight-record-id="<?php echo $_smarty_tpl->getSmarty()->getModifierCallback('escape')((($tmp = $_smarty_tpl->getValue('flight')['flight_record_id'] ?? null)===null||$tmp==='' ? 0 ?? null : $tmp), 'htmlattr');?>
+"
+                        data-status-target="#<?php echo $_smarty_tpl->getSmarty()->getModifierCallback('escape')($_smarty_tpl->getValue('flight')['row_uid'], 'htmlattr');?>
+_status"
+                        data-busy-label="Закрываю рейс..."
+                        data-success-message="Рейс закрыт, список рейсов обновлён.">
+                  <span class="js-departure-placeholder-label">Закрыть рейс</span>
+                </button>
+                <button type="button"
+                        class="btn btn-sm btn-outline-danger js-departure-placeholder-action"
+                        data-operation="delete_flight"
+                        data-refresh-operation="flight_list"
+                        data-connector-id="<?php echo $_smarty_tpl->getSmarty()->getModifierCallback('escape')((($tmp = $_smarty_tpl->getValue('flight')['connector_id'] ?? null)===null||$tmp==='' ? 0 ?? null : $tmp), 'htmlattr');?>
+"
+                        data-flight="<?php echo $_smarty_tpl->getSmarty()->getModifierCallback('escape')((($tmp = $_smarty_tpl->getValue('flight')['flight_no'] ?? null)===null||$tmp==='' ? '' ?? null : $tmp), 'htmlattr');?>
+"
+                        data-flight-id="<?php echo $_smarty_tpl->getSmarty()->getModifierCallback('escape')((($tmp = $_smarty_tpl->getValue('flight')['flight_id'] ?? null)===null||$tmp==='' ? '' ?? null : $tmp), 'htmlattr');?>
+"
+                        data-flight-record-id="<?php echo $_smarty_tpl->getSmarty()->getModifierCallback('escape')((($tmp = $_smarty_tpl->getValue('flight')['flight_record_id'] ?? null)===null||$tmp==='' ? 0 ?? null : $tmp), 'htmlattr');?>
+"
+                        data-status-target="#<?php echo $_smarty_tpl->getSmarty()->getModifierCallback('escape')($_smarty_tpl->getValue('flight')['row_uid'], 'htmlattr');?>
+_status"
+                        data-busy-label="Удаляю рейс..."
+                        data-success-message="Рейс удалён, список рейсов обновлён."
+                        <?php if ((($tmp = $_smarty_tpl->getValue('flight')['containers_total'] ?? null)===null||$tmp==='' ? 0 ?? null : $tmp) > 0) {?>disabled title="Удаление доступно только для рейса без контейнеров."<?php }?>>
+                  <span class="js-departure-placeholder-label">Удалить рейс</span>
+                </button>
               <?php }?>
             </div>
           </div>
           <div id="<?php echo htmlspecialchars((string)$_smarty_tpl->getValue('flight')['row_uid'], ENT_QUOTES, 'UTF-8', true);?>
 _status" class="small text-muted mb-2" aria-live="polite"></div>
+
+          <?php if (mb_strtolower((string) $_smarty_tpl->getValue('flight')['status'], 'UTF-8') == 'open') {?>
+            <div id="<?php echo htmlspecialchars((string)$_smarty_tpl->getValue('flight')['row_uid'], ENT_QUOTES, 'UTF-8', true);?>
+_edit" class="card border border-dashed bg-white d-none mb-3">
+              <div class="card-body py-3">
+                <div class="row g-2 align-items-end">
+                  <div class="col-12 col-md-3">
+                    <label class="form-label small mb-1" for="<?php echo $_smarty_tpl->getSmarty()->getModifierCallback('escape')($_smarty_tpl->getValue('flight')['row_uid'], 'htmlattr');?>
+_date">Новая дата</label>
+                    <input type="date"
+                           id="<?php echo $_smarty_tpl->getSmarty()->getModifierCallback('escape')($_smarty_tpl->getValue('flight')['row_uid'], 'htmlattr');?>
+_date"
+                           class="form-control form-control-sm js-departure-edit-date"
+                           value="<?php echo $_smarty_tpl->getSmarty()->getModifierCallback('escape')((($tmp = $_smarty_tpl->getValue('flight')['flight_time'] ?? null)===null||$tmp==='' ? '' ?? null : $tmp), 'htmlattr');?>
+">
+                  </div>
+                  <div class="col-12 col-md-4">
+                    <label class="form-label small mb-1" for="<?php echo $_smarty_tpl->getSmarty()->getModifierCallback('escape')($_smarty_tpl->getValue('flight')['row_uid'], 'htmlattr');?>
+_awb">Новый AWB</label>
+                    <input type="text"
+                           id="<?php echo $_smarty_tpl->getSmarty()->getModifierCallback('escape')($_smarty_tpl->getValue('flight')['row_uid'], 'htmlattr');?>
+_awb"
+                           class="form-control form-control-sm js-departure-edit-awb"
+                           inputmode="numeric"
+                           autocomplete="off"
+                           placeholder="50118620604"
+                           value="<?php echo $_smarty_tpl->getSmarty()->getModifierCallback('escape')((($tmp = $_smarty_tpl->getValue('flight')['awb'] ?? null)===null||$tmp==='' ? '' ?? null : $tmp), 'htmlattr');?>
+">
+                  </div>
+                  <div class="col-12 col-md-auto d-flex flex-wrap gap-2">
+                    <button type="button"
+                            class="btn btn-sm btn-success js-departure-placeholder-action"
+                            data-operation="edit_flight"
+                            data-refresh-operation="flight_list"
+                            data-connector-id="<?php echo $_smarty_tpl->getSmarty()->getModifierCallback('escape')((($tmp = $_smarty_tpl->getValue('flight')['connector_id'] ?? null)===null||$tmp==='' ? 0 ?? null : $tmp), 'htmlattr');?>
+"
+                            data-flight="<?php echo $_smarty_tpl->getSmarty()->getModifierCallback('escape')((($tmp = $_smarty_tpl->getValue('flight')['flight_no'] ?? null)===null||$tmp==='' ? '' ?? null : $tmp), 'htmlattr');?>
+"
+                            data-flight-id="<?php echo $_smarty_tpl->getSmarty()->getModifierCallback('escape')((($tmp = $_smarty_tpl->getValue('flight')['flight_id'] ?? null)===null||$tmp==='' ? '' ?? null : $tmp), 'htmlattr');?>
+"
+                            data-flight-record-id="<?php echo $_smarty_tpl->getSmarty()->getModifierCallback('escape')((($tmp = $_smarty_tpl->getValue('flight')['flight_record_id'] ?? null)===null||$tmp==='' ? 0 ?? null : $tmp), 'htmlattr');?>
+"
+                            data-awb-input="#<?php echo $_smarty_tpl->getSmarty()->getModifierCallback('escape')($_smarty_tpl->getValue('flight')['row_uid'], 'htmlattr');?>
+_awb"
+                            data-date-input="#<?php echo $_smarty_tpl->getSmarty()->getModifierCallback('escape')($_smarty_tpl->getValue('flight')['row_uid'], 'htmlattr');?>
+_date"
+                            data-status-target="#<?php echo $_smarty_tpl->getSmarty()->getModifierCallback('escape')($_smarty_tpl->getValue('flight')['row_uid'], 'htmlattr');?>
+_status"
+                            data-busy-label="Сохраняю изменения..."
+                            data-success-message="Изменения рейса сохранены, список рейсов обновлён.">
+                      <span class="js-departure-placeholder-label">Сохранить</span>
+                    </button>
+                    <button type="button"
+                            class="btn btn-sm btn-outline-secondary js-departure-edit-toggle"
+                            data-target="<?php echo $_smarty_tpl->getSmarty()->getModifierCallback('escape')($_smarty_tpl->getValue('flight')['row_uid'], 'htmlattr');?>
+_edit"
+                            data-open="1"
+                            aria-expanded="true">
+                      Отмена
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          <?php }?>
 
           <?php if ($_smarty_tpl->getSmarty()->getModifierCallback('count')($_smarty_tpl->getValue('flight')['containers']) > 0) {?>
             <div class="table-responsive">

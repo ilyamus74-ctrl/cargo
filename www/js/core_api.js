@@ -2613,6 +2613,17 @@ const CoreAPI = {
                     }
                 });
             }
+
+            this.root.addEventListener('input', (event) => {
+                const awbInput = event.target.closest('.js-departure-edit-awb');
+                if (!awbInput) {
+                    return;
+                }
+                const normalized = this.normalizeAwb(awbInput.value || '');
+                if (awbInput.value !== normalized) {
+                    awbInput.value = normalized;
+                }
+            });
             this.root.addEventListener('click', (event) => {
 
                 const actionToggle = event.target.closest('.js-departure-action-toggle');
@@ -2637,10 +2648,33 @@ const CoreAPI = {
                         this.triggerAddFlight(placeholderButton);
                         return;
                     }
+                    if (operation === 'delete_flight' && placeholderButton.disabled) {
+                        return;
+                    }
                     if (operation) {
                         this.triggerPlaceholderOperation(placeholderButton);
                         return;
                     }
+                    return;
+                }
+
+                const editToggle = event.target.closest('.js-departure-edit-toggle');
+                if (editToggle) {
+                    const targetId = editToggle.getAttribute('data-target') || '';
+                    if (!targetId) return;
+
+                    const target = document.getElementById(targetId);
+                    if (!target) return;
+
+                    const isOpen = editToggle.getAttribute('data-open') === '1';
+                    const nextOpen = !isOpen;
+                    target.classList.toggle('d-none', !nextOpen);
+
+                    const linkedToggles = this.root.querySelectorAll(`.js-departure-edit-toggle[data-target="${CSS.escape(targetId)}"]`);
+                    linkedToggles.forEach((toggleButton) => {
+                        toggleButton.setAttribute('data-open', nextOpen ? '1' : '0');
+                        toggleButton.setAttribute('aria-expanded', nextOpen ? 'true' : 'false');
+                    });
                     return;
                 }
                 const button = event.target.closest('.js-departure-toggle');
@@ -2754,7 +2788,18 @@ const CoreAPI = {
             const flightRecordId = String(button?.getAttribute('data-flight-record-id') || '').trim();
             const containerName = String(button?.getAttribute('data-container-name') || 'NEW').trim() || 'NEW';
             const containerId = String(button?.getAttribute('data-container-id') || '').trim();
-            return {
+            const dateSelector = String(button?.getAttribute('data-date-input') || '').trim();
+            const awbSelector = String(button?.getAttribute('data-awb-input') || button?.getAttribute('data-input') || '').trim();
+            const dateInput = dateSelector ? this.root?.querySelector(dateSelector) : null;
+            const awbInput = awbSelector ? this.root?.querySelector(awbSelector) : null;
+            const setDate = String(dateInput?.value || '').trim();
+            const awb = this.normalizeAwb(awbInput?.value || '');
+
+            if (awbInput && awbInput.value !== awb) {
+                awbInput.value = awb;
+            }
+
+            const runtimeVars = {
                 flight,
                 flight_id: flightId,
                 flight_record_id: flightRecordId,
@@ -2770,6 +2815,19 @@ const CoreAPI = {
                 container_label: containerName,
                 container_code: containerName
             };
+
+            if (setDate) {
+                runtimeVars.set_date = setDate;
+                runtimeVars.departure_date = setDate;
+                runtimeVars.edit_date = setDate;
+            }
+            if (awb) {
+                runtimeVars.awb = awb;
+                runtimeVars.edit_flight = awb;
+                runtimeVars.add_flight = awb;
+            }
+
+            return runtimeVars;
         },
         async triggerPlaceholderOperation(button) {
             const operationId = String(button?.getAttribute('data-operation') || '').trim();
@@ -2788,6 +2846,21 @@ const CoreAPI = {
             const successMessage = String(button?.getAttribute('data-success-message') || '').trim();
             const runtimeVars = this.buildFlightRuntimeVars(button);
             const flight = runtimeVars.flight || '—';
+
+            if (operationId === 'edit_flight') {
+                if (!runtimeVars.set_date) {
+                    alert('Укажите новую дату рейса.');
+                    const dateSelector = String(button?.getAttribute('data-date-input') || '').trim();
+                    this.root?.querySelector(dateSelector)?.focus();
+                    return;
+                }
+                if (!runtimeVars.awb) {
+                    alert('Укажите новый AWB цифрами без префикса AWB.');
+                    const awbSelector = String(button?.getAttribute('data-awb-input') || button?.getAttribute('data-input') || '').trim();
+                    this.root?.querySelector(awbSelector)?.focus();
+                    return;
+                }
+            }
 
             this.setActionBusy(button, true);
             this.setActionStatus(`Запускаю ${operationId} для рейса ${flight}...`, 'primary', statusEl);
