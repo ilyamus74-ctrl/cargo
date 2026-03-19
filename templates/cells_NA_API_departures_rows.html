@@ -128,7 +128,7 @@
                     <input type="date"
                            id="{$flight.row_uid|escape:'htmlattr'}_date"
                            class="form-control form-control-sm js-departure-edit-date"
-                           value="{$flight.flight_time|default:''|escape:'htmlattr'}">
+                           value="{$flight.flight_number|default:''|escape:'htmlattr'}">
                   </div>
                   <div class="col-12 col-md-4">
                     <label class="form-label small mb-1" for="{$flight.row_uid|escape:'htmlattr'}_awb">Новый AWB</label>

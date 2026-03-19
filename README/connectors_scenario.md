@@ -183,6 +183,56 @@
 
 ---
 
+## DEV Colibri: пример browser_steps для `edit_flight`
+
+Для редактирования рейса на `https://dev-backend.colibri.az/collector/flights` есть несколько важных нюансов:
+
+- поиск на странице идёт по колонке `Name`, поэтому в поле поиска лучше передавать `${flight_search_value}` / `${target_flight_name}`, а не `${target_flight_id}`;
+- после выбора строки нужно нажимать **Edit**, а не **Add**;
+- модалка редактирования уже подставляет текущее состояние рейса, поэтому `${set_date}` и `${add_flight}` должны быть уже изменёнными значениями из UI перед нажатием «Сохранить».
+
+Рабочий пример шагов:
+
+```json
+{
+  "page_url": "https://dev-backend.colibri.az/collector/flights",
+  "log_steps": 1,
+  "steps": [
+    { "action": "goto", "url": "https://dev-backend.colibri.az/login" },
+    { "action": "fill", "selector": "input[name=\"username\"]", "value": "${login}" },
+    { "action": "fill", "selector": "input[name=\"password\"]", "value": "${password}" },
+    { "action": "click", "selector": "button[type=\"submit\"]" },
+    { "action": "wait_for", "selector": ".glyphicon.glyphicon-log-out", "timeout_ms": 5000 },
+
+    { "action": "goto", "url": "https://dev-backend.colibri.az/collector/flights" },
+    { "action": "wait_for", "selector": "#search_values", "timeout_ms": 5000 },
+    { "action": "fill", "selector": "#search_values", "value": "${flight_search_value}" },
+    { "action": "click", "selector": "button.search-input.btn.btn-primary" },
+    {
+      "action": "click_by_text",
+      "selector": "table.references-table tbody tr",
+      "text": "${target_flight_name}",
+      "match": "contains",
+      "timeout_ms": 7000
+    },
+
+    {
+      "action": "wait_for",
+      "selector": "a.action-btn[onclick=\"show_update_modal();\"]",
+      "timeout_ms": 5000
+    },
+    { "action": "click", "selector": "a.action-btn[onclick=\"show_update_modal();\"]" },
+    { "action": "wait_for", "selector": "form#form input[name=\"awb\"]", "timeout_ms": 1500 },
+
+    { "action": "fill", "selector": "input[name=\"flight_number\"]", "value": "${set_date}" },
+    { "action": "fill", "selector": "input[name=\"awb\"]", "value": "${add_flight}" },
+    { "action": "click", "selector": "form#form input[type=\"submit\"][value=\"Save\"]" }
+  ]
+}
+```
+
+---
+
 ## Analyze internal data flow logic
 
 Идея с переводом модалки `cells_NA_API_connector_operations_modal.html` на динамическую модель из БД — очень сильный шаг к унификации.

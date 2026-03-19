@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-03-19 12:59:44
+/* Smarty version 5.3.1, created on 2026-03-19 14:17:52
   from 'file:cells_NA_API_departures_rows.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_69bbf3400af664_72083861',
+  'unifunc' => 'content_69bc05905a06b2_85918503',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '04916a2971ae525b97127d32f509a85cd4ad4d24' => 
     array (
       0 => 'cells_NA_API_departures_rows.html',
-      1 => 1773924463,
+      1 => 1773929815,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_69bbf3400af664_72083861 (\Smarty\Template $_smarty_tpl) {
+function content_69bc05905a06b2_85918503 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 if ($_smarty_tpl->getSmarty()->getModifierCallback('count')($_smarty_tpl->getValue('departure_rows')) > 0) {?>
   <?php
@@ -204,7 +204,7 @@ _date">Новая дата</label>
                            id="<?php echo $_smarty_tpl->getSmarty()->getModifierCallback('escape')($_smarty_tpl->getValue('flight')['row_uid'], 'htmlattr');?>
 _date"
                            class="form-control form-control-sm js-departure-edit-date"
-                           value="<?php echo $_smarty_tpl->getSmarty()->getModifierCallback('escape')((($tmp = $_smarty_tpl->getValue('flight')['flight_time'] ?? null)===null||$tmp==='' ? '' ?? null : $tmp), 'htmlattr');?>
+                           value="<?php echo $_smarty_tpl->getSmarty()->getModifierCallback('escape')((($tmp = $_smarty_tpl->getValue('flight')['flight_number'] ?? null)===null||$tmp==='' ? '' ?? null : $tmp), 'htmlattr');?>
 ">
                   </div>
                   <div class="col-12 col-md-4">
