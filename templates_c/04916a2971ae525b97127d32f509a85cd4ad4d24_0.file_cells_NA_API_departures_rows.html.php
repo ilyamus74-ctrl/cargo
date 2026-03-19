@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-03-19 11:57:29
+/* Smarty version 5.3.1, created on 2026-03-19 12:59:44
   from 'file:cells_NA_API_departures_rows.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_69bbe4a9113374_67813016',
+  'unifunc' => 'content_69bbf3400af664_72083861',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '04916a2971ae525b97127d32f509a85cd4ad4d24' => 
     array (
       0 => 'cells_NA_API_departures_rows.html',
-      1 => 1773921287,
+      1 => 1773924463,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_69bbe4a9113374_67813016 (\Smarty\Template $_smarty_tpl) {
+function content_69bbf3400af664_72083861 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 if ($_smarty_tpl->getSmarty()->getModifierCallback('count')($_smarty_tpl->getValue('departure_rows')) > 0) {?>
   <?php
@@ -124,6 +124,8 @@ $foreach0DoElse = false;
 "
                         data-flight="<?php echo $_smarty_tpl->getSmarty()->getModifierCallback('escape')((($tmp = $_smarty_tpl->getValue('flight')['flight_no'] ?? null)===null||$tmp==='' ? '' ?? null : $tmp), 'htmlattr');?>
 "
+                        data-flight-name="<?php echo $_smarty_tpl->getSmarty()->getModifierCallback('escape')((($tmp = (($tmp = $_smarty_tpl->getValue('flight')['name'] ?? null)===null||$tmp==='' ? $_smarty_tpl->getValue('flight')['flight_no'] ?? null : $tmp) ?? null)===null||$tmp==='' ? '' ?? null : $tmp), 'htmlattr');?>
+"
                         data-flight-id="<?php echo $_smarty_tpl->getSmarty()->getModifierCallback('escape')((($tmp = $_smarty_tpl->getValue('flight')['flight_id'] ?? null)===null||$tmp==='' ? '' ?? null : $tmp), 'htmlattr');?>
 "
                         data-flight-record-id="<?php echo $_smarty_tpl->getSmarty()->getModifierCallback('escape')((($tmp = $_smarty_tpl->getValue('flight')['flight_record_id'] ?? null)===null||$tmp==='' ? 0 ?? null : $tmp), 'htmlattr');?>
@@ -151,6 +153,8 @@ _edit"
 "
                         data-flight="<?php echo $_smarty_tpl->getSmarty()->getModifierCallback('escape')((($tmp = $_smarty_tpl->getValue('flight')['flight_no'] ?? null)===null||$tmp==='' ? '' ?? null : $tmp), 'htmlattr');?>
 "
+                        data-flight-name="<?php echo $_smarty_tpl->getSmarty()->getModifierCallback('escape')((($tmp = (($tmp = $_smarty_tpl->getValue('flight')['name'] ?? null)===null||$tmp==='' ? $_smarty_tpl->getValue('flight')['flight_no'] ?? null : $tmp) ?? null)===null||$tmp==='' ? '' ?? null : $tmp), 'htmlattr');?>
+"
                         data-flight-id="<?php echo $_smarty_tpl->getSmarty()->getModifierCallback('escape')((($tmp = $_smarty_tpl->getValue('flight')['flight_id'] ?? null)===null||$tmp==='' ? '' ?? null : $tmp), 'htmlattr');?>
 "
                         data-flight-record-id="<?php echo $_smarty_tpl->getSmarty()->getModifierCallback('escape')((($tmp = $_smarty_tpl->getValue('flight')['flight_record_id'] ?? null)===null||$tmp==='' ? 0 ?? null : $tmp), 'htmlattr');?>
@@ -168,6 +172,8 @@ _status"
                         data-connector-id="<?php echo $_smarty_tpl->getSmarty()->getModifierCallback('escape')((($tmp = $_smarty_tpl->getValue('flight')['connector_id'] ?? null)===null||$tmp==='' ? 0 ?? null : $tmp), 'htmlattr');?>
 "
                         data-flight="<?php echo $_smarty_tpl->getSmarty()->getModifierCallback('escape')((($tmp = $_smarty_tpl->getValue('flight')['flight_no'] ?? null)===null||$tmp==='' ? '' ?? null : $tmp), 'htmlattr');?>
+"
+                        data-flight-name="<?php echo $_smarty_tpl->getSmarty()->getModifierCallback('escape')((($tmp = (($tmp = $_smarty_tpl->getValue('flight')['name'] ?? null)===null||$tmp==='' ? $_smarty_tpl->getValue('flight')['flight_no'] ?? null : $tmp) ?? null)===null||$tmp==='' ? '' ?? null : $tmp), 'htmlattr');?>
 "
                         data-flight-id="<?php echo $_smarty_tpl->getSmarty()->getModifierCallback('escape')((($tmp = $_smarty_tpl->getValue('flight')['flight_id'] ?? null)===null||$tmp==='' ? '' ?? null : $tmp), 'htmlattr');?>
 "
@@ -222,6 +228,8 @@ _awb"
                             data-connector-id="<?php echo $_smarty_tpl->getSmarty()->getModifierCallback('escape')((($tmp = $_smarty_tpl->getValue('flight')['connector_id'] ?? null)===null||$tmp==='' ? 0 ?? null : $tmp), 'htmlattr');?>
 "
                             data-flight="<?php echo $_smarty_tpl->getSmarty()->getModifierCallback('escape')((($tmp = $_smarty_tpl->getValue('flight')['flight_no'] ?? null)===null||$tmp==='' ? '' ?? null : $tmp), 'htmlattr');?>
+"
+                            data-flight-name="<?php echo $_smarty_tpl->getSmarty()->getModifierCallback('escape')((($tmp = (($tmp = $_smarty_tpl->getValue('flight')['name'] ?? null)===null||$tmp==='' ? $_smarty_tpl->getValue('flight')['flight_no'] ?? null : $tmp) ?? null)===null||$tmp==='' ? '' ?? null : $tmp), 'htmlattr');?>
 "
                             data-flight-id="<?php echo $_smarty_tpl->getSmarty()->getModifierCallback('escape')((($tmp = $_smarty_tpl->getValue('flight')['flight_id'] ?? null)===null||$tmp==='' ? '' ?? null : $tmp), 'htmlattr');?>
 "
@@ -302,6 +310,8 @@ $foreach1DoElse = false;
                                   data-connector-id="<?php echo $_smarty_tpl->getSmarty()->getModifierCallback('escape')((($tmp = $_smarty_tpl->getValue('flight')['connector_id'] ?? null)===null||$tmp==='' ? 0 ?? null : $tmp), 'htmlattr');?>
 "
                                   data-flight="<?php echo $_smarty_tpl->getSmarty()->getModifierCallback('escape')((($tmp = $_smarty_tpl->getValue('flight')['flight_no'] ?? null)===null||$tmp==='' ? '' ?? null : $tmp), 'htmlattr');?>
+"
+                                  data-flight-name="<?php echo $_smarty_tpl->getSmarty()->getModifierCallback('escape')((($tmp = (($tmp = $_smarty_tpl->getValue('flight')['name'] ?? null)===null||$tmp==='' ? $_smarty_tpl->getValue('flight')['flight_no'] ?? null : $tmp) ?? null)===null||$tmp==='' ? '' ?? null : $tmp), 'htmlattr');?>
 "
                                   data-flight-id="<?php echo $_smarty_tpl->getSmarty()->getModifierCallback('escape')((($tmp = $_smarty_tpl->getValue('flight')['flight_id'] ?? null)===null||$tmp==='' ? '' ?? null : $tmp), 'htmlattr');?>
 "

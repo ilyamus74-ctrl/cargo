@@ -2806,11 +2806,9 @@ const CoreAPI = {
                 flight_record_id: flightRecordId,
                 external_id: flightId,
                 flight_no: flight,
-                flight_name: flight,
-                flight_search_value: flight,
                 flight_name: flightName,
                 flight_search_value: flightName,
-                selected_flight: flightNam
+                selected_flight: flightName,
                 selected_flight_id: flightId,
                 selected_flight_external_id: flightId,
                 selected_flight_name: flightName,
