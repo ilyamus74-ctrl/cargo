@@ -405,14 +405,18 @@ function connectors_subrunner_normalize_flight_row(array $row, array $headers, a
     $packagesCount = preg_replace('/[^0-9\-]/', '', (string)$raw['packages_count']) ?? '';
     $totalWeight = str_replace(',', '.', preg_replace('/[^0-9,\.\-]/', '', (string)$raw['total_weight']) ?? '');
 
-    $legacyFlightNo = trim((string)($raw['flight_number'] ?: ($raw['name'] ?: $raw['external_id'])));
-    if ($legacyFlightNo === '') {
-        throw new RuntimeException('Пустой идентификатор рейса (external_id/name/flight_number)');
-    }
-
     $externalId = trim((string)$raw['external_id']);
     if ($externalId === '' && !empty($attrs['id']) && preg_match('/(\d+)/', (string)$attrs['id'], $m)) {
         $externalId = (string)$m[1];
+    }
+
+    $legacyFlightNo = trim((string)(
+        $externalId !== ''
+            ? $externalId
+            : ($raw['flight_number'] ?: ($raw['name'] ?: ($raw['awb'] ?: ($attrs['id'] ?? ''))))
+    ));
+    if ($legacyFlightNo === '') {
+        throw new RuntimeException('Пустой идентификатор рейса (external_id/flight_number/name/awb/source_row_id)');
     }
 
     $containersUrl = trim((string)($row['containers_url'] ?? ''));
@@ -705,6 +709,8 @@ function connectors_subrunner_find_existing_flight_row_id(mysqli $db, string $ta
 {
     $safeTable = '`' . str_replace('`', '``', $tableName) . '`';
     $externalId = trim((string)($row['external_id'] ?? ''));
+    $sourceRowId = trim((string)($row['source_row_id'] ?? ''));
+    $awb = trim((string)($row['awb'] ?? ''));
 
     if ($externalId !== '') {
         $stmt = $db->prepare("SELECT id FROM {$safeTable} WHERE connector_id = ? AND external_id = ? ORDER BY id DESC LIMIT 1");
@@ -717,6 +723,59 @@ function connectors_subrunner_find_existing_flight_row_id(mysqli $db, string $ta
             $err = $stmt->error;
             $stmt->close();
             throw new RuntimeException('DB execute error (find flight by external_id): ' . $err);
+        }
+
+        $result = $stmt->get_result();
+        $found = $result instanceof mysqli_result ? $result->fetch_assoc() : null;
+        if ($result instanceof mysqli_result) {
+            $result->close();
+        }
+        $stmt->close();
+
+        if (is_array($found) && isset($found['id'])) {
+            return (int)$found['id'];
+        }
+    }
+
+
+    if ($sourceRowId !== '') {
+        $stmt = $db->prepare("SELECT id FROM {$safeTable} WHERE connector_id = ? AND source_row_id = ? ORDER BY id DESC LIMIT 1");
+        if (!$stmt) {
+            throw new RuntimeException('DB prepare error (find flight by source_row_id): ' . $db->error);
+        }
+
+        $stmt->bind_param('is', $connectorId, $sourceRowId);
+        if (!$stmt->execute()) {
+            $err = $stmt->error;
+            $stmt->close();
+            throw new RuntimeException('DB execute error (find flight by source_row_id): ' . $err);
+        }
+
+        $result = $stmt->get_result();
+        $found = $result instanceof mysqli_result ? $result->fetch_assoc() : null;
+        if ($result instanceof mysqli_result) {
+            $result->close();
+        }
+        $stmt->close();
+
+        if (is_array($found) && isset($found['id'])) {
+            return (int)$found['id'];
+        }
+    }
+
+    if ($awb !== '') {
+        $stmt = $db->prepare("SELECT id FROM {$safeTable} WHERE connector_id = ? AND awb = ? AND ((departure_at IS NULL AND ? IS NULL) OR departure_at = ?) ORDER BY id DESC LIMIT 1");
+
+        if (!$stmt) {
+            throw new RuntimeException('DB prepare error (find flight by awb fallback): ' . $db->error);
+        }
+
+        $departureAt = $row['departure_at'] ?? null;
+        $stmt->bind_param('isss', $connectorId, $awb, $departureAt, $departureAt);
+        if (!$stmt->execute()) {
+            $err = $stmt->error;
+            $stmt->close();
+            throw new RuntimeException('DB execute error (find flight by awb fallback): ' . $err);
         }
 
         $result = $stmt->get_result();
