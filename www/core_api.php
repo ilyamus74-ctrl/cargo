@@ -58,6 +58,7 @@ $routes = [
     'flight_list'           => 'api/departures/departures_actions.php',
     'view_departures'       => 'api/departures/departures_actions.php',
     'departures_flights'    => 'api/departures/departures_actions.php',
+    'departures_delete_local_flight' => 'api/departures/departures_actions.php',
 
     // ========== CONNECTORS (meta) ==========
     'get_module_actions_registry' => '@internal/module_actions_registry',

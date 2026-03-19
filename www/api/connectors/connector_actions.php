@@ -3069,6 +3069,330 @@ function connectors_build_submission_test_vars(array $connector): array
     return $vars;
 }
 
+function connectors_decode_runtime_vars_from_post(): array
+{
+    $runtimeVarsRaw = trim((string)($_POST['runtime_vars_json'] ?? ''));
+    if ($runtimeVarsRaw === '') {
+        return [];
+    }
+
+    $runtimeVars = json_decode($runtimeVarsRaw, true);
+    return is_array($runtimeVars) ? $runtimeVars : [];
+}
+
+function connectors_extract_flight_list_runtime_operations(array $connector): array
+{
+    $raw = trim((string)($connector['operations_json'] ?? ''));
+    if ($raw === '') {
+        return [];
+    }
+
+    $decoded = json_decode($raw, true);
+    if (!is_array($decoded)) {
+        return [];
+    }
+
+    if (isset($decoded['operations']) && is_array($decoded['operations'])) {
+        $operations = [];
+        foreach ($decoded['operations'] as $operation) {
+            if (!is_array($operation)) {
+                continue;
+            }
+
+            $operationId = trim((string)($operation['operation_id'] ?? ''));
+            if ($operationId === '') {
+                continue;
+            }
+
+            $operations[$operationId] = [
+                'operation_id' => $operationId,
+                'config' => isset($operation['config']) && is_array($operation['config']) ? $operation['config'] : [],
+            ];
+        }
+
+        return $operations;
+    }
+
+    $operations = [];
+    foreach ($decoded as $operationKey => $operation) {
+        if (!is_array($operation)) {
+            continue;
+        }
+
+        $operationId = trim((string)($operation['operation_id'] ?? $operationKey));
+        if ($operationId === '') {
+            continue;
+        }
+
+        $config = [];
+        foreach (['subrunner'] as $configKey) {
+            if (array_key_exists($configKey, $operation)) {
+                $config[$configKey] = $operation[$configKey];
+            }
+        }
+
+        $operations[$operationId] = [
+            'operation_id' => $operationId,
+            'config' => $config,
+        ];
+    }
+
+    return $operations;
+}
+
+function connectors_resolve_flight_list_table_names(array $connector): array
+{
+    $tableNames = [];
+    $runtimeOperations = connectors_extract_flight_list_runtime_operations($connector);
+
+    foreach ($runtimeOperations as $operation) {
+        if (!is_array($operation)) {
+            continue;
+        }
+
+        $config = isset($operation['config']) && is_array($operation['config']) ? $operation['config'] : [];
+        $subrunner = isset($config['subrunner']) && is_array($config['subrunner']) ? $config['subrunner'] : [];
+        $subrunnerName = trim((string)($subrunner['name'] ?? ''));
+        if ($subrunnerName === '' || stripos($subrunnerName, 'flight_list') !== 0) {
+            continue;
+        }
+
+        $options = isset($subrunner['options']) && is_array($subrunner['options']) ? $subrunner['options'] : [];
+
+        try {
+            $tableNames[] = connectors_subrunner_resolve_flight_table_name($connector, $options);
+        } catch (Throwable $e) {
+            error_log('connectors resolve flight table error: ' . $e->getMessage());
+        }
+    }
+
+    if ($tableNames === []) {
+        try {
+            $tableNames[] = connectors_subrunner_resolve_flight_table_name($connector, []);
+        } catch (Throwable $e) {
+            error_log('connectors resolve default flight table error: ' . $e->getMessage());
+        }
+    }
+
+    return array_values(array_unique(array_filter(array_map('strval', $tableNames))));
+}
+
+function connectors_table_exists(mysqli $dbcnx, string $tableName): bool
+{
+    $normalizedTable = connectors_subrunner_sanitize_table_name($tableName);
+    $escapedTable = $dbcnx->real_escape_string($normalizedTable);
+    $res = $dbcnx->query("SHOW TABLES LIKE '{$escapedTable}'");
+    if ($res instanceof mysqli_result) {
+        $exists = $res->num_rows > 0;
+        $res->free();
+        return $exists;
+    }
+
+    return false;
+}
+
+function connectors_cleanup_deleted_departure_flight(mysqli $dbcnx, array $connector, array $runtimeVars): array
+{
+    $connectorId = (int)($connector['id'] ?? 0);
+    if ($connectorId <= 0) {
+        return [
+            'flight_rows_deleted' => 0,
+            'container_rows_deleted' => 0,
+            'tables_checked' => [],
+        ];
+    }
+
+    $flightRecordId = (int)($runtimeVars['flight_record_id'] ?? 0);
+    $externalIdCandidates = array_values(array_unique(array_filter(array_map(
+        static fn($value): string => trim((string)$value),
+        [
+            $runtimeVars['flight_id'] ?? '',
+            $runtimeVars['external_id'] ?? '',
+            $runtimeVars['selected_flight_id'] ?? '',
+            $runtimeVars['selected_flight_external_id'] ?? '',
+            $runtimeVars['target_flight_id'] ?? '',
+            $runtimeVars['target_flight_external_id'] ?? '',
+        ]
+    ))));
+    $flightNoCandidates = array_values(array_unique(array_filter(array_map(
+        static fn($value): string => trim((string)$value),
+        [
+            $runtimeVars['flight'] ?? '',
+            $runtimeVars['flight_no'] ?? '',
+            $runtimeVars['flight_name'] ?? '',
+            $runtimeVars['selected_flight'] ?? '',
+            $runtimeVars['selected_flight_name'] ?? '',
+            $runtimeVars['target_flight_name'] ?? '',
+        ]
+    ))));
+
+    $flightRowsDeleted = 0;
+    $containerRowsDeleted = 0;
+    $tablesChecked = [];
+
+    foreach (connectors_resolve_flight_list_table_names($connector) as $tableName) {
+        if (!connectors_table_exists($dbcnx, $tableName)) {
+            continue;
+        }
+
+        $tablesChecked[] = $tableName;
+        $safeTable = '`' . str_replace('`', '``', $tableName) . '`';
+        $containerTableName = connectors_subrunner_resolve_flight_containers_table_name($tableName, []);
+        $safeContainerTable = '`' . str_replace('`', '``', $containerTableName) . '`';
+        $containerTableExists = connectors_table_exists($dbcnx, $containerTableName);
+
+        $matchedRowIds = [];
+        $matchedExternalIds = [];
+        $matchedFlightNos = [];
+
+        if ($flightRecordId > 0) {
+            $stmt = $dbcnx->prepare("SELECT id, external_id, flight_no FROM {$safeTable} WHERE connector_id = ? AND id = ? LIMIT 1");
+            if ($stmt) {
+                $stmt->bind_param('ii', $connectorId, $flightRecordId);
+                if ($stmt->execute()) {
+                    $result = $stmt->get_result();
+                    $row = $result instanceof mysqli_result ? $result->fetch_assoc() : null;
+                    if ($result instanceof mysqli_result) {
+                        $result->free();
+                    }
+                    if (is_array($row)) {
+                        $matchedRowIds[] = (int)($row['id'] ?? 0);
+                        $matchedExternalIds[] = trim((string)($row['external_id'] ?? ''));
+                        $matchedFlightNos[] = trim((string)($row['flight_no'] ?? ''));
+                    }
+                }
+                $stmt->close();
+            }
+        }
+
+        foreach ($externalIdCandidates as $externalId) {
+            $stmt = $dbcnx->prepare("SELECT id, external_id, flight_no FROM {$safeTable} WHERE connector_id = ? AND external_id = ?");
+            if (!$stmt) {
+                continue;
+            }
+            $stmt->bind_param('is', $connectorId, $externalId);
+            if ($stmt->execute()) {
+                $result = $stmt->get_result();
+                if ($result instanceof mysqli_result) {
+                    while ($row = $result->fetch_assoc()) {
+                        $matchedRowIds[] = (int)($row['id'] ?? 0);
+                        $matchedExternalIds[] = trim((string)($row['external_id'] ?? ''));
+                        $matchedFlightNos[] = trim((string)($row['flight_no'] ?? ''));
+                    }
+                    $result->free();
+                }
+            }
+            $stmt->close();
+        }
+
+        if ($matchedRowIds === [] && $flightNoCandidates !== []) {
+            foreach ($flightNoCandidates as $flightNo) {
+                $stmt = $dbcnx->prepare("SELECT id, external_id, flight_no FROM {$safeTable} WHERE connector_id = ? AND flight_no = ?");
+                if (!$stmt) {
+                    continue;
+                }
+                $stmt->bind_param('is', $connectorId, $flightNo);
+                if ($stmt->execute()) {
+                    $result = $stmt->get_result();
+                    if ($result instanceof mysqli_result) {
+                        while ($row = $result->fetch_assoc()) {
+                            $matchedRowIds[] = (int)($row['id'] ?? 0);
+                            $matchedExternalIds[] = trim((string)($row['external_id'] ?? ''));
+                            $matchedFlightNos[] = trim((string)($row['flight_no'] ?? ''));
+                        }
+                        $result->free();
+                    }
+                }
+                $stmt->close();
+            }
+        }
+
+        $matchedRowIds = array_values(array_unique(array_filter(array_map('intval', $matchedRowIds))));
+        $matchedExternalIds = array_values(array_unique(array_filter(array_map('strval', $matchedExternalIds))));
+        $matchedFlightNos = array_values(array_unique(array_filter(array_map('strval', $matchedFlightNos))));
+
+        if ($matchedRowIds === [] && $matchedExternalIds === [] && $matchedFlightNos === []) {
+            continue;
+        }
+
+        if ($matchedRowIds !== []) {
+            $placeholders = implode(',', array_fill(0, count($matchedRowIds), '?'));
+            $types = 'i' . str_repeat('i', count($matchedRowIds));
+            $params = array_merge([$connectorId], $matchedRowIds);
+            $stmt = $dbcnx->prepare("DELETE FROM {$safeTable} WHERE connector_id = ? AND id IN ({$placeholders})");
+            if ($stmt) {
+                $stmt->bind_param($types, ...$params);
+                if ($stmt->execute()) {
+                    $flightRowsDeleted += (int)$stmt->affected_rows;
+                }
+                $stmt->close();
+            }
+        } elseif ($matchedExternalIds !== []) {
+            $placeholders = implode(',', array_fill(0, count($matchedExternalIds), '?'));
+            $types = 'i' . str_repeat('s', count($matchedExternalIds));
+            $params = array_merge([$connectorId], $matchedExternalIds);
+            $stmt = $dbcnx->prepare("DELETE FROM {$safeTable} WHERE connector_id = ? AND external_id IN ({$placeholders})");
+            if ($stmt) {
+                $stmt->bind_param($types, ...$params);
+                if ($stmt->execute()) {
+                    $flightRowsDeleted += (int)$stmt->affected_rows;
+                }
+                $stmt->close();
+            }
+        }
+
+        if (!$containerTableExists) {
+            continue;
+        }
+
+        if ($matchedRowIds !== []) {
+            $placeholders = implode(',', array_fill(0, count($matchedRowIds), '?'));
+            $types = 'i' . str_repeat('i', count($matchedRowIds));
+            $params = array_merge([$connectorId], $matchedRowIds);
+            $stmt = $dbcnx->prepare("DELETE FROM {$safeContainerTable} WHERE connector_id = ? AND flight_record_id IN ({$placeholders})");
+            if ($stmt) {
+                $stmt->bind_param($types, ...$params);
+                if ($stmt->execute()) {
+                    $containerRowsDeleted += (int)$stmt->affected_rows;
+                }
+                $stmt->close();
+            }
+        }
+
+        if ($matchedExternalIds !== []) {
+            $placeholders = implode(',', array_fill(0, count($matchedExternalIds), '?'));
+            $types = 'i' . str_repeat('s', count($matchedExternalIds));
+            $params = array_merge([$connectorId], $matchedExternalIds);
+            $stmt = $dbcnx->prepare("DELETE FROM {$safeContainerTable} WHERE connector_id = ? AND flight_external_id IN ({$placeholders})");
+            if ($stmt) {
+                $stmt->bind_param($types, ...$params);
+                if ($stmt->execute()) {
+                    $containerRowsDeleted += (int)$stmt->affected_rows;
+                }
+                $stmt->close();
+            }
+        } elseif ($matchedFlightNos !== []) {
+            $placeholders = implode(',', array_fill(0, count($matchedFlightNos), '?'));
+            $types = 'i' . str_repeat('s', count($matchedFlightNos));
+            $params = array_merge([$connectorId], $matchedFlightNos);
+            $stmt = $dbcnx->prepare("DELETE FROM {$safeContainerTable} WHERE connector_id = ? AND flight_no IN ({$placeholders})");
+            if ($stmt) {
+                $stmt->bind_param($types, ...$params);
+                if ($stmt->execute()) {
+                    $containerRowsDeleted += (int)$stmt->affected_rows;
+                }
+                $stmt->close();
+            }
+        }
+    }
+
+    return [
+        'flight_rows_deleted' => $flightRowsDeleted,
+        'container_rows_deleted' => $containerRowsDeleted,
+        'tables_checked' => $tablesChecked,
+    ];
+}
+
 function connectors_run_shell_command_with_timeout(string $cmd, int $timeoutSeconds = 50): string
 {
     $timeoutSeconds = max(1, $timeoutSeconds);

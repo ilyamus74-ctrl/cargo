@@ -2782,6 +2782,23 @@ const CoreAPI = {
             return data;
         },
 
+        async deleteLocalDepartureFlight(connectorId, runtimeVars) {
+            const fd = new FormData();
+            fd.append('action', 'departures_delete_local_flight');
+            fd.append('connector_id', String(connectorId || 0));
+            fd.append('flight_record_id', String(runtimeVars?.flight_record_id || ''));
+            fd.append('flight_id', String(runtimeVars?.flight_id || runtimeVars?.external_id || ''));
+            fd.append('flight_no', String(runtimeVars?.flight_no || runtimeVars?.flight || ''));
+
+            const data = await CoreAPI.client.call(fd);
+            if (!data || data.status !== 'ok') {
+                const err = new Error(data?.message || 'Не удалось удалить локальную запись рейса.');
+                err.payload = data;
+                throw err;
+            }
+            return data;
+        },
+
         buildFlightRuntimeVars(button) {
             const flight = String(button?.getAttribute('data-flight') || '').trim();
             const flightName = String(button?.getAttribute('data-flight-name') || flight).trim();
@@ -2876,6 +2893,10 @@ const CoreAPI = {
             try {
                 const result = await this.runConnectorOperation(connectorId, operationId, runtimeVars);
                 this.setActionStatus(result?.message || `Операция ${operationId} завершена.`, 'primary', statusEl);
+                if (operationId === 'delete_flight') {
+                    const cleanupResult = await this.deleteLocalDepartureFlight(connectorId, runtimeVars);
+                    this.setActionStatus(cleanupResult?.message || 'Локальная запись рейса удалена. Обновляю список...', 'primary', statusEl);
+                }
                 if (refreshOperation) {
                     await this.runConnectorOperation(connectorId, refreshOperation, runtimeVars);
                 }

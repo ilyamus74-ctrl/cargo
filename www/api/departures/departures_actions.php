@@ -361,6 +361,169 @@ function departures_fetch_connector(mysqli $dbcnx, int $connectorId): ?array
     return is_array($connector) ? $connector : null;
 }
 
+
+function departures_delete_local_flight(mysqli $dbcnx, array $connector, int $flightRecordId, string $flightId = '', string $flightNo = ''): array
+{
+    $connectorId = (int)($connector['id'] ?? 0);
+    if ($connectorId <= 0) {
+        throw new InvalidArgumentException('Некорректный connector_id');
+    }
+
+    if ($flightRecordId <= 0 && $flightId === '' && $flightNo === '') {
+        throw new InvalidArgumentException('Не передан идентификатор рейса для локального удаления');
+    }
+
+    $flightRowsDeleted = 0;
+    $containerRowsDeleted = 0;
+    $tablesChecked = [];
+
+    foreach (departures_resolve_table_names($connector) as $tableName) {
+        if (!departures_table_exists($dbcnx, $tableName)) {
+            continue;
+        }
+
+        $tablesChecked[] = $tableName;
+        $safeTable = '`' . str_replace('`', '``', $tableName) . '`';
+        $containersTableName = connectors_subrunner_resolve_flight_containers_table_name($tableName, []);
+        $safeContainersTable = '`' . str_replace('`', '``', $containersTableName) . '`';
+        $containersTableExists = departures_table_exists($dbcnx, $containersTableName);
+
+        $matchedIds = [];
+        $matchedExternalIds = [];
+        $matchedFlightNos = [];
+
+        if ($flightRecordId > 0) {
+            $stmt = $dbcnx->prepare("SELECT id, external_id, flight_no FROM {$safeTable} WHERE connector_id = ? AND id = ? LIMIT 1");
+            if ($stmt) {
+                $stmt->bind_param('ii', $connectorId, $flightRecordId);
+                if ($stmt->execute()) {
+                    $result = $stmt->get_result();
+                    $row = $result instanceof mysqli_result ? $result->fetch_assoc() : null;
+                    if ($result instanceof mysqli_result) {
+                        $result->free();
+                    }
+                    if (is_array($row)) {
+                        $matchedIds[] = (int)($row['id'] ?? 0);
+                        $matchedExternalIds[] = trim((string)($row['external_id'] ?? ''));
+                        $matchedFlightNos[] = trim((string)($row['flight_no'] ?? ''));
+                    }
+                }
+                $stmt->close();
+            }
+        }
+
+        if ($matchedIds === [] && $flightId !== '') {
+            $stmt = $dbcnx->prepare("SELECT id, external_id, flight_no FROM {$safeTable} WHERE connector_id = ? AND external_id = ?");
+            if ($stmt) {
+                $stmt->bind_param('is', $connectorId, $flightId);
+                if ($stmt->execute()) {
+                    $result = $stmt->get_result();
+                    if ($result instanceof mysqli_result) {
+                        while ($row = $result->fetch_assoc()) {
+                            $matchedIds[] = (int)($row['id'] ?? 0);
+                            $matchedExternalIds[] = trim((string)($row['external_id'] ?? ''));
+                            $matchedFlightNos[] = trim((string)($row['flight_no'] ?? ''));
+                        }
+                        $result->free();
+                    }
+                }
+                $stmt->close();
+            }
+        }
+
+        if ($matchedIds === [] && $flightNo !== '') {
+            $stmt = $dbcnx->prepare("SELECT id, external_id, flight_no FROM {$safeTable} WHERE connector_id = ? AND flight_no = ?");
+            if ($stmt) {
+                $stmt->bind_param('is', $connectorId, $flightNo);
+                if ($stmt->execute()) {
+                    $result = $stmt->get_result();
+                    if ($result instanceof mysqli_result) {
+                        while ($row = $result->fetch_assoc()) {
+                            $matchedIds[] = (int)($row['id'] ?? 0);
+                            $matchedExternalIds[] = trim((string)($row['external_id'] ?? ''));
+                            $matchedFlightNos[] = trim((string)($row['flight_no'] ?? ''));
+                        }
+                        $result->free();
+                    }
+                }
+                $stmt->close();
+            }
+        }
+
+        $matchedIds = array_values(array_unique(array_filter(array_map('intval', $matchedIds))));
+        $matchedExternalIds = array_values(array_unique(array_filter(array_map('strval', $matchedExternalIds))));
+        $matchedFlightNos = array_values(array_unique(array_filter(array_map('strval', $matchedFlightNos))));
+
+        if ($matchedIds === [] && $matchedExternalIds === [] && $matchedFlightNos === []) {
+            continue;
+        }
+
+        if ($matchedIds !== []) {
+            $placeholders = implode(',', array_fill(0, count($matchedIds), '?'));
+            $types = 'i' . str_repeat('i', count($matchedIds));
+            $params = array_merge([$connectorId], $matchedIds);
+            $stmt = $dbcnx->prepare("DELETE FROM {$safeTable} WHERE connector_id = ? AND id IN ({$placeholders})");
+            if ($stmt) {
+                $stmt->bind_param($types, ...$params);
+                if ($stmt->execute()) {
+                    $flightRowsDeleted += (int)$stmt->affected_rows;
+                }
+                $stmt->close();
+            }
+        }
+
+        if (!$containersTableExists) {
+            continue;
+        }
+
+        if ($matchedIds !== []) {
+            $placeholders = implode(',', array_fill(0, count($matchedIds), '?'));
+            $types = 'i' . str_repeat('i', count($matchedIds));
+            $params = array_merge([$connectorId], $matchedIds);
+            $stmt = $dbcnx->prepare("DELETE FROM {$safeContainersTable} WHERE connector_id = ? AND flight_record_id IN ({$placeholders})");
+            if ($stmt) {
+                $stmt->bind_param($types, ...$params);
+                if ($stmt->execute()) {
+                    $containerRowsDeleted += (int)$stmt->affected_rows;
+                }
+                $stmt->close();
+            }
+        }
+
+        if ($matchedExternalIds !== []) {
+            $placeholders = implode(',', array_fill(0, count($matchedExternalIds), '?'));
+            $types = 'i' . str_repeat('s', count($matchedExternalIds));
+            $params = array_merge([$connectorId], $matchedExternalIds);
+            $stmt = $dbcnx->prepare("DELETE FROM {$safeContainersTable} WHERE connector_id = ? AND flight_external_id IN ({$placeholders})");
+            if ($stmt) {
+                $stmt->bind_param($types, ...$params);
+                if ($stmt->execute()) {
+                    $containerRowsDeleted += (int)$stmt->affected_rows;
+                }
+                $stmt->close();
+            }
+        } elseif ($matchedFlightNos !== []) {
+            $placeholders = implode(',', array_fill(0, count($matchedFlightNos), '?'));
+            $types = 'i' . str_repeat('s', count($matchedFlightNos));
+            $params = array_merge([$connectorId], $matchedFlightNos);
+            $stmt = $dbcnx->prepare("DELETE FROM {$safeContainersTable} WHERE connector_id = ? AND flight_no IN ({$placeholders})");
+            if ($stmt) {
+                $stmt->bind_param($types, ...$params);
+                if ($stmt->execute()) {
+                    $containerRowsDeleted += (int)$stmt->affected_rows;
+                }
+                $stmt->close();
+            }
+        }
+    }
+
+    return [
+        'flight_rows_deleted' => $flightRowsDeleted,
+        'container_rows_deleted' => $containerRowsDeleted,
+        'tables_checked' => $tablesChecked,
+    ];
+}
+
 $normalizedAction = departures_resolve_action_alias(trim((string)($action ?? '')));
 
 switch ($normalizedAction) {
@@ -440,5 +603,35 @@ switch ($normalizedAction) {
             'html' => $html,
             'total' => count($departureRows),
         ];
+        break;
+
+    case 'departures_delete_local_flight':
+        $connectorId = (int)($_POST['connector_id'] ?? 0);
+        $flightRecordId = (int)($_POST['flight_record_id'] ?? 0);
+        $flightId = trim((string)($_POST['flight_id'] ?? ''));
+        $flightNo = trim((string)($_POST['flight_no'] ?? ''));
+
+        $connector = departures_fetch_connector($dbcnx, $connectorId);
+        if (!is_array($connector)) {
+            $response = [
+                'status' => 'error',
+                'message' => 'Форвард не найден для локального удаления рейса',
+            ];
+            break;
+        }
+
+        try {
+            $stats = departures_delete_local_flight($dbcnx, $connector, $flightRecordId, $flightId, $flightNo);
+            $response = [
+                'status' => 'ok',
+                'message' => 'Локальная запись рейса удалена.',
+                'stats' => $stats,
+            ];
+        } catch (InvalidArgumentException $e) {
+            $response = [
+                'status' => 'error',
+                'message' => $e->getMessage(),
+            ];
+        }
         break;
 }
