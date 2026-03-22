@@ -712,6 +712,12 @@ if (!function_exists('warehouse_sync_ensure_out_table')) {
 "
             . " receiver_address VARCHAR(255) NULL,
 "
+            . " shipment_cell VARCHAR(191) NULL,
+"
+            . " shipped_flight_no VARCHAR(128) NULL,
+"
+            . " shipped_container_name VARCHAR(191) NULL,
+"
             . " status VARCHAR(32) NOT NULL DEFAULT 'for_sync',
 "
             . " status_message TEXT NULL,
@@ -756,6 +762,9 @@ if (!function_exists('warehouse_sync_ensure_out_table')) {
             'receiver_country_code' => "ALTER TABLE warehouse_item_out ADD COLUMN receiver_country_code VARCHAR(2) NULL",
             'receiver_company' => "ALTER TABLE warehouse_item_out ADD COLUMN receiver_company VARCHAR(128) NULL",
             'receiver_address' => "ALTER TABLE warehouse_item_out ADD COLUMN receiver_address VARCHAR(255) NULL",
+            'shipment_cell' => "ALTER TABLE warehouse_item_out ADD COLUMN shipment_cell VARCHAR(191) NULL",
+            'shipped_flight_no' => "ALTER TABLE warehouse_item_out ADD COLUMN shipped_flight_no VARCHAR(128) NULL",
+            'shipped_container_name' => "ALTER TABLE warehouse_item_out ADD COLUMN shipped_container_name VARCHAR(191) NULL",
             'status' => "ALTER TABLE warehouse_item_out ADD COLUMN status VARCHAR(32) NOT NULL DEFAULT 'for_sync'",
             'status_message' => "ALTER TABLE warehouse_item_out ADD COLUMN status_message TEXT NULL",
             'status_updated_at' => "ALTER TABLE warehouse_item_out ADD COLUMN status_updated_at DATETIME NULL",
@@ -2409,6 +2418,199 @@ if ($action === 'warehouse_sync' || $action === 'warehouse.sync') {
     $response = [
         'status' => 'ok',
         'html' => $html,
+    ];
+}
+
+
+
+
+if ($action === 'warehouse_item_out_lookup') {
+    auth_require_login();
+
+    warehouse_sync_ensure_out_table($dbcnx);
+
+    $trackingNo = strtoupper(trim((string)($_POST['tracking_no'] ?? '')));
+    if ($trackingNo === '') {
+        $response = [
+            'status' => 'error',
+            'message' => 'Укажите трекномер',
+        ];
+        return;
+    }
+
+    $sql = "
+        SELECT
+            wo.id,
+            wo.stock_item_id,
+            wo.tuid,
+            wo.tracking_no,
+            wo.receiver_company,
+            wo.receiver_country_code,
+            wo.receiver_address,
+            wo.shipment_cell,
+            wo.shipped_flight_no,
+            wo.shipped_container_name,
+            wo.status,
+            wo.status_message,
+            wo.status_updated_at,
+            wo.created_at,
+            wi.receiver_name,
+            c.code AS cell_address,
+            COALESCE(NULLIF(wo.tuid, ''), NULLIF(wo.tracking_no, ''), wo.uid_created) AS parcel_uid
+        FROM warehouse_item_out wo
+        LEFT JOIN warehouse_item_stock wi ON wi.id = wo.stock_item_id
+        LEFT JOIN cells c ON c.id = wi.cell_id
+        WHERE UPPER(TRIM(wo.tracking_no)) = ?
+           OR UPPER(TRIM(wo.tuid)) = ?
+           OR UPPER(TRIM(COALESCE(NULLIF(wo.tuid, ''), NULLIF(wo.tracking_no, ''), wo.uid_created))) = ?
+        ORDER BY CASE WHEN LOWER(TRIM(wo.status)) = 'to_send' THEN 0 ELSE 1 END, wo.id DESC
+        LIMIT 1
+    ";
+
+    $item = null;
+    $stmt = $dbcnx->prepare($sql);
+    if ($stmt) {
+        $stmt->bind_param('sss', $trackingNo, $trackingNo, $trackingNo);
+        $stmt->execute();
+        $res = $stmt->get_result();
+        if ($res) {
+            $item = $res->fetch_assoc() ?: null;
+        }
+        $stmt->close();
+    }
+
+    $response = [
+        'status' => 'ok',
+        'item' => $item,
+    ];
+}
+
+if ($action === 'warehouse_item_out_confirm_send') {
+    auth_require_login();
+    $current = $user;
+
+    warehouse_sync_ensure_out_table($dbcnx);
+
+    $stockItemId = max(0, (int)($_POST['stock_item_id'] ?? 0));
+    $trackingNo = trim((string)($_POST['tracking_no'] ?? ''));
+    $flightNo = trim((string)($_POST['flight_no'] ?? ''));
+    $flightName = trim((string)($_POST['flight_name'] ?? ''));
+    $containerId = trim((string)($_POST['container_id'] ?? ''));
+    $containerName = trim((string)($_POST['container_name'] ?? ''));
+    $shipmentCell = trim((string)($_POST['shipment_cell'] ?? ''));
+
+    if ($stockItemId <= 0) {
+        $response = [
+            'status' => 'error',
+            'message' => 'Не найдена посылка для подтверждения',
+        ];
+        return;
+    }
+
+    if ($containerId === '' && $containerName === '') {
+        $response = [
+            'status' => 'error',
+            'message' => 'Сначала выберите контейнер',
+        ];
+        return;
+    }
+
+    if ($shipmentCell === '') {
+        $shipmentCell = trim(($flightNo !== '' ? $flightNo : $flightName) . ' / ' . ($containerName !== '' ? $containerName : $containerId));
+    }
+
+    $sqlSelect = "
+        SELECT id, stock_item_id, tracking_no, tuid, status
+        FROM warehouse_item_out
+        WHERE stock_item_id = ?
+        LIMIT 1
+    ";
+    $item = null;
+    $stmtSelect = $dbcnx->prepare($sqlSelect);
+    if ($stmtSelect) {
+        $stmtSelect->bind_param('i', $stockItemId);
+        $stmtSelect->execute();
+        $resSelect = $stmtSelect->get_result();
+        if ($resSelect) {
+            $item = $resSelect->fetch_assoc() ?: null;
+        }
+        $stmtSelect->close();
+    }
+
+    if (!$item) {
+        $response = [
+            'status' => 'error',
+            'message' => 'Посылка не найдена в отгрузке',
+        ];
+        return;
+    }
+
+    if (strtolower(trim((string)($item['status'] ?? ''))) !== 'to_send') {
+        $response = [
+            'status' => 'error',
+            'message' => 'Подтверждение доступно только для статуса to_send',
+        ];
+        return;
+    }
+
+    $containerDisplay = $containerName !== '' ? $containerName : $containerId;
+    $flightDisplay = $flightNo !== '' ? $flightNo : $flightName;
+    $statusMessage = 'Отправлено в контейнер ' . $containerDisplay;
+    if ($flightDisplay !== '') {
+        $statusMessage .= ' рейса ' . $flightDisplay;
+    }
+    if ($shipmentCell !== '') {
+        $statusMessage .= ' (ячейка ' . $shipmentCell . ')';
+    }
+
+    $sqlUpdate = "
+        UPDATE warehouse_item_out
+        SET
+            status = 'sended',
+            status_message = ?,
+            shipment_cell = ?,
+            shipped_flight_no = ?,
+            shipped_container_name = ?,
+            status_updated_at = NOW()
+        WHERE stock_item_id = ?
+          AND status = 'to_send'
+        LIMIT 1
+    ";
+    $stmtUpdate = $dbcnx->prepare($sqlUpdate);
+    if (!$stmtUpdate) {
+        $response = [
+            'status' => 'error',
+            'message' => 'Не удалось подготовить обновление',
+        ];
+        return;
+    }
+
+    $stmtUpdate->bind_param('ssssi', $statusMessage, $shipmentCell, $flightDisplay, $containerDisplay, $stockItemId);
+    $stmtUpdate->execute();
+    $affected = (int)$stmtUpdate->affected_rows;
+    $stmtUpdate->close();
+
+    if ($affected < 1) {
+        $response = [
+            'status' => 'error',
+            'message' => 'Статус посылки уже изменён. Обновите список и попробуйте ещё раз.',
+        ];
+        return;
+    }
+
+    if (function_exists('audit_log')) {
+        audit_log((int)($current['id'] ?? 0), 'WAREHOUSE_ITEM_OUT_CONFIRMED', 'warehouse_item_out', $stockItemId, 'Посылка отправлена в контейнер', [
+            'tracking_no' => $trackingNo !== '' ? $trackingNo : (string)($item['tracking_no'] ?? $item['tuid'] ?? ''),
+            'shipment_cell' => $shipmentCell,
+            'flight_no' => $flightDisplay,
+            'container_name' => $containerDisplay,
+        ]);
+    }
+
+    $response = [
+        'status' => 'ok',
+        'message' => 'Посылка отправлена в контейнер',
+        'shipment_cell' => $shipmentCell,
     ];
 }
 

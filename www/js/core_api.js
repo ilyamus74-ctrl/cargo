@@ -2421,6 +2421,19 @@ const CoreAPI = {
         limitSelect: null,
         forwarderSelect: null,
         containerSelect: null,
+        modalEl: null,
+        modalInstance: null,
+        modalState: null,
+        modalForwarder: null,
+        modalCell: null,
+        modalRecipient: null,
+        modalTracking: null,
+        modalContainer: null,
+        modalContainerHelp: null,
+        modalCancelButton: null,
+        modalCloseButton: null,
+        modalConfirmButton: null,
+        currentLookupItem: null,
         containerOptionCache: [],
         sentinel: null,
         observer: null,
@@ -2432,12 +2445,14 @@ const CoreAPI = {
             search: '',
             forwarder: 'ALL',
             loading: false,
-            done: false
+            done: false,
+            lookupLoading: false
         },
         init() {
             const root = document.getElementById('warehouse-item-out');
             if (!root) return;
             if (this.initialized && this.root === root) {
+                this.initModal();
                 this.resetAndLoad();
                 return;
             }
@@ -2452,8 +2467,9 @@ const CoreAPI = {
             this.forwarderSelect = root.querySelector('#warehouse-item-out-forwarder');
             this.containerSelect = root.querySelector('#warehouse-item-out-container');
             this.sentinel = root.querySelector('#warehouse-item-out-sentinel');
+            this.initModal();
 
-            if (!this.tbody || !this.total || !this.searchInput || !this.limitSelect || !this.forwarderSelect || !this.containerSelect || !this.sentinel) {
+            if (!this.tbody || !this.total || !this.searchInput || !this.limitSelect || !this.forwarderSelect || !this.containerSelect || !this.sentinel || !this.modalEl) {
                 return;
             }
 
@@ -2470,13 +2486,67 @@ const CoreAPI = {
             this.state.search = '';
             this.state.offset = 0;
             this.state.done = false;
+            this.state.lookupLoading = false;
+            this.currentLookupItem = null;
             this.updateContainerOptions();
             this.bindEvents();
             this.setupObserver();
             this.resetAndLoad();
             this.initialized = true;
         },
+
+        initModal() {
+            this.modalEl = document.getElementById('warehouse-item-out-modal');
+            if (!this.modalEl) {
+                return;
+            }
+
+            this.modalState = this.modalEl.querySelector('#warehouse-item-out-modal-state');
+            this.modalForwarder = this.modalEl.querySelector('#warehouse-item-out-modal-forwarder');
+            this.modalCell = this.modalEl.querySelector('#warehouse-item-out-modal-cell');
+            this.modalRecipient = this.modalEl.querySelector('#warehouse-item-out-modal-recipient');
+            this.modalTracking = this.modalEl.querySelector('#warehouse-item-out-modal-tracking');
+            this.modalContainer = this.modalEl.querySelector('#warehouse-item-out-modal-container');
+            this.modalContainerHelp = this.modalEl.querySelector('#warehouse-item-out-modal-container-help');
+            this.modalCancelButton = this.modalEl.querySelector('#warehouse-item-out-modal-cancel');
+            this.modalCloseButton = this.modalEl.querySelector('#warehouse-item-out-modal-close');
+            this.modalConfirmButton = this.modalEl.querySelector('#warehouse-item-out-modal-confirm');
+
+            if (window.bootstrap?.Modal) {
+                this.modalInstance = bootstrap.Modal.getInstance(this.modalEl) || new bootstrap.Modal(this.modalEl, {
+                    backdrop: 'static',
+                    keyboard: false
+                });
+            }
+
+            if (this.modalEl.dataset.bound === '1') {
+                return;
+            }
+
+            this.modalCancelButton?.addEventListener('click', () => {
+                this.hideModal();
+            });
+            this.modalCloseButton?.addEventListener('click', () => {
+                this.hideModal();
+            });
+            this.modalConfirmButton?.addEventListener('click', () => {
+                this.confirmSend();
+            });
+            this.modalEl.addEventListener('hidden.bs.modal', () => {
+                const shouldReload = this.state.search !== '';
+                this.clearModalState();
+                this.focusSearchInput({ clear: true });
+                if (shouldReload) {
+                    this.resetAndLoad();
+                }
+            });
+            this.modalEl.dataset.bound = '1';
+        },
         bindEvents() {
+            if (this.root?.dataset.bound === '1') {
+                return;
+            }
+
             this.limitSelect.addEventListener('change', () => {
                 this.state.limit = this.limitSelect.value || '50';
                 this.resetAndLoad();
@@ -2497,6 +2567,24 @@ const CoreAPI = {
                     this.resetAndLoad();
                 }, 300);
             });
+
+
+            this.searchInput.addEventListener('keydown', (event) => {
+                if (event.key !== 'Enter') {
+                    return;
+                }
+                event.preventDefault();
+                this.processTrackingInput();
+            });
+
+            this.searchInput.addEventListener('change', () => {
+                if (String(this.searchInput.value || '').trim() === '') {
+                    return;
+                }
+                this.processTrackingInput();
+            });
+
+            this.root.dataset.bound = '1';
         },
         setupObserver() {
             if (this.observer) {
@@ -2517,6 +2605,234 @@ const CoreAPI = {
             }
         },
 
+        escapeHtml(value) {
+            return String(value ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        },
+        focusSearchInput({ clear = false } = {}) {
+            if (!this.searchInput) {
+                return;
+            }
+            if (clear) {
+                this.searchInput.value = '';
+                this.state.search = '';
+            }
+            window.setTimeout(() => {
+                this.searchInput.focus();
+                this.searchInput.select?.();
+            }, 50);
+        },
+        clearModalState() {
+            this.currentLookupItem = null;
+            this.state.lookupLoading = false;
+
+            if (this.modalState) {
+                this.modalState.className = 'alert alert-secondary mb-3';
+                this.modalState.textContent = 'Сканируйте или введите трекномер.';
+            }
+            if (this.modalForwarder) this.modalForwarder.textContent = '—';
+            if (this.modalCell) this.modalCell.textContent = '—';
+            if (this.modalRecipient) this.modalRecipient.textContent = '—';
+            if (this.modalTracking) this.modalTracking.textContent = '—';
+            if (this.modalContainer) this.modalContainer.value = '—';
+            if (this.modalContainerHelp) this.modalContainerHelp.textContent = '';
+            if (this.modalConfirmButton) {
+                this.modalConfirmButton.disabled = false;
+                this.modalConfirmButton.classList.remove('d-none');
+                this.modalConfirmButton.textContent = 'Подтвердить перемещение в контейнер';
+            }
+            this.modalCancelButton?.classList.remove('d-none');
+            this.modalCloseButton?.classList.add('d-none');
+        },
+        getSelectedContainerMeta() {
+            const option = this.containerSelect?.selectedOptions?.[0];
+            if (!option || String(option.value || '').trim() === '') {
+                return null;
+            }
+
+            const flightNo = String(option.dataset.flightNo || '').trim();
+            const flightName = String(option.dataset.flightName || '').trim();
+            const containerId = String(option.dataset.containerId || option.value || '').trim();
+            const containerName = String(option.dataset.containerName || '').trim();
+            const containerValue = String(option.value || '').trim();
+            const containerDisplay = containerName || containerId || containerValue || '—';
+            const flightDisplay = flightName || flightNo || '—';
+            const shipmentCell = [flightNo || flightName, containerDisplay].filter(Boolean).join(' / ');
+
+            return {
+                value: containerValue,
+                connectorId: String(option.dataset.connectorId || '').trim(),
+                flightRecordId: String(option.dataset.flightRecordId || '').trim(),
+                flightId: String(option.dataset.flightId || '').trim(),
+                flightNo,
+                flightName,
+                flightDisplay,
+                containerId,
+                containerName,
+                containerDisplay,
+                label: String(option.textContent || '').trim(),
+                shipmentCell: shipmentCell || containerDisplay
+            };
+        },
+        setModalMessage(level, html) {
+            if (!this.modalState) {
+                return;
+            }
+            const classMap = {
+                success: 'alert alert-success mb-3',
+                danger: 'alert alert-danger mb-3',
+                warning: 'alert alert-warning mb-3',
+                secondary: 'alert alert-secondary mb-3'
+            };
+            this.modalState.className = classMap[level] || classMap.secondary;
+            this.modalState.innerHTML = html;
+        },
+        populateModalFields(item, containerMeta) {
+            if (this.modalForwarder) this.modalForwarder.textContent = item?.receiver_company || '—';
+            if (this.modalCell) this.modalCell.textContent = item?.cell_address || '—';
+            if (this.modalRecipient) this.modalRecipient.textContent = item?.receiver_name || '—';
+            if (this.modalTracking) this.modalTracking.textContent = item?.tracking_no || item?.tuid || item?.parcel_uid || '—';
+            if (this.modalContainer) {
+                this.modalContainer.value = containerMeta
+                    ? `${containerMeta.flightDisplay} — ${containerMeta.containerDisplay}`
+                    : 'Контейнер не выбран';
+            }
+            if (this.modalContainerHelp) {
+                this.modalContainerHelp.textContent = containerMeta
+                    ? `Ячейка отгрузки будет присвоена как: ${containerMeta.shipmentCell}`
+                    : 'Для подтверждения выберите контейнер из open-рейса.';
+            }
+        },
+        openModal() {
+            this.clearModalState();
+            this.modalInstance?.show();
+        },
+        hideModal() {
+            this.modalInstance?.hide();
+        },
+        async processTrackingInput() {
+            const trackingNo = String(this.searchInput?.value || '').trim();
+            if (!trackingNo || this.state.lookupLoading) {
+                return;
+            }
+
+            this.openModal();
+            this.state.lookupLoading = true;
+            this.setModalMessage('secondary', `Проверяем трекномер <strong>${this.escapeHtml(trackingNo)}</strong>...`);
+            if (this.modalConfirmButton) {
+                this.modalConfirmButton.disabled = true;
+            }
+
+            const fd = new FormData();
+            fd.append('action', 'warehouse_item_out_lookup');
+            fd.append('tracking_no', trackingNo);
+
+            try {
+                const data = await CoreAPI.client.call(fd);
+                if (!data || data.status !== 'ok') {
+                    throw new Error(data?.message || 'lookup_failed');
+                }
+                this.renderLookupResult(data.item || null, trackingNo);
+            } catch (err) {
+                console.error('core_api fetch error (warehouse_item_out_lookup):', err);
+                this.renderLookupResult(null, trackingNo, 'Не удалось получить данные по трекномеру.');
+            } finally {
+                this.state.lookupLoading = false;
+            }
+        },
+        renderLookupResult(item, requestedTracking, fallbackMessage = '') {
+            const containerMeta = this.getSelectedContainerMeta();
+            const normalizedStatus = String(item?.status || '').trim().toLowerCase();
+            const trackLabel = item?.tracking_no || item?.tuid || requestedTracking;
+
+            if (!item) {
+                this.populateModalFields(null, containerMeta);
+                this.setModalMessage('danger', `Посылка с трекномером <strong>${this.escapeHtml(requestedTracking)}</strong> не найдена.${fallbackMessage ? ` ${this.escapeHtml(fallbackMessage)}` : ''}`);
+                this.modalConfirmButton?.classList.add('d-none');
+                this.modalCancelButton?.classList.add('d-none');
+                this.modalCloseButton?.classList.remove('d-none');
+                return;
+            }
+
+            this.currentLookupItem = item;
+            this.populateModalFields(item, containerMeta);
+
+            if (normalizedStatus === 'to_send') {
+                this.setModalMessage('success', `Посылка готова к отправке: <strong>${this.escapeHtml(trackLabel)}</strong>. Проверьте получателя и подтвердите перемещение в контейнер.`);
+                this.modalConfirmButton?.classList.remove('d-none');
+                this.modalCancelButton?.classList.remove('d-none');
+                this.modalCloseButton?.classList.add('d-none');
+                if (this.modalConfirmButton) {
+                    this.modalConfirmButton.disabled = !containerMeta;
+                }
+                return;
+            }
+
+            const statusMessage = item?.status_message ? `<div class="mt-2 small">Статус: <strong>${this.escapeHtml(item.status)}</strong>. ${this.escapeHtml(item.status_message)}</div>` : `<div class="mt-2 small">Статус: <strong>${this.escapeHtml(item.status || 'unknown')}</strong>.</div>`;
+            this.setModalMessage('danger', `Подтверждение недоступно для посылки <strong>${this.escapeHtml(trackLabel)}</strong>.${statusMessage}`);
+            this.modalConfirmButton?.classList.add('d-none');
+            this.modalCancelButton?.classList.add('d-none');
+            this.modalCloseButton?.classList.remove('d-none');
+        },
+        async confirmSend() {
+            if (!this.currentLookupItem || this.state.lookupLoading) {
+                return;
+            }
+
+            const containerMeta = this.getSelectedContainerMeta();
+            if (!containerMeta) {
+                this.setModalMessage('warning', 'Сначала выберите контейнер из open-рейса.');
+                return;
+            }
+
+            this.state.lookupLoading = true;
+            if (this.modalConfirmButton) {
+                this.modalConfirmButton.disabled = true;
+                this.modalConfirmButton.textContent = 'Сохраняем...';
+            }
+
+            const fd = new FormData();
+            fd.append('action', 'warehouse_item_out_confirm_send');
+            fd.append('tracking_no', String(this.currentLookupItem.tracking_no || this.currentLookupItem.tuid || '').trim());
+            fd.append('stock_item_id', String(this.currentLookupItem.stock_item_id || this.currentLookupItem.id || '0'));
+            fd.append('flight_no', containerMeta.flightNo);
+            fd.append('flight_name', containerMeta.flightName);
+            fd.append('flight_id', containerMeta.flightId);
+            fd.append('container_id', containerMeta.containerId || containerMeta.value);
+            fd.append('container_name', containerMeta.containerName || containerMeta.containerDisplay);
+            fd.append('container_label', containerMeta.label);
+            fd.append('shipment_cell', containerMeta.shipmentCell);
+
+            try {
+                const data = await CoreAPI.client.call(fd);
+                if (!data || data.status !== 'ok') {
+                    throw new Error(data?.message || 'confirm_failed');
+                }
+                this.state.search = '';
+                if (this.searchInput) {
+                    this.searchInput.value = '';
+                }
+                this.hideModal();
+                await this.resetAndLoad();
+                if (CoreAPI.warehouseInStorage?.resetAndLoad) {
+                    await CoreAPI.warehouseInStorage.resetAndLoad();
+                }
+                CoreAPI.showToast?.('Посылка перемещена в контейнер.', 'success');
+            } catch (err) {
+                console.error('core_api fetch error (warehouse_item_out_confirm_send):', err);
+                this.setModalMessage('danger', 'Не удалось подтвердить перемещение в контейнер. Попробуйте ещё раз.');
+                if (this.modalConfirmButton) {
+                    this.modalConfirmButton.disabled = false;
+                    this.modalConfirmButton.textContent = 'Подтвердить перемещение в контейнер';
+                }
+            } finally {
+                this.state.lookupLoading = false;
+            }
+        },
         updateContainerOptions() {
             if (!this.containerSelect) {
                 return;

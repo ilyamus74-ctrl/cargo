@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-03-19 16:01:19
+/* Smarty version 5.3.1, created on 2026-03-19 16:59:05
   from 'file:cells_NA_API_warehouse_item_out.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_69bc1dcfea1cc6_77165602',
+  'unifunc' => 'content_69bc2b592e73b8_84186994',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '1e9799e9c3e87d128e25a93d4c0cb584ee55eee0' => 
     array (
       0 => 'cells_NA_API_warehouse_item_out.html',
-      1 => 1773935852,
+      1 => 1773938974,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_69bc1dcfea1cc6_77165602 (\Smarty\Template $_smarty_tpl) {
+function content_69bc2b592e73b8_84186994 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?><div class="pagetitle">
   <h1>Отгрузка</h1>
@@ -145,5 +145,41 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
     </div>
   </div>
 </section>
-<?php }
+<div class="modal fade" id="warehouse-item-out-modal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Проверка отгрузки посылки</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div id="warehouse-item-out-modal-state" class="alert alert-secondary mb-3">Сканируйте или введите трекномер.</div>
+        <dl class="row mb-0 small">
+          <dt class="col-4">Форвард</dt>
+          <dd class="col-8" id="warehouse-item-out-modal-forwarder">—</dd>
+
+          <dt class="col-4">Ячейка</dt>
+          <dd class="col-8" id="warehouse-item-out-modal-cell">—</dd>
+
+          <dt class="col-4">Получатель</dt>
+          <dd class="col-8" id="warehouse-item-out-modal-recipient">—</dd>
+
+          <dt class="col-4">Трекномер</dt>
+          <dd class="col-8" id="warehouse-item-out-modal-tracking">—</dd>
+        </dl>
+
+        <div class="mt-3">
+          <label class="form-label small mb-1" for="warehouse-item-out-modal-container">Контейнер выбранного рейса</label>
+          <input type="text" id="warehouse-item-out-modal-container" class="form-control form-control-sm" value="—" readonly>
+          <div id="warehouse-item-out-modal-container-help" class="form-text"></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" id="warehouse-item-out-modal-cancel" class="btn btn-outline-secondary">Отмена</button>
+        <button type="button" id="warehouse-item-out-modal-close" class="btn btn-secondary d-none">Закрыть</button>
+        <button type="button" id="warehouse-item-out-modal-confirm" class="btn btn-success">Подтвердить перемещение в контейнер</button>
+      </div>
+    </div>
+  </div>
+</div><?php }
 }

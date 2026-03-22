@@ -49,6 +49,20 @@ if (!function_exists('warehouse_stock_decode_item_addons')) {
 }
 
 
+
+if (!function_exists('warehouse_stock_has_out_table')) {
+    function warehouse_stock_has_out_table(mysqli $dbcnx): bool
+    {
+        $res = $dbcnx->query("SHOW TABLES LIKE 'warehouse_item_out'");
+        if (!($res instanceof mysqli_result)) {
+            return false;
+        }
+        $exists = $res->num_rows > 0;
+        $res->free();
+        return $exists;
+    }
+}
+
 if (!function_exists('warehouse_stock_normalize_image_json')) {
     function warehouse_stock_normalize_image_json(string $raw): ?string
     {
@@ -449,10 +463,15 @@ if ($action === 'item_stock_in_storage') {
     $sort = $sortRaw === 'ASC' ? 'ASC' : 'DESC';
 
     $search = trim((string)($_POST['search'] ?? ''));
+    $hasOutTable = warehouse_stock_has_out_table($dbcnx);
+    $outJoinSql = $hasOutTable ? 'LEFT JOIN warehouse_item_out wo ON wo.stock_item_id = wi.id' : '';
 
     $conditions = [
         "wi.cell_id IS NOT NULL",
     ];
+    if ($hasOutTable) {
+        $conditions[] = "(wo.status IS NULL OR LOWER(TRIM(wo.status)) <> 'sended')";
+    }
     $params = [];
     $types = '';
 
@@ -477,6 +496,7 @@ if ($action === 'item_stock_in_storage') {
     $countSql = "
         SELECT COUNT(*) AS total
         FROM warehouse_item_stock wi
+        {$outJoinSql}
         LEFT JOIN cells c ON c.id = wi.cell_id
         {$whereSql}
     ";
@@ -507,6 +527,7 @@ if ($action === 'item_stock_in_storage') {
             u.full_name AS user_name,
             c.code AS cell_address
         FROM warehouse_item_stock wi
+        {$outJoinSql}
         LEFT JOIN users u ON u.id = wi.user_id
         LEFT JOIN cells c ON c.id = wi.cell_id
         {$whereSql}

@@ -133,6 +133,8 @@ $routes = [
     'warehouse_sync_batch_enqueue' => 'api/warehouse/warehouse_sync_actions.php',
     'item_out'                  => 'api/warehouse/warehouse_sync_actions.php',
     'warehouse_item_out_to_send' => 'api/warehouse/warehouse_sync_actions.php',
+    'warehouse_item_out_lookup'  => 'api/warehouse/warehouse_sync_actions.php',
+    'warehouse_item_out_confirm_send' => 'api/warehouse/warehouse_sync_actions.php',
 ];
 
 
