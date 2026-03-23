@@ -230,7 +230,7 @@ MVP-правило:
 ---
 
 ### 7. Реализовать последовательную очередь jobs
-**Статус:** ⬜ не начато
+**Статус:** ✅ выполнено
 
 Требования:
 
@@ -242,6 +242,14 @@ MVP-правило:
 
 - worker имеет очередь
 - конкурентные jobs не ломают состояние формы
+
+
+Примечание:
+- пункт 6 повторно проверен тестами и кодом registry/lease логики в `www/scripts/forward_session_worker.js` и `www/scripts/test_forward_session_worker_state.js`
+- в `www/scripts/forward_session_worker.js` очередь перенесена внутрь `ForwardSessionWorker`, а не только в CLI stdin loop
+- `handleJob(...)` теперь ставит job в promise-очередь worker и запускает следующую job только после завершения предыдущей
+- в `status` добавлено `queue_state` с полями `pending_jobs`, `is_running_job`, `active_job_id`
+- последовательное выполнение конкурентных jobs покрыто тестом в `www/scripts/test_forward_session_worker_state.js`
 
 ---
 

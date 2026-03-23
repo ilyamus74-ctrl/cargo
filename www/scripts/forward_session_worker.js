@@ -261,6 +261,9 @@ class ForwardSessionWorker {
     this.stopReason = '';
     this.shutdownTimer = null;
     this.isRunningJob = false;
+    this.jobQueue = Promise.resolve();
+    this.pendingJobCount = 0;
+    this.activeJobId = '';
 
     this.actorId = '';
     this.currentContainerId = '';
@@ -322,6 +325,14 @@ class ForwardSessionWorker {
       session_status: this.isStarted() ? 'ready' : this.contextState.session_status,
       status: this.isRunningJob ? 'busy' : this.contextState.status,
       last_activity_at: this.lastActivityAt || this.contextState.last_activity_at,
+    };
+  }
+
+  getQueueState() {
+    return {
+      pending_jobs: this.pendingJobCount,
+      is_running_job: this.isRunningJob,
+      active_job_id: this.activeJobId,
     };
   }
 
@@ -411,7 +422,7 @@ class ForwardSessionWorker {
     };
   }
 
-  async handleJob(jobInput) {
+  async runJob(jobInput) {
     const job = validateJob(jobInput);
 
     if (this.actorId && this.actorId !== job.actor_id) {
@@ -436,6 +447,7 @@ class ForwardSessionWorker {
     };
 
     this.isRunningJob = true;
+    this.activeJobId = job.job_id;
     this.touch({
       actor_id: this.actorId,
       status: 'busy',
@@ -507,12 +519,25 @@ class ForwardSessionWorker {
       throw err;
     } finally {
       this.isRunningJob = false;
+      this.activeJobId = '';
       if (this.contextState.expected_next_action === 'complete_job') {
         this.touch({ expected_next_action: 'accept_job', status: 'idle' });
       } else {
         this.touch({ status: 'idle' });
       }
     }
+  }
+
+  async handleJob(jobInput) {
+    this.pendingJobCount += 1;
+    const runNext = async () => {
+      this.pendingJobCount -= 1;
+      return this.runJob(jobInput);
+    };
+
+    const queuedJob = this.jobQueue.then(runNext, runNext);
+    this.jobQueue = queuedJob.then(() => undefined, () => undefined);
+    return queuedJob;
   }
 
   async getStatus() {
@@ -535,6 +560,7 @@ class ForwardSessionWorker {
       current_container_id: this.currentContainerId,
       operation_profile: this.operationProfile,
       last_job: this.lastJob,
+      queue_state: this.getQueueState(),
       context_state: this.getContextState(),
       cookies,
       stop_reason: this.stopReason,

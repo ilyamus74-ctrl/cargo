@@ -112,6 +112,59 @@ test('context_state remains available after stop and transitions to stopped stat
   assert.equal(contextState.expected_next_action, 'stopped');
 });
 
+test('worker serializes concurrent jobs through an internal queue', async () => {
+  const worker = new ForwardSessionWorker({ worker_id: 'fw_worker_queue', autostart: false });
+  const page = await seedStartedWorker(worker);
+  const originalCookies = page.cookies.bind(page);
+  const executionLog = [];
+  page.cookies = async () => {
+    executionLog.push(`cookies:${worker.activeJobId}`);
+    await new Promise((resolve) => setTimeout(resolve, 40));
+    return originalCookies();
+  };
+
+  const firstJob = worker.handleJob({
+    job_id: 'job_first',
+    actor_id: 'user_42_forward_x',
+    operation_type: 'noop',
+    operation_profile: 'continue_same_container',
+    container_id: 'CNT-010',
+    payload: {},
+  });
+  const secondJob = worker.handleJob({
+    job_id: 'job_second',
+    actor_id: 'user_42_forward_x',
+    operation_type: 'noop',
+    operation_profile: 'continue_same_container',
+    container_id: 'CNT-011',
+    payload: {},
+  });
+
+  await new Promise((resolve) => setTimeout(resolve, 5));
+  const midQueueState = worker.getQueueState();
+  assert.equal(midQueueState.is_running_job, true);
+  assert.equal(midQueueState.active_job_id, 'job_first');
+  assert.equal(midQueueState.pending_jobs, 1);
+
+  const [firstResult, secondResult] = await Promise.all([firstJob, secondJob]);
+  assert.equal(firstResult.job.job_id, 'job_first');
+  assert.equal(secondResult.job.job_id, 'job_second');
+  assert.deepEqual(
+    executionLog,
+    ['cookies:job_first', 'cookies:job_second']
+  );
+
+  const finalQueueState = worker.getQueueState();
+  assert.equal(finalQueueState.is_running_job, false);
+  assert.equal(finalQueueState.active_job_id, '');
+  assert.equal(finalQueueState.pending_jobs, 0);
+
+  const status = await worker.getStatus();
+  assert.equal(status.queue_state.pending_jobs, 0);
+  assert.equal(status.queue_state.is_running_job, false);
+  assert.equal(status.last_job.job_id, 'job_second');
+  assert.equal(status.current_container_id, 'CNT-011');
+});
 
 test('binding registry creates sticky per-actor workers, reuses leases, and releases by TTL', () => {
   let workerSequence = 0;
