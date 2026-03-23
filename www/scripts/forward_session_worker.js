@@ -36,6 +36,16 @@ function normalizeString(value) {
   return String(value || '').trim();
 }
 
+function validateActorId(actorId) {
+  const normalized = normalizeString(actorId);
+  if (!normalized) {
+    const err = new Error('actor_id is required');
+    err.code = 'INVALID_ACTOR_ID';
+    throw err;
+  }
+  return normalized;
+}
+
 function validateJob(rawJob) {
   const source = rawJob && typeof rawJob === 'object' ? rawJob : {};
   const payload = source.payload && typeof source.payload === 'object' && !Array.isArray(source.payload)
@@ -69,6 +79,168 @@ function validateJob(rawJob) {
   }
 
   return job;
+}
+
+class ForwardWorkerBindingRegistry {
+  constructor(options = {}) {
+    this.leaseTimeoutMs = Math.max(0, Number(options.lease_timeout_ms ?? options.leaseTimeoutMs ?? 0));
+    this.workerFactory = typeof options.worker_factory === 'function'
+      ? options.worker_factory
+      : () => ({ worker_id: makeWorkerId() });
+    this.bindingsByActor = new Map();
+    this.bindingsByWorker = new Map();
+  }
+
+  computeLeaseExpiry(lastActivityAt) {
+    if (!this.leaseTimeoutMs) {
+      return '';
+    }
+
+    const base = Date.parse(lastActivityAt || nowIso());
+    if (Number.isNaN(base)) {
+      return '';
+    }
+
+    return new Date(base + this.leaseTimeoutMs).toISOString();
+  }
+
+  createBinding(workerRecord, actorId, metadata = {}) {
+    const workerId = normalizeString(workerRecord?.worker_id || workerRecord?.workerId || workerRecord?.id);
+    if (!workerId) {
+      throw new Error('workerFactory must return an object with worker_id');
+    }
+
+    const now = nowIso();
+    return {
+      worker_id: workerId,
+      actor_id: actorId,
+      sticky: true,
+      status: 'leased',
+      lease_timeout_ms: this.leaseTimeoutMs,
+      lease_started_at: now,
+      lease_expires_at: this.computeLeaseExpiry(now),
+      last_activity_at: now,
+      release_reason: '',
+      metadata: { ...metadata },
+      worker: workerRecord,
+    };
+  }
+
+  snapshot(binding) {
+    if (!binding) {
+      return null;
+    }
+
+    return {
+      worker_id: binding.worker_id,
+      actor_id: binding.actor_id,
+      sticky: binding.sticky,
+      status: binding.status,
+      lease_timeout_ms: binding.lease_timeout_ms,
+      lease_started_at: binding.lease_started_at,
+      lease_expires_at: binding.lease_expires_at,
+      last_activity_at: binding.last_activity_at,
+      release_reason: binding.release_reason,
+      metadata: { ...binding.metadata },
+    };
+  }
+
+  getBindingByActor(actorId) {
+    const normalizedActorId = validateActorId(actorId);
+    return this.snapshot(this.bindingsByActor.get(normalizedActorId));
+  }
+
+  getBindingByWorker(workerId) {
+    const normalizedWorkerId = normalizeString(workerId);
+    if (!normalizedWorkerId) {
+      return null;
+    }
+    return this.snapshot(this.bindingsByWorker.get(normalizedWorkerId));
+  }
+
+  touchLease(workerId, metadata = {}) {
+    const normalizedWorkerId = normalizeString(workerId);
+    const binding = this.bindingsByWorker.get(normalizedWorkerId);
+    if (!binding) {
+      return null;
+    }
+
+    const lastActivityAt = nowIso();
+    binding.last_activity_at = lastActivityAt;
+    binding.lease_expires_at = this.computeLeaseExpiry(lastActivityAt);
+    if (metadata && typeof metadata === 'object' && !Array.isArray(metadata)) {
+      binding.metadata = {
+        ...binding.metadata,
+        ...metadata,
+      };
+    }
+    return this.snapshot(binding);
+  }
+
+  acquire(actorId, metadata = {}) {
+    const normalizedActorId = validateActorId(actorId);
+    const existing = this.bindingsByActor.get(normalizedActorId);
+    if (existing) {
+      this.touchLease(existing.worker_id, metadata);
+      return {
+        action: 'reuse_worker',
+        binding: this.snapshot(existing),
+      };
+    }
+
+    const workerRecord = this.workerFactory({ actor_id: normalizedActorId, metadata: { ...metadata } });
+    const binding = this.createBinding(workerRecord, normalizedActorId, metadata);
+    this.bindingsByActor.set(normalizedActorId, binding);
+    this.bindingsByWorker.set(binding.worker_id, binding);
+    return {
+      action: 'create_worker',
+      binding: this.snapshot(binding),
+    };
+  }
+
+  release(workerId, reason = 'released_by_server') {
+    const normalizedWorkerId = normalizeString(workerId);
+    const binding = this.bindingsByWorker.get(normalizedWorkerId);
+    if (!binding) {
+      return null;
+    }
+
+    this.bindingsByWorker.delete(normalizedWorkerId);
+    this.bindingsByActor.delete(binding.actor_id);
+
+    binding.status = 'released';
+    binding.release_reason = normalizeString(reason) || 'released_by_server';
+    binding.last_activity_at = nowIso();
+    binding.lease_expires_at = '';
+    return this.snapshot(binding);
+  }
+
+  releaseExpired(referenceTime = nowIso()) {
+    if (!this.leaseTimeoutMs) {
+      return [];
+    }
+
+    const referenceTs = Date.parse(referenceTime);
+    if (Number.isNaN(referenceTs)) {
+      throw new Error('referenceTime must be a valid ISO datetime string');
+    }
+
+    const released = [];
+    for (const binding of this.bindingsByWorker.values()) {
+      const expiryTs = Date.parse(binding.lease_expires_at || '');
+      if (!Number.isNaN(expiryTs) && expiryTs <= referenceTs) {
+        const snapshot = this.release(binding.worker_id, 'lease_timeout');
+        if (snapshot) {
+          released.push(snapshot);
+        }
+      }
+    }
+    return released;
+  }
+
+  listBindings() {
+    return Array.from(this.bindingsByWorker.values(), (binding) => this.snapshot(binding));
+  }
 }
 
 class ForwardSessionWorker {
@@ -425,6 +597,7 @@ async function runCli() {
         'Usage: node forward_session_worker.js "{...json payload...}"',
         '',
         'The worker starts a persistent browser/page session and accepts JSON commands over stdin.',
+        'Server-side binding rule: one actor_id leases one sticky worker until release or idle timeout.',
         'One JSON command per line, for example:',
         '  {"command":"status"}',
         '  {"command":"context_state"}',
@@ -558,6 +731,8 @@ if (require.main === module) {
 
 module.exports = {
   ForwardSessionWorker,
+  ForwardWorkerBindingRegistry,
+  validateActorId,
   validateJob,
   runCli,
 };

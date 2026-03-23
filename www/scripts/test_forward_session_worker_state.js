@@ -1,8 +1,13 @@
-use strict';
+'use strict';
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { ForwardSessionWorker, validateJob } = require('./forward_session_worker');
+
+const {
+  ForwardSessionWorker,
+  ForwardWorkerBindingRegistry,
+  validateJob,
+} = require('./forward_session_worker');
 
 function makeFakePage(url = 'about:blank') {
   let currentUrl = url;
@@ -105,4 +110,57 @@ test('context_state remains available after stop and transitions to stopped stat
   assert.equal(contextState.current_container_id, 'CNT-002');
   assert.equal(contextState.session_status, 'stopped');
   assert.equal(contextState.expected_next_action, 'stopped');
+});
+
+
+test('binding registry creates sticky per-actor workers, reuses leases, and releases by TTL', () => {
+  let workerSequence = 0;
+  const registry = new ForwardWorkerBindingRegistry({
+    lease_timeout_ms: 1000,
+    worker_factory: ({ actor_id }) => ({ worker_id: `fw_worker_${++workerSequence}`, actor_id }),
+  });
+
+  const firstLease = registry.acquire('user_42_forward_x', { operation_profile: 'continue_same_container' });
+  assert.equal(firstLease.action, 'create_worker');
+  assert.equal(firstLease.binding.worker_id, 'fw_worker_1');
+  assert.equal(firstLease.binding.actor_id, 'user_42_forward_x');
+  assert.equal(firstLease.binding.sticky, true);
+  assert.equal(firstLease.binding.metadata.operation_profile, 'continue_same_container');
+
+  const reusedLease = registry.acquire('user_42_forward_x', { current_container_id: 'CNT-001' });
+  assert.equal(reusedLease.action, 'reuse_worker');
+  assert.equal(reusedLease.binding.worker_id, 'fw_worker_1');
+  assert.equal(reusedLease.binding.metadata.operation_profile, 'continue_same_container');
+  assert.equal(reusedLease.binding.metadata.current_container_id, 'CNT-001');
+
+  const secondActorLease = registry.acquire('user_99_forward_y');
+  assert.equal(secondActorLease.action, 'create_worker');
+  assert.equal(secondActorLease.binding.worker_id, 'fw_worker_2');
+
+  const releasedByTtl = registry.releaseExpired('9999-01-01T00:00:00.000Z');
+  assert.equal(releasedByTtl.length, 2);
+  assert.deepEqual(
+    releasedByTtl.map((binding) => [binding.actor_id, binding.release_reason]),
+    [
+      ['user_42_forward_x', 'lease_timeout'],
+      ['user_99_forward_y', 'lease_timeout'],
+    ]
+  );
+  assert.equal(registry.getBindingByActor('user_42_forward_x'), null);
+  assert.equal(registry.listBindings().length, 0);
+});
+
+test('binding registry can release a worker explicitly before TTL', () => {
+  const registry = new ForwardWorkerBindingRegistry({
+    lease_timeout_ms: 60_000,
+    worker_factory: () => ({ worker_id: 'fw_worker_manual' }),
+  });
+
+  const lease = registry.acquire('user_manual_forward');
+  assert.equal(lease.binding.worker_id, 'fw_worker_manual');
+
+  const released = registry.release('fw_worker_manual', 'release_worker');
+  assert.equal(released.worker_id, 'fw_worker_manual');
+  assert.equal(released.release_reason, 'release_worker');
+  assert.equal(registry.getBindingByWorker('fw_worker_manual'), null);
 });

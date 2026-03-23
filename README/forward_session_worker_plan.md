@@ -196,11 +196,11 @@
 - в `www/scripts/forward_session_worker.js` добавлено поле `context_state` в status-ответ и отдельная команда stdin `context_state` / `state`
 - worker теперь хранит `session_status`, `expected_next_action`, `awaiting_popup`, `awaiting_label` и обновляет их при `start`, `job`, `goto`, `stop`
 - для `add_parcel_to_forward_container` следующий ожидаемый шаг фиксируется как `fill_tracking`, чтобы следующий job мог опираться на текущее состояние формы
-
+- пункт 5 повторно проверен тестами в `www/scripts/test_forward_session_worker_state.js`
 ---
 
 ### 6. Описать server-side binding
-**Статус:** ⬜ не начато
+**Статус:** ✅ выполнено
 
 MVP-правило:
 
@@ -219,6 +219,13 @@ MVP-правило:
 Критерий завершения:
 
 - есть понятные правила жизненного цикла worker
+
+
+Примечание:
+- в `www/scripts/forward_session_worker.js` добавлен `ForwardWorkerBindingRegistry`, описывающий sticky binding `actor_id -> worker_id`
+- registry умеет `acquire` с режимами `create_worker` / `reuse_worker`, `release`, `touchLease`, `releaseExpired` и `listBindings`
+- lease TTL хранится в `lease_timeout_ms`, продлевается при reuse/touch и освобождает worker по `lease_timeout`
+- server-side правило зафиксировано и в CLI help worker: один `actor_id` арендует один sticky worker до `release` или `idle timeout`
 
 ---
 
