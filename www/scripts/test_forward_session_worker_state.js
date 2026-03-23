@@ -166,6 +166,41 @@ test('worker serializes concurrent jobs through an internal queue', async () => 
   assert.equal(status.current_container_id, 'CNT-011');
 });
 
+
+
+
+test('worker stops itself after idle timeout and clears sticky session state', async () => {
+  const worker = new ForwardSessionWorker({
+    worker_id: 'fw_worker_idle',
+    autostart: false,
+    idle_timeout_ms: 30,
+  });
+  await seedStartedWorker(worker);
+
+  await worker.handleJob({
+    actor_id: 'user_idle_forward',
+    operation_type: 'noop',
+    operation_profile: 'continue_same_container',
+    container_id: 'CNT-IDLE',
+    payload: {},
+  });
+
+  await new Promise((resolve) => setTimeout(resolve, 80));
+
+  const status = await worker.getStatus();
+  assert.equal(worker.isStarted(), false);
+  assert.equal(status.status, 'stopped');
+  assert.equal(status.stop_reason, 'idle_timeout');
+  assert.equal(status.actor_id, '');
+  assert.equal(status.current_container_id, '');
+  assert.equal(status.operation_profile, '');
+  assert.equal(status.last_job, null);
+  assert.equal(status.context_state.session_status, 'stopped');
+  assert.equal(status.context_state.actor_id, '');
+  assert.equal(status.context_state.current_container_id, '');
+  assert.equal(status.context_state.expected_next_action, 'start_session');
+});
+
 test('binding registry creates sticky per-actor workers, reuses leases, and releases by TTL', () => {
   let workerSequence = 0;
   const registry = new ForwardWorkerBindingRegistry({

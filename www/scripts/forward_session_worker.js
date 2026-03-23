@@ -347,7 +347,7 @@ class ForwardSessionWorker {
       this.shutdownTimer = null;
     }
 
-    if (!this.idleTimeoutMs || !this.isStarted()) {
+    if (!this.idleTimeoutMs || !this.isStarted() || this.isRunningJob || this.pendingJobCount > 0) {
       return;
     }
     this.shutdownTimer = setTimeout(async () => {
@@ -567,6 +567,19 @@ class ForwardSessionWorker {
     };
   }
 
+  resetSessionStateForIdleTimeout() {
+    this.actorId = '';
+    this.currentContainerId = '';
+    this.operationProfile = '';
+    this.lastJob = null;
+    this.contextState = this.createContextState();
+    this.syncContextState({
+      session_status: 'stopped',
+      expected_next_action: 'start_session',
+      status: 'idle',
+    });
+  }
+
   async stop(reason = 'shutdown') {
     this.stopReason = reason;
 
@@ -600,11 +613,16 @@ class ForwardSessionWorker {
 
 
     this.isRunningJob = false;
-    this.syncContextState({
-      status: 'idle',
-      session_status: 'stopped',
-      expected_next_action: reason === 'idle_timeout' ? 'start_session' : 'stopped',
-    });
+
+    if (reason === 'idle_timeout') {
+      this.resetSessionStateForIdleTimeout();
+    } else {
+      this.syncContextState({
+        status: 'idle',
+        session_status: 'stopped',
+        expected_next_action: 'stopped',
+      });
+    }
 
     return {
       worker_id: this.workerId,

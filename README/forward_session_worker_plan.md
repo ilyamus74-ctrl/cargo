@@ -254,7 +254,7 @@ MVP-правило:
 ---
 
 ### 8. Реализовать idle timeout
-**Статус:** ⬜ не начато
+**Статус:** ✅ выполнено
 
 Поведение:
 
@@ -265,6 +265,11 @@ MVP-правило:
 Критерий завершения:
 
 - worker корректно самозавершается после простоя
+
+Примечание:
+- в `www/scripts/forward_session_worker.js` idle timeout переведен на реальный режим простоя: таймер ставится только когда worker started и очередь jobs пуста
+- при `idle_timeout` worker закрывает browser/page и очищает sticky session state (`actor_id`, контейнер, профиль операции, last_job, context state), чтобы следующий запрос требовал новый startup/login flow
+- сценарий самозавершения после простоя покрыт тестом в `www/scripts/test_forward_session_worker_state.js`
 
 ---
 
