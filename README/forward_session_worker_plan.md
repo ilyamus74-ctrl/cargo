@@ -159,7 +159,7 @@
 ---
 
 ### 5. Описать session/context state
-**Статус:** ⬜ не начато
+**Статус:** ✅ выполнено
 
 Минимальное состояние:
 
@@ -190,6 +190,12 @@
 
 - worker хранит и обновляет context state
 - следующий job может опираться на предыдущее состояние формы
+
+
+Примечание:
+- в `www/scripts/forward_session_worker.js` добавлено поле `context_state` в status-ответ и отдельная команда stdin `context_state` / `state`
+- worker теперь хранит `session_status`, `expected_next_action`, `awaiting_popup`, `awaiting_label` и обновляет их при `start`, `job`, `goto`, `stop`
+- для `add_parcel_to_forward_container` следующий ожидаемый шаг фиксируется как `fill_tracking`, чтобы следующий job мог опираться на текущее состояние формы
 
 ---
 

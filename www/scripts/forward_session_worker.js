@@ -88,6 +88,7 @@ class ForwardSessionWorker {
     this.lastActivityAt = '';
     this.stopReason = '';
     this.shutdownTimer = null;
+    this.isRunningJob = false;
 
     this.actorId = '';
     this.currentContainerId = '';
@@ -97,17 +98,65 @@ class ForwardSessionWorker {
       product: this.browserProduct,
       executablePath: null,
     };
+    this.contextState = this.createContextState();
   }
 
   isStarted() {
     return !!(this.browser && this.page);
   }
 
-  touch() {
-    this.lastActivityAt = nowIso();
-    this.refreshIdleTimer();
+
+  createContextState() {
+    return {
+      worker_id: this.workerId,
+      actor_id: '',
+      status: 'idle',
+      session_status: 'cold',
+      current_container_id: '',
+      operation_profile: '',
+      expected_next_action: 'start_session',
+      awaiting_popup: false,
+      awaiting_label: false,
+      last_activity_at: nowIso(),
+    };
   }
 
+
+  syncContextState(patch = {}) {
+    const sessionStatus = this.isStarted() ? 'ready' : (this.stopReason ? 'stopped' : 'cold');
+    const status = patch.status || (this.isRunningJob ? 'busy' : 'idle');
+    this.contextState = {
+      ...this.contextState,
+      ...patch,
+      worker_id: this.workerId,
+      actor_id: patch.actor_id ?? this.actorId,
+      current_container_id: patch.current_container_id ?? this.currentContainerId,
+      operation_profile: patch.operation_profile ?? this.operationProfile,
+      session_status: patch.session_status ?? sessionStatus,
+      status,
+      last_activity_at: nowIso(),
+    };
+    this.lastActivityAt = this.contextState.last_activity_at;
+    return this.contextState;
+  }
+
+  getContextState() {
+    return {
+      ...this.contextState,
+      worker_id: this.workerId,
+      actor_id: this.actorId,
+      current_container_id: this.currentContainerId,
+      operation_profile: this.operationProfile,
+      session_status: this.isStarted() ? 'ready' : this.contextState.session_status,
+      status: this.isRunningJob ? 'busy' : this.contextState.status,
+      last_activity_at: this.lastActivityAt || this.contextState.last_activity_at,
+    };
+  }
+
+  touch(patch = {}) {
+    this.syncContextState(patch);
+    this.refreshIdleTimer();
+  }
 
   refreshIdleTimer() {
     if (this.shutdownTimer) {
@@ -158,7 +207,11 @@ class ForwardSessionWorker {
     };
 
     this.startedAt = nowIso();
-    this.touch();
+    this.touch({
+      session_status: 'ready',
+      status: 'idle',
+      expected_next_action: 'accept_job',
+    });
 
     return this.getStatus();
   }
@@ -178,7 +231,7 @@ class ForwardSessionWorker {
       timeout: Number(options.timeout_ms || 60000),
     });
 
-    this.touch();
+    this.touch({ expected_next_action: 'accept_job' });
 
     return {
       url: this.page.url(),
@@ -210,58 +263,84 @@ class ForwardSessionWorker {
       accepted_at: nowIso(),
     };
 
-    if (job.operation_type === 'noop' || job.operation_type === 'ping') {
-      if (!this.isStarted()) {
-        await this.start();
+    this.isRunningJob = true;
+    this.touch({
+      actor_id: this.actorId,
+      status: 'busy',
+      current_container_id: this.currentContainerId,
+      operation_profile: this.operationProfile,
+      expected_next_action: 'complete_job',
+      awaiting_popup: !!job.payload.awaiting_popup,
+      awaiting_label: !!job.payload.awaiting_label,
+    });
+
+
+    try {
+      if (job.operation_type === 'noop' || job.operation_type === 'ping') {
+        if (!this.isStarted()) {
+          await this.start();
+        } else {
+          this.touch({ expected_next_action: 'accept_job' });
+        }
+
+        return {
+          ok: true,
+          job,
+          action: 'noop',
+          state: await this.getStatus(),
+        };
+      }
+
+
+      if (job.operation_type === 'navigate' || job.operation_type === 'goto_url') {
+        const url = normalizeString(job.payload.url);
+        if (!url) {
+          const err = new Error('navigate payload.url is required');
+          err.code = 'INVALID_JOB_PAYLOAD';
+          throw err;
+        }
+
+        const result = await this.goto(url, job.payload);
+        return {
+          ok: true,
+          job,
+          action: 'navigated',
+          result,
+          state: await this.getStatus(),
+        };
+      }
+
+
+      if (job.operation_type === 'add_parcel_to_forward_container') {
+        if (!this.isStarted()) {
+          await this.start();
+        }
+        this.touch({ expected_next_action: 'fill_tracking' });
+
+        return {
+          ok: false,
+          job,
+          action: 'accepted_but_not_implemented',
+          message: 'add_parcel_to_forward_container is not implemented yet; job JSON API is validated and accepted.',
+          state: await this.getStatus(),
+        };
+      }
+
+
+      const err = new Error(`Unsupported operation_type: ${job.operation_type}`);
+      err.code = 'UNSUPPORTED_OPERATION';
+      throw err;
+    } catch (err) {
+      this.touch({ expected_next_action: 'accept_job' });
+      throw err;
+    } finally {
+      this.isRunningJob = false;
+      if (this.contextState.expected_next_action === 'complete_job') {
+        this.touch({ expected_next_action: 'accept_job', status: 'idle' });
       } else {
-        this.touch();
+        this.touch({ status: 'idle' });
       }
-
-      return {
-        ok: true,
-        job,
-        action: 'noop',
-        state: await this.getStatus(),
-      };
     }
-
-    if (job.operation_type === 'navigate' || job.operation_type === 'goto_url') {
-      const url = normalizeString(job.payload.url);
-      if (!url) {
-        const err = new Error('navigate payload.url is required');
-        err.code = 'INVALID_JOB_PAYLOAD';
-        throw err;
-      }
-
-      const result = await this.goto(url, job.payload);
-      return {
-        ok: true,
-        job,
-        action: 'navigated',
-        result,
-        state: await this.getStatus(),
-      };
-    }
-
-    if (job.operation_type === 'add_parcel_to_forward_container') {
-      if (!this.isStarted()) {
-        await this.start();
-      } else {
-        this.touch();
-      }
-
-      return {
-        ok: false,
-        job,
-        action: 'accepted_but_not_implemented',
-        message: 'add_parcel_to_forward_container is not implemented yet; job JSON API is validated and accepted.',
-        state: await this.getStatus(),
-      };
-    }
-
-    const err = new Error(`Unsupported operation_type: ${job.operation_type}`);
-    err.code = 'UNSUPPORTED_OPERATION';
-    throw err;
   }
 
   async getStatus() {
@@ -284,6 +363,7 @@ class ForwardSessionWorker {
       current_container_id: this.currentContainerId,
       operation_profile: this.operationProfile,
       last_job: this.lastJob,
+      context_state: this.getContextState(),
       cookies,
       stop_reason: this.stopReason,
     };
@@ -320,7 +400,13 @@ class ForwardSessionWorker {
     await safeRm(userDataDir);
     await safeRm(runtimeHomeDir);
 
-    this.lastActivityAt = nowIso();
+
+    this.isRunningJob = false;
+    this.syncContextState({
+      status: 'idle',
+      session_status: 'stopped',
+      expected_next_action: reason === 'idle_timeout' ? 'start_session' : 'stopped',
+    });
 
     return {
       worker_id: this.workerId,
@@ -341,6 +427,7 @@ async function runCli() {
         'The worker starts a persistent browser/page session and accepts JSON commands over stdin.',
         'One JSON command per line, for example:',
         '  {"command":"status"}',
+        '  {"command":"context_state"}',
         '  {"command":"goto","url":"https://example.com"}',
         '  {"command":"validate_job","job":{"actor_id":"user_42_forward_x","operation_type":"add_parcel_to_forward_container","operation_profile":"continue_same_container","container_id":"CNT-001","payload":{"tracking":"123456789"}}}',
         '  {"command":"job","job":{"actor_id":"user_42_forward_x","operation_type":"noop","operation_profile":"continue_same_container","container_id":"CNT-001","payload":{}}}',
@@ -423,6 +510,9 @@ async function runCli() {
         } else if (command === 'status' || command === 'ping') {
           if (worker.isStarted()) worker.touch();
           result = await worker.getStatus();
+        } else if (command === 'context_state' || command === 'state') {
+          if (worker.isStarted()) worker.touch();
+          result = worker.getContextState();
         } else if (command === 'validate_job') {
           result = validateJob(message.job);
         } else if (command === 'job' || command === 'run_job') {
