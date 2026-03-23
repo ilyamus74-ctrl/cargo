@@ -121,7 +121,7 @@
 ---
 
 ### 4. Описать JSON API для jobs
-**Статус:** ⬜ не начато
+**Статус:** ✅ выполнено
 
 Минимальная форма job:
 
@@ -149,6 +149,12 @@
 
 - есть документированный формат входной job
 - worker умеет принимать и валидировать job
+
+
+Примечание:
+- в `www/scripts/forward_session_worker.js` добавлена валидация job через `validateJob(...)`
+- worker принимает команды stdin `validate_job` и `job`
+- минимальный JSON job зафиксирован в help/output и проверяется по полям `actor_id`, `operation_type`, `operation_profile`, `container_id`, `payload`
 
 ---
 

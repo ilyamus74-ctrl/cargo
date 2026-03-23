@@ -21,11 +21,54 @@ function parseJson(value, fallbackValue = {}) {
 }
 
 function nowIso() {
-  return new Date().toISOString()
+  return new Date().toISOString();
 }
 
 function makeWorkerId() {
   return `forward_worker_${Date.now()}_${process.pid}`;
+}
+
+function makeJobId() {
+  return `job_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function normalizeString(value) {
+  return String(value || '').trim();
+}
+
+function validateJob(rawJob) {
+  const source = rawJob && typeof rawJob === 'object' ? rawJob : {};
+  const payload = source.payload && typeof source.payload === 'object' && !Array.isArray(source.payload)
+    ? source.payload
+    : null;
+
+  const job = {
+    job_id: normalizeString(source.job_id) || makeJobId(),
+    actor_id: normalizeString(source.actor_id),
+    operation_type: normalizeString(source.operation_type),
+    operation_profile: normalizeString(source.operation_profile),
+    container_id: normalizeString(source.container_id),
+    payload: payload || {},
+  };
+
+  const invalidFields = [];
+  for (const field of ['actor_id', 'operation_type', 'operation_profile', 'container_id']) {
+    if (!job[field]) {
+      invalidFields.push(field);
+    }
+  }
+  if (!payload) {
+    invalidFields.push('payload');
+  }
+
+  if (invalidFields.length) {
+    const err = new Error(`Invalid job. Missing/invalid fields: ${invalidFields.join(', ')}`);
+    err.code = 'INVALID_JOB';
+    err.details = { invalid_fields: invalidFields };
+    throw err;
+  }
+
+  return job;
 }
 
 class ForwardSessionWorker {
@@ -45,6 +88,11 @@ class ForwardSessionWorker {
     this.lastActivityAt = '';
     this.stopReason = '';
     this.shutdownTimer = null;
+
+    this.actorId = '';
+    this.currentContainerId = '';
+    this.operationProfile = '';
+    this.lastJob = null;
     this.launchMeta = {
       product: this.browserProduct,
       executablePath: null,
@@ -52,7 +100,7 @@ class ForwardSessionWorker {
   }
 
   isStarted() {
-    return !!(this.browser && this.page)
+    return !!(this.browser && this.page);
   }
 
   touch() {
@@ -138,6 +186,83 @@ class ForwardSessionWorker {
     };
   }
 
+  async handleJob(jobInput) {
+    const job = validateJob(jobInput);
+
+    if (this.actorId && this.actorId !== job.actor_id) {
+      const err = new Error(`Worker ${this.workerId} is sticky to actor ${this.actorId}, got ${job.actor_id}`);
+      err.code = 'ACTOR_MISMATCH';
+      throw err;
+    }
+
+    if (!this.actorId) {
+      this.actorId = job.actor_id;
+    }
+
+    this.currentContainerId = job.container_id;
+    this.operationProfile = job.operation_profile;
+    this.lastJob = {
+      job_id: job.job_id,
+      actor_id: job.actor_id,
+      operation_type: job.operation_type,
+      operation_profile: job.operation_profile,
+      container_id: job.container_id,
+      accepted_at: nowIso(),
+    };
+
+    if (job.operation_type === 'noop' || job.operation_type === 'ping') {
+      if (!this.isStarted()) {
+        await this.start();
+      } else {
+        this.touch();
+      }
+
+      return {
+        ok: true,
+        job,
+        action: 'noop',
+        state: await this.getStatus(),
+      };
+    }
+
+    if (job.operation_type === 'navigate' || job.operation_type === 'goto_url') {
+      const url = normalizeString(job.payload.url);
+      if (!url) {
+        const err = new Error('navigate payload.url is required');
+        err.code = 'INVALID_JOB_PAYLOAD';
+        throw err;
+      }
+
+      const result = await this.goto(url, job.payload);
+      return {
+        ok: true,
+        job,
+        action: 'navigated',
+        result,
+        state: await this.getStatus(),
+      };
+    }
+
+    if (job.operation_type === 'add_parcel_to_forward_container') {
+      if (!this.isStarted()) {
+        await this.start();
+      } else {
+        this.touch();
+      }
+
+      return {
+        ok: false,
+        job,
+        action: 'accepted_but_not_implemented',
+        message: 'add_parcel_to_forward_container is not implemented yet; job JSON API is validated and accepted.',
+        state: await this.getStatus(),
+      };
+    }
+
+    const err = new Error(`Unsupported operation_type: ${job.operation_type}`);
+    err.code = 'UNSUPPORTED_OPERATION';
+    throw err;
+  }
 
   async getStatus() {
     const started = this.isStarted();
@@ -155,6 +280,10 @@ class ForwardSessionWorker {
       current_url: currentUrl,
       has_browser: !!this.browser,
       has_page: !!this.page,
+      actor_id: this.actorId,
+      current_container_id: this.currentContainerId,
+      operation_profile: this.operationProfile,
+      last_job: this.lastJob,
       cookies,
       stop_reason: this.stopReason,
     };
@@ -213,6 +342,8 @@ async function runCli() {
         'One JSON command per line, for example:',
         '  {"command":"status"}',
         '  {"command":"goto","url":"https://example.com"}',
+        '  {"command":"validate_job","job":{"actor_id":"user_42_forward_x","operation_type":"add_parcel_to_forward_container","operation_profile":"continue_same_container","container_id":"CNT-001","payload":{"tracking":"123456789"}}}',
+        '  {"command":"job","job":{"actor_id":"user_42_forward_x","operation_type":"noop","operation_profile":"continue_same_container","container_id":"CNT-001","payload":{}}}',
         '  {"command":"shutdown"}',
       ].join('\n') + '\n'
     );
@@ -292,6 +423,10 @@ async function runCli() {
         } else if (command === 'status' || command === 'ping') {
           if (worker.isStarted()) worker.touch();
           result = await worker.getStatus();
+        } else if (command === 'validate_job') {
+          result = validateJob(message.job);
+        } else if (command === 'job' || command === 'run_job') {
+          result = await worker.handleJob(message.job);
         } else if (command === 'goto') {
           result = await worker.goto(message.url, message);
         } else if (command === 'shutdown' || command === 'stop') {
@@ -333,5 +468,6 @@ if (require.main === module) {
 
 module.exports = {
   ForwardSessionWorker,
+  validateJob,
   runCli,
 };
