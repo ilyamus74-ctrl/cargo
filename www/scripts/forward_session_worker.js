@@ -1,400 +1,337 @@
 #!/usr/bin/env node
 'use strict';
 
-const fs = require('fs');
-const path = require('path');
 const readline = require('readline');
 const {
-  mkTempDir,
   buildLaunchPlans,
   launchBrowserWithFallback,
   createPageWithWarmup,
+  serializePageCookies,
+  safeGoto,
+  mkTempDir,
   safeRm,
 } = require('./lib/connector_browser_core');
 
+function parseJson(value, fallbackValue = {}) {
+  try {
+    return JSON.parse(value);
+  } catch (_) {
+    return fallbackValue;
+  }
+}
+
 function nowIso() {
-  return new Date().toISOString();
+  return new Date().toISOString()
 }
 
-function emit(message) {
-  process.stdout.write(JSON.stringify(message) + '\n');
-}
-
-function normalizeString(value) {
-  return String(value || '').trim();
-}
-
-function validateJob(rawJob) {
-  const job = rawJob && typeof rawJob === 'object' ? rawJob : {};
-  const payload = job.payload && typeof job.payload === 'object' ? job.payload : {};
-
-  const normalized = {
-    job_id: normalizeString(job.job_id) || `job_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-    actor_id: normalizeString(job.actor_id),
-    operation_type: normalizeString(job.operation_type),
-    operation_profile: normalizeString(job.operation_profile),
-    container_id: normalizeString(job.container_id),
-    payload,
-  };
-
-  const missing = [];
-  for (const key of ['actor_id', 'operation_type', 'operation_profile', 'container_id']) {
-    if (!normalized[key]) missing.push(key);
-  }
-  if (typeof normalized.payload !== 'object' || Array.isArray(normalized.payload)) {
-    missing.push('payload');
-  }
-
-  if (missing.length) {
-    const err = new Error(`Invalid job. Missing/invalid fields: ${missing.join(', ')}`);
-    err.code = 'INVALID_JOB';
-    throw err;
-  }
-
-  return normalized;
+function makeWorkerId() {
+  return `forward_worker_${Date.now()}_${process.pid}`;
 }
 
 class ForwardSessionWorker {
-  constructor(options = {}) {
-    this.workerId = normalizeString(options.workerId) || `fw_worker_${process.pid}`;
-    this.tempDirBase = normalizeString(options.tempDir);
-    this.browserProduct = normalizeString(options.browserProduct || 'auto') || 'auto';
-    this.idleTimeoutMs = Math.max(1000, Number(options.idleTimeoutMs || 10 * 60 * 1000));
-    this.startUrl = normalizeString(options.startUrl);
+  constructor(payload = {}) {
+    this.payload = payload && typeof payload === 'object' ? payload : {};
+    this.workerId = String(this.payload.worker_id || makeWorkerId());
+    this.browserProduct = String(this.payload.browser_product || this.payload.browser || 'auto').toLowerCase();
+    this.sslIgnore = !!this.payload.ssl_ignore;
+    this.tempDirBase = typeof this.payload.temp_dir === 'string' ? this.payload.temp_dir.trim() : '';
+    this.idleTimeoutMs = Math.max(0, Number(this.payload.idle_timeout_ms ?? 0));
     this.browser = null;
     this.page = null;
     this.userDataDir = '';
     this.runtimeHomeDir = '';
-    this.actorId = '';
-    this.currentJob = null;
-    this.queue = [];
-    this.isProcessing = false;
-    this.idleTimer = null;
-    this.sessionStatus = 'cold';
-    this.state = {
-      worker_id: this.workerId,
-      actor_id: '',
-      status: 'idle',
-      session_status: 'cold',
-      current_container_id: '',
-      operation_profile: '',
-      expected_next_action: 'start_session',
-      awaiting_popup: false,
-      awaiting_label: false,
-      last_activity_at: nowIso(),
-      last_job_id: '',
-      last_operation_type: '',
-      last_error: '',
-      queue_size: 0,
+
+    this.startedAt = '';
+    this.lastActivityAt = '';
+    this.stopReason = '';
+    this.shutdownTimer = null;
+    this.launchMeta = {
+      product: this.browserProduct,
+      executablePath: null,
     };
   }
 
-  snapshotState(extra = {}) {
-    return {
-      ...this.state,
-      session_status: this.sessionStatus,
-      actor_id: this.actorId,
-      status: this.currentJob ? 'busy' : 'idle',
-      queue_size: this.queue.length,
-      last_activity_at: nowIso(),
-      ...extra,
-    };
+  isStarted() {
+    return !!(this.browser && this.page)
   }
 
-  touchState(patch = {}) {
-    this.state = {
-      ...this.state,
-      ...patch,
-      worker_id: this.workerId,
-      actor_id: patch.actor_id ?? this.actorId,
-      session_status: patch.session_status ?? this.sessionStatus,
-      status: this.currentJob ? 'busy' : (patch.status || 'idle'),
-      queue_size: patch.queue_size ?? this.queue.length,
-      last_activity_at: nowIso(),
-    };
+  touch() {
+    this.lastActivityAt = nowIso();
+    this.refreshIdleTimer();
   }
 
-  scheduleIdleTimeout() {
-    if (this.idleTimer) {
-      clearTimeout(this.idleTimer);
-      this.idleTimer = null;
+
+  refreshIdleTimer() {
+    if (this.shutdownTimer) {
+      clearTimeout(this.shutdownTimer);
+      this.shutdownTimer = null;
     }
-    if (this.currentJob || this.queue.length > 0) return;
-    this.idleTimer = setTimeout(async () => {
+
+    if (!this.idleTimeoutMs || !this.isStarted()) {
+      return;
+    }
+    this.shutdownTimer = setTimeout(async () => {
       try {
-        await this.shutdown('idle_timeout');
-        emit({ ok: true, event: 'worker_idle_shutdown', worker_id: this.workerId, state: this.snapshotState({ status: 'idle' }) });
+        await this.stop('idle_timeout');
+        this.emitEvent({ event: 'idle_timeout', worker_id: this.workerId, stopped_at: nowIso() });
       } catch (err) {
-        emit({ ok: false, event: 'worker_idle_shutdown_failed', worker_id: this.workerId, message: err.message || String(err) });
+        this.emitEvent({
+          event: 'idle_timeout_error',
+          worker_id: this.workerId,
+          stopped_at: nowIso(),
+          error: err?.message || String(err),
+        });
       }
     }, this.idleTimeoutMs);
-    if (typeof this.idleTimer.unref === 'function') {
-      this.idleTimer.unref();
+    if (typeof this.shutdownTimer.unref === 'function') {
+      this.shutdownTimer.unref();
     }
   }
 
-  async ensureSession(job) {
-    if (this.browser && this.page) {
-      this.sessionStatus = 'ready';
-      this.touchState({ actor_id: this.actorId, session_status: 'ready', expected_next_action: 'accept_job' });
-      return;
+  emitEvent(payload) {
+    process.stdout.write(JSON.stringify(payload) + '\n');
+  }
+
+  async start() {
+    if (this.isStarted()) {
+      this.touch();
+      return this.getStatus();
     }
 
     this.userDataDir = mkTempDir(this.tempDirBase, 'forward-worker-profile-');
     this.runtimeHomeDir = mkTempDir(this.tempDirBase, 'forward-worker-home-');
-    fs.mkdirSync(path.join(this.runtimeHomeDir, '.config'), { recursive: true });
-    fs.mkdirSync(path.join(this.runtimeHomeDir, '.cache'), { recursive: true });
-
-    const launched = await launchBrowserWithFallback(
-      buildLaunchPlans(this.browserProduct, this.userDataDir, this.runtimeHomeDir),
-      false
-    );
+    const launchPlans = buildLaunchPlans(this.browserProduct, this.userDataDir, this.runtimeHomeDir);
+    const launched = await launchBrowserWithFallback(launchPlans, this.sslIgnore);
     this.browser = launched.browser;
-    this.page = await createPageWithWarmup(this.browser, {
-      viewport: job.payload.viewport,
-      viewport_width: job.payload.viewport_width,
-      viewport_height: job.payload.viewport_height,
-      width: job.payload.width,
-      height: job.payload.height,
-      window_size: job.payload.window_size,
-    });
+    this.page = await createPageWithWarmup(this.browser, this.payload);
+    this.launchMeta = {
+      product: launched.product,
+      executablePath: launched.executablePath,
+    };
 
-    if (this.startUrl) {
-      await this.page.goto(this.startUrl, { waitUntil: 'domcontentloaded' });
-    }
+    this.startedAt = nowIso();
+    this.touch();
 
-    this.sessionStatus = 'ready';
-    this.touchState({
-      actor_id: this.actorId,
-      session_status: 'ready',
-      expected_next_action: 'accept_job',
-      status: 'idle',
-    });
+    return this.getStatus();
   }
 
-  async executeJob(job) {
-    if (this.actorId && this.actorId !== job.actor_id) {
-      const err = new Error(`Worker ${this.workerId} is sticky to actor ${this.actorId}, got ${job.actor_id}`);
-      err.code = 'ACTOR_MISMATCH';
-      throw err;
-    }
-    if (!this.actorId) {
-      this.actorId = job.actor_id;
+  async goto(url, options = {}) {
+    if (!this.isStarted()) {
+      await this.start();
     }
 
-    await this.ensureSession(job);
-    this.touchState({
-      actor_id: this.actorId,
-      status: 'busy',
-      current_container_id: job.container_id,
-      operation_profile: job.operation_profile,
-      expected_next_action: 'complete_job',
-      last_job_id: job.job_id,
-      last_operation_type: job.operation_type,
-      last_error: '',
+    const targetUrl = String(url || '').trim();
+    if (!targetUrl) {
+      throw new Error('goto.url is required');
+    }
+
+    await safeGoto(this.page, targetUrl, {
+      waitUntil: options.wait_until || 'domcontentloaded',
+      timeout: Number(options.timeout_ms || 60000),
     });
 
-    if (job.operation_type === 'navigate' || job.operation_type === 'goto_url') {
-      const url = normalizeString(job.payload.url);
-      if (!url) {
-        throw new Error('navigate payload.url is required');
-      }
-      await this.page.goto(url, { waitUntil: job.payload.wait_until || 'domcontentloaded' });
-      this.touchState({ expected_next_action: 'accept_job' });
-      return {
-        ok: true,
-        job_id: job.job_id,
-        worker_id: this.workerId,
-        action: 'navigated',
-        url,
-      };
-    }
+    this.touch();
 
-    if (job.operation_type === 'noop' || job.operation_type === 'ping') {
-      this.touchState({ expected_next_action: 'accept_job' });
-      return {
-        ok: true,
-        job_id: job.job_id,
-        worker_id: this.workerId,
-        action: 'noop',
-      };
-    }
-
-    if (job.operation_type === 'add_parcel_to_forward_container') {
-      this.touchState({ expected_next_action: 'forward_operation_not_implemented' });
-      return {
-        ok: false,
-        job_id: job.job_id,
-        worker_id: this.workerId,
-        message: 'add_parcel_to_forward_container is not implemented yet; worker/session lifecycle is ready.',
-      };
-    }
-
-    throw new Error(`Unsupported operation_type: ${job.operation_type}`);
+    return {
+      url: this.page.url(),
+      title: await this.page.title(),
+    };
   }
 
-  enqueue(jobInput) {
-    const job = validateJob(jobInput);
-    return new Promise((resolve) => {
-      this.queue.push({ job, resolve });
-      this.touchState({ queue_size: this.queue.length, expected_next_action: 'process_queue' });
-      this.scheduleIdleTimeout();
-      void this.processQueue();
-    });
+
+  async getStatus() {
+    const started = this.isStarted();
+    const currentUrl = started ? this.page.url() : '';
+    const cookies = started ? await serializePageCookies(this.page) : '';
+
+    return {
+      worker_id: this.workerId,
+      status: started ? 'ready' : 'stopped',
+      browser_product: this.launchMeta.product,
+      executable_path: this.launchMeta.executablePath,
+      started_at: this.startedAt,
+      last_activity_at: this.lastActivityAt,
+      idle_timeout_ms: this.idleTimeoutMs,
+      current_url: currentUrl,
+      has_browser: !!this.browser,
+      has_page: !!this.page,
+      cookies,
+      stop_reason: this.stopReason,
+    };
   }
 
-  async processQueue() {
-    if (this.isProcessing) return;
-    this.isProcessing = true;
+  async stop(reason = 'shutdown') {
+    this.stopReason = reason;
 
-    while (this.queue.length > 0) {
-      const item = this.queue.shift();
-      if (!item) continue;
-      const { job, resolve } = item;
-      this.currentJob = job;
-      let response;
-      try {
-        response = await this.executeJob(job);
-      } catch (err) {
-        const message = err?.message || String(err);
-        this.touchState({ last_error: message, expected_next_action: 'accept_job' });
-        response = {
-          ok: false,
-          job_id: job.job_id,
-          worker_id: this.workerId,
-          message,
-          code: err?.code || undefined,
-        };
-      } finally {
-        this.currentJob = null;
-        this.touchState({ status: 'idle', queue_size: this.queue.length });
-      }
-      resolve({ ...response, state: this.snapshotState() });
+    if (this.shutdownTimer) {
+      clearTimeout(this.shutdownTimer);
+      this.shutdownTimer = null;
     }
 
-    this.isProcessing = false;
-    this.scheduleIdleTimeout();
-  }
-
-  async shutdown(reason = 'shutdown') {
-    if (this.idleTimer) {
-      clearTimeout(this.idleTimer);
-      this.idleTimer = null;
-    }
-    if (this.browser) {
-      try {
-        await this.browser.close();
-      } catch (_) {
-        // ignore shutdown errors
-      }
-    }
-    this.browser = null;
+    const page = this.page;
+    const browser = this.browser;
     this.page = null;
-    await safeRm(this.userDataDir);
-    await safeRm(this.runtimeHomeDir);
+    this.browser = null;
+    if (page) {
+      try {
+        await page.close();
+      } catch (_) {}
+    }
+
+    if (browser) {
+      try {
+
+        await browser.close();
+      } catch (_) {}
+    }
+    const userDataDir = this.userDataDir;
+    const runtimeHomeDir = this.runtimeHomeDir;
     this.userDataDir = '';
     this.runtimeHomeDir = '';
-    this.sessionStatus = 'closed';
-    this.touchState({
-      status: 'idle',
-      session_status: 'closed',
-      expected_next_action: reason === 'idle_timeout' ? 'start_session' : 'stopped',
-      queue_size: this.queue.length,
-    });
+    await safeRm(userDataDir);
+    await safeRm(runtimeHomeDir);
+
+    this.lastActivityAt = nowIso();
+
+    return {
+      worker_id: this.workerId,
+      status: 'stopped',
+      stopped_at: this.lastActivityAt,
+      stop_reason: this.stopReason,
+    };
   }
 }
 
-function parseCliArgs(argv) {
-  const options = {};
-  for (let i = 0; i < argv.length; i += 1) {
-    const part = argv[i];
-    if (part === '--worker-id') options.workerId = argv[i + 1];
-    if (part === '--temp-dir') options.tempDir = argv[i + 1];
-    if (part === '--browser' || part === '--browser-product') options.browserProduct = argv[i + 1];
-    if (part === '--start-url') options.startUrl = argv[i + 1];
-    if (part === '--idle-timeout-ms') options.idleTimeoutMs = Number(argv[i + 1] || 0);
-  }
-  return options;
-}
-
-async function main() {
+async function runCli() {
   const args = process.argv.slice(2);
-  if (args.includes('--help') || args.includes('-h')) {
-    process.stdout.write([
-      'Usage: node forward_session_worker.js [--worker-id fw_worker_01] [--idle-timeout-ms 600000]',
-      'JSON line protocol over stdin:',
-      '  {"command":"enqueue","job":{...}}',
-      '  {"command":"get_state"}',
-      '  {"command":"shutdown"}',
-    ].join('\n') + '\n');
-    process.exit(0);
+  if (args[0] === '--help' || args[0] === '-h') {
+    process.stdout.write(
+      [
+        'Usage: node forward_session_worker.js "{...json payload...}"',
+        '',
+        'The worker starts a persistent browser/page session and accepts JSON commands over stdin.',
+        'One JSON command per line, for example:',
+        '  {"command":"status"}',
+        '  {"command":"goto","url":"https://example.com"}',
+        '  {"command":"shutdown"}',
+      ].join('\n') + '\n'
+    );
+    return;
   }
 
-  const worker = new ForwardSessionWorker(parseCliArgs(args));
-  emit({ ok: true, event: 'worker_started', worker_id: worker.workerId, state: worker.snapshotState() });
+  const payload = parseJson(args[0] || '{}', null);
+  if (!payload) {
+    process.stdout.write(JSON.stringify({ ok: false, error: 'Invalid JSON payload' }) + '\n');
+    process.exitCode = 1;
+    return;
+  }
 
-  const rl = readline.createInterface({ input: process.stdin, crlfDelay: Infinity });
+  const worker = new ForwardSessionWorker(payload);
   let commandChain = Promise.resolve();
-  let closedByCommand = false;
+  let closing = false;
 
-  async function handleLine(line) {
-    const raw = String(line || '').trim();
-    if (!raw) return;
 
-    let message;
+  const handleShutdown = async (reason) => {
+    if (closing) return;
+    closing = true;
     try {
-      message = JSON.parse(raw);
-    } catch (_) {
-      emit({ ok: false, event: 'invalid_json', message: 'Input line is not valid JSON' });
-      return;
+      const result = await worker.stop(reason);
+      process.stdout.write(JSON.stringify({ ok: true, event: 'shutdown', result }) + '\n');
+    } catch (err) {
+      process.stdout.write(JSON.stringify({ ok: false, event: 'shutdown', error: err?.message || String(err) }) + '\n');
+      process.exitCode = 1;
+    }
+  };
+
+
+  process.on('SIGINT', () => {
+    void handleShutdown('sigint').finally(() => process.exit());
+  });
+  process.on('SIGTERM', () => {
+    void handleShutdown('sigterm').finally(() => process.exit());
+  });
+
+
+  try {
+    if (payload.autostart !== false) {
+      const result = await worker.start();
+      process.stdout.write(JSON.stringify({ ok: true, event: 'started', result }) + '\n');
+    } else {
+      process.stdout.write(JSON.stringify({ ok: true, event: 'ready', result: await worker.getStatus() }) + '\n');
     }
 
-    const command = normalizeString(message.command || 'enqueue') || 'enqueue';
-
-    if (command === 'get_state') {
-      emit({ ok: true, event: 'state', worker_id: worker.workerId, state: worker.snapshotState() });
-      return;
-    }
-
-    if (command === 'shutdown') {
-      closedByCommand = true;
-      await worker.shutdown('shutdown');
-      emit({ ok: true, event: 'worker_stopped', worker_id: worker.workerId, state: worker.snapshotState() });
-      rl.close();
-      return;
-    }
-
-    if (command === 'enqueue') {
-      try {
-        const result = await worker.enqueue(message.job);
-        emit({ event: 'job_result', ...result });
-      } catch (err) {
-        emit({ ok: false, event: 'enqueue_failed', message: err?.message || String(err), code: err?.code || undefined });
-      }
-      return;
-    }
-
-    emit({ ok: false, event: 'unknown_command', message: `Unknown command: ${command}` });
+  } catch (err) {
+    process.stdout.write(JSON.stringify({ ok: false, event: 'start_failed', error: err?.message || String(err) }) + '\n');
+    process.exitCode = 1;
+    return;
   }
+  const rl = readline.createInterface({
+    input: process.stdin,
+    crlfDelay: Infinity,
+  });
 
   rl.on('line', (line) => {
-    commandChain = commandChain
-      .then(() => handleLine(line))
-      .catch((err) => {
-        emit({ ok: false, event: 'command_failed', message: err?.message || String(err) });
-      });
+    const trimmed = String(line || '').trim();
+    if (!trimmed) return;
+
+    commandChain = commandChain.then(async () => {
+      const message = parseJson(trimmed, null);
+      if (!message || typeof message !== 'object') {
+        process.stdout.write(JSON.stringify({ ok: false, error: 'Invalid command JSON' }) + '\n');
+        return;
+      }
+
+      const requestId = message.request_id ?? null;
+      const command = String(message.command || '').trim().toLowerCase();
+
+
+      try {
+        let result;
+        if (command === 'start') {
+          result = await worker.start();
+        } else if (command === 'status' || command === 'ping') {
+          if (worker.isStarted()) worker.touch();
+          result = await worker.getStatus();
+        } else if (command === 'goto') {
+          result = await worker.goto(message.url, message);
+        } else if (command === 'shutdown' || command === 'stop') {
+          result = await worker.stop(command);
+          closing = true;
+          rl.close();
+        } else {
+          throw new Error(`Unsupported command: ${command || '<empty>'}`);
+        }
+
+        process.stdout.write(JSON.stringify({ ok: true, request_id: requestId, command, result }) + '\n');
+
+        if (closing) {
+          process.exit(0);
+        }
+      } catch (err) {
+        process.stdout.write(JSON.stringify({ ok: false, request_id: requestId, command, error: err?.message || String(err) }) + '\n');
+      }
+    });
   });
 
-  rl.on('close', async () => {
-    await commandChain;
-    if (!closedByCommand) {
-      await worker.shutdown('stdin_closed');
+
+  rl.on('close', () => {
+    if (!closing) {
+      commandChain = commandChain.finally(async () => {
+        await handleShutdown('stdin_closed');
+        process.exit();
+      });
     }
   });
 }
 
-main().catch((err) => {
-  emit({ ok: false, event: 'fatal', message: err?.message || String(err) });
-  process.exit(1);
-});
+if (require.main === module) {
+  runCli().catch(async (err) => {
+    process.stdout.write(JSON.stringify({ ok: false, error: err?.message || String(err) }) + '\n');
+    process.exitCode = 1;
+  });
+}
 
+module.exports = {
+  ForwardSessionWorker,
+  runCli,
+};

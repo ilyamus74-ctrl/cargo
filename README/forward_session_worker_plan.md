@@ -95,7 +95,7 @@
 ---
 
 ### 3. Создать новый persistent worker
-**Статус:** ⬜ не начато
+**Статус:** ✅ выполнено
 
 Предлагаемый файл:
 
@@ -114,6 +114,10 @@
 - worker держит browser/page в памяти
 - worker не завершает session после одной job
 
+Примечание:
+- создан `www/scripts/forward_session_worker.js`
+- worker поднимает persistent browser/page session и держит её между командами stdin
+- добавлены базовые команды `start`, `status`, `goto`, `shutdown` для проверки жизненного цикла session
 ---
 
 ### 4. Описать JSON API для jobs
