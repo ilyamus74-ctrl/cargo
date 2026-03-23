@@ -315,6 +315,54 @@ test('add_parcel_to_forward_container performs first real browser operation and 
   assert.equal(result.state.context_state.expected_next_action, 'fill_tracking');
   assert.equal(result.state.context_state.can_continue_without_reset, true);
   assert.equal(result.state.context_state.awaiting_popup, false);
+  assert.equal(result.state.capabilities.pooling_ready, true);
+  assert.equal(result.state.capabilities.shared_account_scheduler_ready, true);
+  assert.equal(result.state.capabilities.popup_label_print_pipeline_ready, true);
+  assert.equal(result.state.capabilities.ocr_scanner_handoff_ready, true);
+  assert.equal(result.state.future_extension_state.scheduler.account_session_key, 'user_42_forward_x');
+  assert.equal(result.state.future_extension_state.pipeline.stage, 'ready_for_next_parcel');
+  assert.deepEqual(result.state.future_extension_state.pipeline.pending_artifacts, []);
+  assert.equal(result.state.future_extension_state.integrations.label_pipeline_ready, false);
+});
+
+test('future extension state tracks pending popup/approval/label artifacts for next-stage pipelines', async () => {
+  const worker = new ForwardSessionWorker({ worker_id: 'fw_worker_future', autostart: false });
+  const page = await seedStartedWorker(worker, 'https://forward.example/form');
+  page.setVisibleSelectors([
+    '#container-input',
+    '#tracking-input',
+    '#submit-button',
+  ]);
+
+  const result = await worker.handleJob({
+    actor_id: 'user_42_forward_x',
+    operation_type: 'add_parcel_to_forward_container',
+    operation_profile: 'continue_same_container',
+    container_id: 'CNT-001',
+    payload: {
+      tracking: 'TRACK-FUTURE-001',
+      awaiting_popup: true,
+      awaiting_approval: true,
+      awaiting_label: true,
+      selectors: {
+        container_input: '#container-input',
+        container_option_selector: '.container-option',
+        tracking_input: '#tracking-input',
+        submit_button: '#submit-button',
+      },
+    },
+  });
+
+  assert.equal(result.ok, false);
+  assert.equal(result.action, 'parcel_submitted_pending_ui');
+  assert.equal(result.state.future_extension_state.pipeline.stage, 'awaiting_post_submit_artifacts');
+  assert.deepEqual(
+    result.state.future_extension_state.pipeline.pending_artifacts,
+    ['popup', 'approval', 'label']
+  );
+  assert.equal(result.state.future_extension_state.pipeline.handoff_ready, true);
+  assert.equal(result.state.future_extension_state.integrations.ocr_scanner_handoff_ready, true);
+  assert.equal(result.state.future_extension_state.integrations.label_pipeline_ready, true);
 });
 
 test('context_state remains available after stop and transitions to stopped state', async () => {

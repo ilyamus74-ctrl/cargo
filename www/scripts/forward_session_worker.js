@@ -46,6 +46,12 @@ function isNonArrayObject(value) {
   return !!value && typeof value === 'object' && !Array.isArray(value);
 }
 
+function uniqueStrings(values = []) {
+  return Array.from(new Set(
+    values.map((value) => normalizeString(value)).filter(Boolean)
+  ));
+}
+
 function normalizeSelectorList(value) {
   if (Array.isArray(value)) {
     return value.map((item) => normalizeString(item)).filter(Boolean);
@@ -296,6 +302,7 @@ class ForwardSessionWorker {
       executablePath: null,
     };
     this.contextState = this.createContextState();
+    this.futureExtensionState = this.createFutureExtensionState();
   }
 
   isStarted() {
@@ -324,6 +331,143 @@ class ForwardSessionWorker {
       last_activity_at: nowIso(),
     };
   }
+
+  createFutureExtensionState() {
+    return {
+      version: 1,
+      binding_strategy: 'sticky_actor_worker',
+      scheduler: {
+        mode: 'dedicated_actor_worker',
+        account_session_key: '',
+        pooling_candidate: false,
+        shared_account_candidate: false,
+      },
+      pipeline: {
+        stage: 'idle',
+        pending_artifacts: [],
+        last_event: 'session_not_started',
+        handoff_ready: false,
+      },
+      integrations: {
+        ocr_scanner_handoff_ready: false,
+        label_pipeline_ready: false,
+      },
+      supported_operation_types: [
+        'noop',
+        'ping',
+        'navigate',
+        'goto_url',
+        'add_parcel_to_forward_container',
+      ],
+      last_activity_at: nowIso(),
+    };
+  }
+
+  getCapabilities() {
+    return {
+      worker_model: 'persistent_session_worker',
+      actor_binding: 'sticky_actor_worker',
+      queue_mode: 'serial_per_worker',
+      idle_timeout: this.idleTimeoutMs > 0,
+      persistent_session: true,
+      pooling_ready: true,
+      shared_account_scheduler_ready: true,
+      popup_label_print_pipeline_ready: true,
+      ocr_scanner_handoff_ready: true,
+      supported_operation_types: this.futureExtensionState.supported_operation_types.slice(),
+    };
+  }
+
+  syncFutureExtensionState(patch = {}) {
+    const nextState = isNonArrayObject(patch) ? patch : {};
+    const currentScheduler = isNonArrayObject(this.futureExtensionState?.scheduler)
+      ? this.futureExtensionState.scheduler
+      : {};
+    const currentPipeline = isNonArrayObject(this.futureExtensionState?.pipeline)
+      ? this.futureExtensionState.pipeline
+      : {};
+    const currentIntegrations = isNonArrayObject(this.futureExtensionState?.integrations)
+      ? this.futureExtensionState.integrations
+      : {};
+    const schedulerPatch = isNonArrayObject(nextState.scheduler) ? nextState.scheduler : {};
+    const pipelinePatch = isNonArrayObject(nextState.pipeline) ? nextState.pipeline : {};
+    const integrationsPatch = isNonArrayObject(nextState.integrations) ? nextState.integrations : {};
+    const supportedOperationTypes = Array.isArray(nextState.supported_operation_types)
+      ? uniqueStrings(nextState.supported_operation_types)
+      : this.futureExtensionState.supported_operation_types.slice();
+
+    this.futureExtensionState = {
+      ...this.futureExtensionState,
+      ...nextState,
+      scheduler: {
+        ...currentScheduler,
+        ...schedulerPatch,
+      },
+      pipeline: {
+        ...currentPipeline,
+        ...pipelinePatch,
+        pending_artifacts: Array.isArray(pipelinePatch.pending_artifacts)
+          ? uniqueStrings(pipelinePatch.pending_artifacts)
+          : currentPipeline.pending_artifacts.slice(),
+      },
+      integrations: {
+        ...currentIntegrations,
+        ...integrationsPatch,
+      },
+      supported_operation_types: supportedOperationTypes,
+      last_activity_at: nowIso(),
+    };
+    return this.futureExtensionState;
+  }
+
+  getFutureExtensionState() {
+    return {
+      ...this.futureExtensionState,
+      scheduler: {
+        ...this.futureExtensionState.scheduler,
+        account_session_key: this.futureExtensionState.scheduler.account_session_key || normalizeString(this.actorId),
+      },
+      pipeline: {
+        ...this.futureExtensionState.pipeline,
+        pending_artifacts: this.futureExtensionState.pipeline.pending_artifacts.slice(),
+      },
+      integrations: {
+        ...this.futureExtensionState.integrations,
+      },
+      supported_operation_types: this.futureExtensionState.supported_operation_types.slice(),
+      last_activity_at: this.lastActivityAt || this.futureExtensionState.last_activity_at,
+    };
+  }
+
+  updateFutureExtensionStateForForwardResult(job, details = {}) {
+    const pendingArtifacts = [];
+    if (details.awaiting_popup) {
+      pendingArtifacts.push('popup');
+    }
+    if (details.awaiting_approval) {
+      pendingArtifacts.push('approval');
+    }
+    if (details.awaiting_label) {
+      pendingArtifacts.push('label');
+    }
+
+    this.syncFutureExtensionState({
+      scheduler: {
+        account_session_key: normalizeString(job?.actor_id),
+        pooling_candidate: true,
+        shared_account_candidate: true,
+      },
+      pipeline: {
+        stage: pendingArtifacts.length > 0 ? 'awaiting_post_submit_artifacts' : 'ready_for_next_parcel',
+        pending_artifacts: pendingArtifacts,
+        last_event: details.looks_successful ? 'parcel_submitted' : 'parcel_submitted_pending_ui',
+        handoff_ready: pendingArtifacts.includes('label'),
+      },
+      integrations: {
+        ocr_scanner_handoff_ready: pendingArtifacts.includes('label'),
+        label_pipeline_ready: pendingArtifacts.includes('label'),
+      },
+    });
 
   buildForwardContinuationDecision(job, snapshot = {}) {
     const pendingUi = [];
@@ -683,6 +827,12 @@ class ForwardSessionWorker {
       awaiting_approval: awaitingApproval,
       awaiting_label: awaitingLabel,
     });
+    this.updateFutureExtensionStateForForwardResult(job, {
+      awaiting_popup: awaitingPopup,
+      awaiting_approval: awaitingApproval,
+      awaiting_label: awaitingLabel,
+      looks_successful: looksSuccessful,
+    });
 
     return {
       ok: looksSuccessful,
@@ -998,6 +1148,8 @@ class ForwardSessionWorker {
       last_job: this.lastJob,
       queue_state: this.getQueueState(),
       context_state: this.getContextState(),
+      capabilities: this.getCapabilities(),
+      future_extension_state: this.getFutureExtensionState(),
       cookies,
       stop_reason: this.stopReason,
     };
@@ -1009,10 +1161,19 @@ class ForwardSessionWorker {
     this.operationProfile = '';
     this.lastJob = null;
     this.contextState = this.createContextState();
+    this.futureExtensionState = this.createFutureExtensionState();
     this.syncContextState({
       session_status: 'stopped',
       expected_next_action: 'start_session',
       status: 'idle',
+    });
+    this.syncFutureExtensionState({
+      pipeline: {
+        stage: 'idle',
+        pending_artifacts: [],
+        last_event: 'idle_timeout',
+        handoff_ready: false,
+      },
     });
   }
 

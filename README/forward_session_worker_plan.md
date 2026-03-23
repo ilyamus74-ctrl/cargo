@@ -317,7 +317,7 @@ MVP-правило:
 ---
 
 ### 11. Подготовить почву для следующих этапов
-**Статус:** ⬜ не начато
+**Статус:** ✅ выполнено
 
 После MVP:
 
@@ -329,6 +329,12 @@ MVP-правило:
 Критерий завершения:
 
 - архитектура не мешает дальнейшему расширению
+
+Примечание:
+- пункт 10 повторно проверен тестами `www/scripts/test_forward_session_worker_state.js`: первая реальная операция `add_parcel_to_forward_container` по-прежнему выполняется через persistent session worker и сохраняет reusable context
+- в `www/scripts/forward_session_worker.js` добавлены `capabilities` и `future_extension_state` в `status`, чтобы server-side слой заранее видел, что worker уже совместим по контракту с будущими этапами pooling / shared account scheduler / popup-label-print pipeline / OCR handoff
+- `future_extension_state` нормализует `scheduler`, `pipeline`, `integrations` и список `supported_operation_types`, а после parcel submit сохраняет `pending_artifacts` (`popup`, `approval`, `label`) и признак готовности к handoff
+- сценарии расширяемости покрыты тестами: проверяется как базовый happy-path без pending UI, так и post-submit состояние с pending artifacts для следующего pipeline
 
 ---
 
