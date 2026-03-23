@@ -270,11 +270,11 @@ MVP-правило:
 - в `www/scripts/forward_session_worker.js` idle timeout переведен на реальный режим простоя: таймер ставится только когда worker started и очередь jobs пуста
 - при `idle_timeout` worker закрывает browser/page и очищает sticky session state (`actor_id`, контейнер, профиль операции, last_job, context state), чтобы следующий запрос требовал новый startup/login flow
 - сценарий самозавершения после простоя покрыт тестом в `www/scripts/test_forward_session_worker_state.js`
-
+- пункт 8 повторно проверен тестами после добавления context tracking: idle timeout по-прежнему останавливает worker и сбрасывает sticky session state
 ---
 
 ### 9. Добавить context tracking для формы форварда
-**Статус:** ⬜ не начато
+**Статус:** ✅ выполнено
 
 Минимально нужно уметь помнить:
 
@@ -287,6 +287,10 @@ MVP-правило:
 
 - worker принимает решение “можно продолжать” или “нужен reset/switch”
 
+Примечание:
+- в `www/scripts/forward_session_worker.js` добавлено решение `continuation_decision` для `add_parcel_to_forward_container`, которое различает режимы `continue_same_container`, `select_container`, `switch_container`, `reset_form`, `reset_form_and_switch_container`, `resolve_pending_ui`
+- worker теперь хранит в `context_state` признаки `pending_container_id`, `can_continue_without_reset`, `requires_reset`, `requires_container_switch`, а также ожидание `popup / approval / label`
+- логика выбора “можно продолжать” vs “нужен reset/switch” покрыта тестами в `www/scripts/test_forward_session_worker_state.js`
 ---
 
 ### 10. Реализовать первую операцию по посылке к форварду

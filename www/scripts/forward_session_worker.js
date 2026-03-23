@@ -36,6 +36,10 @@ function normalizeString(value) {
   return String(value || '').trim();
 }
 
+function joinReasonParts(parts) {
+  return parts.filter(Boolean).join('_and_');
+}
+
 function validateActorId(actorId) {
   const normalized = normalizeString(actorId);
   if (!normalized) {
@@ -288,14 +292,113 @@ class ForwardSessionWorker {
       status: 'idle',
       session_status: 'cold',
       current_container_id: '',
+      pending_container_id: '',
       operation_profile: '',
       expected_next_action: 'start_session',
       awaiting_popup: false,
+      awaiting_approval: false,
       awaiting_label: false,
+      can_continue_without_reset: false,
+      requires_reset: false,
+      requires_container_switch: false,
+      continuation_action: 'start_session',
+      continuation_reason: 'session_not_started',
       last_activity_at: nowIso(),
     };
   }
 
+  buildForwardContinuationDecision(job, snapshot = {}) {
+    const pendingUi = [];
+    if (snapshot.awaiting_popup) {
+      pendingUi.push('popup');
+    }
+    if (snapshot.awaiting_approval) {
+      pendingUi.push('approval');
+    }
+    if (snapshot.awaiting_label) {
+      pendingUi.push('label');
+    }
+
+    if (!snapshot.is_started) {
+      return {
+        can_continue_without_reset: false,
+        requires_reset: false,
+        requires_container_switch: false,
+        continuation_action: 'start_session',
+        continuation_reason: 'session_not_started',
+        pending_container_id: normalizeString(job?.container_id),
+      };
+    }
+
+    if (pendingUi.length) {
+      return {
+        can_continue_without_reset: false,
+        requires_reset: false,
+        requires_container_switch: false,
+        continuation_action: 'resolve_pending_ui',
+        continuation_reason: `awaiting_${joinReasonParts(pendingUi)}`,
+        pending_container_id: normalizeString(job?.container_id),
+      };
+    }
+
+    const nextContainerId = normalizeString(job?.container_id);
+    const currentContainerId = normalizeString(snapshot.current_container_id);
+    const currentOperationProfile = normalizeString(snapshot.operation_profile);
+    const hasCurrentContainer = !!currentContainerId;
+    const requiresContainerSwitch = hasCurrentContainer && currentContainerId !== nextContainerId;
+    const requiresReset = !!currentOperationProfile && currentOperationProfile !== normalizeString(job?.operation_profile);
+
+    if (!hasCurrentContainer) {
+      return {
+        can_continue_without_reset: false,
+        requires_reset: requiresReset,
+        requires_container_switch: true,
+        continuation_action: 'select_container',
+        continuation_reason: 'container_not_selected',
+        pending_container_id: nextContainerId,
+      };
+    }
+
+    if (requiresReset || requiresContainerSwitch) {
+      const reason = [];
+      if (requiresReset) {
+        reason.push('operation_profile_changed');
+      }
+      if (requiresContainerSwitch) {
+        reason.push('container_changed');
+      }
+
+      return {
+        can_continue_without_reset: false,
+        requires_reset: requiresReset,
+        requires_container_switch: requiresContainerSwitch,
+        continuation_action: requiresReset && requiresContainerSwitch
+          ? 'reset_form_and_switch_container'
+          : (requiresReset ? 'reset_form' : 'switch_container'),
+        continuation_reason: joinReasonParts(reason),
+        pending_container_id: nextContainerId,
+      };
+    }
+
+    return {
+      can_continue_without_reset: true,
+      requires_reset: false,
+      requires_container_switch: false,
+      continuation_action: 'continue_same_container',
+      continuation_reason: 'context_matches',
+      pending_container_id: '',
+    };
+  }
+
+  getExpectedNextActionForForwardDecision(decision) {
+    if (!decision || typeof decision !== 'object') {
+      return 'accept_job';
+    }
+    if (decision.can_continue_without_reset) {
+      return 'fill_tracking';
+    }
+    return decision.continuation_action || 'accept_job';
+  }
 
   syncContextState(patch = {}) {
     const sessionStatus = this.isStarted() ? 'ready' : (this.stopReason ? 'stopped' : 'cold');
@@ -435,6 +538,22 @@ class ForwardSessionWorker {
       this.actorId = job.actor_id;
     }
 
+    let continuationDecision = null;
+    if (job.operation_type === 'add_parcel_to_forward_container' && !this.isStarted()) {
+      await this.start();
+    }
+
+    if (job.operation_type === 'add_parcel_to_forward_container') {
+      continuationDecision = this.buildForwardContinuationDecision(job, {
+        is_started: this.isStarted(),
+        current_container_id: this.currentContainerId,
+        operation_profile: this.operationProfile,
+        awaiting_popup: this.contextState.awaiting_popup,
+        awaiting_approval: this.contextState.awaiting_approval,
+        awaiting_label: this.contextState.awaiting_label,
+      });
+    }
+
     this.currentContainerId = job.container_id;
     this.operationProfile = job.operation_profile;
     this.lastJob = {
@@ -455,6 +574,7 @@ class ForwardSessionWorker {
       operation_profile: this.operationProfile,
       expected_next_action: 'complete_job',
       awaiting_popup: !!job.payload.awaiting_popup,
+      awaiting_approval: !!job.payload.awaiting_approval,
       awaiting_label: !!job.payload.awaiting_label,
     });
 
@@ -496,16 +616,26 @@ class ForwardSessionWorker {
 
 
       if (job.operation_type === 'add_parcel_to_forward_container') {
-        if (!this.isStarted()) {
-          await this.start();
-        }
-        this.touch({ expected_next_action: 'fill_tracking' });
+
+        this.touch({
+          expected_next_action: this.getExpectedNextActionForForwardDecision(continuationDecision),
+          pending_container_id: continuationDecision.pending_container_id,
+          can_continue_without_reset: continuationDecision.can_continue_without_reset,
+          requires_reset: continuationDecision.requires_reset,
+          requires_container_switch: continuationDecision.requires_container_switch,
+          continuation_action: continuationDecision.continuation_action,
+          continuation_reason: continuationDecision.continuation_reason,
+          awaiting_popup: !!job.payload.awaiting_popup,
+          awaiting_approval: !!job.payload.awaiting_approval,
+          awaiting_label: !!job.payload.awaiting_label,
+        });
 
         return {
           ok: false,
           job,
           action: 'accepted_but_not_implemented',
           message: 'add_parcel_to_forward_container is not implemented yet; job JSON API is validated and accepted.',
+          continuation_decision: continuationDecision,
           state: await this.getStatus(),
         };
       }

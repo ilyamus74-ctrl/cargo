@@ -60,7 +60,7 @@ test('validateJob keeps item 4 contract for required JSON API fields', () => {
   assert.match(job.job_id, /^job_/);
 });
 
-test('context state tracks actor/container/profile and next action for forward jobs', async () => {
+test('forward context marks first parcel as needing container selection before continuing', async () => {
   const worker = new ForwardSessionWorker({ worker_id: 'fw_worker_01', autostart: false });
   await seedStartedWorker(worker);
 
@@ -74,19 +74,120 @@ test('context state tracks actor/container/profile and next action for forward j
 
   assert.equal(result.ok, false);
   assert.equal(result.action, 'accepted_but_not_implemented');
+
+  assert.deepEqual(result.continuation_decision, {
+    can_continue_without_reset: false,
+    requires_reset: false,
+    requires_container_switch: true,
+    continuation_action: 'select_container',
+    continuation_reason: 'container_not_selected',
+    pending_container_id: 'CNT-001',
+  });
   assert.equal(result.state.context_state.worker_id, 'fw_worker_01');
   assert.equal(result.state.context_state.actor_id, 'user_42_forward_x');
   assert.equal(result.state.context_state.current_container_id, 'CNT-001');
+  assert.equal(result.state.context_state.pending_container_id, 'CNT-001');
   assert.equal(result.state.context_state.operation_profile, 'continue_same_container');
   assert.equal(result.state.context_state.session_status, 'ready');
-  assert.equal(result.state.context_state.expected_next_action, 'fill_tracking');
+  assert.equal(result.state.context_state.expected_next_action, 'select_container');
+  assert.equal(result.state.context_state.can_continue_without_reset, false);
+  assert.equal(result.state.context_state.requires_container_switch, true);
   assert.equal(result.state.context_state.awaiting_popup, true);
+  assert.equal(result.state.context_state.awaiting_approval, false);
   assert.equal(result.state.context_state.awaiting_label, true);
 
   const status = await worker.getStatus();
-  assert.equal(status.context_state.expected_next_action, 'fill_tracking');
+  assert.equal(status.context_state.expected_next_action, 'select_container');
   assert.equal(status.context_state.status, 'idle');
   assert.equal(status.cookies, 'sid=123');
+});
+
+
+test('forward context can continue on same container and requests reset/switch when context diverges', async () => {
+  const worker = new ForwardSessionWorker({ worker_id: 'fw_worker_ctx', autostart: false });
+  await seedStartedWorker(worker);
+
+  await worker.handleJob({
+    actor_id: 'user_42_forward_x',
+    operation_type: 'add_parcel_to_forward_container',
+    operation_profile: 'continue_same_container',
+    container_id: 'CNT-001',
+    payload: {},
+  });
+
+  const continued = await worker.handleJob({
+    actor_id: 'user_42_forward_x',
+    operation_type: 'add_parcel_to_forward_container',
+    operation_profile: 'continue_same_container',
+    container_id: 'CNT-001',
+    payload: {},
+  });
+  assert.deepEqual(continued.continuation_decision, {
+    can_continue_without_reset: true,
+    requires_reset: false,
+    requires_container_switch: false,
+    continuation_action: 'continue_same_container',
+    continuation_reason: 'context_matches',
+    pending_container_id: '',
+  });
+  assert.equal(continued.state.context_state.expected_next_action, 'fill_tracking');
+  assert.equal(continued.state.context_state.can_continue_without_reset, true);
+
+  const switched = await worker.handleJob({
+    actor_id: 'user_42_forward_x',
+    operation_type: 'add_parcel_to_forward_container',
+    operation_profile: 'reset_before_container_change',
+    container_id: 'CNT-002',
+    payload: {},
+  });
+  assert.deepEqual(switched.continuation_decision, {
+    can_continue_without_reset: false,
+    requires_reset: true,
+    requires_container_switch: true,
+    continuation_action: 'reset_form_and_switch_container',
+    continuation_reason: 'operation_profile_changed_and_container_changed',
+    pending_container_id: 'CNT-002',
+  });
+  assert.equal(switched.state.context_state.expected_next_action, 'reset_form_and_switch_container');
+  assert.equal(switched.state.context_state.requires_reset, true);
+  assert.equal(switched.state.context_state.requires_container_switch, true);
+  assert.equal(switched.state.context_state.pending_container_id, 'CNT-002');
+});
+
+test('forward context blocks continuation while popup/approval/label is still pending', async () => {
+  const worker = new ForwardSessionWorker({ worker_id: 'fw_worker_pending', autostart: false });
+  await seedStartedWorker(worker);
+
+  await worker.handleJob({
+    actor_id: 'user_42_forward_x',
+    operation_type: 'add_parcel_to_forward_container',
+    operation_profile: 'continue_same_container',
+    container_id: 'CNT-010',
+    payload: {
+      awaiting_popup: true,
+      awaiting_approval: true,
+      awaiting_label: true,
+    },
+  });
+
+  const blocked = await worker.handleJob({
+    actor_id: 'user_42_forward_x',
+    operation_type: 'add_parcel_to_forward_container',
+    operation_profile: 'continue_same_container',
+    container_id: 'CNT-010',
+    payload: {},
+  });
+
+  assert.deepEqual(blocked.continuation_decision, {
+    can_continue_without_reset: false,
+    requires_reset: false,
+    requires_container_switch: false,
+    continuation_action: 'resolve_pending_ui',
+    continuation_reason: 'awaiting_popup_and_approval_and_label',
+    pending_container_id: 'CNT-010',
+  });
+  assert.equal(blocked.state.context_state.expected_next_action, 'resolve_pending_ui');
+  assert.equal(blocked.state.context_state.can_continue_without_reset, false);
 });
 
 test('context_state remains available after stop and transitions to stopped state', async () => {
@@ -198,6 +299,7 @@ test('worker stops itself after idle timeout and clears sticky session state', a
   assert.equal(status.context_state.session_status, 'stopped');
   assert.equal(status.context_state.actor_id, '');
   assert.equal(status.context_state.current_container_id, '');
+  assert.equal(status.context_state.pending_container_id, '');
   assert.equal(status.context_state.expected_next_action, 'start_session');
 });
 
