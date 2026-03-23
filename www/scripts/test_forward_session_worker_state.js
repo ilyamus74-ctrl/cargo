@@ -11,6 +11,9 @@ const {
 
 function makeFakePage(url = 'about:blank') {
   let currentUrl = url;
+  const actionLog = [];
+  const selectorText = new Map();
+  const visibleSelectors = new Set();
   return {
     url() {
       return currentUrl;
@@ -24,14 +27,81 @@ function makeFakePage(url = 'about:blank') {
     close() {
       return Promise.resolve();
     },
+
+    waitForSelector(selector) {
+      if (visibleSelectors.has(selector)) {
+        return Promise.resolve({ selector });
+      }
+      return Promise.reject(new Error(`Selector not found: ${selector}`));
+    },
+    click(selector) {
+      actionLog.push({ type: 'click', selector });
+      return Promise.resolve();
+    },
+    type(selector, value) {
+      actionLog.push({ type: 'type', selector, value });
+      selectorText.set(selector, String(value));
+      return Promise.resolve();
+    },
+    evaluate(fn, ...args) {
+      actionLog.push({ type: 'evaluate', source: String(fn).slice(0, 40), args });
+      return Promise.resolve(true);
+    },
+    $$(selector) {
+      if (selector !== '.container-option') {
+        return Promise.resolve([]);
+      }
+
+      return Promise.resolve([
+        {
+          evaluate(fn, expectedText) {
+            const label = 'CNT-001';
+            return Promise.resolve(String(label).toLowerCase().includes(String(expectedText).toLowerCase()));
+          },
+          click() {
+            actionLog.push({ type: 'click_option', selector, text: 'CNT-001' });
+            return Promise.resolve();
+          },
+          dispose() {
+            return Promise.resolve();
+          },
+        },
+        {
+          evaluate(fn, expectedText) {
+            const label = 'CNT-002';
+            return Promise.resolve(String(label).toLowerCase().includes(String(expectedText).toLowerCase()));
+          },
+          click() {
+            actionLog.push({ type: 'click_option', selector, text: 'CNT-002' });
+            return Promise.resolve();
+          },
+          dispose() {
+            return Promise.resolve();
+          },
+        },
+      ]);
+    },
     setUrl(nextUrl) {
       currentUrl = nextUrl;
+    },
+    setVisibleSelectors(selectors) {
+      visibleSelectors.clear();
+      for (const selector of selectors) {
+        visibleSelectors.add(selector);
+      }
+    },
+    getActionLog() {
+      return actionLog.slice();
+    },
+    getTypedValue(selector) {
+      return selectorText.get(selector);
     },
   };
 }
 
 async function seedStartedWorker(worker, url = 'https://example.test/') {
   const page = makeFakePage(url);
+  page.setVisibleSelectors(['#tracking']);
   worker.browser = {
     close() {
       return Promise.resolve();
@@ -73,7 +143,7 @@ test('forward context marks first parcel as needing container selection before c
   });
 
   assert.equal(result.ok, false);
-  assert.equal(result.action, 'accepted_but_not_implemented');
+  assert.equal(result.action, 'parcel_submitted_pending_ui');
 
   assert.deepEqual(result.continuation_decision, {
     can_continue_without_reset: false,
@@ -86,18 +156,18 @@ test('forward context marks first parcel as needing container selection before c
   assert.equal(result.state.context_state.worker_id, 'fw_worker_01');
   assert.equal(result.state.context_state.actor_id, 'user_42_forward_x');
   assert.equal(result.state.context_state.current_container_id, 'CNT-001');
-  assert.equal(result.state.context_state.pending_container_id, 'CNT-001');
+  assert.equal(result.state.context_state.pending_container_id, '');
   assert.equal(result.state.context_state.operation_profile, 'continue_same_container');
   assert.equal(result.state.context_state.session_status, 'ready');
-  assert.equal(result.state.context_state.expected_next_action, 'select_container');
+  assert.equal(result.state.context_state.expected_next_action, 'resolve_pending_ui');
   assert.equal(result.state.context_state.can_continue_without_reset, false);
-  assert.equal(result.state.context_state.requires_container_switch, true);
+  assert.equal(result.state.context_state.requires_container_switch, false);
   assert.equal(result.state.context_state.awaiting_popup, true);
   assert.equal(result.state.context_state.awaiting_approval, false);
   assert.equal(result.state.context_state.awaiting_label, true);
 
   const status = await worker.getStatus();
-  assert.equal(status.context_state.expected_next_action, 'select_container');
+  assert.equal(status.context_state.expected_next_action, 'resolve_pending_ui');
   assert.equal(status.context_state.status, 'idle');
   assert.equal(status.cookies, 'sid=123');
 });
@@ -112,7 +182,7 @@ test('forward context can continue on same container and requests reset/switch w
     operation_type: 'add_parcel_to_forward_container',
     operation_profile: 'continue_same_container',
     container_id: 'CNT-001',
-    payload: {},
+    payload: { tracking: 'TRACK-001' },
   });
 
   const continued = await worker.handleJob({
@@ -120,7 +190,7 @@ test('forward context can continue on same container and requests reset/switch w
     operation_type: 'add_parcel_to_forward_container',
     operation_profile: 'continue_same_container',
     container_id: 'CNT-001',
-    payload: {},
+    payload: { tracking: 'TRACK-002' },
   });
   assert.deepEqual(continued.continuation_decision, {
     can_continue_without_reset: true,
@@ -138,7 +208,7 @@ test('forward context can continue on same container and requests reset/switch w
     operation_type: 'add_parcel_to_forward_container',
     operation_profile: 'reset_before_container_change',
     container_id: 'CNT-002',
-    payload: {},
+    payload: { tracking: 'TRACK-003' },
   });
   assert.deepEqual(switched.continuation_decision, {
     can_continue_without_reset: false,
@@ -148,6 +218,8 @@ test('forward context can continue on same container and requests reset/switch w
     continuation_reason: 'operation_profile_changed_and_container_changed',
     pending_container_id: 'CNT-002',
   });
+  assert.equal(switched.ok, false);
+  assert.equal(switched.action, 'reset_required_before_forward_parcel');
   assert.equal(switched.state.context_state.expected_next_action, 'reset_form_and_switch_container');
   assert.equal(switched.state.context_state.requires_reset, true);
   assert.equal(switched.state.context_state.requires_container_switch, true);
@@ -164,6 +236,7 @@ test('forward context blocks continuation while popup/approval/label is still pe
     operation_profile: 'continue_same_container',
     container_id: 'CNT-010',
     payload: {
+      tracking: 'TRACK-010',
       awaiting_popup: true,
       awaiting_approval: true,
       awaiting_label: true,
@@ -175,7 +248,7 @@ test('forward context blocks continuation while popup/approval/label is still pe
     operation_type: 'add_parcel_to_forward_container',
     operation_profile: 'continue_same_container',
     container_id: 'CNT-010',
-    payload: {},
+    payload: { tracking: 'TRACK-011' },
   });
 
   assert.deepEqual(blocked.continuation_decision, {
@@ -188,6 +261,60 @@ test('forward context blocks continuation while popup/approval/label is still pe
   });
   assert.equal(blocked.state.context_state.expected_next_action, 'resolve_pending_ui');
   assert.equal(blocked.state.context_state.can_continue_without_reset, false);
+});
+
+test('add_parcel_to_forward_container performs first real browser operation and preserves reusable context', async () => {
+  const worker = new ForwardSessionWorker({ worker_id: 'fw_worker_real_op', autostart: false });
+  const page = await seedStartedWorker(worker, 'https://forward.example/form');
+  page.setVisibleSelectors([
+    '#container-input',
+    '#tracking-input',
+    '#submit-button',
+    '.success-banner',
+  ]);
+
+  const result = await worker.handleJob({
+    actor_id: 'user_42_forward_x',
+    operation_type: 'add_parcel_to_forward_container',
+    operation_profile: 'continue_same_container',
+    container_id: 'CNT-001',
+    payload: {
+      tracking: '123456789',
+      selectors: {
+        container_input: '#container-input',
+        container_option_selector: '.container-option',
+        tracking_input: '#tracking-input',
+        submit_button: '#submit-button',
+        success_selector: '.success-banner',
+      },
+    },
+  });
+
+  assert.equal(result.ok, true);
+  assert.equal(result.action, 'parcel_added_to_forward_container');
+  assert.equal(result.result.tracking, '123456789');
+  assert.equal(result.result.container_id, 'CNT-001');
+  assert.equal(page.getTypedValue('#container-input'), 'CNT-001');
+  assert.equal(page.getTypedValue('#tracking-input'), '123456789');
+  assert.deepEqual(
+    page.getActionLog().map((entry) => (entry.type === 'evaluate'
+      ? { type: entry.type, args: entry.args }
+      : entry)),
+    [
+      { type: 'click', selector: '#container-input' },
+      { type: 'evaluate', args: ['#container-input'] },
+      { type: 'type', selector: '#container-input', value: 'CNT-001' },
+      { type: 'click_option', selector: '.container-option', text: 'CNT-001' },
+      { type: 'click', selector: '#tracking-input' },
+      { type: 'evaluate', args: ['#tracking-input'] },
+      { type: 'type', selector: '#tracking-input', value: '123456789' },
+      { type: 'click', selector: '#submit-button' },
+    ]
+  );
+  assert.equal(result.state.context_state.current_container_id, 'CNT-001');
+  assert.equal(result.state.context_state.expected_next_action, 'fill_tracking');
+  assert.equal(result.state.context_state.can_continue_without_reset, true);
+  assert.equal(result.state.context_state.awaiting_popup, false);
 });
 
 test('context_state remains available after stop and transitions to stopped state', async () => {

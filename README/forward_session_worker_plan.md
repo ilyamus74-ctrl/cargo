@@ -291,10 +291,12 @@ MVP-правило:
 - в `www/scripts/forward_session_worker.js` добавлено решение `continuation_decision` для `add_parcel_to_forward_container`, которое различает режимы `continue_same_container`, `select_container`, `switch_container`, `reset_form`, `reset_form_and_switch_container`, `resolve_pending_ui`
 - worker теперь хранит в `context_state` признаки `pending_container_id`, `can_continue_without_reset`, `requires_reset`, `requires_container_switch`, а также ожидание `popup / approval / label`
 - логика выбора “можно продолжать” vs “нужен reset/switch” покрыта тестами в `www/scripts/test_forward_session_worker_state.js`
+
+- пункт 9 повторно проверен после реализации первой реальной parcel-операции: decision-логика и blocking по pending UI / reset requirement остаются покрыты тестами
 ---
 
 ### 10. Реализовать первую операцию по посылке к форварду
-**Статус:** ⬜ не начато
+**Статус:** ✅ выполнено
 
 Первая операция для MVP:
 
@@ -305,6 +307,12 @@ MVP-правило:
 Критерий завершения:
 
 - первая реальная операция выполняется через новый worker
+
+Примечание:
+- в `www/scripts/forward_session_worker.js` `add_parcel_to_forward_container` больше не возвращает заглушку: worker выполняет первую реальную browser-операцию через persistent session
+- операция умеет использовать persistent page/session для `navigation_url`, выбора контейнера, reset формы, заполнения tracking и submit через selectors из `job.payload`
+- после submit worker сохраняет обновлённый `context_state`, чтобы следующая посылка могла продолжить поток без полного reset, если контекст совпадает
+- сценарий реальной parcel-операции покрыт тестом в `www/scripts/test_forward_session_worker_state.js`
 
 ---
 

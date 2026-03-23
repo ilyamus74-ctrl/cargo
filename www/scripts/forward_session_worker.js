@@ -7,6 +7,8 @@ const {
   launchBrowserWithFallback,
   createPageWithWarmup,
   serializePageCookies,
+  findSelectorWithFallback,
+  findElementHandleByText,
   safeGoto,
   mkTempDir,
   safeRm,
@@ -38,6 +40,22 @@ function normalizeString(value) {
 
 function joinReasonParts(parts) {
   return parts.filter(Boolean).join('_and_');
+}
+
+function isNonArrayObject(value) {
+  return !!value && typeof value === 'object' && !Array.isArray(value);
+}
+
+function normalizeSelectorList(value) {
+  if (Array.isArray(value)) {
+    return value.map((item) => normalizeString(item)).filter(Boolean);
+  }
+  const normalized = normalizeString(value);
+  return normalized ? [normalized] : [];
+}
+
+function renderTemplate(value, vars = {}) {
+  return String(value || '').replace(/\$\{([a-zA-Z0-9_]+)\}/g, (_, key) => String(vars[key] ?? ''));
 }
 
 function validateActorId(actorId) {
@@ -400,6 +418,290 @@ class ForwardSessionWorker {
     return decision.continuation_action || 'accept_job';
   }
 
+  buildForwardPayloadRuntime(job) {
+    const payload = isNonArrayObject(job?.payload) ? job.payload : {};
+    const selectors = isNonArrayObject(payload.selectors) ? payload.selectors : {};
+    const vars = {
+      actor_id: normalizeString(job?.actor_id),
+      container_id: normalizeString(job?.container_id),
+      operation_profile: normalizeString(job?.operation_profile),
+      tracking: normalizeString(payload.tracking),
+      tracking_number: normalizeString(payload.tracking || payload.tracking_number),
+      barcode: normalizeString(payload.barcode || payload.tracking || payload.tracking_number),
+    };
+
+    const runtime = {
+      payload,
+      selectors,
+      vars,
+      navigation_url: normalizeString(payload.navigation_url || payload.url),
+      tracking_value: vars.tracking_number,
+      success_text: normalizeString(payload.success_text),
+    };
+
+    runtime.popup_selectors = normalizeSelectorList(
+      payload.popup_selector || selectors.popup || selectors.popup_selector
+    );
+    runtime.approval_selectors = normalizeSelectorList(
+      payload.approval_selector || selectors.approval || selectors.approval_selector
+    );
+    runtime.label_selectors = normalizeSelectorList(
+      payload.label_selector || selectors.label || selectors.label_selector
+    );
+    runtime.success_selectors = normalizeSelectorList(
+      payload.success_selector || selectors.success || selectors.success_selector
+    );
+    runtime.reset_selectors = normalizeSelectorList(
+      payload.reset_selector || selectors.reset || selectors.reset_button
+    );
+    runtime.submit_selectors = normalizeSelectorList(
+      payload.submit_selector || selectors.submit || selectors.submit_button
+    );
+    runtime.tracking_selectors = normalizeSelectorList(
+      payload.tracking_selector || selectors.tracking || selectors.tracking_input || '#tracking'
+    );
+    runtime.container_selectors = normalizeSelectorList(
+      payload.container_selector || selectors.container || selectors.container_input || selectors.container_select
+    );
+    runtime.container_option_selector = normalizeString(
+      payload.container_option_selector || selectors.container_option_selector
+    );
+    runtime.container_option_text = normalizeString(
+      payload.container_option_text || selectors.container_option_text || job?.container_id
+    );
+    runtime.post_submit_wait_ms = Math.max(0, Number(payload.post_submit_wait_ms || 0));
+    runtime.submit_timeout_ms = Math.max(1, Number(payload.submit_timeout_ms || 30000));
+    runtime.success_timeout_ms = Math.max(1, Number(payload.success_timeout_ms || 1500));
+
+    return runtime;
+  }
+
+  async hasAnySelector(selectors = [], timeout = 250) {
+    if (!this.page || !Array.isArray(selectors) || selectors.length === 0) {
+      return false;
+    }
+
+    for (const selector of selectors) {
+      try {
+        await findSelectorWithFallback(this.page, selector, { timeout });
+        return true;
+      } catch (_) {}
+    }
+    return false;
+  }
+
+  async clickFirstAvailableSelector(selectors = [], timeout = 30000) {
+    for (const selector of selectors) {
+      try {
+        const matchedSelector = await findSelectorWithFallback(this.page, selector, { timeout, visible: true });
+        await this.page.click(matchedSelector);
+        return matchedSelector;
+      } catch (_) {}
+    }
+
+    throw new Error(`None of the selectors matched: ${selectors.join(', ')}`);
+  }
+
+  async fillFirstAvailableSelector(selectors = [], value, timeout = 30000) {
+    const text = normalizeString(value);
+    if (!text) {
+      throw new Error('Tracking value is required');
+    }
+
+    for (const selector of selectors) {
+      try {
+        const matchedSelector = await findSelectorWithFallback(this.page, selector, { timeout, visible: true });
+        await this.page.click(matchedSelector, { clickCount: 3 });
+        if (typeof this.page.evaluate === 'function') {
+          await this.page.evaluate((inputSelector) => {
+            const input = document.querySelector(inputSelector);
+            if (!input) {
+              return false;
+            }
+            input.value = '';
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+            input.dispatchEvent(new Event('change', { bubbles: true }));
+            return true;
+          }, matchedSelector);
+        }
+        await this.page.type(matchedSelector, text);
+        return matchedSelector;
+      } catch (_) {}
+    }
+
+    throw new Error(`None of the selectors matched: ${selectors.join(', ')}`);
+  }
+
+  async selectContainerForForward(runtime, containerId) {
+    const nextContainerId = normalizeString(containerId);
+    if (!nextContainerId) {
+      throw new Error('container_id is required for forward container selection');
+    }
+
+    if (runtime.container_selectors.length === 0 && !runtime.container_option_selector) {
+      return {
+        selected: false,
+        container_id: nextContainerId,
+        mode: 'implicit_context_only',
+      };
+    }
+
+    if (runtime.container_selectors.length > 0) {
+      await this.fillFirstAvailableSelector(runtime.container_selectors, nextContainerId);
+    }
+
+    if (runtime.container_option_selector) {
+      let optionHandle;
+      if (typeof this.page.waitForFunction === 'function') {
+        optionHandle = await findElementHandleByText(
+          this.page,
+          runtime.container_option_selector,
+          runtime.container_option_text || nextContainerId,
+          {
+            timeout: runtime.submit_timeout_ms,
+            visible: true,
+            match: 'contains',
+          }
+        );
+      } else {
+        const handles = await this.page.$$(runtime.container_option_selector);
+        for (const handle of handles) {
+          const isMatch = await handle.evaluate((node, expectedText) => {
+            const label = String(node?.textContent || node?.innerText || '').replace(/\s+/g, ' ').trim().toLowerCase();
+            return label.includes(String(expectedText || '').replace(/\s+/g, ' ').trim().toLowerCase());
+          }, runtime.container_option_text || nextContainerId);
+          if (isMatch) {
+            optionHandle = handle;
+            break;
+          }
+          await handle.dispose();
+        }
+        if (!optionHandle) {
+          throw new Error(`No container option found for ${runtime.container_option_text || nextContainerId}`);
+        }
+      }
+      try {
+        await optionHandle.click();
+      } finally {
+        await optionHandle.dispose();
+      }
+    }
+
+    return {
+      selected: true,
+      container_id: nextContainerId,
+      mode: runtime.container_option_selector ? 'selector_and_option' : 'selector_only',
+    };
+  }
+
+  async executeAddParcelToForwardContainer(job, continuationDecision) {
+    if (!this.isStarted()) {
+      await this.start();
+    }
+
+    const runtime = this.buildForwardPayloadRuntime(job);
+    const trackingValue = runtime.tracking_value;
+    if (!trackingValue) {
+      const err = new Error('add_parcel_to_forward_container payload.tracking is required');
+      err.code = 'INVALID_JOB_PAYLOAD';
+      throw err;
+    }
+
+    if (runtime.navigation_url) {
+      const currentUrl = normalizeString(this.page.url());
+      if (currentUrl !== runtime.navigation_url) {
+        await this.goto(runtime.navigation_url, {
+          wait_until: job.payload.wait_until || 'domcontentloaded',
+          timeout_ms: job.payload.timeout_ms || 60000,
+        });
+      }
+    }
+
+    if (continuationDecision.requires_reset) {
+      if (runtime.reset_selectors.length === 0) {
+        this.touch({
+          actor_id: this.actorId,
+          current_container_id: job.container_id,
+          operation_profile: job.operation_profile,
+          pending_container_id: continuationDecision.pending_container_id,
+          expected_next_action: continuationDecision.continuation_action,
+          can_continue_without_reset: false,
+          requires_reset: true,
+          requires_container_switch: continuationDecision.requires_container_switch,
+          continuation_action: continuationDecision.continuation_action,
+          continuation_reason: `${continuationDecision.continuation_reason}_and_reset_selector_missing`,
+        });
+
+        return {
+          ok: false,
+          job,
+          action: 'reset_required_before_forward_parcel',
+          message: 'Forward worker requires reset_selector before continuing with this parcel.',
+          continuation_decision: continuationDecision,
+          state: await this.getStatus(),
+        };
+      }
+      await this.clickFirstAvailableSelector(runtime.reset_selectors, runtime.submit_timeout_ms);
+    }
+
+    if (continuationDecision.requires_container_switch) {
+      await this.selectContainerForForward(runtime, job.container_id);
+    }
+
+    await this.fillFirstAvailableSelector(runtime.tracking_selectors, trackingValue, runtime.submit_timeout_ms);
+
+    let submitSelectorUsed = '';
+    if (runtime.submit_selectors.length > 0) {
+      submitSelectorUsed = await this.clickFirstAvailableSelector(runtime.submit_selectors, runtime.submit_timeout_ms);
+    }
+
+    if (runtime.post_submit_wait_ms > 0) {
+      await new Promise((resolve) => setTimeout(resolve, runtime.post_submit_wait_ms));
+    }
+
+    const awaitingPopup = !!job.payload.awaiting_popup
+      || await this.hasAnySelector(runtime.popup_selectors, runtime.success_timeout_ms);
+    const awaitingApproval = !!job.payload.awaiting_approval
+      || await this.hasAnySelector(runtime.approval_selectors, runtime.success_timeout_ms);
+    const awaitingLabel = !!job.payload.awaiting_label
+      || await this.hasAnySelector(runtime.label_selectors, runtime.success_timeout_ms);
+    const hasSuccessSelector = await this.hasAnySelector(runtime.success_selectors, runtime.success_timeout_ms);
+    const looksSuccessful = hasSuccessSelector || (!awaitingPopup && !awaitingApproval);
+
+    this.touch({
+      actor_id: this.actorId,
+      current_container_id: job.container_id,
+      operation_profile: job.operation_profile,
+      pending_container_id: '',
+      expected_next_action: looksSuccessful ? 'fill_tracking' : 'resolve_pending_ui',
+      can_continue_without_reset: looksSuccessful,
+      requires_reset: false,
+      requires_container_switch: false,
+      continuation_action: looksSuccessful ? 'continue_same_container' : 'resolve_pending_ui',
+      continuation_reason: looksSuccessful ? 'operation_completed' : 'awaiting_post_submit_ui',
+      awaiting_popup: awaitingPopup,
+      awaiting_approval: awaitingApproval,
+      awaiting_label: awaitingLabel,
+    });
+
+    return {
+      ok: looksSuccessful,
+      job,
+      action: looksSuccessful ? 'parcel_added_to_forward_container' : 'parcel_submitted_pending_ui',
+      continuation_decision: continuationDecision,
+      result: {
+        tracking: trackingValue,
+        container_id: job.container_id,
+        submit_selector: submitSelectorUsed,
+        success_detected: hasSuccessSelector,
+        awaiting_popup: awaitingPopup,
+        awaiting_approval: awaitingApproval,
+        awaiting_label: awaitingLabel,
+      },
+      state: await this.getStatus(),
+    };
+  }
+
   syncContextState(patch = {}) {
     const sessionStatus = this.isStarted() ? 'ready' : (this.stopReason ? 'stopped' : 'cold');
     const status = patch.status || (this.isRunningJob ? 'busy' : 'idle');
@@ -616,7 +918,6 @@ class ForwardSessionWorker {
 
 
       if (job.operation_type === 'add_parcel_to_forward_container') {
-
         this.touch({
           expected_next_action: this.getExpectedNextActionForForwardDecision(continuationDecision),
           pending_container_id: continuationDecision.pending_container_id,
@@ -630,14 +931,19 @@ class ForwardSessionWorker {
           awaiting_label: !!job.payload.awaiting_label,
         });
 
-        return {
-          ok: false,
-          job,
-          action: 'accepted_but_not_implemented',
-          message: 'add_parcel_to_forward_container is not implemented yet; job JSON API is validated and accepted.',
-          continuation_decision: continuationDecision,
-          state: await this.getStatus(),
-        };
+
+        if (continuationDecision.continuation_action === 'resolve_pending_ui') {
+          return {
+            ok: false,
+            job,
+            action: 'blocked_by_pending_ui',
+            message: 'Forward worker detected pending popup/approval/label state before adding the next parcel.',
+            continuation_decision: continuationDecision,
+            state: await this.getStatus(),
+          };
+        }
+
+        return this.executeAddParcelToForwardContainer(job, continuationDecision);
       }
 
 
