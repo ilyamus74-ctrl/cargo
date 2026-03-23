@@ -233,6 +233,41 @@
 
 ---
 
+## DEV Colibri: пример browser_steps для `add_container_to_flight`
+
+Это удобный короткий сценарий для страницы `https://dev-backend.colibri.az/collector/containers`, который можно использовать как baseline перед переносом flow в persistent worker.
+
+```json
+{
+  "page_url": "https://dev-backend.colibri.az/collector/containers",
+  "log_steps": 1,
+  "steps": [
+    { "action": "goto", "url": "https://dev-backend.colibri.az/login" },
+    { "action": "fill", "selector": "input[name=\"username\"]", "value": "${login}" },
+    { "action": "fill", "selector": "input[name=\"password\"]", "value": "${password}" },
+    { "action": "click", "selector": "button[type=\"submit\"]" },
+    { "action": "wait_for", "selector": ".glyphicon.glyphicon-log-out", "timeout_ms": 1500 },
+
+    { "action": "goto", "url": "https://dev-backend.colibri.az/collector/containers" },
+    { "action": "wait_for", "selector": "#search_values", "timeout_ms": 1500 },
+    { "action": "fill", "selector": "#count", "value": "1" },
+    { "action": "select", "selector": "#flight_id", "value": "${flight_id}", "match": "value" },
+    { "action": "select", "selector": "#departure_id", "value": "6", "match": "value" },
+    { "action": "select", "selector": "#destination_id", "value": "1", "match": "value" },
+    { "action": "click", "selector": "button[type=\"submit\"], input[type=\"submit\"], .btn-success" },
+    { "action": "wait_for", "selector": "#search_values", "timeout_ms": 3500 }
+  ]
+}
+```
+
+Практический смысл этого сценария:
+
+- он быстро проверяет, что login + открытие формы + submit контейнера работают end-to-end;
+- его удобно гонять как `cold` и `warm` run для сравнения one-shot и persistent session;
+- после него логично строить парный сценарий на удаление контейнера из того же рейса и измерять, не ломается ли состояние между job.
+
+---
+
 ## Analyze internal data flow logic
 
 Идея с переводом модалки `cells_NA_API_connector_operations_modal.html` на динамическую модель из БД — очень сильный шаг к унификации.

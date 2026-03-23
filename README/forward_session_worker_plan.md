@@ -315,7 +315,157 @@ MVP-правило:
 - сценарий реальной parcel-операции покрыт тестом в `www/scripts/test_forward_session_worker_state.js`
 
 ---
+## Как проверяем и чем подтверждаем ускорение
 
+Предлагаемый порядок проверки после завершения MVP:
+
+### A. Базовая техническая проверка
+
+- прогоняем unit/state tests для `www/scripts/forward_session_worker.js`
+- отдельно проверяем lifecycle: `start -> job -> status -> idle timeout -> restart`
+- убеждаемся, что `context_state` и очередь jobs не ломаются после нескольких последовательных операций
+
+### B. Smoke-проверка на реальном браузерном сценарии
+
+Минимум два прогона подряд одним и тем же actor:
+
+1. первый запуск поднимает browser/session
+2. второй запуск использует уже живую session
+3. сравниваем время первой и второй операции
+4. убеждаемся, что не требуется полный relogin/reopen между job
+
+### C. Практический сценарий для замера ускорения
+
+Предлагаемый сценарий проверки — не только `add_parcel_to_forward_container`, но и более быстрые CRUD-операции вокруг контейнеров в рейсе:
+
+- добавить контейнер в рейс
+- добавить ещё один контейнер в тот же рейс
+- удалить контейнер из рейса
+- снова добавить контейнер без полного перезапуска session
+
+Почему это хороший проверочный сценарий:
+
+- операции короче и быстрее полного parcel-flow
+- на них проще увидеть выигрыш от persistent session
+- легче отследить, где именно теряется время: login, navigation, reopen page или сама бизнес-операция
+- удобно проверять sequence `add -> add -> remove -> add` внутри одной живой page/session
+
+### D. Конкретный browser_steps пример для первого прогона
+
+Ниже — удобный базовый сценарий для `test_connector_operations_browser.js`, с которого можно начать проверку add-container flow на dev-стенде:
+
+```json
+{
+  "page_url": "https://dev-backend.colibri.az/collector/containers",
+  "log_steps": 1,
+  "steps": [
+    {
+      "action": "goto",
+      "url": "https://dev-backend.colibri.az/login"
+    },
+    {
+      "action": "fill",
+      "selector": "input[name=\"username\"]",
+      "value": "${login}"
+    },
+    {
+      "action": "fill",
+      "selector": "input[name=\"password\"]",
+      "value": "${password}"
+    },
+    {
+      "action": "click",
+      "selector": "button[type=\"submit\"]"
+    },
+    {
+      "action": "wait_for",
+      "selector": ".glyphicon.glyphicon-log-out",
+      "timeout_ms": 1500
+    },
+    {
+      "action": "goto",
+      "url": "https://dev-backend.colibri.az/collector/containers"
+    },
+    {
+      "action": "wait_for",
+      "selector": "#search_values",
+      "timeout_ms": 1500
+    },
+    {
+      "action": "fill",
+      "selector": "#count",
+      "value": "1"
+    },
+    {
+      "action": "select",
+      "selector": "#flight_id",
+      "value": "${flight_id}",
+      "match": "value"
+    },
+    {
+      "action": "select",
+      "selector": "#departure_id",
+      "value": "6",
+      "match": "value"
+    },
+    {
+      "action": "select",
+      "selector": "#destination_id",
+      "value": "1",
+      "match": "value"
+    },
+    {
+      "action": "click",
+      "selector": "button[type=\"submit\"], input[type=\"submit\"], .btn-success"
+    },
+    {
+      "action": "wait_for",
+      "selector": "#search_values",
+      "timeout_ms": 3500
+    }
+  ]
+}
+```
+
+Как использовать этот пример для проверки persistent-session:
+
+1. сначала прогоняем его как baseline через one-shot runner;
+2. затем переносим тот же flow в persistent worker как отдельный job/operation;
+3. делаем второй запуск без relogin и сравниваем время;
+4. после успешного add-сценария рядом добавляем обратный сценарий delete container и проверяем, что после удаления worker остаётся в корректном состоянии.
+
+Такой пример хорош тем, что он короткий, детерминированный и уже привязан к реальной форме `collector/containers`, поэтому его удобно использовать как первый benchmark before/after.
+
+### E. Что именно измеряем
+
+Для каждого сценария фиксируем:
+
+- `cold start time` — первая операция после поднятия worker
+- `warm reuse time` — повторная операция в той же session
+- число navigation/reload между job
+- был ли повторный login
+- сохранился ли корректный `context_state` после add/remove
+- корректно ли worker переживает удаление контейнера и может продолжать дальше
+
+Цель проверки:
+
+- доказать, что вторая и последующие операции заметно быстрее первой
+- доказать, что add/remove не ломают state и не требуют полного reset без необходимости
+
+### F. Что нужно поменять в шагах плана
+
+Да, шаги стоит слегка уточнить: persistent worker уже реализован, но план проверки лучше расширить отдельным validation-блоком.
+
+Предлагаемое изменение в трактовке следующих шагов:
+
+- текущий MVP по parcel-flow оставляем как выполненный
+- следующим практическим шагом добавляем проверочный сценарий `attach/detach container to flight`
+- после этого уже замеряем ускорение и решаем, какие ещё операции переносить на persistent session в первую очередь
+
+Иными словами: менять архитектурные шаги с 1 по 11 не нужно, но нужно явно добавить post-MVP этап проверки производительности и стабильности на add/remove контейнеров в рейсе.
+
+
+---
 ### 11. Подготовить почву для следующих этапов
 **Статус:** ✅ выполнено
 
@@ -348,8 +498,8 @@ MVP-правило:
 6. Добавить последовательную очередь
 7. Добавить idle timeout
 8. Реализовать первую операцию по посылке к форварду
-9. Только потом переходить к popup/label/print
-
+9. Добавить post-MVP валидацию производительности на сценарии `add/remove container to flight`
+10. Только потом переходить к popup/label/print
 ---
 
 ## Правило на весь MVP

@@ -26,6 +26,11 @@ function nowIso() {
   return new Date().toISOString();
 }
 
+const DEFAULT_IDLE_TIMEOUT_MS = 3 * 60 * 60 * 1000;
+const DEFAULT_MAX_SESSION_AGE_MS = 6 * 60 * 60 * 1000;
+const DEFAULT_MAX_OPERATIONS_PER_SESSION = 200;
+const DEFAULT_MAX_CONSECUTIVE_FAILURES = 3;
+
 function makeWorkerId() {
   return `forward_worker_${Date.now()}_${process.pid}`;
 }
@@ -278,7 +283,16 @@ class ForwardSessionWorker {
     this.browserProduct = String(this.payload.browser_product || this.payload.browser || 'auto').toLowerCase();
     this.sslIgnore = !!this.payload.ssl_ignore;
     this.tempDirBase = typeof this.payload.temp_dir === 'string' ? this.payload.temp_dir.trim() : '';
-    this.idleTimeoutMs = Math.max(0, Number(this.payload.idle_timeout_ms ?? 0));
+    this.idleTimeoutMs = Math.max(0, Number(this.payload.idle_timeout_ms ?? DEFAULT_IDLE_TIMEOUT_MS));
+    this.maxSessionAgeMs = Math.max(0, Number(this.payload.max_session_age_ms ?? DEFAULT_MAX_SESSION_AGE_MS));
+    this.maxOperationsPerSession = Math.max(
+      0,
+      Number(this.payload.max_operations_per_session ?? this.payload.max_ops_per_session ?? DEFAULT_MAX_OPERATIONS_PER_SESSION)
+    );
+    this.maxConsecutiveFailures = Math.max(
+      1,
+      Number(this.payload.max_consecutive_failures ?? DEFAULT_MAX_CONSECUTIVE_FAILURES)
+    );
     this.browser = null;
     this.page = null;
     this.userDataDir = '';
@@ -292,6 +306,12 @@ class ForwardSessionWorker {
     this.jobQueue = Promise.resolve();
     this.pendingJobCount = 0;
     this.activeJobId = '';
+    this.sessionGeneration = 0;
+    this.sessionJobCount = 0;
+    this.consecutiveJobFailures = 0;
+    this.lastHealthcheckAt = '';
+    this.lastHealthcheckReason = 'not_checked';
+    this.lastSessionRecycleReason = '';
 
     this.actorId = '';
     this.currentContainerId = '';
@@ -369,6 +389,7 @@ class ForwardSessionWorker {
       actor_binding: 'sticky_actor_worker',
       queue_mode: 'serial_per_worker',
       idle_timeout: this.idleTimeoutMs > 0,
+      session_reuse_policy: 'health_checked_reuse',
       persistent_session: true,
       pooling_ready: true,
       shared_account_scheduler_ready: true,
@@ -468,6 +489,7 @@ class ForwardSessionWorker {
         label_pipeline_ready: pendingArtifacts.includes('label'),
       },
     });
+  }
 
   buildForwardContinuationDecision(job, snapshot = {}) {
     const pendingUi = [];
@@ -891,9 +913,169 @@ class ForwardSessionWorker {
     };
   }
 
+  getSessionAgeMs(referenceTime = Date.now()) {
+    const startedAtTs = Date.parse(this.startedAt || '');
+    if (!this.isStarted() || Number.isNaN(startedAtTs)) {
+      return 0;
+    }
+    return Math.max(0, referenceTime - startedAtTs);
+  }
+
+  getSessionLifecycleState() {
+    return {
+      session_generation: this.sessionGeneration,
+      session_job_count: this.sessionJobCount,
+      consecutive_job_failures: this.consecutiveJobFailures,
+      idle_timeout_ms: this.idleTimeoutMs,
+      max_session_age_ms: this.maxSessionAgeMs,
+      max_operations_per_session: this.maxOperationsPerSession,
+      max_consecutive_failures: this.maxConsecutiveFailures,
+      session_age_ms: this.getSessionAgeMs(),
+      last_healthcheck_at: this.lastHealthcheckAt,
+      last_healthcheck_reason: this.lastHealthcheckReason,
+      last_session_recycle_reason: this.lastSessionRecycleReason,
+    };
+  }
+
   touch(patch = {}) {
     this.syncContextState(patch);
     this.refreshIdleTimer();
+  }
+
+
+  async checkSessionHealth() {
+    const checkedAt = nowIso();
+    let result = {
+      ok: true,
+      reason: 'session_healthy',
+      checked_at: checkedAt,
+    };
+
+    if (!this.isStarted()) {
+      result = {
+        ok: false,
+        reason: 'session_not_started',
+        checked_at: checkedAt,
+      };
+    } else if (typeof this.page?.isClosed === 'function' && this.page.isClosed()) {
+      result = {
+        ok: false,
+        reason: 'page_closed',
+        checked_at: checkedAt,
+      };
+    } else if (typeof this.browser?.isConnected === 'function' && !this.browser.isConnected()) {
+      result = {
+        ok: false,
+        reason: 'browser_disconnected',
+        checked_at: checkedAt,
+      };
+    } else if (this.maxSessionAgeMs > 0 && this.getSessionAgeMs() >= this.maxSessionAgeMs) {
+      result = {
+        ok: false,
+        reason: 'max_session_age_exceeded',
+        checked_at: checkedAt,
+      };
+    } else if (this.maxOperationsPerSession > 0 && this.sessionJobCount >= this.maxOperationsPerSession) {
+      result = {
+        ok: false,
+        reason: 'max_operations_per_session_exceeded',
+        checked_at: checkedAt,
+      };
+    } else {
+      try {
+        await Promise.resolve(this.page.url());
+        if (typeof this.page.title === 'function') {
+          await this.page.title();
+        }
+      } catch (err) {
+        result = {
+          ok: false,
+          reason: 'page_unresponsive',
+          checked_at: checkedAt,
+          error: err?.message || String(err),
+        };
+      }
+    }
+
+    this.lastHealthcheckAt = result.checked_at;
+    this.lastHealthcheckReason = result.reason;
+    return result;
+  }
+
+  resetSessionState({ preserveActor = false, reason = 'session_reset' } = {}) {
+    const preservedActorId = preserveActor ? this.actorId : '';
+    this.actorId = preservedActorId;
+    this.currentContainerId = '';
+    this.operationProfile = '';
+    this.lastJob = null;
+    this.startedAt = '';
+    this.sessionJobCount = 0;
+    this.consecutiveJobFailures = 0;
+    this.lastSessionRecycleReason = normalizeString(reason) || 'session_reset';
+    this.contextState = this.createContextState();
+    this.futureExtensionState = this.createFutureExtensionState();
+    this.syncContextState({
+      actor_id: preservedActorId,
+      session_status: 'stopped',
+      expected_next_action: 'start_session',
+      status: 'idle',
+    });
+    this.syncFutureExtensionState({
+      scheduler: {
+        account_session_key: preservedActorId,
+      },
+      pipeline: {
+        stage: 'idle',
+        pending_artifacts: [],
+        last_event: this.lastSessionRecycleReason,
+        handoff_ready: false,
+      },
+    });
+  }
+
+  async recreateSession(reason = 'session_recreated') {
+    const recycleReason = normalizeString(reason) || 'session_recreated';
+    const preserveActor = !!this.actorId;
+    const previousGeneration = this.sessionGeneration;
+    this.emitEvent({
+      event: 'session_recreate_started',
+      worker_id: this.workerId,
+      reason: recycleReason,
+      previous_session_generation: previousGeneration,
+    });
+    await this.stop(recycleReason);
+    this.resetSessionState({ preserveActor, reason: recycleReason });
+    const status = await this.start();
+    this.emitEvent({
+      event: 'session_recreated',
+      worker_id: this.workerId,
+      reason: recycleReason,
+      previous_session_generation: previousGeneration,
+      session_generation: this.sessionGeneration,
+    });
+    return status;
+  }
+
+  async ensureSessionReadyForJob() {
+    if (!this.isStarted()) {
+      await this.start();
+      return { action: 'started_new_session', reason: 'session_not_started' };
+    }
+
+    const health = await this.checkSessionHealth();
+    if (health.ok) {
+      return { action: 'reuse_session', reason: health.reason };
+    }
+
+    this.emitEvent({
+      event: 'session_unhealthy',
+      worker_id: this.workerId,
+      reason: health.reason,
+      checked_at: health.checked_at,
+      error: health.error || '',
+    });
+    await this.recreateSession(health.reason);
+    return { action: 'recreated_session', reason: health.reason };
   }
 
   refreshIdleTimer() {
@@ -944,7 +1126,15 @@ class ForwardSessionWorker {
       executablePath: launched.executablePath,
     };
 
+    this.stopReason = '';
     this.startedAt = nowIso();
+
+    this.sessionGeneration += 1;
+    this.sessionJobCount = 0;
+    this.consecutiveJobFailures = 0;
+    this.lastSessionRecycleReason = '';
+    this.lastHealthcheckAt = this.startedAt;
+    this.lastHealthcheckReason = 'session_started';
     this.touch({
       session_status: 'ready',
       status: 'idle',
@@ -991,7 +1181,8 @@ class ForwardSessionWorker {
     }
 
     let continuationDecision = null;
-    if (job.operation_type === 'add_parcel_to_forward_container' && !this.isStarted()) {
+    if (['noop', 'ping', 'navigate', 'goto_url', 'add_parcel_to_forward_container'].includes(job.operation_type)) {
+      await this.ensureSessionReadyForJob();
       await this.start();
     }
 
@@ -1017,6 +1208,7 @@ class ForwardSessionWorker {
       accepted_at: nowIso(),
     };
 
+    let jobFailed = false;
     this.isRunningJob = true;
     this.activeJobId = job.job_id;
     this.touch({
@@ -1101,9 +1293,20 @@ class ForwardSessionWorker {
       err.code = 'UNSUPPORTED_OPERATION';
       throw err;
     } catch (err) {
+      jobFailed = true;
+      this.consecutiveJobFailures += 1;
+      if (this.isStarted() && this.consecutiveJobFailures >= this.maxConsecutiveFailures) {
+        await this.recreateSession('consecutive_job_failures');
+      }
       this.touch({ expected_next_action: 'accept_job' });
       throw err;
     } finally {
+      if (!jobFailed) {
+        this.consecutiveJobFailures = 0;
+      }
+      if (!jobFailed && this.isStarted() && this.activeJobId) {
+        this.sessionJobCount += 1;
+      }
       this.isRunningJob = false;
       this.activeJobId = '';
       if (this.contextState.expected_next_action === 'complete_job') {
@@ -1148,6 +1351,7 @@ class ForwardSessionWorker {
       last_job: this.lastJob,
       queue_state: this.getQueueState(),
       context_state: this.getContextState(),
+      session_lifecycle: this.getSessionLifecycleState(),
       capabilities: this.getCapabilities(),
       future_extension_state: this.getFutureExtensionState(),
       cookies,
@@ -1156,25 +1360,7 @@ class ForwardSessionWorker {
   }
 
   resetSessionStateForIdleTimeout() {
-    this.actorId = '';
-    this.currentContainerId = '';
-    this.operationProfile = '';
-    this.lastJob = null;
-    this.contextState = this.createContextState();
-    this.futureExtensionState = this.createFutureExtensionState();
-    this.syncContextState({
-      session_status: 'stopped',
-      expected_next_action: 'start_session',
-      status: 'idle',
-    });
-    this.syncFutureExtensionState({
-      pipeline: {
-        stage: 'idle',
-        pending_artifacts: [],
-        last_event: 'idle_timeout',
-        handoff_ready: false,
-      },
-    });
+    this.resetSessionState({ preserveActor: false, reason: 'idle_timeout' });
   }
 
   async stop(reason = 'shutdown') {

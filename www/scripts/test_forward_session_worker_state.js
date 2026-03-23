@@ -9,8 +9,13 @@ const {
   validateJob,
 } = require('./forward_session_worker');
 
+function nowForTests() {
+  return new Date().toISOString();
+}
+
 function makeFakePage(url = 'about:blank') {
   let currentUrl = url;
+  let closed = false;
   const actionLog = [];
   const selectorText = new Map();
   const visibleSelectors = new Set();
@@ -25,7 +30,11 @@ function makeFakePage(url = 'about:blank') {
       return Promise.resolve([{ name: 'sid', value: '123' }]);
     },
     close() {
+      closed = true;
       return Promise.resolve();
+    },
+    isClosed() {
+      return closed;
     },
 
     waitForSelector(selector) {
@@ -84,6 +93,9 @@ function makeFakePage(url = 'about:blank') {
     setUrl(nextUrl) {
       currentUrl = nextUrl;
     },
+    setClosed(nextValue) {
+      closed = !!nextValue;
+    },
     setVisibleSelectors(selectors) {
       visibleSelectors.clear();
       for (const selector of selectors) {
@@ -102,13 +114,22 @@ function makeFakePage(url = 'about:blank') {
 async function seedStartedWorker(worker, url = 'https://example.test/') {
   const page = makeFakePage(url);
   page.setVisibleSelectors(['#tracking']);
+  let connected = true;
   worker.browser = {
     close() {
+      connected = false;
       return Promise.resolve();
+    },
+
+    isConnected() {
+      return connected;
+    },
+    setConnected(nextValue) {
+      connected = !!nextValue;
     },
   };
   worker.page = page;
-  worker.startedAt = '2026-03-23T00:00:00.000Z';
+  worker.startedAt = nowForTests();
   worker.touch({ session_status: 'ready', expected_next_action: 'accept_job' });
   return page;
 }
@@ -388,6 +409,118 @@ test('context_state remains available after stop and transitions to stopped stat
   assert.equal(contextState.expected_next_action, 'stopped');
 });
 
+
+test('worker recreates stale sessions before reuse when max session age is exceeded', async () => {
+  const worker = new ForwardSessionWorker({
+    worker_id: 'fw_worker_age',
+    autostart: false,
+    max_session_age_ms: 1,
+  });
+  const originalPage = await seedStartedWorker(worker, 'https://forward.example/form');
+  worker.startedAt = '2000-01-01T00:00:00.000Z';
+
+  let recreated = 0;
+  worker.start = async function startStub() {
+    recreated += 1;
+    const nextPage = makeFakePage('https://forward.example/fresh');
+    nextPage.setVisibleSelectors(['#tracking']);
+    this.browser = {
+      close() {
+        return Promise.resolve();
+      },
+      isConnected() {
+        return true;
+      },
+    };
+    this.page = nextPage;
+    this.stopReason = '';
+    this.startedAt = nowForTests();
+    this.sessionGeneration += 1;
+    this.sessionJobCount = 0;
+    this.consecutiveJobFailures = 0;
+    this.lastHealthcheckAt = this.startedAt;
+    this.lastHealthcheckReason = 'session_started';
+    this.touch({ session_status: 'ready', status: 'idle', expected_next_action: 'accept_job' });
+    return this.getStatus();
+  };
+
+  const result = await worker.handleJob({
+    actor_id: 'user_age_forward',
+    operation_type: 'noop',
+    operation_profile: 'continue_same_container',
+    container_id: 'CNT-AGE',
+    payload: {},
+  });
+  const status = await worker.getStatus();
+
+  assert.equal(result.ok, true);
+  assert.equal(recreated, 1);
+  assert.notEqual(worker.page, originalPage);
+  assert.equal(status.session_lifecycle.last_healthcheck_reason, 'session_started');
+  assert.equal(status.session_lifecycle.session_job_count, 1);
+  assert.equal(status.current_container_id, 'CNT-AGE');
+});
+
+test('worker recreates session after consecutive job failures hit the configured limit', async () => {
+  const worker = new ForwardSessionWorker({
+    worker_id: 'fw_worker_failures',
+    autostart: false,
+    max_consecutive_failures: 2,
+  });
+  await seedStartedWorker(worker, 'https://forward.example/form');
+
+  const recreatedReasons = [];
+  worker.recreateSession = async function recreateSessionStub(reason) {
+    recreatedReasons.push(reason);
+    this.resetSessionState({ preserveActor: true, reason });
+    const page = makeFakePage('https://forward.example/recreated');
+    page.setVisibleSelectors(['#tracking']);
+    this.browser = {
+      close() {
+        return Promise.resolve();
+      },
+      isConnected() {
+        return true;
+      },
+    };
+    this.page = page;
+    this.stopReason = '';
+    this.startedAt = nowForTests();
+    this.sessionGeneration += 1;
+    this.lastHealthcheckAt = this.startedAt;
+    this.lastHealthcheckReason = 'session_started';
+    this.touch({ session_status: 'ready', status: 'idle', expected_next_action: 'accept_job' });
+    return this.getStatus();
+  };
+
+  await assert.rejects(
+    worker.handleJob({
+      actor_id: 'user_failure_forward',
+      operation_type: 'navigate',
+      operation_profile: 'continue_same_container',
+      container_id: 'CNT-FAIL',
+      payload: {},
+    }),
+    /navigate payload\.url is required/
+  );
+  assert.equal(worker.consecutiveJobFailures, 1);
+
+  await assert.rejects(
+    worker.handleJob({
+      actor_id: 'user_failure_forward',
+      operation_type: 'navigate',
+      operation_profile: 'continue_same_container',
+      container_id: 'CNT-FAIL',
+      payload: {},
+    }),
+    /navigate payload\.url is required/
+  );
+
+  assert.deepEqual(recreatedReasons, ['consecutive_job_failures']);
+  assert.equal(worker.consecutiveJobFailures, 0);
+  assert.equal(worker.getContextState().actor_id, 'user_failure_forward');
+  assert.equal(worker.getContextState().current_container_id, '');
+});
 test('worker serializes concurrent jobs through an internal queue', async () => {
   const worker = new ForwardSessionWorker({ worker_id: 'fw_worker_queue', autostart: false });
   const page = await seedStartedWorker(worker);
