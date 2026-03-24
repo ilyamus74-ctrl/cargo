@@ -108,7 +108,7 @@
   - final normalized status.
 
 ## Definition of Done (implementation wave)
-- [ ] Stage A-D completed with integration test evidence.
+- [X] Stage A-D completed with integration test evidence (`php www/scripts/mvp/app/Forwarder/tests/forwarder_integration_smoke.php`).
 - [X] `/api/forwarder/scan` returns compact DTO used directly by operator UI.
 - [X] Audit logs allow end-to-end tracing per scan (`track` + `correlation_id`).
 - [X] Rollback switch documented for safe disable of forwarder flow.
