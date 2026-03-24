@@ -56,3 +56,41 @@
 - [x] `SessionManager.php`
 - [x] `LoginService.php`
 - [x] Minimal UI test endpoint
+
+## Next execution plan ("go further")
+
+### Sprint A — idempotency (highest priority)
+- [ ] Add `IdempotencyService` (in-memory/Redis adapter via interface).
+- [ ] Generate deterministic key: `sha256(track + ":" + container)` with normalization (`trim`, `upper`).
+- [ ] TTL for lock/result cache: 5–15 min (configurable env).
+- [ ] Workflow behavior:
+  - if in-flight key exists → return `IN_PROGRESS` (or last known status);
+  - if completed key exists → return cached normalized result;
+  - else start flow and save final result.
+- [ ] Add metrics: idempotency hit-rate, lock wait time.
+
+### Sprint B — technical retry policy
+- [ ] Add `RetryPolicy` with exponential backoff + jitter (e.g. 200ms, 500ms, 1000ms).
+- [ ] Retry only on technical failures: timeout, network error, HTTP 5xx.
+- [ ] No retries for business responses (`NOT_DECLARED`, validation errors, etc.).
+- [ ] Add circuit-breaker-like guard for repeated upstream failures (short cooldown).
+- [ ] Emit per-attempt logs with `correlation_id` and `attempt_no`.
+
+### Sprint C — shadow rollout
+- [ ] Enable dual-run mode (legacy flow + forwarder) for a small traffic slice (5–10%).
+- [ ] Store comparison report per request (status match/mismatch + reason).
+- [ ] Add dashboard counters: success rate, mismatch rate, p95 latency, session-expired rate.
+- [ ] Define go-live criteria (example):
+  - mismatch rate < 1% for 3 consecutive days;
+  - p95 latency not worse than legacy by >10%;
+  - no critical auth/session incidents.
+
+### Sprint D — controlled switch
+- [ ] Rollout by stages: 10% → 25% → 50% → 100% with rollback toggle.
+- [ ] Keep shadow comparison at least 48h after 100% cutover.
+- [ ] Finalize runbook: incident actions, re-login storm handling, temporary disable procedure.
+
+## Definition of Done (MVP+)
+- [ ] Idempotency + retry are covered by unit/integration tests.
+- [ ] Shadow period completed with agreed quality metrics.
+- [ ] On-call/runbook and dashboard links documented in README.
