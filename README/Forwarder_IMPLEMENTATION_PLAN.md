@@ -94,9 +94,9 @@
 ```
 
 ### Stage C — Operator UI (1 day)
-- [ ] Display green success state + print action/button.
-- [ ] Display red failure reason (`NOT_DECLARED`, `INVALID_TRACK`, `SESSION_EXPIRED`, etc.).
-- [ ] Return focus to scan input immediately after result render.
+- [X] Display green success state + print action/button.
+- [X] Display red failure reason (`NOT_DECLARED`, `INVALID_TRACK`, `SESSION_EXPIRED`, etc.).
+- [X] Return focus to scan input immediately after result render.
 
 ### Stage D — Reliability (1–2 days)
 - [X] Idempotency key on `(track, container)` for single processing/result.
