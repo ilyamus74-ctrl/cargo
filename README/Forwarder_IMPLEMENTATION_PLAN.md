@@ -57,40 +57,58 @@
 - [x] `LoginService.php`
 - [x] Minimal UI test endpoint
 
-## Next execution plan ("go further")
 
-### Sprint A — idempotency (highest priority)
-- [ ] Add `IdempotencyService` (in-memory/Redis adapter via interface).
-- [ ] Generate deterministic key: `sha256(track + ":" + container)` with normalization (`trim`, `upper`).
-- [ ] TTL for lock/result cache: 5–15 min (configurable env).
-- [ ] Workflow behavior:
-  - if in-flight key exists → return `IN_PROGRESS` (or last known status);
-  - if completed key exists → return cached normalized result;
-  - else start flow and save final result.
-- [ ] Add metrics: idempotency hit-rate, lock wait time.
+## Next execution plan (agreed A→D)
 
-### Sprint B — technical retry policy
-- [ ] Add `RetryPolicy` with exponential backoff + jitter (e.g. 200ms, 500ms, 1000ms).
-- [ ] Retry only on technical failures: timeout, network error, HTTP 5xx.
-- [ ] No retries for business responses (`NOT_DECLARED`, validation errors, etc.).
-- [ ] Add circuit-breaker-like guard for repeated upstream failures (short cooldown).
-- [ ] Emit per-attempt logs with `correlation_id` and `attempt_no`.
+### Stage A — Session Gateway (1–2 days)
+- [ ] Create `ForwarderSessionClient` service class.
+- [ ] Implement `ensureSession()`:
+  - if no valid session → perform login;
+  - if request returns `401` / `419` / redirect to login → relogin + single retry.
+- [ ] Persist cookie jar (file or Redis) with TTL slightly lower than server session TTL.
+- [ ] Auto-inject auth headers on requests:
+  - `X-XSRF-TOKEN` from cookie;
+  - `X-CSRF-TOKEN` (when required, extract from login page meta/hidden input).
+- [ ] Send both `X-XSRF-TOKEN` and `X-CSRF-TOKEN` by default to match current upstream behavior.
 
-### Sprint C — shadow rollout
-- [ ] Enable dual-run mode (legacy flow + forwarder) for a small traffic slice (5–10%).
-- [ ] Store comparison report per request (status match/mismatch + reason).
-- [ ] Add dashboard counters: success rate, mismatch rate, p95 latency, session-expired rate.
-- [ ] Define go-live criteria (example):
-  - mismatch rate < 1% for 3 consecutive days;
-  - p95 latency not worse than legacy by >10%;
-  - no critical auth/session incidents.
+### Stage B — Backend API for UI (1 day)
+- [ ] Add endpoint `POST /api/forwarder/scan`.
+- [ ] Input payload:
+```json
+{"track":"...","container":"24369"}
+```
+- [ ] Flow:
+  1. `check-position`;
+  2. if success → `check-package`;
+  3. return compact DTO (not full upstream payload).
+- [ ] Target response shape:
+```json
+{
+  "status":"ACCEPTED",
+  "track":"...",
+  "internal_id":"CBR...",
+  "weight":"0.700",
+  "client_name":"...",
+  "label_payload": {}
+}
+```
 
-### Sprint D — controlled switch
-- [ ] Rollout by stages: 10% → 25% → 50% → 100% with rollback toggle.
-- [ ] Keep shadow comparison at least 48h after 100% cutover.
-- [ ] Finalize runbook: incident actions, re-login storm handling, temporary disable procedure.
+### Stage C — Operator UI (1 day)
+- [ ] Display green success state + print action/button.
+- [ ] Display red failure reason (`NOT_DECLARED`, `INVALID_TRACK`, `SESSION_EXPIRED`, etc.).
+- [ ] Return focus to scan input immediately after result render.
 
-## Definition of Done (MVP+)
-- [ ] Idempotency + retry are covered by unit/integration tests.
-- [ ] Shadow period completed with agreed quality metrics.
-- [ ] On-call/runbook and dashboard links documented in README.
+### Stage D — Reliability (1–2 days)
+- [ ] Idempotency key on `(track, container)` for single processing/result.
+- [ ] Retry only for technical errors (timeouts / HTTP 5xx), not for business/ops outcomes.
+- [ ] Add audit log fields:
+  - inbound `track`;
+  - forwarder `request_id` / `correlation_id`;
+  - elapsed milliseconds;
+  - final normalized status.
+
+## Definition of Done (implementation wave)
+- [ ] Stage A-D completed with integration test evidence.
+- [ ] `/api/forwarder/scan` returns compact DTO used directly by operator UI.
+- [ ] Audit logs allow end-to-end tracing per scan (`track` + `correlation_id`).
+- [ ] Rollback switch documented for safe disable of forwarder flow.
