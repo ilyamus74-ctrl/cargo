@@ -1716,162 +1716,38 @@ function connectors_apply_php_entrypoint_mode(string $testOperation, array $runt
     return $testOperation;
 }
 
-function connectors_evaluate_operation_runnable(array $operation, array $connector = []): array{
-    $kind = strtolower(trim((string)($operation['kind'] ?? 'browser_steps')));
-    $config = isset($operation['config']) && is_array($operation['config']) ? $operation['config'] : [];
-
-    if ($kind === 'script') {
-        $scriptPath = trim((string)($config['script_path'] ?? ''));
-        if ($scriptPath === '') {
-            return ['is_runnable' => false, 'reason' => 'missing_script_path'];
-        }
-        return ['is_runnable' => true, 'reason' => ''];
-    }
-
-    if ($kind === 'php_report') {
-        $downloadMode = strtolower(trim((string)($config['download_mode'] ?? '')));
-        if ($downloadMode === '') {
-            return ['is_runnable' => false, 'reason' => 'missing_download_mode'];
-        }
-        if ($downloadMode === 'curl') {
-            $curlConfig = isset($config['curl_config']) && is_array($config['curl_config']) ? $config['curl_config'] : [];
-            $url = trim((string)($curlConfig['url'] ?? ''));
-            if ($url === '') {
-                return ['is_runnable' => false, 'reason' => 'missing_curl_config_url'];
-            }
-        }
-
-        return ['is_runnable' => true, 'reason' => ''];
-    }
-
-    if ($kind === 'api_call') {
-        $action = trim((string)($operation['action'] ?? ''));
-        if ($action === '') {
-            return ['is_runnable' => false, 'reason' => 'missing_action'];
-        }
-        return ['is_runnable' => true, 'reason' => ''];
-    }
-
-    if ($kind === 'browser_steps') {
-        $steps = isset($config['steps']) && is_array($config['steps']) ? $config['steps'] : [];
-        if (!empty($steps)) {
-            return ['is_runnable' => true, 'reason' => ''];
-        }
-        $prependLoginSteps = !array_key_exists('prepend_login_steps', $config) || !empty($config['prepend_login_steps']);
-        $loginSteps = $prependLoginSteps ? connectors_extract_browser_login_steps($connector) : [];
-        if (!empty($loginSteps)) {
-            return ['is_runnable' => true, 'reason' => ''];
-        }
-        return ['is_runnable' => false, 'reason' => 'missing_steps'];
-    }
-
-    return ['is_runnable' => true, 'reason' => ''];
-}
-
-function connectors_resolve_test_entrypoint_with_diagnostics(array $operationsPayload, string $testOperation, string $entrypointMode = '', array $connector = []): array
-{
-    $runtimeOperations = connectors_is_v3_operations_payload($operationsPayload)
-        ? connectors_v3_payload_to_runtime_operations($operationsPayload)
-        : $operationsPayload;
-    $testOperation = trim($testOperation);
-    $testOperationLower = strtolower($testOperation);
-    $resolvedRequestedOperation = $testOperation !== '' ? $testOperation : ($testOperationLower === 'submission' ? 'submission' : 'report');
-    if ($resolvedRequestedOperation === '') {
-        $resolvedRequestedOperation = 'report';
-    }
-
-    $entrypointModeNormalized = strtolower(trim($entrypointMode));
-    $phpModeRequested = in_array($entrypointModeNormalized, ['php', 'entrypoint_php'], true);
-    $candidatePhpOperationId = 'report_php';
-    if ($resolvedRequestedOperation !== '' && $resolvedRequestedOperation !== 'submission') {
-        $candidatePhpOperationId = preg_match('/_php$/i', $resolvedRequestedOperation) ? $resolvedRequestedOperation : ($resolvedRequestedOperation . '_php');
-    }
-
-    $candidateExists = isset($runtimeOperations[$candidatePhpOperationId]) && is_array($runtimeOperations[$candidatePhpOperationId]);
-    $candidateOperation = $candidateExists ? $runtimeOperations[$candidatePhpOperationId] : [];
-    $candidateKind = strtolower(trim((string)($candidateOperation['kind'] ?? '')));
-    $candidateRunnable = $candidateExists ? connectors_evaluate_operation_runnable($candidateOperation, $connector) : ['is_runnable' => false, 'reason' => 'missing_php_operation'];
-    $candidateIsRunnable = !empty($candidateRunnable['is_runnable']);
-    $candidateNotRunnableReason = $candidateIsRunnable ? '' : (string)($candidateRunnable['reason'] ?? 'not_runnable');
-
-    $resolvedEntrypointOperation = $resolvedRequestedOperation;
-    $fallback = [
-        'used' => false,
-        'from' => '',
-        'to' => '',
-        'reason' => '',
-    ];
-
-    if ($phpModeRequested && $resolvedRequestedOperation !== 'submission') {
-        if (!$candidateExists) {
-            $fallback = [
-                'used' => true,
-                'from' => $candidatePhpOperationId,
-                'to' => $resolvedRequestedOperation,
-                'reason' => 'missing_php_operation',
-            ];
-        } elseif (!in_array($candidateKind, ['php_report', 'script'], true)) {
-            $fallback = [
-                'used' => true,
-                'from' => $candidatePhpOperationId,
-                'to' => $resolvedRequestedOperation,
-                'reason' => 'php_entrypoint_kind_not_supported',
-            ];
-        } elseif (!$candidateIsRunnable) {
-            $fallback = [
-                'used' => true,
-                'from' => $candidatePhpOperationId,
-                'to' => $resolvedRequestedOperation,
-                'reason' => $candidateNotRunnableReason !== '' ? $candidateNotRunnableReason : 'php_entrypoint_not_runnable',
-            ];
-        } else {
-            $resolvedEntrypointOperation = $candidatePhpOperationId;
-        }
-    }
-    if (!isset($runtimeOperations[$resolvedEntrypointOperation])) {
-        throw new InvalidArgumentException('Операция для теста не найдена: ' . $resolvedEntrypointOperation);
-    }
-
-    $resolvedEntrypointKind = strtolower(trim((string)($runtimeOperations[$resolvedEntrypointOperation]['kind'] ?? '')));
-
-    return [
-        'entrypoint' => (string)($runtimeOperations[$resolvedEntrypointOperation]['operation_id'] ?? $resolvedEntrypointOperation),
-        'runtime_operations' => $runtimeOperations,
-        'diagnostics' => [
-            'requested' => [
-                'test_operation' => $testOperation !== '' ? $testOperation : 'report',
-                'entrypoint_mode' => $entrypointMode,
-            ],
-            'resolved' => [
-                'entrypoint_operation' => (string)($runtimeOperations[$resolvedEntrypointOperation]['operation_id'] ?? $resolvedEntrypointOperation),
-                'entrypoint_kind' => $resolvedEntrypointKind,
-            ],
-            'source' => [
-                'payload_schema_version' => (int)($operationsPayload['schema_version'] ?? 0),
-            ],
-            'candidate_php' => [
-                'operation_id' => $candidatePhpOperationId,
-                'exists' => $candidateExists,
-                'kind' => $candidateKind,
-                'is_runnable' => $candidateIsRunnable,
-                'not_runnable_reason' => $candidateNotRunnableReason,
-            ],
-            'fallback' => $fallback,
-        ],
-    ];
-}
-
 function connectors_resolve_legacy_test_entrypoint(array $operationsPayload, string $testOperation, string $entrypointMode = ''): string
 {
-    $resolved = connectors_resolve_test_entrypoint_with_diagnostics($operationsPayload, $testOperation, $entrypointMode);
-    return (string)($resolved['entrypoint'] ?? '');
+    $testOperation = trim($testOperation);
+    $testOperationLower = strtolower($testOperation);
+
+    if (connectors_is_v3_operations_payload($operationsPayload)) {
+        $runtimeOperations = connectors_v3_payload_to_runtime_operations($operationsPayload);
+        $resolvedRequestedOperation = connectors_apply_php_entrypoint_mode($testOperation, $runtimeOperations, $entrypointMode);
+        if ($testOperation !== '') {
+            if (isset($runtimeOperations[$resolvedRequestedOperation])) {
+                return (string)($runtimeOperations[$resolvedRequestedOperation]['operation_id'] ?? $resolvedRequestedOperation);
+            }
+            throw new InvalidArgumentException('Операция для теста не найдена: ' . $resolvedRequestedOperation);
+        }
+
+        $preferred = $testOperationLower === 'submission' ? 'submission' : 'report';
+        $preferred = connectors_apply_php_entrypoint_mode($preferred, $runtimeOperations, $entrypointMode);
+        if (isset($runtimeOperations[$preferred])) {
+            return (string)($runtimeOperations[$preferred]['operation_id'] ?? $preferred);
+        }
+
+        return $testOperationLower === 'submission' ? 'submission' : 'report';
+    }
+
+    return $testOperationLower === 'submission'
+        ? (string)($operationsPayload['submission']['operation_id'] ?? 'submission')
+        : (string)($operationsPayload['report']['operation_id'] ?? 'report');
 }
 
 
-
-function connectors_force_enable_test_entrypoint(array $runtimeOperations, string $entrypointOperationId, bool &$wasForced = false): array
+function connectors_force_enable_test_entrypoint(array $runtimeOperations, string $entrypointOperationId): array
 {
-    $wasForced = false;
     $entrypointOperationId = trim($entrypointOperationId);
     if ($entrypointOperationId === '' || !isset($runtimeOperations[$entrypointOperationId]) || !is_array($runtimeOperations[$entrypointOperationId])) {
         return $runtimeOperations;
@@ -1882,7 +1758,6 @@ function connectors_force_enable_test_entrypoint(array $runtimeOperations, strin
     }
 
     $runtimeOperations[$entrypointOperationId]['enabled'] = 1;
-    $wasForced = true;
     return $runtimeOperations;
 }
 
@@ -5053,51 +4928,11 @@ switch ($dispatchAction) {
         $manualKindFlowHandled = false;
         $runStartedAtTs = microtime(true);
         $runStartedAt = date('Y-m-d H:i:s');
-        $testOperation = trim((string)($_POST['test_operation'] ?? 'report'));
-        $entrypointMode = trim((string)($_POST['entrypoint_mode'] ?? ''));
-        $entrypointDiagnostics = [
-            'requested' => [
-                'test_operation' => $testOperation ?: 'report',
-                'entrypoint_mode' => $entrypointMode,
-            ],
-            'resolved' => [
-                'entrypoint_operation' => '',
-                'entrypoint_kind' => '',
-            ],
-            'source' => [
-                'operations_payload' => '',
-                'payload_schema_version' => 0,
-            ],
-            'candidate_php' => [
-                'operation_id' => 'report_php',
-                'exists' => false,
-                'kind' => '',
-                'is_runnable' => false,
-                'not_runnable_reason' => '',
-            ],
-            'fallback' => [
-                'used' => false,
-                'from' => '',
-                'to' => '',
-                'reason' => '',
-            ],
-            'factors' => [
-                'operations_payload_source' => '',
-                'payload_schema_version' => 0,
-                'report_php_exists' => false,
-                'report_php_kind' => '',
-                'report_php_config_valid' => false,
-                'dependency_graph_enabled' => false,
-                'entrypoint_force_enabled' => false,
-                'payload_migration_applied' => false,
-            ],
-        ];
         if ($connectorId <= 0) {
             $response = [
                 'status' => 'error',
                 'message' => 'connector_id required',
                 'run_id' => $runId,
-                'entrypoint_diagnostics' => $entrypointDiagnostics,
             ];
             break;
         }
@@ -5108,43 +4943,25 @@ switch ($dispatchAction) {
                 'status' => 'error',
                 'message' => 'Коннектор не найден',
                 'run_id' => $runId,
-                'entrypoint_diagnostics' => $entrypointDiagnostics,
             ];
             break;
         }
 
+        $testOperation = trim((string)($_POST['test_operation'] ?? 'report'));
+        $entrypointMode = trim((string)($_POST['entrypoint_mode'] ?? ''));
         connectors_append_trace_event($traceLog, $runId, $testOperation ?: 'report', 'start', 'start', 'Запуск теста операции');
 
         try {
-            $hasPostPayload = connectors_has_operations_payload_in_post();
-            $entrypointDiagnostics['source']['operations_payload'] = $hasPostPayload ? 'post' : 'db';
-            if ($hasPostPayload) {
-                $operationsPayloadRaw = connectors_build_operations_payload_from_post();
+            if (connectors_has_operations_payload_in_post()) {
+                $operationsPayload = connectors_build_operations_payload_from_post();
             } else {
-                $operationsPayloadRaw = connectors_decode_operations_payload($connector);
+                $operationsPayload = connectors_decode_operations_payload($connector);
             }
-
-            $operationsPayload = connectors_migrate_operations_payload($operationsPayloadRaw);
-            $migrationApplied = json_encode($operationsPayloadRaw, JSON_UNESCAPED_UNICODE) !== json_encode($operationsPayload, JSON_UNESCAPED_UNICODE);
-            $entrypointDiagnostics['factors']['payload_migration_applied'] = $migrationApplied;
             connectors_validate_operations_payload($operationsPayload);
-
-            $entrypointResolution = connectors_resolve_test_entrypoint_with_diagnostics($operationsPayload, $testOperation, $entrypointMode, $connector);
-            $entrypoint = (string)($entrypointResolution['entrypoint'] ?? '');
-            $runtimeOperations = isset($entrypointResolution['runtime_operations']) && is_array($entrypointResolution['runtime_operations'])
-                ? $entrypointResolution['runtime_operations']
-                : [];
-            if (isset($entrypointResolution['diagnostics']) && is_array($entrypointResolution['diagnostics'])) {
-                $entrypointDiagnostics = array_replace_recursive($entrypointDiagnostics, $entrypointResolution['diagnostics']);
-            }
-            $entrypointDiagnostics['source']['operations_payload'] = $hasPostPayload ? 'post' : 'db';
-            $entrypointDiagnostics['source']['payload_schema_version'] = (int)($operationsPayload['schema_version'] ?? 0);
-            $entrypointDiagnostics['factors']['operations_payload_source'] = $entrypointDiagnostics['source']['operations_payload'];
-            $entrypointDiagnostics['factors']['payload_schema_version'] = $entrypointDiagnostics['source']['payload_schema_version'];
-            $entrypointDiagnostics['factors']['report_php_exists'] = !empty($entrypointDiagnostics['candidate_php']['exists']);
-            $entrypointDiagnostics['factors']['report_php_kind'] = (string)($entrypointDiagnostics['candidate_php']['kind'] ?? '');
-            $entrypointDiagnostics['factors']['report_php_config_valid'] = !empty($entrypointDiagnostics['candidate_php']['is_runnable']);
-            $entrypointDiagnostics['factors']['dependency_graph_enabled'] = connectors_is_dependency_graph_enabled($connector);
+            $entrypoint = connectors_resolve_legacy_test_entrypoint($operationsPayload, $testOperation, $entrypointMode);
+            $runtimeOperations = connectors_is_v3_operations_payload($operationsPayload)
+                ? connectors_v3_payload_to_runtime_operations($operationsPayload)
+                : $operationsPayload;
             if (!is_array($runtimeOperations) || $runtimeOperations === []) {
                 $runtimeOperations = connectors_decode_operations_for_runtime($connector);
             }
@@ -5152,25 +4969,8 @@ switch ($dispatchAction) {
                 throw new InvalidArgumentException('Не удалось подготовить runtime-операции для тестового запуска');
             }
 
+            $runtimeOperations = connectors_force_enable_test_entrypoint($runtimeOperations, $entrypoint);
 
-            $entrypointForceEnabled = false;
-            $runtimeOperations = connectors_force_enable_test_entrypoint($runtimeOperations, $entrypoint, $entrypointForceEnabled);
-            $entrypointDiagnostics['factors']['entrypoint_force_enabled'] = $entrypointForceEnabled;
-            if (!empty($entrypointDiagnostics['fallback']['used'])) {
-                connectors_append_trace_event(
-                    $traceLog,
-                    $runId,
-                    $testOperation ?: 'report',
-                    'entrypoint',
-                    'fallback',
-                    'Entrypoint fallback применён',
-                    [
-                        'from' => (string)($entrypointDiagnostics['fallback']['from'] ?? ''),
-                        'to' => (string)($entrypointDiagnostics['fallback']['to'] ?? ''),
-                        'reason' => (string)($entrypointDiagnostics['fallback']['reason'] ?? ''),
-                    ]
-                );
-            }
             if (connectors_is_dependency_graph_enabled($connector)) {
                 try {
                     $executionPlan = connectors_build_execution_plan($runtimeOperations, $entrypoint);
@@ -5289,7 +5089,6 @@ switch ($dispatchAction) {
                     'chain_status' => connectors_build_chain_status_map($executionPlan, $mainOperationId, true, $traceLog),
                     'artifacts_dir' => $lastArtifactsDir,
                     'graph_errors' => $graphErrors,
-                    'entrypoint_diagnostics' => $entrypointDiagnostics,
                 ];
             }
 
@@ -5327,7 +5126,6 @@ switch ($dispatchAction) {
                     'artifacts_dir' => (string)($submissionResult['artifacts_dir'] ?? ''),
                     'node_payload' => isset($submissionResult['node_payload']) && is_array($submissionResult['node_payload']) ? $submissionResult['node_payload'] : null,
                     'graph_errors' => $graphErrors,
-                    'entrypoint_diagnostics' => $entrypointDiagnostics,
                 ];
                 }
 
@@ -5363,7 +5161,6 @@ switch ($dispatchAction) {
                 'run_id' => $runId,
                 'trace_log' => $traceLog,
                 'graph_errors' => $graphErrors,
-                'entrypoint_diagnostics' => $entrypointDiagnostics,
             ];
         } catch (RuntimeException $e) {
 
@@ -5377,7 +5174,6 @@ switch ($dispatchAction) {
                 'test_operation' => $testOperation,
                 'run_id' => $runId,
                 'trace_log' => $traceLog,
-                'entrypoint_diagnostics' => $entrypointDiagnostics,
             ];
         } catch (ConnectorStepLogException $e) {
             connectors_append_trace_event($traceLog, $runId, $testOperation ?: 'report', 'validate', 'failed', 'Ошибка выполнения шага', [
@@ -5395,7 +5191,6 @@ switch ($dispatchAction) {
                 'trace_log' => $traceLog,
                 'artifacts_dir' => $e->getArtifactsDir(),
                 'subrunner_errors' => isset($exceptionContext['subrunner_errors']) && is_array($exceptionContext['subrunner_errors']) ? $exceptionContext['subrunner_errors'] : [],
-                'entrypoint_diagnostics' => $entrypointDiagnostics,
             ];
 
         } catch (Throwable $e) {
@@ -5411,7 +5206,6 @@ switch ($dispatchAction) {
                 'run_id' => $runId,
                 'trace_log' => $traceLog,
                 'graph_errors' => $graphErrors,
-                'entrypoint_diagnostics' => $entrypointDiagnostics,
             ];
         }
 
@@ -5472,7 +5266,6 @@ switch ($dispatchAction) {
                     'execution_plan' => $executionPlan,
                     'chain_status' => connectors_build_chain_status_map($executionPlan, $reportOperationId, true, $traceLog),
                     'imported_rows' => $importedRows,
-                    'entrypoint_diagnostics' => $entrypointDiagnostics,
                 ];
             } catch (InvalidArgumentException $e) {
                 $reportOperationId = trim((string)($reportCfg['operation_id'] ?? 'report'));
@@ -5488,7 +5281,6 @@ switch ($dispatchAction) {
                     'trace_log' => $traceLog,
                     'execution_plan' => $executionPlan,
                     'chain_status' => connectors_build_chain_status_map($executionPlan, $reportOperationId, false, $traceLog),
-                    'entrypoint_diagnostics' => $entrypointDiagnostics,
                 ];
             } catch (ConnectorStepLogException $e) {
                 $reportOperationId = trim((string)($reportCfg['operation_id'] ?? 'report'));
@@ -5508,7 +5300,6 @@ switch ($dispatchAction) {
                     'chain_status' => connectors_build_chain_status_map($executionPlan, $reportOperationId, false, $traceLog),
                     'artifacts_dir' => $e->getArtifactsDir(),
                     'subrunner_errors' => isset($exceptionContext['subrunner_errors']) && is_array($exceptionContext['subrunner_errors']) ? $exceptionContext['subrunner_errors'] : [],
-                    'entrypoint_diagnostics' => $entrypointDiagnostics,
                 ];
             } catch (RuntimeException $e) {
                 $reportOperationId = trim((string)($reportCfg['operation_id'] ?? 'report'));
@@ -5524,7 +5315,6 @@ switch ($dispatchAction) {
                     'trace_log' => $traceLog,
                     'execution_plan' => $executionPlan,
                     'chain_status' => connectors_build_chain_status_map($executionPlan, $reportOperationId, false, $traceLog),
-                    'entrypoint_diagnostics' => $entrypointDiagnostics,
                 ];
             } catch (Throwable $e) {
                 $reportOperationId = trim((string)($reportCfg['operation_id'] ?? 'report'));
@@ -5541,7 +5331,6 @@ switch ($dispatchAction) {
                     'trace_log' => $traceLog,
                     'execution_plan' => $executionPlan,
                     'chain_status' => connectors_build_chain_status_map($executionPlan, $reportOperationId, false, $traceLog),
-                    'entrypoint_diagnostics' => $entrypointDiagnostics,
                 ];
             }
             }
@@ -5569,9 +5358,6 @@ switch ($dispatchAction) {
         ]);
         if (!isset($response['graph_errors']) || !is_array($response['graph_errors'])) {
             $response['graph_errors'] = $graphErrors;
-        }
-        if (!isset($response['entrypoint_diagnostics']) || !is_array($response['entrypoint_diagnostics'])) {
-            $response['entrypoint_diagnostics'] = $entrypointDiagnostics;
         }
         break;
 
