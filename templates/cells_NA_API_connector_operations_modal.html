@@ -578,6 +578,7 @@
           <div class="d-flex gap-2 mt-3">\
             <button type="button" class="btn btn-outline-primary js-core-link" data-core-action="test_connector_operations" data-test-operation="' + esc(op.operation_id || '') + '">Проверить операцию</button>\
           </div>\
+            <button type="button" class="btn btn-outline-secondary js-core-link" data-core-action="test_connector_operations" data-test-operation="' + esc(op.operation_id || '') + '" data-entrypoint-mode="entrypoint_php">Проверить операцию PHP</button>\
           <div class="alert alert-light border mt-3 py-2 small d-none" data-op-report-for="' + esc(op.operation_id || '') + '"></div>\
         </div>';
       content.appendChild(pane);

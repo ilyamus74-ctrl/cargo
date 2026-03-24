@@ -108,6 +108,10 @@ const CoreAPI = {
                     if (testOperation) {
                         fd.append('test_operation', testOperation);
                     }
+                    const entrypointMode = currentLink?.getAttribute('data-entrypoint-mode') || '';
+                    if (entrypointMode) {
+                        fd.append('entrypoint_mode', entrypointMode);
+                    }
                     const openTab = currentLink?.getAttribute('data-open-tab') || '';
                     if (openTab) {
                         fd.append('open_tab', openTab);
@@ -755,12 +759,27 @@ const CoreAPI = {
                 const lines = [];
                 const safeMessage = safeText(payload?.message || fallbackTitle);
                 const runId = safeText(payload?.run_id || '');
+                const requestedOperation = safeText(payload?.test_operation || '');
+                const resolvedOperation = safeText(payload?.resolved_entrypoint_operation || '');
+                const entrypointMode = safeText(payload?.entrypoint_mode || '');
                 const traceLog = Array.isArray(payload?.trace_log) ? payload.trace_log : [];
                 const stepLog = Array.isArray(payload?.step_log) ? payload.step_log : [];
 
                 lines.push(`<div><strong>${safeMessage}</strong></div>`);
                 if (runId) {
                     lines.push(`<div class="mt-1">run_id: <code>${runId}</code></div>`);
+                }
+
+                if (entrypointMode || requestedOperation || resolvedOperation) {
+                    lines.push('<div class="mt-1"><strong>Режим запуска:</strong> '
+                        + (entrypointMode ? `<code>${entrypointMode}</code>` : '<code>default</code>')
+                        + '</div>');
+                }
+                if (requestedOperation || resolvedOperation) {
+                    const requested = requestedOperation || '-';
+                    const resolved = resolvedOperation || requested;
+                    const relation = requested === resolved ? ' (без переключения)' : ' (переключено)';
+                    lines.push(`<div class="mt-1"><strong>Операция:</strong> <code>${requested}</code> → <code>${resolved}</code>${relation}</div>`);
                 }
 
                 lines.push('<div class="mt-2"><strong>Статус цепочки</strong></div>');

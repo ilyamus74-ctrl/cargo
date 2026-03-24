@@ -1680,22 +1680,47 @@ function connectors_resolve_report_operation_id(array $runtimeOperations): ?stri
     return null;
 }
 
-function connectors_resolve_legacy_test_entrypoint(array $operationsPayload, string $testOperation): string
+function connectors_apply_php_entrypoint_mode(string $testOperation, array $runtimeOperations, string $entrypointMode = ''): string
+{
+    $testOperation = trim($testOperation);
+    if ($testOperation === '') {
+        return '';
+    }
+
+    $entrypointMode = strtolower(trim($entrypointMode));
+    if (!in_array($entrypointMode, ['php', 'entrypoint_php'], true)) {
+        return $testOperation;
+    }
+
+    if (preg_match('/_php$/i', $testOperation)) {
+        return $testOperation;
+    }
+
+    $candidate = $testOperation . '_php';
+    if (isset($runtimeOperations[$candidate])) {
+        return $candidate;
+    }
+
+    return $testOperation;
+}
+
+function connectors_resolve_legacy_test_entrypoint(array $operationsPayload, string $testOperation, string $entrypointMode = ''): string
 {
     $testOperation = trim($testOperation);
     $testOperationLower = strtolower($testOperation);
 
     if (connectors_is_v3_operations_payload($operationsPayload)) {
         $runtimeOperations = connectors_v3_payload_to_runtime_operations($operationsPayload);
+        $resolvedRequestedOperation = connectors_apply_php_entrypoint_mode($testOperation, $runtimeOperations, $entrypointMode);
         if ($testOperation !== '') {
-            if (isset($runtimeOperations[$testOperation])) {
-                return (string)($runtimeOperations[$testOperation]['operation_id'] ?? $testOperation);
+            if (isset($runtimeOperations[$resolvedRequestedOperation])) {
+                return (string)($runtimeOperations[$resolvedRequestedOperation]['operation_id'] ?? $resolvedRequestedOperation);
             }
-
-            throw new InvalidArgumentException('Операция для теста не найдена: ' . $testOperation);
+            throw new InvalidArgumentException('Операция для теста не найдена: ' . $resolvedRequestedOperation);
         }
 
         $preferred = $testOperationLower === 'submission' ? 'submission' : 'report';
+        $preferred = connectors_apply_php_entrypoint_mode($preferred, $runtimeOperations, $entrypointMode);
         if (isset($runtimeOperations[$preferred])) {
             return (string)($runtimeOperations[$preferred]['operation_id'] ?? $preferred);
         }
@@ -4876,6 +4901,7 @@ switch ($dispatchAction) {
         }
 
         $testOperation = trim((string)($_POST['test_operation'] ?? 'report'));
+        $entrypointMode = trim((string)($_POST['entrypoint_mode'] ?? ''));
         connectors_append_trace_event($traceLog, $runId, $testOperation ?: 'report', 'start', 'start', 'Запуск теста операции');
 
         try {
@@ -4885,7 +4911,7 @@ switch ($dispatchAction) {
                 $operationsPayload = connectors_decode_operations_payload($connector);
             }
             connectors_validate_operations_payload($operationsPayload);
-            $entrypoint = connectors_resolve_legacy_test_entrypoint($operationsPayload, $testOperation);
+            $entrypoint = connectors_resolve_legacy_test_entrypoint($operationsPayload, $testOperation, $entrypointMode);
             $runtimeOperations = connectors_is_v3_operations_payload($operationsPayload)
                 ? connectors_v3_payload_to_runtime_operations($operationsPayload)
                 : $operationsPayload;
@@ -5002,6 +5028,8 @@ switch ($dispatchAction) {
                     'message' => (string)($mainResult['message'] ?? 'Операции выполнены'),
                     'connector_id' => $connectorId,
                     'run_id' => $runId,
+                    'entrypoint_mode' => $entrypointMode,
+                    'resolved_entrypoint_operation' => $entrypoint,
                     'target_table' => $targetTable,
                     'download' => $lastDownload,
                     'api_response' => $lastApiResponse,
@@ -5036,6 +5064,8 @@ switch ($dispatchAction) {
                     'message' => 'Тест операции #2 пройден. Проверка Last changes выполнена.' . $suffix,
                     'connector_id' => $connectorId,
                     'run_id' => $runId,
+                    'entrypoint_mode' => $entrypointMode,
+                    'resolved_entrypoint_operation' => $entrypoint,
                     'open_tab' => 'op2-pane',
                     'submission_tracking' => $tracking,
                     'resolved_success_selector' => (string)($submissionResult['resolved_success_selector'] ?? ''),
@@ -5178,6 +5208,8 @@ switch ($dispatchAction) {
                     'message' => 'Тест операции пройден. Файл скачан (' . (int)($downloadInfo['file_size'] ?? 0) . ' байт). Таблица `' . $targetTable . '` готова.' . $periodMessage . $importMessage,
                     'connector_id' => $connectorId,
                     'run_id' => $runId,
+                    'entrypoint_mode' => $entrypointMode,
+                    'resolved_entrypoint_operation' => $entrypoint,
                     'target_table' => $targetTable,
                     'period_from' => $periodFrom,
                     'period_to' => $periodTo,

@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-03-24 07:57:32
+/* Smarty version 5.3.1, created on 2026-03-24 18:52:02
   from 'file:cells_NA_API_connector_operations_modal.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_69c243ecee4d55_06579901',
+  'unifunc' => 'content_69c2dd52e97bf4_55587127',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '4e0cfb81384357625659d5eca445a63482fe7323' => 
     array (
       0 => 'cells_NA_API_connector_operations_modal.html',
-      1 => 1773841605,
+      1 => 1774374244,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_69c243ecee4d55_06579901 (\Smarty\Template $_smarty_tpl) {
+function content_69c2dd52e97bf4_55587127 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?><section class="section">
   <style>
@@ -611,6 +611,7 @@ $_smarty_current_dir = '/home/cells/web/templates';
           <div class="d-flex gap-2 mt-3">\
             <button type="button" class="btn btn-outline-primary js-core-link" data-core-action="test_connector_operations" data-test-operation="' + esc(op.operation_id || '') + '">Проверить операцию</button>\
           </div>\
+            <button type="button" class="btn btn-outline-secondary js-core-link" data-core-action="test_connector_operations" data-test-operation="' + esc(op.operation_id || '') + '" data-entrypoint-mode="entrypoint_php">Проверить операцию PHP</button>\
           <div class="alert alert-light border mt-3 py-2 small d-none" data-op-report-for="' + esc(op.operation_id || '') + '"></div>\
         </div>';
       content.appendChild(pane);
