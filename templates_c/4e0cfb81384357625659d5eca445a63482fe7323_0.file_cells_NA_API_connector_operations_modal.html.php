@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-03-24 18:52:02
+/* Smarty version 5.3.1, created on 2026-03-24 19:55:57
   from 'file:cells_NA_API_connector_operations_modal.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_69c2dd52e97bf4_55587127',
+  'unifunc' => 'content_69c2ec4d0adee3_32363010',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '4e0cfb81384357625659d5eca445a63482fe7323' => 
     array (
       0 => 'cells_NA_API_connector_operations_modal.html',
-      1 => 1774374244,
+      1 => 1774381199,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_69c2dd52e97bf4_55587127 (\Smarty\Template $_smarty_tpl) {
+function content_69c2ec4d0adee3_32363010 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?><section class="section">
   <style>
@@ -212,6 +212,60 @@ $_smarty_current_dir = '/home/cells/web/templates';
     return { schema_version: 3, operations: legacyOps };
   }
 
+  function ensureReportPhpOperation(payloadLike) {
+    if (!payloadLike || !Array.isArray(payloadLike.operations)) return payloadLike;
+
+    var hasReport = false;
+    var hasReportPhp = false;
+    var reportConfig = {};
+
+    payloadLike.operations.forEach(function(op) {
+      var opId = String(op && op.operation_id || '').trim().toLowerCase();
+      if (opId === 'report') {
+        hasReport = true;
+        if (op && typeof op.config === 'object' && op.config) {
+          reportConfig = op.config;
+        }
+      }
+      if (opId === 'report_php') {
+        hasReportPhp = true;
+      }
+    });
+
+    if (!hasReport || hasReportPhp) return payloadLike;
+
+    var inheritedConfig = {};
+    if (reportConfig && typeof reportConfig === 'object') {
+      ['target_table', 'field_mapping', 'file_extension'].forEach(function(key) {
+        if (Object.prototype.hasOwnProperty.call(reportConfig, key)) {
+          inheritedConfig[key] = reportConfig[key];
+        }
+      });
+    }
+
+    payloadLike.operations.push({
+      operation_id: 'report_php',
+      display_name: 'Операция report_php',
+      module: 'generic',
+      action: '',
+      kind: 'script',
+      enabled: 0,
+      entrypoint: 0,
+      on_dependency_fail: 'stop',
+      run_after: [],
+      run_with: [],
+      run_finally: [],
+      config: Object.assign({
+        interpreter: 'php',
+        script_path: '',
+        args: [],
+        timeout_sec: 90
+      }, inheritedConfig)
+    });
+
+    return payloadLike;
+  }
+
   var payload;
   var operationLastStatus = parseJsonSafe(statusJsonEl && statusJsonEl.value ? statusJsonEl.value : '{}', {});
   try {
@@ -220,6 +274,7 @@ $_smarty_current_dir = '/home/cells/web/templates';
     payload = { schema_version: 3, operations: [] };
   }
   payload = normalizePayload(payload);
+  payload = ensureReportPhpOperation(payload);
 
   var operationTemplates = {
     flights_list_fetch: {

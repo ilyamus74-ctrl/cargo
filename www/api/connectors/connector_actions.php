@@ -550,7 +550,7 @@ function connectors_operation_module_registry(): array
 
 function connectors_operation_kind_registry(): array
 {
-    return ['api_call', 'browser_steps', 'script', 'noop', 'subrunner'];
+    return ['api_call', 'browser_steps', 'script', 'noop', 'subrunner', 'php_report'];
 }
 
 function connectors_extract_module_from_handler_path(string $handlerPath): string
@@ -1697,7 +1697,19 @@ function connectors_apply_php_entrypoint_mode(string $testOperation, array $runt
     }
 
     $candidate = $testOperation . '_php';
-    if (isset($runtimeOperations[$candidate])) {
+    if (isset($runtimeOperations[$candidate]) && is_array($runtimeOperations[$candidate])) {
+        $candidateOperation = $runtimeOperations[$candidate];
+        $candidateKind = strtolower(trim((string)($candidateOperation['kind'] ?? '')));
+        $candidateConfig = isset($candidateOperation['config']) && is_array($candidateOperation['config'])
+            ? $candidateOperation['config']
+            : [];
+
+        if ($candidateKind === 'script') {
+            $scriptPath = trim((string)($candidateConfig['script_path'] ?? ''));
+            if ($scriptPath === '') {
+                return $testOperation;
+            }
+        }
         return $candidate;
     }
 
@@ -3877,6 +3889,31 @@ function connectors_execute_script_operation(array $operation): array
     ];
 }
 
+
+function connectors_execute_php_report_operation(array $connector, array $operation, ?string $periodFrom, ?string $periodTo): array
+{
+    $config = isset($operation['config']) && is_array($operation['config']) ? $operation['config'] : [];
+    $reportCfg = $config;
+    if (!isset($reportCfg['download_mode']) || trim((string)$reportCfg['download_mode']) === '') {
+        $reportCfg['download_mode'] = 'curl';
+    }
+    if (!isset($reportCfg['file_extension']) || trim((string)$reportCfg['file_extension']) === '') {
+        $reportCfg['file_extension'] = 'xlsx';
+    }
+    if (!isset($reportCfg['target_table']) || trim((string)$reportCfg['target_table']) === '') {
+        $reportCfg['target_table'] = 'connector_report_temp';
+    }
+
+    $downloadInfo = connectors_download_report_file($connector, $reportCfg, $periodFrom, $periodTo);
+    $targetTable = connectors_normalize_report_table_name((string)($reportCfg['target_table'] ?? 'connector_report_temp'));
+
+    return [
+        'message' => 'Файл успешно скачан через PHP report',
+        'download' => $downloadInfo,
+        'target_table' => $targetTable,
+    ];
+}
+
 function connectors_resolve_manual_test_target_table(array $operation, array $result = []): string
 {
     $subrunnerTable = trim((string)($result['subrunner']['meta']['table_name'] ?? ''));
@@ -3914,6 +3951,16 @@ function connectors_execute_operation_by_kind_for_manual_test(array $connector, 
             'message' => (string)($scriptResult['message'] ?? 'Операция script выполнена'),
             'script' => isset($scriptResult['script']) && is_array($scriptResult['script']) ? $scriptResult['script'] : null,
             'trace_meta' => ['kind' => 'script'],
+        ];
+    }
+
+    if ($kind === 'php_report') {
+        $phpReportResult = connectors_execute_php_report_operation($connector, $operation, $periodFrom, $periodTo);
+        return [
+            'message' => (string)($phpReportResult['message'] ?? 'Операция php_report выполнена'),
+            'download' => isset($phpReportResult['download']) && is_array($phpReportResult['download']) ? $phpReportResult['download'] : null,
+            'target_table' => trim((string)($phpReportResult['target_table'] ?? '')),
+            'trace_meta' => ['kind' => 'php_report'],
         ];
     }
 
