@@ -11,6 +11,8 @@ final class SessionManager
 
     private string $xsrfToken = '';
 
+    private string $csrfToken = '';
+
     public function updateFromHeaders(string $headersRaw): void
     {
         if ($headersRaw === '') {
@@ -56,15 +58,16 @@ final class SessionManager
             preg_match('/<meta[^>]+name=["\\\']csrf-token["\\\'][^>]+content=["\\\']([^"\\\']+)["\\\']/i', $html, $metaMatch) === 1
             && isset($metaMatch[1])
         ) {
-            $this->xsrfToken = trim((string)$metaMatch[1]);
-            return;
-        }
-
-        if (
+            $this->csrfToken = trim((string)$metaMatch[1]);
+        } elseif (
             preg_match('/<input[^>]+name=["\\\']_token["\\\'][^>]+value=["\\\']([^"\\\']+)["\\\']/i', $html, $inputMatch) === 1
             && isset($inputMatch[1])
         ) {
-            $this->xsrfToken = trim((string)$inputMatch[1]);
+            $this->csrfToken = trim((string)$inputMatch[1]);
+        }
+
+        if ($this->xsrfToken === '' && $this->csrfToken !== '') {
+            $this->xsrfToken = $this->csrfToken;
         }
     }
 
@@ -87,14 +90,22 @@ final class SessionManager
         return $this->xsrfToken;
     }
 
+    public function csrfToken(): string
+    {
+        return $this->csrfToken;
+    }
+
     /** @return array<string, string> */
-    public function securityHeaders(bool $withCsrf = false): array
+    public function securityHeaders(bool $withCsrf = true): array
     {
         $headers = [];
         if ($this->xsrfToken !== '') {
             $headers['X-XSRF-TOKEN'] = $this->xsrfToken;
-            if ($withCsrf) {
-                $headers['X-CSRF-TOKEN'] = $this->xsrfToken;
+        }
+        if ($withCsrf) {
+            $csrf = $this->csrfToken !== '' ? $this->csrfToken : $this->xsrfToken;
+            if ($csrf !== '') {
+                $headers['X-CSRF-TOKEN'] = $csrf;
             }
         }
 
@@ -104,5 +115,25 @@ final class SessionManager
     public function isAuthenticated(): bool
     {
         return $this->cookieHeader() !== '';
+    }
+
+
+    /** @return array<string, mixed> */
+    public function exportState(): array
+    {
+        return [
+            'cookies' => $this->cookies,
+            'xsrf_token' => $this->xsrfToken,
+            'csrf_token' => $this->csrfToken,
+        ];
+    }
+
+    /** @param array<string, mixed> $state */
+    public function importState(array $state): void
+    {
+        $cookies = $state['cookies'] ?? [];
+        $this->cookies = is_array($cookies) ? array_map('strval', $cookies) : [];
+        $this->xsrfToken = (string)($state['xsrf_token'] ?? '');
+        $this->csrfToken = (string)($state['csrf_token'] ?? '');
     }
 }

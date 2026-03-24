@@ -61,6 +61,7 @@ $routes = [
     'departures_delete_local_flight' => 'api/departures/departures_actions.php',
     // ========== FORWARDER ==========
     'forwarder_scan_test'   => 'api/forwarder/forwarder_actions.php',
+    'forwarder_scan'        => 'api/forwarder/forwarder_actions.php',
     // ========== CONNECTORS (meta) ==========
     'get_module_actions_registry' => '@internal/module_actions_registry',
 

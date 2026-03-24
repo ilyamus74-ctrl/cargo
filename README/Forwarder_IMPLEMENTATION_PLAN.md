@@ -61,23 +61,23 @@
 ## Next execution plan (agreed A→D)
 
 ### Stage A — Session Gateway (1–2 days)
-- [ ] Create `ForwarderSessionClient` service class.
-- [ ] Implement `ensureSession()`:
+- [X] Create `ForwarderSessionClient` service class.
+- [X] Implement `ensureSession()`:
   - if no valid session → perform login;
   - if request returns `401` / `419` / redirect to login → relogin + single retry.
-- [ ] Persist cookie jar (file or Redis) with TTL slightly lower than server session TTL.
-- [ ] Auto-inject auth headers on requests:
+- [X] Persist cookie jar (file or Redis) with TTL slightly lower than server session TTL.
+- [X] Auto-inject auth headers on requests:
   - `X-XSRF-TOKEN` from cookie;
   - `X-CSRF-TOKEN` (when required, extract from login page meta/hidden input).
-- [ ] Send both `X-XSRF-TOKEN` and `X-CSRF-TOKEN` by default to match current upstream behavior.
+- [X] Send both `X-XSRF-TOKEN` and `X-CSRF-TOKEN` by default to match current upstream behavior.
 
 ### Stage B — Backend API for UI (1 day)
-- [ ] Add endpoint `POST /api/forwarder/scan`.
-- [ ] Input payload:
+- [X] Add endpoint `POST /api/forwarder/scan`.
+- [X] Input payload:
 ```json
 {"track":"...","container":"24369"}
 ```
-- [ ] Flow:
+- [X] Flow:
   1. `check-position`;
   2. if success → `check-package`;
   3. return compact DTO (not full upstream payload).
@@ -99,9 +99,9 @@
 - [ ] Return focus to scan input immediately after result render.
 
 ### Stage D — Reliability (1–2 days)
-- [ ] Idempotency key on `(track, container)` for single processing/result.
-- [ ] Retry only for technical errors (timeouts / HTTP 5xx), not for business/ops outcomes.
-- [ ] Add audit log fields:
+- [X] Idempotency key on `(track, container)` for single processing/result.
+- [X] Retry only for technical errors (timeouts / HTTP 5xx), not for business/ops outcomes.
+- [X] Add audit log fields:
   - inbound `track`;
   - forwarder `request_id` / `correlation_id`;
   - elapsed milliseconds;

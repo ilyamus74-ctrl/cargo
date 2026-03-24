@@ -6,28 +6,20 @@ namespace App\Forwarder\Services;
 
 use App\Forwarder\Config\ForwarderConfig;
 use App\Forwarder\DTO\StepResult;
-use App\Forwarder\Http\ForwarderHttpClient;
-use App\Forwarder\Http\SessionManager;
+use App\Forwarder\Http\ForwarderSessionClient;
 
 final class ContainerService
 {
     public function __construct(
         private ForwarderConfig $config,
-        private ForwarderHttpClient $httpClient,
-        private SessionManager $session
+        private ForwarderSessionClient $sessionClient
     ) {
     }
 
     public function checkPosition(string $container): StepResult
     {
         $path = (string)($this->config->endpoint('check_position')['path'] ?? '/api/check-position');
-        $response = $this->httpClient->post(
-            $path,
-            ['container' => $container],
-            $this->session->securityHeaders(),
-            true,
-            $this->session->cookieHeader()
-        );
+        $response = $this->sessionClient->postJson($path, ['container' => $container]);
 
         $ok = (bool)$response['ok'];
 
@@ -43,13 +35,7 @@ final class ContainerService
     public function checkPackage(string $track, string $container): StepResult
     {
         $path = (string)($this->config->endpoint('check_package')['path'] ?? '/api/check-package');
-        $response = $this->httpClient->post(
-            $path,
-            ['track' => $track, 'container' => $container],
-            $this->session->securityHeaders(),
-            true,
-            $this->session->cookieHeader()
-        );
+        $response = $this->sessionClient->postJson($path, ['track' => $track, 'container' => $container]);
 
         $ok = (bool)$response['ok'];
 

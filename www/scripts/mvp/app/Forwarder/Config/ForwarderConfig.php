@@ -72,4 +72,26 @@ final class ForwarderConfig
     {
         return max(0, (int)($this->map['http']['retry_delay_ms'] ?? 250));
     }
+
+    public function sessionCookieFile(): string
+    {
+        $path = (string)(getenv('FORWARDER_SESSION_FILE') ?: '/tmp/forwarder_session.json');
+        return $path !== '' ? $path : '/tmp/forwarder_session.json';
+    }
+
+    public function sessionTtlSeconds(): int
+    {
+        return max(60, (int)(getenv('FORWARDER_SESSION_TTL_SECONDS') ?: 1500));
+    }
+
+    public function idempotencyFile(): string
+    {
+        $path = (string)(getenv('FORWARDER_IDEMPOTENCY_FILE') ?: '/tmp/forwarder_idempotency.json');
+        return $path !== '' ? $path : '/tmp/forwarder_idempotency.json';
+    }
+
+    public function idempotencyTtlSeconds(): int
+    {
+        return max(60, (int)(getenv('FORWARDER_IDEMPOTENCY_TTL_SECONDS') ?: 900));
+    }
 }

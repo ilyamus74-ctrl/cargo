@@ -23,55 +23,117 @@ final class ForwarderWorkflow
         $auth = $this->loginService->ensureAuthenticated()->toArray();
         if (!$auth['ok']) {
             return [
-                'status' => 'ok',
-                'business_status' => 'SESSION_EXPIRED',
+                'status' => 'SESSION_EXPIRED',
+                'track' => $track,
+                'internal_id' => null,
+                'weight' => null,
+                'client_name' => null,
+                'label_payload' => [
+                    'track' => $track,
+                    'container' => $container,
+                    'message' => 'Forwarder authentication failed',
+                ],
                 'message' => 'Forwarder authentication failed',
                 'correlation_id' => $correlationId,
-                'steps' => [
-                    'auth' => $auth,
-                ],
             ];
         }
 
         $position = $this->containerService->checkPosition($container)->toArray();
-        $package = $this->containerService->checkPackage($track, $container)->toArray();
 
-        $businessStatus = 'ACCEPTED';
-        $message = 'Track accepted for label printing';
 
         if (!$position['ok']) {
-            $businessStatus = 'TEMP_ERROR';
-            $message = 'Position check failed';
-        } elseif (!$package['ok']) {
-            $businessStatus = 'NOT_DECLARED';
-            $message = 'Package is not declared in Forwarder';
-        }
-
-        $this->logger->info('Forwarder workflow completed', [
-            'business_status' => $businessStatus,
-            'track' => $track,
-            'container' => $container,
-        ]);
-
-        return [
-            'status' => 'ok',
-            'business_status' => $businessStatus,
-            'message' => $message,
-            'correlation_id' => $correlationId,
-            'data' => [
+            return [
+                'status' => 'TEMP_ERROR',
                 'track' => $track,
-                'container' => $container,
-                'label' => [
+                'internal_id' => null,
+                'weight' => null,
+                'client_name' => null,
+                'label_payload' => [
                     'track' => $track,
                     'container' => $container,
-                    'position' => $position['payload']['raw'] ?? null,
+                    'message' => 'Position check failed',
                 ],
+                'message' => 'Position check failed',
+                'correlation_id' => $correlationId,
+            ];
+        }
+
+
+        $package = $this->containerService->checkPackage($track, $container)->toArray();
+        if (!$package['ok']) {
+            return [
+                'status' => 'NOT_DECLARED',
+                'track' => $track,
+                'internal_id' => null,
+                'weight' => null,
+                'client_name' => null,
+                'label_payload' => [
+                    'track' => $track,
+                    'container' => $container,
+                    'message' => 'Package is not declared in Forwarder',
+                ],
+                'message' => 'Package is not declared in Forwarder',
+                'correlation_id' => $correlationId,
+            ];
+        }
+        $packagePayload = $package['payload']['raw'] ?? [];
+        $internalId = $this->pickField($packagePayload, ['internal_id', 'internalId', 'id', 'cargo_number', 'cargono']);
+        $weight = $this->pickField($packagePayload, ['weight', 'actual_weight', 'gross_weight']);
+        $clientName = $this->pickField($packagePayload, ['client_name', 'consignee', 'customer_name', 'name']);
+
+        $result = [
+            'status' => 'ACCEPTED',
+            'track' => $track,
+            'internal_id' => $internalId,
+            'weight' => $weight,
+            'client_name' => $clientName,
+            'label_payload' => [
+                'track' => $track,
+                'container' => $container,
+                'internal_id' => $internalId,
+                'weight' => $weight,
+                'client_name' => $clientName,
             ],
-            'steps' => [
-                'auth' => $auth,
-                'check_position' => $position,
-                'check_package' => $package,
-            ],
+            'message' => 'Track accepted for label printing',
+            'correlation_id' => $correlationId,
         ];
+
+
+        $this->logger->info('Forwarder workflow completed', [
+            'business_status' => $result['status'],
+            'track' => $track,
+            'container' => $container,
+            'elapsed_ms' => (int)$position['latency_ms'] + (int)$package['latency_ms'],
+        ]);
+
+        return $result;
+    }
+
+    /** @param mixed $payload */
+    private function pickField(mixed $payload, array $keys): ?string
+    {
+        if (!is_array($payload)) {
+            return null;
+        }
+
+        foreach ($keys as $key) {
+            if (array_key_exists($key, $payload) && $payload[$key] !== null && $payload[$key] !== '') {
+                return (string)$payload[$key];
+            }
+        }
+
+        foreach ($payload as $value) {
+            if (!is_array($value)) {
+                continue;
+            }
+
+            foreach ($keys as $key) {
+                if (array_key_exists($key, $value) && $value[$key] !== null && $value[$key] !== '') {
+                    return (string)$value[$key];
+                }
+            }
+        }
+
+        return null;
     }
 }
