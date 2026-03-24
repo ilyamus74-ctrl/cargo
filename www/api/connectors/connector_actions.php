@@ -1803,7 +1803,20 @@ function connectors_resolve_test_entrypoint_with_diagnostics(array $operationsPa
     ];
 
     if ($phpModeRequested && $resolvedRequestedOperation !== 'submission') {
-        if (!$candidateExists) {
+        $requestedExists = isset($runtimeOperations[$resolvedRequestedOperation]) && is_array($runtimeOperations[$resolvedRequestedOperation]);
+        $requestedOperation = $requestedExists ? $runtimeOperations[$resolvedRequestedOperation] : [];
+        $requestedKind = strtolower(trim((string)($requestedOperation['kind'] ?? '')));
+        $requestedConfig = isset($requestedOperation['config']) && is_array($requestedOperation['config'])
+            ? $requestedOperation['config']
+            : [];
+        $requestedInterpreter = strtolower(trim((string)($requestedConfig['interpreter'] ?? '')));
+        $requestedRunnable = $requestedExists ? connectors_evaluate_operation_runnable($requestedOperation, $connector) : ['is_runnable' => false, 'reason' => 'missing_operation'];
+        $requestedIsRunnable = !empty($requestedRunnable['is_runnable']);
+        $requestedSupportsPhpEntrypoint = $requestedKind === 'php_report' || ($requestedKind === 'script' && $requestedInterpreter === 'php');
+
+        if ($requestedSupportsPhpEntrypoint && $requestedIsRunnable) {
+            $resolvedEntrypointOperation = $resolvedRequestedOperation;
+        } elseif (!$candidateExists) {
             $fallback = [
                 'used' => true,
                 'from' => $candidatePhpOperationId,
@@ -5145,6 +5158,29 @@ switch ($dispatchAction) {
             $entrypointDiagnostics['factors']['report_php_kind'] = (string)($entrypointDiagnostics['candidate_php']['kind'] ?? '');
             $entrypointDiagnostics['factors']['report_php_config_valid'] = !empty($entrypointDiagnostics['candidate_php']['is_runnable']);
             $entrypointDiagnostics['factors']['dependency_graph_enabled'] = connectors_is_dependency_graph_enabled($connector);
+
+            $entrypointModeNormalized = strtolower(trim($entrypointMode));
+            $phpModeRequested = in_array($entrypointModeNormalized, ['php', 'entrypoint_php'], true);
+            if (
+                $phpModeRequested
+                && !empty($entrypointDiagnostics['fallback']['used'])
+                && !empty($entrypointDiagnostics['fallback']['reason'])
+            ) {
+                $fallbackReason = trim((string)($entrypointDiagnostics['fallback']['reason'] ?? ''));
+                $candidatePhpOperationId = trim((string)($entrypointDiagnostics['candidate_php']['operation_id'] ?? 'report_php')) ?: 'report_php';
+                $fallbackHumanMap = [
+                    'missing_php_operation' => 'не найдена операция "' . $candidatePhpOperationId . '"',
+                    'php_entrypoint_kind_not_supported' => 'операция "' . $candidatePhpOperationId . '" имеет неподдерживаемый kind (разрешены php_report/script)',
+                    'missing_script_path' => 'для операции "' . $candidatePhpOperationId . '" не указан config.script_path',
+                    'missing_download_mode' => 'для операции "' . $candidatePhpOperationId . '" не указан config.download_mode',
+                    'missing_curl_config_url' => 'для операции "' . $candidatePhpOperationId . '" не указан config.curl_config.url',
+                ];
+                $fallbackHumanReason = $fallbackHumanMap[$fallbackReason] ?? ('fallback reason: ' . $fallbackReason);
+                throw new InvalidArgumentException(
+                    'Запрошен PHP entrypoint (entrypoint_mode=' . $entrypointMode . '), но ' . $fallbackHumanReason . '. Добавьте/исправьте php-операцию, иначе тест продолжится через Node.'
+                );
+            }
+
             if (!is_array($runtimeOperations) || $runtimeOperations === []) {
                 $runtimeOperations = connectors_decode_operations_for_runtime($connector);
             }
