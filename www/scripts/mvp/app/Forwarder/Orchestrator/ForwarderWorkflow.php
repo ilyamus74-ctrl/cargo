@@ -22,67 +22,51 @@ final class ForwarderWorkflow
     {
         $auth = $this->loginService->ensureAuthenticated()->toArray();
         if (!$auth['ok']) {
-            return [
-                'status' => 'SESSION_EXPIRED',
-                'track' => $track,
-                'internal_id' => null,
-                'weight' => null,
-                'client_name' => null,
-                'label_payload' => [
-                    'track' => $track,
-                    'container' => $container,
-                    'message' => 'Forwarder authentication failed',
-                ],
-                'message' => 'Forwarder authentication failed',
-                'correlation_id' => $correlationId,
-            ];
+            return $this->buildResult('SESSION_EXPIRED', $track, $container);
         }
 
         $position = $this->containerService->checkPosition($container)->toArray();
 
 
         if (!$position['ok']) {
-            return [
-                'status' => 'TEMP_ERROR',
-                'track' => $track,
-                'internal_id' => null,
-                'weight' => null,
-                'client_name' => null,
-                'label_payload' => [
-                    'track' => $track,
-                    'container' => $container,
-                    'message' => 'Position check failed',
-                ],
-                'message' => 'Position check failed',
-                'correlation_id' => $correlationId,
-            ];
+            return $this->buildResult('TEMP_ERROR', $track, $container);
         }
 
 
         $package = $this->containerService->checkPackage($track, $container)->toArray();
         if (!$package['ok']) {
-            return [
-                'status' => 'NOT_DECLARED',
-                'track' => $track,
-                'internal_id' => null,
-                'weight' => null,
-                'client_name' => null,
-                'label_payload' => [
-                    'track' => $track,
-                    'container' => $container,
-                    'message' => 'Package is not declared in Forwarder',
-                ],
-                'message' => 'Package is not declared in Forwarder',
-                'correlation_id' => $correlationId,
-            ];
+            return $this->buildResult('NOT_DECLARED', $track, $container);
         }
         $packagePayload = $package['payload']['raw'] ?? [];
         $internalId = $this->pickField($packagePayload, ['internal_id', 'internalId', 'id', 'cargo_number', 'cargono']);
         $weight = $this->pickField($packagePayload, ['weight', 'actual_weight', 'gross_weight']);
         $clientName = $this->pickField($packagePayload, ['client_name', 'consignee', 'customer_name', 'name']);
 
-        $result = [
-            'status' => 'ACCEPTED',
+
+        $result = $this->buildResult('ACCEPTED', $track, $container, $internalId, $weight, $clientName);
+
+
+        $this->logger->info('Forwarder workflow completed', [
+            'business_status' => $result['status'],
+            'track' => $track,
+            'container' => $container,
+            'elapsed_ms' => (int)$position['latency_ms'] + (int)$package['latency_ms'],
+        ]);
+
+        return $result;
+    }
+
+    /** @return array<string, mixed> */
+    private function buildResult(
+        string $status,
+        string $track,
+        string $container,
+        ?string $internalId = null,
+        ?string $weight = null,
+        ?string $clientName = null
+    ): array {
+        return [
+            'status' => $status,
             'track' => $track,
             'internal_id' => $internalId,
             'weight' => $weight,
@@ -94,19 +78,7 @@ final class ForwarderWorkflow
                 'weight' => $weight,
                 'client_name' => $clientName,
             ],
-            'message' => 'Track accepted for label printing',
-            'correlation_id' => $correlationId,
         ];
-
-
-        $this->logger->info('Forwarder workflow completed', [
-            'business_status' => $result['status'],
-            'track' => $track,
-            'container' => $container,
-            'elapsed_ms' => (int)$position['latency_ms'] + (int)$package['latency_ms'],
-        ]);
-
-        return $result;
     }
 
     /** @param mixed $payload */

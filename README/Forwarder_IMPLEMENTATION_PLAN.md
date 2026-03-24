@@ -81,7 +81,7 @@
   1. `check-position`;
   2. if success → `check-package`;
   3. return compact DTO (not full upstream payload).
-- [ ] Target response shape:
+- [X] Target response shape:
 ```json
 {
   "status":"ACCEPTED",
@@ -109,6 +109,6 @@
 
 ## Definition of Done (implementation wave)
 - [ ] Stage A-D completed with integration test evidence.
-- [ ] `/api/forwarder/scan` returns compact DTO used directly by operator UI.
+- [X] `/api/forwarder/scan` returns compact DTO used directly by operator UI.
 - [ ] Audit logs allow end-to-end tracing per scan (`track` + `correlation_id`).
 - [ ] Rollback switch documented for safe disable of forwarder flow.

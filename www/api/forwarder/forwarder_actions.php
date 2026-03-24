@@ -27,10 +27,7 @@ $track = trim((string)($_POST['track'] ?? $_GET['track'] ?? ''));
 $container = trim((string)($_POST['container'] ?? $_GET['container'] ?? ''));
 
 if ($track === '' || $container === '') {
-    $response = [
-        'status' => 'error',
-        'message' => 'track and container are required',
-    ];
+    $response = forwarder_compact_response('INVALID_TRACK', $track, $container);
     return;
 }
 
@@ -38,21 +35,7 @@ $config = new ForwarderConfig();
 $correlationId = bin2hex(random_bytes(8));
 
 if (!$config->isConfigured()) {
-    $response = [
-
-        'status' => 'TEMP_ERROR',
-        'track' => $track,
-        'internal_id' => null,
-        'weight' => null,
-        'client_name' => null,
-        'label_payload' => [
-            'track' => $track,
-            'container' => $container,
-        ],
-
-        'message' => 'Forwarder DEV_COLIBRI is not configured. Set DEV_COLIBRI_BASE_URL / DEV_COLIBRI_LOGIN / DEV_COLIBRI_PASSWORD.',
-        'correlation_id' => $correlationId,
-    ];
+    $response = forwarder_compact_response('TEMP_ERROR', $track, $container);
     return;
 }
 
@@ -152,4 +135,23 @@ function forwarder_store_idempotent(ForwarderConfig $config, string $track, stri
 function forwarder_idempotency_key(string $track, string $container): string
 {
     return hash('sha256', trim($track) . '|' . trim($container));
+}
+
+/** @return array<string, mixed> */
+function forwarder_compact_response(string $status, string $track, string $container): array
+{
+    return [
+        'status' => $status,
+        'track' => $track,
+        'internal_id' => null,
+        'weight' => null,
+        'client_name' => null,
+        'label_payload' => [
+            'track' => $track,
+            'container' => $container,
+            'internal_id' => null,
+            'weight' => null,
+            'client_name' => null,
+        ],
+    ];
 }
