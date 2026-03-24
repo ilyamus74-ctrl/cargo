@@ -13,7 +13,6 @@ use App\Forwarder\Orchestrator\ForwarderWorkflow;
 use App\Forwarder\Services\ContainerService;
 use App\Forwarder\Services\LoginService;
 
-
 $action = $_POST['action'] ?? $_GET['action'] ?? 'forwarder_scan';
 if ($action !== 'forwarder_scan_test' && $action !== 'forwarder_scan') {
     $response = [
@@ -25,17 +24,34 @@ if ($action !== 'forwarder_scan_test' && $action !== 'forwarder_scan') {
 
 $track = trim((string)($_POST['track'] ?? $_GET['track'] ?? ''));
 $container = trim((string)($_POST['container'] ?? $_GET['container'] ?? ''));
+$correlationId = bin2hex(random_bytes(8));
+$startedAt = microtime(true);
 
 if ($track === '' || $container === '') {
     $response = forwarder_compact_response('INVALID_TRACK', $track, $container);
+    $response['correlation_id'] = $correlationId;
     return;
 }
 
 $config = new ForwarderConfig();
-$correlationId = bin2hex(random_bytes(8));
+$logger = new ForwarderLogger($correlationId);
+
+
+if (!$config->isFlowEnabled()) {
+    $logger->info('Forwarder flow disabled by FORWARDER_FLOW_ENABLED', [
+        'track' => $track,
+        'container' => $container,
+        'final_status' => 'TEMP_ERROR',
+    ]);
+    $response['correlation_id'] = $correlationId;
+    return;
+}
+
+
 
 if (!$config->isConfigured()) {
     $response = forwarder_compact_response('TEMP_ERROR', $track, $container);
+    $response['correlation_id'] = $correlationId;
     return;
 }
 
@@ -43,15 +59,23 @@ if (!$config->isConfigured()) {
 $cached = forwarder_read_idempotent($config, $track, $container);
 if ($cached !== null) {
     $cached['idempotent_replay'] = true;
+    $cached['correlation_id'] = $cached['correlation_id'] ?? $correlationId;
+    $cached['elapsed_ms'] = $cached['elapsed_ms'] ?? (int)round((microtime(true) - $startedAt) * 1000);
     $response = $cached;
+
+    $logger->info('Forwarder idempotent replay', [
+        'track' => $track,
+        'container' => $container,
+        'final_status' => $response['status'] ?? 'TEMP_ERROR',
+        'elapsed_ms' => $response['elapsed_ms'],
+        'correlation_id' => $response['correlation_id'],
+    ]);
     return;
 }
 
-$logger = new ForwarderLogger($correlationId);
 $session = new SessionManager();
 $httpClient = new ForwarderHttpClient($config);
 $loginService = new LoginService($config, $httpClient, $session, $logger);
-
 
 $sessionClient = new ForwarderSessionClient($config, $httpClient, $session, $loginService, $logger);
 $containerService = new ContainerService($config, $sessionClient);

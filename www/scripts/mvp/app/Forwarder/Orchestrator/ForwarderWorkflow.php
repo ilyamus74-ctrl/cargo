@@ -20,37 +20,84 @@ final class ForwarderWorkflow
     /** @return array<string, mixed> */
     public function runScan(string $track, string $container, string $correlationId): array
     {
+        $startedAt = microtime(true);
+
         $auth = $this->loginService->ensureAuthenticated()->toArray();
         if (!$auth['ok']) {
-            return $this->buildResult('SESSION_EXPIRED', $track, $container);
+            return $this->finalizeResult(
+                $this->buildResult('SESSION_EXPIRED', $track, $container),
+                $track,
+                $container,
+                $correlationId,
+                $startedAt,
+                null
+            );
         }
 
         $position = $this->containerService->checkPosition($container)->toArray();
-
-
         if (!$position['ok']) {
-            return $this->buildResult('TEMP_ERROR', $track, $container);
+            return $this->finalizeResult(
+                $this->buildResult('TEMP_ERROR', $track, $container),
+                $track,
+                $container,
+                $correlationId,
+                $startedAt,
+                null
+            );
         }
 
 
         $package = $this->containerService->checkPackage($track, $container)->toArray();
         if (!$package['ok']) {
-            return $this->buildResult('NOT_DECLARED', $track, $container);
+
+            return $this->finalizeResult(
+                $this->buildResult('NOT_DECLARED', $track, $container),
+                $track,
+                $container,
+                $correlationId,
+                $startedAt,
+                null
+            );
         }
         $packagePayload = $package['payload']['raw'] ?? [];
         $internalId = $this->pickField($packagePayload, ['internal_id', 'internalId', 'id', 'cargo_number', 'cargono']);
         $weight = $this->pickField($packagePayload, ['weight', 'actual_weight', 'gross_weight']);
         $clientName = $this->pickField($packagePayload, ['client_name', 'consignee', 'customer_name', 'name']);
 
+        $forwarderRequestId = $this->pickField($packagePayload, ['request_id', 'correlation_id', 'trace_id']);
 
-        $result = $this->buildResult('ACCEPTED', $track, $container, $internalId, $weight, $clientName);
+        return $this->finalizeResult(
+            $this->buildResult('ACCEPTED', $track, $container, $internalId, $weight, $clientName),
+            $track,
+            $container,
+            $correlationId,
+            $startedAt,
+            $forwarderRequestId
+        );
+    }
 
+    /** @return array<string, mixed> */
+    private function finalizeResult(
+        array $result,
+        string $track,
+        string $container,
+        string $correlationId,
+        float $startedAt,
+        ?string $forwarderRequestId
+    ): array {
+        $elapsedMs = (int)round((microtime(true) - $startedAt) * 1000);
+
+
+        $result['correlation_id'] = $correlationId;
+        $result['elapsed_ms'] = $elapsedMs;
 
         $this->logger->info('Forwarder workflow completed', [
-            'business_status' => $result['status'],
             'track' => $track,
             'container' => $container,
-            'elapsed_ms' => (int)$position['latency_ms'] + (int)$package['latency_ms'],
+            'final_status' => $result['status'] ?? 'TEMP_ERROR',
+            'correlation_id' => $correlationId,
+            'forwarder_request_id' => $forwarderRequestId,
+            'elapsed_ms' => $elapsedMs,
         ]);
 
         return $result;

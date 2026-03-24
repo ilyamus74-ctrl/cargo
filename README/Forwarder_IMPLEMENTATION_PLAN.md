@@ -110,5 +110,11 @@
 ## Definition of Done (implementation wave)
 - [ ] Stage A-D completed with integration test evidence.
 - [X] `/api/forwarder/scan` returns compact DTO used directly by operator UI.
-- [ ] Audit logs allow end-to-end tracing per scan (`track` + `correlation_id`).
-- [ ] Rollback switch documented for safe disable of forwarder flow.
+- [X] Audit logs allow end-to-end tracing per scan (`track` + `correlation_id`).
+- [X] Rollback switch documented for safe disable of forwarder flow.
+
+
+### Rollback switch (implemented)
+- Env flag: `FORWARDER_FLOW_ENABLED` (default: enabled).
+- Set `FORWARDER_FLOW_ENABLED=0` (or `false` / `off` / `no`) to disable forwarder scan flow without code rollback.
+- Disabled mode returns compact `TEMP_ERROR` DTO and logs the event with `track` + `correlation_id`.

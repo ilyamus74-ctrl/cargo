@@ -37,6 +37,12 @@ final class ForwarderConfig
         return $this->baseUrl() !== '' && $this->username() !== '' && $this->password() !== '';
     }
 
+    public function isFlowEnabled(): bool
+    {
+        $raw = strtolower(trim((string)(getenv('FORWARDER_FLOW_ENABLED') ?: '1')));
+        return !in_array($raw, ['0', 'false', 'off', 'no'], true);
+    }
+
     public function loginPath(): string
     {
         return (string)($this->endpoint('login_get')['path'] ?? '/login');
