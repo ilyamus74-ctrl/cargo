@@ -27,15 +27,15 @@
 ## 4) Services
 - [x] Implement `Services/LoginService.php` (`login`, `ensureAuthenticated`).
 - [x] Implement `Services/ContainerService.php` (`checkPosition`, `checkPackage`).
-- [ ] Implement `Services/FlightService.php` (first stub methods: `searchFlight`, `addFlight`, `deleteFlight`).
+- [x] Implement `Services/FlightService.php` (first stub methods: `searchFlight`, `addFlight`, `deleteFlight`).
 
 ## 5) Orchestrator
-- [ ] Implement `Orchestrator/ForwarderWorkflow.php` for one scan flow:
+- [x] Implement `Orchestrator/ForwarderWorkflow.php` for one scan flow:
   1. ensure session
   2. check position
   3. check package
   4. normalize response for UI
-- [ ] Add business statuses (`ACCEPTED`, `NOT_DECLARED`, `SESSION_EXPIRED`, `TEMP_ERROR`).
+- [x] Add business statuses (`ACCEPTED`, `NOT_DECLARED`, `SESSION_EXPIRED`, `TEMP_ERROR`).
 
 ## 6) UI test endpoint (MVP)
 - [x] Add simple internal endpoint/form in your system for manual test run.

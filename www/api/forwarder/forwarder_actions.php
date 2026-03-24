@@ -2,12 +2,13 @@
 
 declare(strict_types=1);
 
-require_once __DIR__ . '/../../../app/Forwarder/bootstrap.php';
+require_once __DIR__ . '/../../scripts/mvp/app/Forwarder/bootstrap.php';
 
 use App\Forwarder\Config\ForwarderConfig;
 use App\Forwarder\Http\ForwarderHttpClient;
 use App\Forwarder\Http\SessionManager;
 use App\Forwarder\Logging\ForwarderLogger;
+use App\Forwarder\Orchestrator\ForwarderWorkflow;
 use App\Forwarder\Services\ContainerService;
 use App\Forwarder\Services\LoginService;
 
@@ -59,51 +60,6 @@ $httpClient = new ForwarderHttpClient($config);
 $loginService = new LoginService($config, $httpClient, $session, $logger);
 $containerService = new ContainerService($config, $httpClient, $session);
 
-$auth = $loginService->ensureAuthenticated()->toArray();
-if (!$auth['ok']) {
-    $response = [
-        'status' => 'ok',
-        'business_status' => 'SESSION_EXPIRED',
-        'message' => 'Forwarder authentication failed',
-        'correlation_id' => $correlationId,
-        'steps' => [
-            'auth' => $auth,
-        ],
-    ];
-    return;
-}
 
-$position = $containerService->checkPosition($container)->toArray();
-$package = $containerService->checkPackage($track, $container)->toArray();
-
-$businessStatus = 'ACCEPTED';
-$message = 'Track accepted for label printing';
-
-if (!$position['ok']) {
-    $businessStatus = 'TEMP_ERROR';
-    $message = 'Position check failed';
-} elseif (!$package['ok']) {
-    $businessStatus = 'NOT_DECLARED';
-    $message = 'Package is not declared in Forwarder';
-}
-
-$response = [
-    'status' => 'ok',
-    'business_status' => $businessStatus,
-    'message' => $message,
-    'correlation_id' => $correlationId,
-    'data' => [
-        'track' => $track,
-        'container' => $container,
-        'label' => [
-            'track' => $track,
-            'container' => $container,
-            'position' => $position['payload']['raw'] ?? null,
-        ],
-    ],
-    'steps' => [
-        'auth' => $auth,
-        'check_position' => $position,
-        'check_package' => $package,
-    ],
-];
+$workflow = new ForwarderWorkflow($loginService, $containerService, $logger);
+$response = $workflow->runScan($track, $container, $correlationId);
