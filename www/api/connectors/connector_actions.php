@@ -2346,7 +2346,9 @@ function connectors_curl_request(array $cfg, array $vars, bool $sslIgnore): arra
     if ($method === '') {
         $method = 'GET';
     }
-
+    $followRedirects = array_key_exists('follow_redirects', $cfg)
+        ? !empty($cfg['follow_redirects'])
+        : false;
     $headers = [];
     if (isset($cfg['headers']) && is_array($cfg['headers'])) {
         foreach ($cfg['headers'] as $k => $v) {
@@ -2368,7 +2370,7 @@ function connectors_curl_request(array $cfg, array $vars, bool $sslIgnore): arra
     $responseHeaders = [];
     $ch = curl_init();
     curl_setopt($ch, CURLOPT_URL, $url);
-    curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+    curl_setopt($ch, CURLOPT_FOLLOWLOCATION, $followRedirects);
     curl_setopt($ch, CURLOPT_TIMEOUT, 120);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_HEADERFUNCTION, static function ($ch, $line) use (&$responseHeaders) {
@@ -2391,6 +2393,8 @@ function connectors_curl_request(array $cfg, array $vars, bool $sslIgnore): arra
 
     $body = curl_exec($ch);
     $httpCode = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+    $effectiveUrl = (string)curl_getinfo($ch, CURLINFO_EFFECTIVE_URL);
+    $redirectCount = (int)curl_getinfo($ch, CURLINFO_REDIRECT_COUNT);
     $curlErr = curl_error($ch);
     curl_close($ch);
 
@@ -2400,6 +2404,8 @@ function connectors_curl_request(array $cfg, array $vars, bool $sslIgnore): arra
 
     return [
         'http_code' => $httpCode,
+        'effective_url' => $effectiveUrl,
+        'redirect_count' => $redirectCount,
         'body' => (string)$body,
         'headers' => $responseHeaders,
         'cookies' => connectors_parse_set_cookie_header($responseHeaders),
@@ -2973,7 +2979,17 @@ function connectors_download_report_file(array $connector, array $reportCfg, ?st
 
     if (isset($curlCfg['login']) && is_array($curlCfg['login'])) {
        $loginCfg = $curlCfg['login'];
+        $loginMethod = strtoupper(trim((string)($loginCfg['method'] ?? 'GET')));
+        if ($loginMethod === '') {
+            $loginMethod = 'GET';
+        }
         $csrfNeeded = connectors_cfg_requires_csrf_preflight($loginCfg);
+        if (!$csrfNeeded && array_key_exists('csrf_preflight', $loginCfg)) {
+            $csrfNeeded = !empty($loginCfg['csrf_preflight']);
+        }
+        if (!$csrfNeeded && $loginMethod !== 'GET') {
+            $csrfNeeded = true;
+        }
         if ($csrfNeeded) {
             $csrfCfg = [
                 'url' => (string)($loginCfg['csrf_url'] ?? $loginCfg['url'] ?? ''),
@@ -3034,7 +3050,7 @@ function connectors_download_report_file(array $connector, array $reportCfg, ?st
 
         $appendStepLog('login', 'Выполняем login-запрос через cURL', [
             'url' => (string)($loginCfg['url'] ?? ''),
-            'method' => strtoupper((string)($loginCfg['method'] ?? 'GET')),
+            'method' => $loginMethod,
         ]);
         $loginResponse = connectors_curl_request($loginCfg, $vars, !empty($connector['ssl_ignore']));
         $loginHttp = (int)($loginResponse['http_code'] ?? 0);
@@ -3081,6 +3097,15 @@ function connectors_download_report_file(array $connector, array $reportCfg, ?st
             $cookieParts[] = $loginCookies;
         }
 
+        $postLoginCookies = connectors_merge_cookie_parts($cookieParts);
+        $xsrfToken = connectors_parse_xsrf_token_from_cookie_string($postLoginCookies);
+        if ($xsrfToken !== '') {
+            $vars['xsrf_token'] = $xsrfToken;
+            if (empty($vars['csrf_token'])) {
+                $vars['csrf_token'] = $xsrfToken;
+                $vars['_token'] = $xsrfToken;
+            }
+        }
 
         $loginBody = (string)($loginResponse['body'] ?? '');
         $csrfToken = connectors_parse_csrf_token_from_html($loginBody);
