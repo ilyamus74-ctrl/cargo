@@ -2323,6 +2323,85 @@ function connectors_parse_location_headers(array $headers): array
     return $locations;
 }
 
+function connectors_parse_content_type_header(array $headers): string
+{
+    $contentType = '';
+    foreach ($headers as $headerLine) {
+        if (stripos((string)$headerLine, 'Content-Type:') !== 0) {
+            continue;
+        }
+
+        $rawValue = trim(substr((string)$headerLine, strlen('Content-Type:')));
+        if ($rawValue === '') {
+            continue;
+        }
+        $contentType = strtolower(trim((string)explode(';', $rawValue, 2)[0]));
+    }
+
+    return $contentType;
+}
+
+function connectors_default_content_types_for_extension(string $extension): array
+{
+    $ext = strtolower(trim($extension));
+    if ($ext === 'csv') {
+        return ['text/csv', 'application/csv', 'application/vnd.ms-excel', 'application/octet-stream'];
+    }
+    if ($ext === 'xlsx') {
+        return ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/octet-stream'];
+    }
+    if ($ext === 'xls') {
+        return ['application/vnd.ms-excel', 'application/octet-stream'];
+    }
+
+    return [];
+}
+
+function connectors_validate_downloaded_report_file(string $filePath, string $extension): array
+{
+    $ext = strtolower(trim($extension));
+    if ($filePath === '' || !is_file($filePath)) {
+        return ['valid' => false, 'reason' => 'file_not_found'];
+    }
+
+    $fh = @fopen($filePath, 'rb');
+    if ($fh === false) {
+        return ['valid' => false, 'reason' => 'file_open_failed'];
+    }
+    $head = (string)fread($fh, 8);
+    fclose($fh);
+
+    if ($ext === 'xlsx') {
+        // XLSX is a ZIP container (PK\x03\x04)
+        if (strncmp($head, "PK\x03\x04", 4) !== 0) {
+            return ['valid' => false, 'reason' => 'invalid_xlsx_signature'];
+        }
+        return ['valid' => true, 'reason' => 'ok'];
+    }
+
+    if ($ext === 'xls') {
+        // Legacy XLS (OLE CF): D0 CF 11 E0 A1 B1 1A E1
+        $expected = "\xD0\xCF\x11\xE0\xA1\xB1\x1A\xE1";
+        if ($head !== $expected) {
+            return ['valid' => false, 'reason' => 'invalid_xls_signature'];
+        }
+        return ['valid' => true, 'reason' => 'ok'];
+    }
+
+    if ($ext === 'csv') {
+        $sample = @file_get_contents($filePath, false, null, 0, 2048);
+        if (!is_string($sample) || $sample === '') {
+            return ['valid' => false, 'reason' => 'csv_empty_sample'];
+        }
+        if (strpos($sample, "\x00") !== false) {
+            return ['valid' => false, 'reason' => 'csv_contains_binary_null'];
+        }
+        return ['valid' => true, 'reason' => 'ok'];
+    }
+
+    return ['valid' => true, 'reason' => 'skipped_for_extension'];
+}
+
 function connectors_merge_cookie_parts(array $cookieParts): string
 {
     $cookies = [];
@@ -3555,6 +3634,7 @@ function connectors_download_report_file(array $connector, array $reportCfg, ?st
 
 
     $locationHeaders = connectors_parse_location_headers($responseHeaders);
+    $responseContentType = connectors_parse_content_type_header($responseHeaders);
     $isRedirectHttp = $httpCode >= 300 && $httpCode < 400;
     if (!$ok || $httpCode >= 400 || $isRedirectHttp) {
         @unlink($filePath);
@@ -3571,6 +3651,31 @@ function connectors_download_report_file(array $connector, array $reportCfg, ?st
         throw new ConnectorStepLogException('Ошибка скачивания через cURL: HTTP ' . $httpCode . ' ' . $curlErr . $redirectNote, $stepLog);
     }
 
+    $expectedContentTypesRaw = isset($reportCfg['expected_content_types']) && is_array($reportCfg['expected_content_types'])
+        ? $reportCfg['expected_content_types']
+        : connectors_default_content_types_for_extension($ext);
+    $expectedContentTypes = [];
+    foreach ($expectedContentTypesRaw as $expectedType) {
+        $expectedType = strtolower(trim((string)$expectedType));
+        if ($expectedType !== '') {
+            $expectedContentTypes[] = $expectedType;
+        }
+    }
+    $expectedContentTypes = array_values(array_unique($expectedContentTypes));
+
+    $contentTypeMismatch = false;
+    if (!empty($expectedContentTypes) && $responseContentType !== '') {
+        $isExpectedContentType = in_array($responseContentType, $expectedContentTypes, true);
+        if (!$isExpectedContentType) {
+            $appendStepLog('download', 'Скачивание вернуло неожиданный content-type', [
+                'http_code' => $httpCode,
+                'response_content_type' => $responseContentType,
+                'expected_content_types' => $expectedContentTypes,
+            ]);
+            $contentTypeMismatch = true;
+        }
+    }
+
     $size = (int)filesize($filePath);
     if ($size <= 0) {
         @unlink($filePath);
@@ -3578,10 +3683,33 @@ function connectors_download_report_file(array $connector, array $reportCfg, ?st
         throw new ConnectorStepLogException('Скачанный файл пустой', $stepLog);
     }
 
+    $fileValidation = connectors_validate_downloaded_report_file($filePath, $ext);
+    $fileLooksValid = !empty($fileValidation['valid']);
+    if (!$fileLooksValid) {
+        @unlink($filePath);
+        $appendStepLog('download', 'Скачивание вернуло файл с невалидной сигнатурой', [
+            'file_extension' => $ext,
+            'validation_reason' => (string)($fileValidation['reason'] ?? 'unknown'),
+            'response_content_type' => $responseContentType,
+        ]);
+        throw new ConnectorStepLogException(
+            'Скачанный файл не похож на ' . strtoupper($ext) . ' (' . (string)($fileValidation['reason'] ?? 'unknown') . ')',
+            $stepLog
+        );
+    }
+
+    if ($contentTypeMismatch) {
+        $appendStepLog('download', 'Content-Type не совпал, но файл прошёл проверку сигнатуры и будет импортирован', [
+            'response_content_type' => $responseContentType,
+            'file_extension' => $ext,
+        ]);
+    }
+
     $appendStepLog('download', 'Файл успешно скачан', [
         'http_code' => $httpCode,
         'file_size' => $size,
         'file_path' => $filePath,
+        'response_content_type' => $responseContentType,
     ]);
 
     return [
