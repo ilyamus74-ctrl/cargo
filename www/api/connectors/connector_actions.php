@@ -2366,6 +2366,36 @@ function connectors_parse_content_type_header(array $headers): string
     return $contentType;
 }
 
+function connectors_build_curl_network_error_hint(int $curlErrNo, string $effectiveUrl): string
+{
+    $host = '';
+    if ($effectiveUrl !== '') {
+        $parsedHost = parse_url($effectiveUrl, PHP_URL_HOST);
+        if (is_string($parsedHost)) {
+            $host = trim($parsedHost);
+        }
+    }
+
+    if ($curlErrNo === 6) {
+        return $host !== ''
+            ? ('DNS lookup failed for host "' . $host . '". Проверьте DNS/firewall и доступность домена из этого окружения.')
+            : 'DNS lookup failed. Проверьте DNS/firewall и доступность домена из этого окружения.';
+    }
+    if ($curlErrNo === 7) {
+        return $host !== ''
+            ? ('Connection to "' . $host . '" failed. Проверьте порт, firewall и маршрутизацию до endpoint.')
+            : 'Connection failed. Проверьте порт, firewall и маршрутизацию до endpoint.';
+    }
+    if ($curlErrNo === 28) {
+        return 'Request timed out. Проверьте latency/доступность endpoint или увеличьте timeout.';
+    }
+    if ($curlErrNo === 35 || $curlErrNo === 60) {
+        return 'TLS/SSL handshake failed. Проверьте сертификат endpoint и ssl_ignore в настройках connector.';
+    }
+
+    return '';
+}
+
 function connectors_default_content_types_for_extension(string $extension): array
 {
     $ext = strtolower(trim($extension));
@@ -3733,8 +3763,10 @@ function connectors_download_report_file(array $connector, array $reportCfg, ?st
             ? (' cURL(' . $curlErrNo . '): ' . $curlErr)
             : '';
         if ($httpCode === 0 && $curlErrNo > 0) {
+            $networkHint = connectors_build_curl_network_error_hint($curlErrNo, $effectiveUrl);
+            $networkHintNote = $networkHint !== '' ? (' Hint: ' . $networkHint) : '';
             throw new ConnectorStepLogException(
-                'Network ошибка при скачивании через cURL:' . $curlErrorNote . $redirectNote,
+                'Network ошибка при скачивании через cURL:' . $curlErrorNote . $redirectNote . $networkHintNote,
                 $stepLog
             );
         }
