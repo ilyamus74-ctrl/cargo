@@ -2290,6 +2290,51 @@ function connectors_parse_csrf_token_from_html(string $html): string
     return '';
 }
 
+/**
+ * @return array{form_action:string,input_names:array<int,string>,candidate_login_fields:array<int,string>}
+ */
+function connectors_detect_login_fields(string $html): array
+{
+    $action = '';
+    $inputNames = [];
+    $candidateLoginFields = [];
+
+    if (preg_match('/<form\\b[^>]*\\baction\\s*=\\s*["\']([^"\']+)["\'][^>]*>/iu', $html, $formMatch)) {
+        $action = trim((string)($formMatch[1] ?? ''));
+    }
+
+    if (preg_match_all('/<input\\b[^>]*>/iu', $html, $inputMatches)) {
+        foreach ((array)($inputMatches[0] ?? []) as $tag) {
+            $name = '';
+            $type = 'text';
+
+            if (preg_match('/\\bname\\s*=\\s*["\']([^"\']+)["\']/iu', (string)$tag, $mName)) {
+                $name = trim((string)($mName[1] ?? ''));
+            }
+            if (preg_match('/\\btype\\s*=\\s*["\']([^"\']+)["\']/iu', (string)$tag, $mType)) {
+                $type = strtolower(trim((string)($mType[1] ?? 'text')));
+            }
+
+            if ($name === '') {
+                continue;
+            }
+            $inputNames[] = $name;
+            if (in_array($name, ['_token', 'password', 'remember'], true)) {
+                continue;
+            }
+            if (in_array($type, ['text', 'email'], true)) {
+                $candidateLoginFields[] = $name;
+            }
+        }
+    }
+
+    return [
+        'form_action' => $action,
+        'input_names' => array_values(array_unique($inputNames)),
+        'candidate_login_fields' => array_values(array_unique($candidateLoginFields)),
+    ];
+}
+
 function connectors_parse_xsrf_token_from_cookie_string(string $cookieHeader): string
 {
     if ($cookieHeader === '') {
@@ -2316,6 +2361,74 @@ function connectors_cfg_has_cookie_header(array $cfg): bool
     }
 
     return false;
+}
+
+
+
+function connectors_cfg_has_header(array $cfg, string $headerName): bool
+{
+    if (!isset($cfg['headers']) || !is_array($cfg['headers'])) {
+        return false;
+    }
+
+    foreach ($cfg['headers'] as $k => $v) {
+        if (strcasecmp(trim((string)$k), $headerName) === 0) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+function connectors_url_origin(string $url): string
+{
+    $parts = parse_url($url);
+    if (!is_array($parts)) {
+        return '';
+    }
+
+    $scheme = strtolower(trim((string)($parts['scheme'] ?? '')));
+    $host = trim((string)($parts['host'] ?? ''));
+    if ($scheme === '' || $host === '') {
+        return '';
+    }
+
+    $origin = $scheme . '://' . $host;
+    $port = isset($parts['port']) ? (int)$parts['port'] : 0;
+    if ($port > 0) {
+        $isDefaultPort = ($scheme === 'http' && $port === 80) || ($scheme === 'https' && $port === 443);
+        if (!$isDefaultPort) {
+            $origin .= ':' . $port;
+        }
+    }
+
+    return $origin;
+}
+
+function connectors_is_login_redirect_target(string $location, string $loginUrl): bool
+{
+    $location = trim($location);
+    if ($location === '') {
+        return false;
+    }
+
+    $locationPath = parse_url($location, PHP_URL_PATH);
+    if (!is_string($locationPath)) {
+        $locationPath = $location;
+    }
+    $locationPath = '/' . ltrim(trim((string)$locationPath), '/');
+
+    if ($locationPath === '/login') {
+        return true;
+    }
+
+    $loginPath = parse_url($loginUrl, PHP_URL_PATH);
+    if (!is_string($loginPath) || trim($loginPath) === '') {
+        $loginPath = '/login';
+    }
+    $loginPath = '/' . ltrim(trim((string)$loginPath), '/');
+
+    return rtrim($locationPath, '/') === rtrim($loginPath, '/');
 }
 
 function connectors_cfg_requires_csrf_preflight(array $cfg): bool
@@ -2998,6 +3111,20 @@ function connectors_download_report_file(array $connector, array $reportCfg, ?st
         if ($loginMethod === '') {
             $loginMethod = 'GET';
         }
+        $loginUrlRaw = trim((string)($loginCfg['url'] ?? ''));
+        $loginOrigin = connectors_url_origin((string)connectors_apply_vars($loginUrlRaw, $vars));
+        if (!isset($loginCfg['headers']) || !is_array($loginCfg['headers'])) {
+            $loginCfg['headers'] = [];
+        }
+        if ($loginOrigin !== '' && !connectors_cfg_has_header($loginCfg, 'Origin')) {
+            $loginCfg['headers']['Origin'] = $loginOrigin;
+        }
+        if ($loginUrlRaw !== '' && !connectors_cfg_has_header($loginCfg, 'Referer')) {
+            $loginCfg['headers']['Referer'] = $loginUrlRaw;
+        }
+        if ($loginMethod !== 'GET' && !connectors_cfg_has_header($loginCfg, 'Content-Type')) {
+            $loginCfg['headers']['Content-Type'] = 'application/x-www-form-urlencoded';
+        }
         $csrfNeeded = connectors_cfg_requires_csrf_preflight($loginCfg);
         if (!$csrfNeeded && array_key_exists('csrf_preflight', $loginCfg)) {
             $csrfNeeded = !empty($loginCfg['csrf_preflight']);
@@ -3044,6 +3171,23 @@ function connectors_download_report_file(array $connector, array $reportCfg, ?st
             if ($csrfToken !== '') {
                 $vars['csrf_token'] = $csrfToken;
                 $vars['_token'] = $csrfToken;
+            }
+
+            $loginBodyRaw = (string)($csrfResponse['body'] ?? '');
+            $loginFieldsMeta = connectors_detect_login_fields($loginBodyRaw);
+            $candidateLoginField = (string)($loginFieldsMeta['candidate_login_fields'][0] ?? '');
+            if (
+                $candidateLoginField !== ''
+                && isset($loginCfg['body'])
+                && is_array($loginCfg['body'])
+                && array_key_exists('email', $loginCfg['body'])
+                && !array_key_exists($candidateLoginField, $loginCfg['body'])
+            ) {
+                $loginCfg['body'][$candidateLoginField] = $loginCfg['body']['email'];
+                unset($loginCfg['body']['email']);
+                $appendStepLog('login_preflight', 'Автоопределено поле логина из формы', [
+                    'selected_field' => $candidateLoginField,
+                ]);
             }
 
             $preflightCookies = connectors_merge_cookie_parts($cookieParts);
@@ -3099,7 +3243,16 @@ function connectors_download_report_file(array $connector, array $reportCfg, ?st
             }
             $locationHeaders = connectors_parse_location_headers(isset($loginResponse['headers']) && is_array($loginResponse['headers']) ? $loginResponse['headers'] : []);
             $redirectDetected = $loginHttp >= 300 && $loginHttp < 400 && !empty($locationHeaders);
-            $matchedByRedirect = !$found && $redirectDetected;
+            $redirectToLogin = false;
+            if ($redirectDetected) {
+                foreach ($locationHeaders as $locationHeader) {
+                    if (connectors_is_login_redirect_target((string)$locationHeader, (string)($loginCfg['url'] ?? ''))) {
+                        $redirectToLogin = true;
+                        break;
+                    }
+                }
+            }
+            $matchedByRedirect = !$found && $redirectDetected && !$redirectToLogin;
             if ($matchedByRedirect) {
                 $found = true;
             }
@@ -3107,12 +3260,20 @@ function connectors_download_report_file(array $connector, array $reportCfg, ?st
                 'selector' => $successSelector,
                 'matched' => $found,
                 'matched_by_redirect' => $matchedByRedirect,
+                'redirect_to_login' => $redirectToLogin,
                 'http_code' => $loginHttp,
                 'location_headers' => $locationHeaders,
             ]);
 
             if (!$found) {
                 throw new ConnectorStepLogException('Логин через cURL не прошёл проверку success.selector', $stepLog);
+            }
+        } else {
+            $locationHeaders = connectors_parse_location_headers(isset($loginResponse['headers']) && is_array($loginResponse['headers']) ? $loginResponse['headers'] : []);
+            foreach ($locationHeaders as $locationHeader) {
+                if (connectors_is_login_redirect_target((string)$locationHeader, (string)($loginCfg['url'] ?? ''))) {
+                    throw new ConnectorStepLogException('Логин через cURL вернул редирект обратно на страницу login', $stepLog);
+                }
             }
         }
         $loginCookies = trim((string)($loginResponse['cookies'] ?? ''));
@@ -3140,7 +3301,7 @@ function connectors_download_report_file(array $connector, array $reportCfg, ?st
 
 
     $requestCsrfNeeded = connectors_cfg_requires_csrf_preflight($curlCfg);
-    if ($requestCsrfNeeded || !empty($curlCfg['csrf_url'])) {
+    if ($requestCsrfNeeded || !empty($curlCfg['csrf_url']) || $method !== 'GET') {
         $requestCsrfCfg = [
             'url' => (string)($curlCfg['csrf_url'] ?? $urlTemplate),
             'method' => (string)($curlCfg['csrf_method'] ?? 'GET'),
@@ -3203,6 +3364,8 @@ function connectors_download_report_file(array $connector, array $reportCfg, ?st
     $headers = [];
     $hasAuthorizationHeader = false;
     $hasCookieHeader = false;
+    $hasXsrfTokenHeader = false;
+    $hasCsrfTokenHeader = false;
     if (isset($curlCfg['headers']) && is_array($curlCfg['headers'])) {
         foreach ($curlCfg['headers'] as $k => $v) {
             $headerName = trim((string)$k);
@@ -3218,6 +3381,12 @@ function connectors_download_report_file(array $connector, array $reportCfg, ?st
                     connectors_merge_cookie_parts($cookieParts),
                 ]);
             }
+            if (strcasecmp($headerName, 'X-XSRF-TOKEN') === 0) {
+                $hasXsrfTokenHeader = true;
+            }
+            if (strcasecmp($headerName, 'X-CSRF-TOKEN') === 0) {
+                $hasCsrfTokenHeader = true;
+            }
             $headers[] = $headerName . ': ' . $headerValue;
         }
     }
@@ -3228,13 +3397,21 @@ function connectors_download_report_file(array $connector, array $reportCfg, ?st
             $bodyData[$k] = connectors_apply_vars($v, $vars);
         }
     }
-
+    if ($method !== 'GET' && !array_key_exists('_token', $bodyData) && !empty($vars['_token'])) {
+        $bodyData['_token'] = (string)$vars['_token'];
+    }
     if (!$hasAuthorizationHeader && !empty($connector['auth_token'])) {
         $headers[] = 'Authorization: Bearer ' . trim((string)$connector['auth_token']);
     }
 
     if (!$hasCookieHeader && !empty($cookieParts)) {
         $headers[] = 'Cookie: ' . connectors_merge_cookie_parts($cookieParts);
+    }
+    if ($method !== 'GET' && !$hasXsrfTokenHeader && !empty($vars['xsrf_token'])) {
+        $headers[] = 'X-XSRF-TOKEN: ' . (string)$vars['xsrf_token'];
+    }
+    if ($method !== 'GET' && !$hasCsrfTokenHeader && !empty($vars['csrf_token'])) {
+        $headers[] = 'X-CSRF-TOKEN: ' . (string)$vars['csrf_token'];
     }
 
     $appendStepLog('download_prepare', 'Подготовлен запрос на скачивание файла', [
