@@ -52,8 +52,9 @@ $options = dbg_parse_cli_options($argv);
 if (isset($options['help']) || empty($options['login']) || empty($options['password'])) {
     $script = basename(__FILE__);
     fwrite(STDOUT, "Usage:\n");
-    fwrite(STDOUT, "  php {$script} login='email' password='pass' [from='YYYY-MM-DD'] [to='YYYY-MM-DD'] [login_field='email'] [password_field='password']\n");
-    fwrite(STDOUT, "  php {$script} --login='email' --password='pass' [--from='YYYY-MM-DD'] [--to='YYYY-MM-DD'] [--login_field='email'] [--password_field='password']\n");
+    fwrite(STDOUT, "  php {$script} login='email' password='pass' [from='YYYY-MM-DD'] [to='YYYY-MM-DD'] [login_field='username'] [password_field='password'] [remember='1']\n");
+    fwrite(STDOUT, "  php {$script} --login='email' --password='pass' [--from='YYYY-MM-DD'] [--to='YYYY-MM-DD'] [--login_field='username'] [--password_field='password'] [--remember='1']\n");
+    fwrite(STDOUT, "  Если login_field не передан, скрипт попытается автоматически определить поле логина из формы /login.\n");
     fwrite(STDOUT, "Примечание: формат key=value поддерживается специально для запуска в стиле: php {$script} login=... password=...\n");
     exit(isset($options['help']) ? 0 : 1);
 }
@@ -62,10 +63,11 @@ $login = (string)$options['login'];
 $password = (string)$options['password'];
 $loginField = isset($options['login_field']) && trim((string)$options['login_field']) !== ''
     ? trim((string)$options['login_field'])
-    : 'email';
+    : '';
 $passwordField = isset($options['password_field']) && trim((string)$options['password_field']) !== ''
     ? trim((string)$options['password_field'])
     : 'password';
+$remember = isset($options['remember']) ? trim((string)$options['remember']) : '';
 $fromDate = isset($options['from']) ? (string)$options['from'] : date('Y-m-d', strtotime('-7 days'));
 $toDate = isset($options['to']) ? (string)$options['to'] : date('Y-m-d');
 
@@ -80,6 +82,8 @@ $vars = [
     'password' => $password,
     'login_field' => $loginField,
     'password_field' => $passwordField,
+    'remember' => $remember,
+    'login_field_source' => $loginField !== '' ? 'cli' : 'auto',
     'date_from' => $fromDate,
     'date_to' => $toDate,
     'csrf_token' => '',
@@ -233,6 +237,7 @@ function dbg_curl_request(string $url, string $method, array $headers = [], arra
     ];
 }
 
+
 function dbg_location_headers(array $headers): array
 {
     $locations = [];
@@ -245,6 +250,47 @@ function dbg_location_headers(array $headers): array
     return $locations;
 }
 
+function dbg_detect_login_fields(string $html): array
+{
+    $action = '';
+    $inputNames = [];
+    $candidateLoginFields = [];
+
+    if (preg_match('/<form\\b[^>]*\\baction\\s*=\\s*["\']([^"\']+)["\'][^>]*>/iu', $html, $formMatch)) {
+        $action = trim((string)($formMatch[1] ?? ''));
+    }
+
+    if (preg_match_all('/<input\\b[^>]*>/iu', $html, $inputMatches)) {
+        foreach ((array)($inputMatches[0] ?? []) as $tag) {
+            $name = '';
+            $type = 'text';
+
+            if (preg_match('/\\bname\\s*=\\s*["\']([^"\']+)["\']/iu', (string)$tag, $mName)) {
+                $name = trim((string)($mName[1] ?? ''));
+            }
+            if (preg_match('/\\btype\\s*=\\s*["\']([^"\']+)["\']/iu', (string)$tag, $mType)) {
+                $type = strtolower(trim((string)($mType[1] ?? 'text')));
+            }
+
+            if ($name === '') {
+                continue;
+            }
+            $inputNames[] = $name;
+            if (in_array($name, ['_token', 'password', 'remember'], true)) {
+                continue;
+            }
+            if (in_array($type, ['text', 'email'], true)) {
+                $candidateLoginFields[] = $name;
+            }
+        }
+    }
+
+    return [
+        'form_action' => $action,
+        'input_names' => array_values(array_unique($inputNames)),
+        'candidate_login_fields' => array_values(array_unique($candidateLoginFields)),
+    ];
+}
 try {
     dbg_step('STEP 1: CSRF preflight GET /login');
     $csrfResponse = dbg_curl_request(
@@ -261,7 +307,11 @@ try {
     $cookieJar = $csrfResponse['cookies'];
     $csrfToken = dbg_parse_csrf_from_html((string)$csrfResponse['body']);
     $xsrfToken = dbg_extract_xsrf($cookieJar);
+    $loginFormMeta = dbg_detect_login_fields((string)$csrfResponse['body']);
 
+    if ($vars['login_field'] === '') {
+        $vars['login_field'] = (string)($loginFormMeta['candidate_login_fields'][0] ?? 'email');
+    }
     if ($csrfToken !== '') {
         $vars['csrf_token'] = $csrfToken;
         $vars['_token'] = $csrfToken;
@@ -278,13 +328,31 @@ try {
     dbg_print_kv('redirect_count', $csrfResponse['redirect_count']);
     dbg_print_kv('effective_url', $csrfResponse['effective_url']);
     dbg_print_kv('location_headers', dbg_location_headers($csrfResponse['headers']));
+    dbg_print_kv('redirect_count', $csrfResponse['redirect_count']);
+    dbg_print_kv('effective_url', $csrfResponse['effective_url']);
+    dbg_print_kv('location_headers', dbg_location_headers($csrfResponse['headers']));
     dbg_print_kv('cookies_count', count($cookieJar));
     dbg_print_kv('cookie_names', dbg_cookie_names($cookieJar));
+    dbg_print_kv('login_form_action', $loginFormMeta['form_action']);
+    dbg_print_kv('login_form_inputs', $loginFormMeta['input_names']);
+    dbg_print_kv('candidate_login_fields', $loginFormMeta['candidate_login_fields']);
+    dbg_print_kv('login_field_selected', $vars['login_field']);
+    dbg_print_kv('login_field_source', $vars['login_field_source']);
     dbg_print_kv('csrf_token_found', $vars['csrf_token'] !== '' ? 'yes' : 'no');
     dbg_print_kv('xsrf_token_found', $vars['xsrf_token'] !== '' ? 'yes' : 'no');
     dbg_print_kv('body_preview', mb_substr(trim(preg_replace('/\s+/u', ' ', (string)$csrfResponse['body']) ?? ''), 0, 260, 'UTF-8'));
 
     dbg_step('STEP 2: POST /login');
+
+    $loginPayload = [
+        '_token' => $vars['_token'],
+        $vars['login_field'] => $vars['login'],
+        $vars['password_field'] => $vars['password'],
+    ];
+    if ($vars['remember'] !== '') {
+        $loginPayload['remember'] = $vars['remember'];
+    }
+
     $loginPayload = [
         '_token' => $vars['_token'],
         $vars['login_field'] => $vars['login'],
