@@ -2366,11 +2366,12 @@ function connectors_parse_content_type_header(array $headers): string
     return $contentType;
 }
 
-function connectors_build_curl_network_error_hint(int $curlErrNo, string $effectiveUrl): string
+function connectors_build_curl_network_error_hint(int $curlErrNo, string $effectiveUrl, string $requestUrl = ''): string
 {
     $host = '';
-    if ($effectiveUrl !== '') {
-        $parsedHost = parse_url($effectiveUrl, PHP_URL_HOST);
+    $candidateUrl = trim($effectiveUrl) !== '' ? $effectiveUrl : $requestUrl;
+    if ($candidateUrl !== '') {
+        $parsedHost = parse_url($candidateUrl, PHP_URL_HOST);
         if (is_string($parsedHost)) {
             $host = trim($parsedHost);
         }
@@ -3751,6 +3752,7 @@ function connectors_download_report_file(array $connector, array $reportCfg, ?st
         $appendStepLog('download', 'Скачивание завершилось ошибкой', [
             'http_code' => $httpCode,
             'effective_url' => $effectiveUrl,
+            'request_url' => $url,
             'redirect_count' => $redirectCount,
             'location_headers' => $locationHeaders,
             'curl_error' => $curlErr,
@@ -3763,7 +3765,7 @@ function connectors_download_report_file(array $connector, array $reportCfg, ?st
             ? (' cURL(' . $curlErrNo . '): ' . $curlErr)
             : '';
         if ($httpCode === 0 && $curlErrNo > 0) {
-            $networkHint = connectors_build_curl_network_error_hint($curlErrNo, $effectiveUrl);
+            $networkHint = connectors_build_curl_network_error_hint($curlErrNo, $effectiveUrl, $url);
             $networkHintNote = $networkHint !== '' ? (' Hint: ' . $networkHint) : '';
             throw new ConnectorStepLogException(
                 'Network ошибка при скачивании через cURL:' . $curlErrorNote . $redirectNote . $networkHintNote,
