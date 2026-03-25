@@ -2227,13 +2227,16 @@ function connectors_parse_csrf_token_from_html(string $html): string
         return '';
     }
 
-    if (preg_match('/name\\s*=\\s*["\\\']_token["\\\']\\s+value\\s*=\\s*["\\\']([^"\\\']+)["\\\']/iu', $html, $m)) {
+    if (preg_match('/<input\\b[^>]*\\bname\\s*=\\s*["\\\']_token["\\\'][^>]*\\bvalue\\s*=\\s*["\\\']([^"\\\']+)["\\\'][^>]*>/iu', $html, $m)) {
         return html_entity_decode((string)($m[1] ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8');
     }
-    if (preg_match('/value\\s*=\\s*["\\\']([^"\\\']+)["\\\']\\s+name\\s*=\\s*["\\\']_token["\\\']/iu', $html, $m)) {
+    if (preg_match('/<input\\b[^>]*\\bvalue\\s*=\\s*["\\\']([^"\\\']+)["\\\'][^>]*\\bname\\s*=\\s*["\\\']_token["\\\'][^>]*>/iu', $html, $m)) {
         return html_entity_decode((string)($m[1] ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8');
     }
-    if (preg_match('/meta\\s+name\\s*=\\s*["\\\']csrf-token["\\\']\\s+content\\s*=\\s*["\\\']([^"\\\']+)["\\\']/iu', $html, $m)) {
+    if (preg_match('/<meta\\b[^>]*\\bname\\s*=\\s*["\\\']csrf-token["\\\'][^>]*\\bcontent\\s*=\\s*["\\\']([^"\\\']+)["\\\'][^>]*>/iu', $html, $m)) {
+        return html_entity_decode((string)($m[1] ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    }
+    if (preg_match('/<meta\\b[^>]*\\bcontent\\s*=\\s*["\\\']([^"\\\']+)["\\\'][^>]*\\bname\\s*=\\s*["\\\']csrf-token["\\\'][^>]*>/iu', $html, $m)) {
         return html_entity_decode((string)($m[1] ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8');
     }
 
@@ -3004,6 +3007,15 @@ function connectors_download_report_file(array $connector, array $reportCfg, ?st
         $loginHttp = (int)($loginResponse['http_code'] ?? 0);
         $appendStepLog('login', 'Login-запрос выполнен', ['http_code' => $loginHttp]);
         if ($loginHttp >= 400) {
+            $loginBodyRaw = (string)($loginResponse['body'] ?? '');
+            $loginBodyPreview = trim(preg_replace('/\s+/u', ' ', mb_substr($loginBodyRaw, 0, 600, 'UTF-8')) ?? '');
+            $appendStepLog('login', 'Login вернул HTTP >= 400', [
+                'http_code' => $loginHttp,
+                'cookies_present' => !empty($cookieParts),
+                'csrf_token_present' => !empty($vars['csrf_token']),
+                'xsrf_token_present' => !empty($vars['xsrf_token']),
+                'response_body_preview' => $loginBodyPreview,
+            ]);
             throw new ConnectorStepLogException('Ошибка логина через cURL: HTTP ' . $loginHttp, $stepLog);
         }
 
@@ -5604,20 +5616,6 @@ switch ($dispatchAction) {
                 'graph_errors' => $graphErrors,
                 'entrypoint_diagnostics' => $entrypointDiagnostics,
             ];
-        } catch (RuntimeException $e) {
-
-            connectors_append_trace_event($traceLog, $runId, $testOperation ?: 'report', 'validate', 'failed', 'Ошибка подготовки операции', [
-                'error' => $e->getMessage(),
-            ]);
-            $response = [
-                'status' => 'error',
-                'message' => $e->getMessage(),
-                'connector_id' => $connectorId,
-                'test_operation' => $testOperation,
-                'run_id' => $runId,
-                'trace_log' => $traceLog,
-                'entrypoint_diagnostics' => $entrypointDiagnostics,
-            ];
         } catch (ConnectorStepLogException $e) {
             connectors_append_trace_event($traceLog, $runId, $testOperation ?: 'report', 'validate', 'failed', 'Ошибка выполнения шага', [
                 'error' => $e->getMessage(),
@@ -5637,6 +5635,20 @@ switch ($dispatchAction) {
                 'entrypoint_diagnostics' => $entrypointDiagnostics,
             ];
 
+        } catch (RuntimeException $e) {
+
+            connectors_append_trace_event($traceLog, $runId, $testOperation ?: 'report', 'validate', 'failed', 'Ошибка подготовки операции', [
+                'error' => $e->getMessage(),
+            ]);
+            $response = [
+                'status' => 'error',
+                'message' => $e->getMessage(),
+                'connector_id' => $connectorId,
+                'test_operation' => $testOperation,
+                'run_id' => $runId,
+                'trace_log' => $traceLog,
+                'entrypoint_diagnostics' => $entrypointDiagnostics,
+            ];
         } catch (Throwable $e) {
             connectors_append_trace_event($traceLog, $runId, $testOperation ?: 'report', 'validate', 'failed', 'Фатальная ошибка подготовки операции', [
                 'error' => $e->getMessage(),
