@@ -2712,10 +2712,14 @@ function connectors_curl_request(array $cfg, array $vars, bool $sslIgnore): arra
     $effectiveUrl = (string)curl_getinfo($ch, CURLINFO_EFFECTIVE_URL);
     $redirectCount = (int)curl_getinfo($ch, CURLINFO_REDIRECT_COUNT);
     $curlErr = curl_error($ch);
+    $curlErrNo = (int)curl_errno($ch);
     curl_close($ch);
 
     if ($body === false) {
-        throw new RuntimeException('Ошибка cURL: ' . $curlErr);
+        $errorDetails = $curlErrNo > 0
+            ? ('#' . $curlErrNo . ' ' . $curlErr)
+            : $curlErr;
+        throw new RuntimeException('Ошибка cURL: ' . trim($errorDetails));
     }
 
     return [
@@ -3651,6 +3655,7 @@ function connectors_download_report_file(array $connector, array $reportCfg, ?st
     $effectiveUrl = (string)curl_getinfo($ch, CURLINFO_EFFECTIVE_URL);
     $redirectCount = (int)curl_getinfo($ch, CURLINFO_REDIRECT_COUNT);
     $curlErr = curl_error($ch);
+    $curlErrNo = (int)curl_errno($ch);
     curl_close($ch);
     fclose($fh);
 
@@ -3666,11 +3671,24 @@ function connectors_download_report_file(array $connector, array $reportCfg, ?st
             'redirect_count' => $redirectCount,
             'location_headers' => $locationHeaders,
             'curl_error' => $curlErr,
+            'curl_errno' => $curlErrNo,
         ]);
         $redirectNote = $isRedirectHttp && !empty($locationHeaders)
             ? (' redirect_to=' . (string)$locationHeaders[0])
             : '';
-        throw new ConnectorStepLogException('Ошибка скачивания через cURL: HTTP ' . $httpCode . ' ' . $curlErr . $redirectNote, $stepLog);
+        $curlErrorNote = trim($curlErr) !== ''
+            ? (' cURL(' . $curlErrNo . '): ' . $curlErr)
+            : '';
+        if ($httpCode === 0 && $curlErrNo > 0) {
+            throw new ConnectorStepLogException(
+                'Network ошибка при скачивании через cURL:' . $curlErrorNote . $redirectNote,
+                $stepLog
+            );
+        }
+        throw new ConnectorStepLogException(
+            'Ошибка скачивания через cURL: HTTP ' . $httpCode . $curlErrorNote . $redirectNote,
+            $stepLog
+        );
     }
 
     $expectedContentTypesRaw = isset($reportCfg['expected_content_types']) && is_array($reportCfg['expected_content_types'])
