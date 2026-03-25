@@ -2154,7 +2154,12 @@ function connectors_apply_vars($value, array $vars)
         return $value;
     }
 
-    return preg_replace_callback('/\$\{([a-zA-Z0-9_]+)\}/', static function ($m) use ($vars) {
+    $value = preg_replace_callback('/\$\{([a-zA-Z0-9_]+)\}/', static function ($m) use ($vars) {
+        $key = $m[1] ?? '';
+        return array_key_exists($key, $vars) ? (string)$vars[$key] : '';
+    }, $value) ?? $value;
+
+    return preg_replace_callback('/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/', static function ($m) use ($vars) {
         $key = $m[1] ?? '';
         return array_key_exists($key, $vars) ? (string)$vars[$key] : '';
     }, $value) ?? $value;
@@ -2212,6 +2217,86 @@ function connectors_parse_set_cookie_header(array $headers): string
         $pairs[] = $k . '=' . $v;
     }
     return implode('; ', $pairs);
+}
+
+
+function connectors_parse_csrf_token_from_html(string $html): string
+{
+    if ($html === '') {
+        return '';
+    }
+
+    if (preg_match('/name\\s*=\\s*["\\\']_token["\\\']\\s+value\\s*=\\s*["\\\']([^"\\\']+)["\\\']/iu', $html, $m)) {
+        return html_entity_decode((string)($m[1] ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    }
+    if (preg_match('/value\\s*=\\s*["\\\']([^"\\\']+)["\\\']\\s+name\\s*=\\s*["\\\']_token["\\\']/iu', $html, $m)) {
+        return html_entity_decode((string)($m[1] ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    }
+    if (preg_match('/meta\\s+name\\s*=\\s*["\\\']csrf-token["\\\']\\s+content\\s*=\\s*["\\\']([^"\\\']+)["\\\']/iu', $html, $m)) {
+        return html_entity_decode((string)($m[1] ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+    }
+
+    return '';
+}
+
+function connectors_parse_xsrf_token_from_cookie_string(string $cookieHeader): string
+{
+    if ($cookieHeader === '') {
+        return '';
+    }
+
+    if (!preg_match('/(?:^|;\\s*)XSRF-TOKEN=([^;]+)/i', $cookieHeader, $m)) {
+        return '';
+    }
+
+    return urldecode((string)($m[1] ?? ''));
+}
+
+function connectors_cfg_has_cookie_header(array $cfg): bool
+{
+    if (!isset($cfg['headers']) || !is_array($cfg['headers'])) {
+        return false;
+    }
+
+    foreach ($cfg['headers'] as $k => $v) {
+        if (strcasecmp(trim((string)$k), 'Cookie') === 0) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+function connectors_cfg_requires_csrf_preflight(array $cfg): bool
+{
+    $needles = ['{{csrf_token}}', '{{_token}}', '${csrf_token}', '${_token}'];
+    $targets = [];
+
+    if (isset($cfg['body']) && is_array($cfg['body'])) {
+        $targets[] = $cfg['body'];
+    }
+    if (isset($cfg['fields']) && is_array($cfg['fields'])) {
+        $targets[] = $cfg['fields'];
+    }
+    if (isset($cfg['headers']) && is_array($cfg['headers'])) {
+        $targets[] = $cfg['headers'];
+    }
+
+    foreach ($targets as $target) {
+        foreach ($target as $value) {
+            $stringValue = is_scalar($value) ? (string)$value : json_encode($value, JSON_UNESCAPED_UNICODE);
+            if (!is_string($stringValue) || $stringValue === '') {
+                continue;
+            }
+            foreach ($needles as $needle) {
+                if (strpos($stringValue, $needle) !== false) {
+                    return true;
+                }
+            }
+        }
+    }
+
+    return false;
 }
 
 function connectors_curl_request(array $cfg, array $vars, bool $sslIgnore): array
@@ -2850,19 +2935,79 @@ function connectors_download_report_file(array $connector, array $reportCfg, ?st
     }
 
     if (isset($curlCfg['login']) && is_array($curlCfg['login'])) {
+
+        $loginCfg = $curlCfg['login'];
+        $csrfNeeded = connectors_cfg_requires_csrf_preflight($loginCfg);
+        if ($csrfNeeded) {
+            $csrfCfg = [
+                'url' => (string)($loginCfg['csrf_url'] ?? $loginCfg['url'] ?? ''),
+                'method' => (string)($loginCfg['csrf_method'] ?? 'GET'),
+            ];
+            if (isset($loginCfg['csrf_headers']) && is_array($loginCfg['csrf_headers'])) {
+                $csrfCfg['headers'] = $loginCfg['csrf_headers'];
+            }
+            if (isset($loginCfg['csrf_body']) && is_array($loginCfg['csrf_body'])) {
+                $csrfCfg['body'] = $loginCfg['csrf_body'];
+            }
+
+            if (!connectors_cfg_has_cookie_header($csrfCfg) && !empty($cookieParts)) {
+                $csrfHeaders = isset($csrfCfg['headers']) && is_array($csrfCfg['headers']) ? $csrfCfg['headers'] : [];
+                $csrfHeaders['Cookie'] = implode('; ', $cookieParts);
+                $csrfCfg['headers'] = $csrfHeaders;
+            }
+
+            $appendStepLog('login_preflight', 'Выполняем preflight для получения CSRF/cookies', [
+                'url' => (string)($csrfCfg['url'] ?? ''),
+                'method' => strtoupper((string)($csrfCfg['method'] ?? 'GET')),
+            ]);
+
+            $csrfResponse = connectors_curl_request($csrfCfg, $vars, !empty($connector['ssl_ignore']));
+            $csrfHttp = (int)($csrfResponse['http_code'] ?? 0);
+            $appendStepLog('login_preflight', 'Preflight выполнен', ['http_code' => $csrfHttp]);
+            if ($csrfHttp >= 400) {
+                throw new ConnectorStepLogException('Ошибка preflight перед login через cURL: HTTP ' . $csrfHttp, $stepLog);
+            }
+
+            $csrfCookies = trim((string)($csrfResponse['cookies'] ?? ''));
+            if ($csrfCookies !== '') {
+                $cookieParts[] = $csrfCookies;
+            }
+
+            $csrfToken = connectors_parse_csrf_token_from_html((string)($csrfResponse['body'] ?? ''));
+            if ($csrfToken !== '') {
+                $vars['csrf_token'] = $csrfToken;
+                $vars['_token'] = $csrfToken;
+            }
+
+            $preflightCookies = implode('; ', array_filter($cookieParts, static fn($c) => trim((string)$c) !== ''));
+            $xsrfToken = connectors_parse_xsrf_token_from_cookie_string($preflightCookies);
+            if ($xsrfToken !== '') {
+                $vars['xsrf_token'] = $xsrfToken;
+                if (empty($vars['csrf_token'])) {
+                    $vars['csrf_token'] = $xsrfToken;
+                    $vars['_token'] = $xsrfToken;
+                }
+            }
+        }
+
+        if (!connectors_cfg_has_cookie_header($loginCfg) && !empty($cookieParts)) {
+            $loginHeaders = isset($loginCfg['headers']) && is_array($loginCfg['headers']) ? $loginCfg['headers'] : [];
+            $loginHeaders['Cookie'] = implode('; ', $cookieParts);
+            $loginCfg['headers'] = $loginHeaders;
+        }
         $appendStepLog('login', 'Выполняем login-запрос через cURL', [
-            'url' => (string)($curlCfg['login']['url'] ?? ''),
-            'method' => strtoupper((string)($curlCfg['login']['method'] ?? 'GET')),
+            'url' => (string)($loginCfg['url'] ?? ''),
+            'method' => strtoupper((string)($loginCfg['method'] ?? 'GET')),
         ]);
-        $loginResponse = connectors_curl_request($curlCfg['login'], $vars, !empty($connector['ssl_ignore']));
+        $loginResponse = connectors_curl_request($loginCfg, $vars, !empty($connector['ssl_ignore']));
         $loginHttp = (int)($loginResponse['http_code'] ?? 0);
         $appendStepLog('login', 'Login-запрос выполнен', ['http_code' => $loginHttp]);
         if ($loginHttp >= 400) {
             throw new ConnectorStepLogException('Ошибка логина через cURL: HTTP ' . $loginHttp, $stepLog);
         }
 
-        $successCfg = isset($curlCfg['login']['success']) && is_array($curlCfg['login']['success'])
-            ? $curlCfg['login']['success']
+        $successCfg = isset($loginCfg['success']) && is_array($loginCfg['success'])
+            ? $loginCfg['success']
             : [];
         $successSelector = trim((string)($successCfg['selector'] ?? ''));
         if ($successSelector !== '') {
@@ -2892,16 +3037,7 @@ function connectors_download_report_file(array $connector, array $reportCfg, ?st
 
 
         $loginBody = (string)($loginResponse['body'] ?? '');
-        $csrfToken = '';
-        if ($loginBody !== '') {
-            if (preg_match('/name\\s*=\\s*["\\\']_token["\\\']\\s+value\\s*=\\s*["\\\']([^"\\\']+)["\\\']/iu', $loginBody, $m)) {
-                $csrfToken = html_entity_decode((string)($m[1] ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8');
-            } elseif (preg_match('/value\\s*=\\s*["\\\']([^"\\\']+)["\\\']\\s+name\\s*=\\s*["\\\']_token["\\\']/iu', $loginBody, $m)) {
-                $csrfToken = html_entity_decode((string)($m[1] ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8');
-            } elseif (preg_match('/meta\\s+name\\s*=\\s*["\\\']csrf-token["\\\']\\s+content\\s*=\\s*["\\\']([^"\\\']+)["\\\']/iu', $loginBody, $m)) {
-                $csrfToken = html_entity_decode((string)($m[1] ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8');
-            }
-        }
+        $csrfToken = connectors_parse_csrf_token_from_html($loginBody);
         if ($csrfToken !== '') {
             $vars['csrf_token'] = $csrfToken;
             $vars['_token'] = $csrfToken;
@@ -2909,8 +3045,8 @@ function connectors_download_report_file(array $connector, array $reportCfg, ?st
     }
 
     $combinedCookies = implode('; ', array_filter($cookieParts, static fn($c) => trim((string)$c) !== ''));
-    if ($combinedCookies !== '' && preg_match('/(?:^|;\\s*)XSRF-TOKEN=([^;]+)/i', $combinedCookies, $m)) {
-        $xsrfToken = urldecode((string)($m[1] ?? ''));
+    if ($combinedCookies !== '') {
+        $xsrfToken = connectors_parse_xsrf_token_from_cookie_string($combinedCookies);
         if ($xsrfToken !== '') {
             $vars['xsrf_token'] = $xsrfToken;
             if (empty($vars['csrf_token'])) {
