@@ -2219,7 +2219,22 @@ function connectors_parse_set_cookie_header(array $headers): string
     return implode('; ', $pairs);
 }
 
+function connectors_parse_location_headers(array $headers): array
+{
+    $locations = [];
+    foreach ($headers as $headerLine) {
+        if (stripos((string)$headerLine, 'Location:') !== 0) {
+            continue;
+        }
 
+        $location = trim(substr((string)$headerLine, strlen('Location:')));
+        if ($location !== '') {
+            $locations[] = $location;
+        }
+    }
+
+    return $locations;
+}
 
 function connectors_merge_cookie_parts(array $cookieParts): string
 {
@@ -3082,10 +3097,18 @@ function connectors_download_report_file(array $connector, array $reportCfg, ?st
                     break;
                 }
             }
-
+            $locationHeaders = connectors_parse_location_headers(isset($loginResponse['headers']) && is_array($loginResponse['headers']) ? $loginResponse['headers'] : []);
+            $redirectDetected = $loginHttp >= 300 && $loginHttp < 400 && !empty($locationHeaders);
+            $matchedByRedirect = !$found && $redirectDetected;
+            if ($matchedByRedirect) {
+                $found = true;
+            }
             $appendStepLog('login', 'Проверка login.success.selector', [
                 'selector' => $successSelector,
                 'matched' => $found,
+                'matched_by_redirect' => $matchedByRedirect,
+                'http_code' => $loginHttp,
+                'location_headers' => $locationHeaders,
             ]);
 
             if (!$found) {
