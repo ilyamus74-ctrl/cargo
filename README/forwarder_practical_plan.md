@@ -70,6 +70,7 @@
 - [X] Негативный тест: неверный пароль -> понятная ошибка логина.
 - [ ] Негативный тест: недоступный endpoint -> понятная network ошибка.  (отложено на следующий этап по договорённости).
 - [X] Улучшена диагностика network-ошибки: при `HTTP 0` в подсказке используется host из `effective_url` или исходного `request_url`; в `step_log` добавлен `request_url` (2026-03-25).
+- [X] В `cURL`-runtime добавлен конфигурируемый timeout (`curl_timeout_seconds` / `timeout_seconds` / `timeout`) с ограничением `3..600` сек; таймаут пишется в `step_log.download_prepare`, чтобы быстрее воспроизводить network-negative кейсы (2026-03-25).
 - [X] Негативный тест: пустой файл/неверный content-type -> понятная ошибка импорта.
 - [X] В runtime добавлена проверка `Content-Type` для `download_mode=curl` (через `expected_content_types`, с дефолтами по расширению файла).
 

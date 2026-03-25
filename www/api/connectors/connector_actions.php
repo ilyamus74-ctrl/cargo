@@ -2397,6 +2397,27 @@ function connectors_build_curl_network_error_hint(int $curlErrNo, string $effect
     return '';
 }
 
+function connectors_resolve_curl_timeout_seconds(array $cfg, int $defaultTimeoutSeconds = 120): int
+{
+    $timeoutCandidates = [
+        $cfg['curl_timeout_seconds'] ?? null,
+        $cfg['timeout_seconds'] ?? null,
+        $cfg['timeout'] ?? null,
+    ];
+
+    foreach ($timeoutCandidates as $candidate) {
+        if ($candidate === null || $candidate === '') {
+            continue;
+        }
+        $timeoutSeconds = (int)$candidate;
+        if ($timeoutSeconds > 0) {
+            return max(3, min($timeoutSeconds, 600));
+        }
+    }
+
+    return max(3, min($defaultTimeoutSeconds, 600));
+}
+
 function connectors_default_content_types_for_extension(string $extension): array
 {
     $ext = strtolower(trim($extension));
@@ -2718,10 +2739,11 @@ function connectors_curl_request(array $cfg, array $vars, bool $sslIgnore): arra
     }
 
     $responseHeaders = [];
+    $timeoutSeconds = connectors_resolve_curl_timeout_seconds($cfg, 120);
     $ch = curl_init();
     curl_setopt($ch, CURLOPT_URL, $url);
     curl_setopt($ch, CURLOPT_FOLLOWLOCATION, $followRedirects);
-    curl_setopt($ch, CURLOPT_TIMEOUT, 120);
+    curl_setopt($ch, CURLOPT_TIMEOUT, $timeoutSeconds);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
     curl_setopt($ch, CURLOPT_HEADERFUNCTION, static function ($ch, $line) use (&$responseHeaders) {
         $responseHeaders[] = trim((string)$line);
@@ -2750,6 +2772,9 @@ function connectors_curl_request(array $cfg, array $vars, bool $sslIgnore): arra
     curl_close($ch);
 
     if ($body === false) {
+        if ($curlErrNo === 28) {
+            throw new RuntimeException('Ошибка cURL: timeout after ' . $timeoutSeconds . 's');
+        }
         $errorDetails = $curlErrNo > 0
             ? ('#' . $curlErrNo . ' ' . $curlErr)
             : $curlErr;
@@ -3694,6 +3719,7 @@ function connectors_download_report_file(array $connector, array $reportCfg, ?st
         'url' => $url,
         'method' => $method,
         'follow_redirects' => $followRedirects,
+        'timeout_seconds' => connectors_resolve_curl_timeout_seconds($curlCfg, 120),
         'has_cookie_header' => $hasCookieHeader || !empty($cookieParts),
         'cookies_merged_with_config_header' => $hasCookieHeader && !empty($cookieParts),
     ]);
@@ -3710,11 +3736,12 @@ function connectors_download_report_file(array $connector, array $reportCfg, ?st
         throw new RuntimeException('Не удалось открыть временный файл для записи');
     }
 
+    $timeoutSeconds = connectors_resolve_curl_timeout_seconds($curlCfg, 120);
     $ch = curl_init();
     $responseHeaders = [];
     curl_setopt($ch, CURLOPT_URL, $url);
     curl_setopt($ch, CURLOPT_FOLLOWLOCATION, $followRedirects);
-    curl_setopt($ch, CURLOPT_TIMEOUT, 120);
+    curl_setopt($ch, CURLOPT_TIMEOUT, $timeoutSeconds);
     curl_setopt($ch, CURLOPT_FILE, $fh);
     curl_setopt($ch, CURLOPT_HEADERFUNCTION, static function ($ch, $line) use (&$responseHeaders) {
         $responseHeaders[] = trim((string)$line);
