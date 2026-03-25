@@ -2923,8 +2923,9 @@ function connectors_download_report_file(array $connector, array $reportCfg, ?st
     }
 
     $curlCfg = isset($reportCfg['curl_config']) && is_array($reportCfg['curl_config']) ? $reportCfg['curl_config'] : [];
-    $url = trim((string)($curlCfg['url'] ?? ''));
-    if ($url === '') {
+
+    $urlTemplate = trim((string)($curlCfg['url'] ?? ''));
+    if ($urlTemplate === '') {
         throw new InvalidArgumentException('Для режима cURL нужен JSON-объект в report_curl_config_json с полем url (например {"url":"https://.../export","method":"POST"}).');
     }
 
@@ -3057,6 +3058,52 @@ function connectors_download_report_file(array $connector, array $reportCfg, ?st
         }
     }
 
+
+    $requestCsrfNeeded = connectors_cfg_requires_csrf_preflight($curlCfg);
+    if ($requestCsrfNeeded || !empty($curlCfg['csrf_url'])) {
+        $requestCsrfCfg = [
+            'url' => (string)($curlCfg['csrf_url'] ?? $urlTemplate),
+            'method' => (string)($curlCfg['csrf_method'] ?? 'GET'),
+        ];
+        if (isset($curlCfg['csrf_headers']) && is_array($curlCfg['csrf_headers'])) {
+            $requestCsrfCfg['headers'] = $curlCfg['csrf_headers'];
+        }
+        if (isset($curlCfg['csrf_body']) && is_array($curlCfg['csrf_body'])) {
+            $requestCsrfCfg['body'] = $curlCfg['csrf_body'];
+        }
+
+        if (!connectors_cfg_has_cookie_header($requestCsrfCfg) && !empty($cookieParts)) {
+            $requestCsrfHeaders = isset($requestCsrfCfg['headers']) && is_array($requestCsrfCfg['headers'])
+                ? $requestCsrfCfg['headers']
+                : [];
+            $requestCsrfHeaders['Cookie'] = implode('; ', $cookieParts);
+            $requestCsrfCfg['headers'] = $requestCsrfHeaders;
+        }
+
+        $appendStepLog('request_preflight', 'Выполняем preflight перед скачиванием отчёта через cURL', [
+            'url' => (string)($requestCsrfCfg['url'] ?? ''),
+            'method' => strtoupper((string)($requestCsrfCfg['method'] ?? 'GET')),
+        ]);
+
+        $requestCsrfResponse = connectors_curl_request($requestCsrfCfg, $vars, !empty($connector['ssl_ignore']));
+        $requestCsrfHttp = (int)($requestCsrfResponse['http_code'] ?? 0);
+        $appendStepLog('request_preflight', 'Preflight перед скачиванием выполнен', ['http_code' => $requestCsrfHttp]);
+        if ($requestCsrfHttp >= 400) {
+            throw new ConnectorStepLogException('Ошибка preflight перед скачиванием через cURL: HTTP ' . $requestCsrfHttp, $stepLog);
+        }
+
+        $requestCsrfCookies = trim((string)($requestCsrfResponse['cookies'] ?? ''));
+        if ($requestCsrfCookies !== '') {
+            $cookieParts[] = $requestCsrfCookies;
+        }
+
+        $requestCsrfToken = connectors_parse_csrf_token_from_html((string)($requestCsrfResponse['body'] ?? ''));
+        if ($requestCsrfToken !== '') {
+            $vars['csrf_token'] = $requestCsrfToken;
+            $vars['_token'] = $requestCsrfToken;
+        }
+    }
+
     $combinedCookies = implode('; ', array_filter($cookieParts, static fn($c) => trim((string)$c) !== ''));
     if ($combinedCookies !== '') {
         $xsrfToken = connectors_parse_xsrf_token_from_cookie_string($combinedCookies);
@@ -3069,8 +3116,7 @@ function connectors_download_report_file(array $connector, array $reportCfg, ?st
         }
     }
 
-    $url = (string)connectors_apply_vars($url, $vars);
-
+    $url = (string)connectors_apply_vars($urlTemplate, $vars);
     $headers = [];
     $hasAuthorizationHeader = false;
     $hasCookieHeader = false;
