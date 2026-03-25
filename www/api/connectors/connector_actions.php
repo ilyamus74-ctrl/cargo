@@ -2220,6 +2220,7 @@ function connectors_parse_set_cookie_header(array $headers): string
 }
 
 
+
 function connectors_parse_csrf_token_from_html(string $html): string
 {
     if ($html === '') {
@@ -2935,8 +2936,7 @@ function connectors_download_report_file(array $connector, array $reportCfg, ?st
     }
 
     if (isset($curlCfg['login']) && is_array($curlCfg['login'])) {
-
-        $loginCfg = $curlCfg['login'];
+       $loginCfg = $curlCfg['login'];
         $csrfNeeded = connectors_cfg_requires_csrf_preflight($loginCfg);
         if ($csrfNeeded) {
             $csrfCfg = [
@@ -2995,6 +2995,7 @@ function connectors_download_report_file(array $connector, array $reportCfg, ?st
             $loginHeaders['Cookie'] = implode('; ', $cookieParts);
             $loginCfg['headers'] = $loginHeaders;
         }
+
         $appendStepLog('login', 'Выполняем login-запрос через cURL', [
             'url' => (string)($loginCfg['url'] ?? ''),
             'method' => strtoupper((string)($loginCfg['method'] ?? 'GET')),
