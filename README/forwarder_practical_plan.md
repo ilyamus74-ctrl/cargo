@@ -36,9 +36,9 @@
 
 ### 1.2 Шаблон operation-конфига (минимальный)
 
-- [ ] Подготовить шаблон для `kind=php_report` (download + import).
-- [ ] Подготовить шаблон для `kind=script` + `interpreter=php` (вызов внешнего PHP-скрипта).
-- [ ] Подготовить шаблон для `kind=browser_steps` (Node fallback).
+- [X] Подготовить шаблон для `kind=php_report` (download + import).
+- [X] Подготовить шаблон для `kind=script` + `interpreter=php` (вызов внешнего PHP-скрипта).
+- [X] Подготовить шаблон для `kind=browser_steps` (Node fallback).
 
 ---
 

@@ -553,6 +553,93 @@ function connectors_operation_kind_registry(): array
     return ['api_call', 'browser_steps', 'script', 'noop', 'subrunner', 'php_report'];
 }
 
+function connectors_operation_config_templates(): array
+{
+    return [
+        'php_report' => [
+            'description' => 'Download + import через PHP runtime (без браузера).',
+            'operation' => [
+                'operation_id' => 'report_php',
+                'display_name' => 'Report (PHP)',
+                'module' => 'connectors',
+                'kind' => 'php_report',
+                'enabled' => 1,
+                'entrypoint' => 1,
+                'on_dependency_fail' => 'stop',
+                'run_after' => [],
+                'run_with' => [],
+                'run_finally' => [],
+                'config' => [
+                    'from' => '2026-03-01',
+                    'to' => '2026-03-25',
+                    'target_table' => 'connector_report_table',
+                    'download' => [
+                        'url' => 'https://example.com/report',
+                        'method' => 'GET',
+                        'timeout_sec' => 120,
+                    ],
+                    'import' => [
+                        'enabled' => 1,
+                        'file_extension' => 'xlsx',
+                        'field_mapping' => [],
+                    ],
+                ],
+            ],
+        ],
+        'script_php' => [
+            'description' => 'Внешний PHP-скрипт для custom-flow (логин/cURL/парсинг/импорт).',
+            'operation' => [
+                'operation_id' => 'report_script_php',
+                'display_name' => 'Report (script+php)',
+                'module' => 'connectors',
+                'kind' => 'script',
+                'enabled' => 1,
+                'entrypoint' => 1,
+                'on_dependency_fail' => 'stop',
+                'run_after' => [],
+                'run_with' => [],
+                'run_finally' => [],
+                'config' => [
+                    'interpreter' => 'php',
+                    'script_path' => 'www/scripts/mvp/app/Forwarder/run_report.php',
+                    'timeout_sec' => 180,
+                    'args' => [
+                        '--from={{from}}',
+                        '--to={{to}}',
+                        '--target_table={{target_table}}',
+                    ],
+                ],
+            ],
+        ],
+        'browser_steps' => [
+            'description' => 'Node fallback для браузерных flow (DOM/клики/JS-рендер).',
+            'operation' => [
+                'operation_id' => 'report_browser',
+                'display_name' => 'Report (browser)',
+                'module' => 'connectors',
+                'kind' => 'browser_steps',
+                'enabled' => 1,
+                'entrypoint' => 1,
+                'on_dependency_fail' => 'stop',
+                'run_after' => [],
+                'run_with' => [],
+                'run_finally' => [],
+                'config' => [
+                    'page_url' => 'https://example.com/login',
+                    'expect_download' => 1,
+                    'target_table' => 'connector_report_table',
+                    'steps' => [
+                        ['action' => 'goto', 'url' => 'https://example.com/login'],
+                        ['action' => 'waitForSelector', 'selector' => '#username'],
+                        ['action' => 'type', 'selector' => '#username', 'text' => '{{auth_username}}'],
+                        ['action' => 'type', 'selector' => '#password', 'text' => '{{auth_password}}'],
+                        ['action' => 'click', 'selector' => 'button[type=submit]'],
+                    ],
+                ],
+            ],
+        ],
+    ];
+}
 function connectors_extract_module_from_handler_path(string $handlerPath): string
 {
     if (preg_match('#^api/([^/]+)/#', trim($handlerPath), $matches)) {
@@ -5427,6 +5514,7 @@ switch ($dispatchAction) {
         $response = [
             'status' => 'ok',
             'html' => $html,
+            'operation_templates' => connectors_operation_config_templates(),
         ];
         break;
 
