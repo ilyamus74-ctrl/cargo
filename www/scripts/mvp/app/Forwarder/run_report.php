@@ -93,3 +93,5 @@ echo json_encode($result, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON
 $status = strtoupper(trim((string)($result['status'] ?? 'TEMP_ERROR')));
 $okStatuses = ['ACCEPTED', 'NOT_DECLARED', 'AUTH_OK', 'AUTH_SKIPPED'];
 exit(in_array($status, $okStatuses, true) ? 0 : 1);
+
+

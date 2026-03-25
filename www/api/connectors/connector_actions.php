@@ -4094,10 +4094,47 @@ function connectors_execute_operation_by_kind_for_manual_test(array $connector, 
 
     if ($kind === 'php_report') {
         $phpReportResult = connectors_execute_php_report_operation($connector, $operation, $periodFrom, $periodTo);
+        $importedRows = 0;
+        $importNote = '';
+        $targetTable = trim((string)($phpReportResult['target_table'] ?? ''));
+        $downloadInfo = isset($phpReportResult['download']) && is_array($phpReportResult['download']) ? $phpReportResult['download'] : [];
+        $downloadPath = trim((string)($downloadInfo['file_path'] ?? ''));
+        $fileExt = strtolower(trim((string)($downloadInfo['file_extension'] ?? ($config['file_extension'] ?? 'xlsx'))));
+        $fieldMapping = isset($config['field_mapping']) && is_array($config['field_mapping']) ? $config['field_mapping'] : [];
+
+        global $dbcnx;
+        if (
+            $targetTable !== ''
+            && $downloadPath !== ''
+            && is_file($downloadPath)
+            && $fieldMapping !== []
+            && ($dbcnx instanceof mysqli)
+        ) {
+            connectors_ensure_report_table($dbcnx, $targetTable);
+            if ($fileExt === 'csv') {
+                $importedRows = connectors_import_csv_into_report_table($dbcnx, $targetTable, $downloadPath, $connectorId, $periodFrom, $periodTo, $fieldMapping);
+            } elseif ($fileExt === 'xlsx') {
+                $importedRows = connectors_import_xlsx_into_report_table($dbcnx, $targetTable, $downloadPath, $connectorId, $periodFrom, $periodTo, $fieldMapping);
+            } else {
+                $importNote = 'auto-import поддерживается только для CSV/XLSX';
+            }
+        } elseif ($fieldMapping === []) {
+            $importNote = 'field_mapping не заполнен, импорт в БД пропущен';
+        } else {
+            $importNote = 'недостаточно данных для импорта в БД';
+        }
+
+        $message = (string)($phpReportResult['message'] ?? 'Операция php_report выполнена');
+        if ($importedRows > 0) {
+            $message .= ' Импортировано строк: ' . $importedRows . '.';
+        } elseif ($importNote !== '') {
+            $message .= ' (' . $importNote . ')';
+        }
         return [
-            'message' => (string)($phpReportResult['message'] ?? 'Операция php_report выполнена'),
+            'message' => $message,
             'download' => isset($phpReportResult['download']) && is_array($phpReportResult['download']) ? $phpReportResult['download'] : null,
             'target_table' => trim((string)($phpReportResult['target_table'] ?? '')),
+            'imported_rows' => $importedRows,
             'trace_meta' => ['kind' => 'php_report'],
         ];
     }

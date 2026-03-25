@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-03-24 21:23:39
+/* Smarty version 5.3.1, created on 2026-03-25 07:57:00
   from 'file:cells_NA_API_connector_operations_modal.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_69c300dbf33277_23317160',
+  'unifunc' => 'content_69c3954c662268_51482044',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '4e0cfb81384357625659d5eca445a63482fe7323' => 
     array (
       0 => 'cells_NA_API_connector_operations_modal.html',
-      1 => 1774381199,
+      1 => 1774424885,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_69c300dbf33277_23317160 (\Smarty\Template $_smarty_tpl) {
+function content_69c3954c662268_51482044 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?><section class="section">
   <style>
@@ -358,6 +358,19 @@ $_smarty_current_dir = '/home/cells/web/templates';
     return normalizedPrefix + '_' + n;
   }
 
+
+  function findOperationIndexById(operationId) {
+    var opId = String(operationId || '').trim();
+    if (!opId || !Array.isArray(payload.operations)) return -1;
+    for (var i = 0; i < payload.operations.length; i += 1) {
+      if (String(payload.operations[i] && payload.operations[i].operation_id || '').trim() === opId) {
+        return i;
+      }
+    }
+    return -1;
+  }
+
+
   function parseJsonSafe(s, fallback) {
     if (!String(s || '').trim()) return fallback;
     try { return JSON.parse(s); } catch (e) { return fallback; }
@@ -603,6 +616,14 @@ $_smarty_current_dir = '/home/cells/web/templates';
 
 
     payload.operations.forEach(function(op, idx) {
+      var opId = String(op && op.operation_id || '').trim();
+      var opIdLower = opId.toLowerCase();
+      if (/_php$/i.test(opId)) {
+        var baseId = opId.replace(/_php$/i, '');
+        if (findOperationIndexById(baseId) !== -1) {
+          return;
+        }
+      }
       var tabId = 'dyn-op-tab-' + idx;
       var paneId = 'dyn-op-pane-' + idx;
       var active = idx === 0 ? 'active' : '';
@@ -666,11 +687,64 @@ $_smarty_current_dir = '/home/cells/web/templates';
           <div class="d-flex gap-2 mt-3">\
             <button type="button" class="btn btn-outline-primary js-core-link" data-core-action="test_connector_operations" data-test-operation="' + esc(op.operation_id || '') + '">Проверить операцию</button>\
           </div>\
-            <button type="button" class="btn btn-outline-secondary js-core-link" data-core-action="test_connector_operations" data-test-operation="' + esc(op.operation_id || '') + '" data-entrypoint-mode="entrypoint_php">Проверить операцию PHP</button>\
           <div class="alert alert-light border mt-3 py-2 small d-none" data-op-report-for="' + esc(op.operation_id || '') + '"></div>\
         </div>';
+
+      var pairedPhpId = opId + '_php';
+      var pairedPhpIdx = (!/_php$/i.test(opId) && opId) ? findOperationIndexById(pairedPhpId) : -1;
+      if (pairedPhpIdx !== -1) {
+          var phpOp = payload.operations[pairedPhpIdx] || {};
+          pane.innerHTML += '\
+        <div class="js-operation-card border rounded p-3 mt-3 bg-light-subtle">\
+          <div class="d-flex justify-content-between align-items-center mb-3">\
+            <h6 class="mb-0">PHP-вариант ' + esc(opId || 'operation') + ' (' + esc(phpOp.operation_id || pairedPhpId) + ')</h6>\
+            <button type="button" class="btn btn-sm btn-outline-danger js-remove-operation" data-op-index="' + pairedPhpIdx + '">Удалить PHP-операцию</button>\
+          </div>\
+          <div class="row mb-3">\
+            <div class="col-md-6">\
+              <label class="form-label">display_name</label>\
+              <input type="text" class="form-control js-op-display-name" value="' + esc(phpOp.display_name || '') + '">\
+            </div>\
+            <div class="col-md-6">\
+              <label class="form-label">operation_id</label>\
+              <input type="text" class="form-control js-op-id" value="' + esc(phpOp.operation_id || pairedPhpId) + '">\
+            </div>\
+          </div>\
+          <div class="row mb-4">\
+            <div class="col-md-4 form-check mt-4"><input class="form-check-input js-op-enabled" type="checkbox" ' + (phpOp.enabled ? 'checked' : '') + '> <label class="form-check-label">enabled</label></div>\
+            <div class="col-md-4 form-check mt-4"><input class="form-check-input js-op-entrypoint" type="checkbox" ' + (phpOp.entrypoint ? 'checked' : '') + '> <label class="form-check-label">entrypoint</label></div>\
+            <div class="col-md-4"><label class="form-label">on_dependency_fail</label><select class="form-select js-op-on-dependency-fail"><option value="stop" ' + (phpOp.on_dependency_fail === 'stop' ? 'selected' : '') + '>stop</option><option value="skip" ' + (phpOp.on_dependency_fail === 'skip' ? 'selected' : '') + '>skip</option><option value="continue" ' + (phpOp.on_dependency_fail === 'continue' ? 'selected' : '') + '>continue</option></select></div>\
+          </div>\
+          <h6 class="mb-3">Связь с системой</h6>\
+          <div class="row mb-4">\
+            <div class="col-md-4"><label class="form-label">module</label><select class="form-select js-op-module"></select></div>\
+            <div class="col-md-4"><label class="form-label">kind</label><input type="text" class="form-control js-op-kind" value="' + esc(phpOp.kind || 'script') + '"></div>\
+            <div class="col-md-4"><label class="form-label">action</label><select class="form-select js-op-action"></select><div class="form-text">Для module=generic поле action можно оставить пустым.</div></div>\
+          </div>\
+          <h6 class="mb-3">Зависимости (JSON-массив operation_id)</h6>\
+          <div class="row mb-4">\
+            <div class="col-md-4"><label class="form-label">run_after</label><textarea class="form-control js-op-run-after" rows="3">' + esc(JSON.stringify(toArray(phpOp.run_after), null, 2)) + '</textarea></div>\
+            <div class="col-md-4"><label class="form-label">run_with</label><textarea class="form-control js-op-run-with" rows="3">' + esc(JSON.stringify(toArray(phpOp.run_with), null, 2)) + '</textarea></div>\
+            <div class="col-md-4"><label class="form-label">run_finally</label><textarea class="form-control js-op-run-finally" rows="3">' + esc(JSON.stringify(toArray(phpOp.run_finally), null, 2)) + '</textarea></div>\
+          </div>\
+          <h6 class="mb-3">Параметры</h6>\
+          <div class="row">\
+            <div class="col-12"><label class="form-label">config (JSON object)</label><textarea class="form-control js-op-config" rows="8">' + esc(JSON.stringify(phpOp.config && typeof phpOp.config === 'object' ? phpOp.config : {}, null, 2)) + '</textarea></div>\
+          </div>\
+          <div class="d-flex gap-2 mt-3">\
+            <button type="button" class="btn btn-outline-secondary js-core-link" data-core-action="test_connector_operations" data-test-operation="' + esc(phpOp.operation_id || pairedPhpId) + '" data-entrypoint-mode="entrypoint_php">Проверить операцию PHP</button>\
+          </div>\
+          <div class="alert alert-light border mt-3 py-2 small d-none" data-op-report-for="' + esc(phpOp.operation_id || pairedPhpId) + '"></div>\
+        </div>';
+      }
       content.appendChild(pane);
-      initOperationCardControls(pane.querySelector('.js-operation-card'), op);
+      pane.querySelectorAll('.js-operation-card').forEach(function(cardEl) {
+        var cardOpId = (cardEl.querySelector('.js-op-id') && cardEl.querySelector('.js-op-id').value) || '';
+        var cardOp = payload.operations.find(function(candidate) {
+          return String(candidate && candidate.operation_id || '').trim() === String(cardOpId || '').trim();
+        }) || op;
+        initOperationCardControls(cardEl, cardOp);
+      });
     });
 
     var plusLi = document.createElement('li');
