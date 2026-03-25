@@ -3350,7 +3350,14 @@ function connectors_download_report_file(array $connector, array $reportCfg, ?st
                 'method' => strtoupper((string)($csrfCfg['method'] ?? 'GET')),
             ]);
 
-            $csrfResponse = connectors_curl_request($csrfCfg, $vars, !empty($connector['ssl_ignore']));
+            try {
+                $csrfResponse = connectors_curl_request($csrfCfg, $vars, !empty($connector['ssl_ignore']));
+            } catch (Throwable $e) {
+                $appendStepLog('login_preflight', 'Preflight завершился network/cURL ошибкой', [
+                    'error' => $e->getMessage(),
+                ]);
+                throw new ConnectorStepLogException('Network ошибка preflight перед login через cURL: ' . $e->getMessage(), $stepLog, 0, $e);
+            }
             $csrfHttp = (int)($csrfResponse['http_code'] ?? 0);
             $appendStepLog('login_preflight', 'Preflight выполнен', ['http_code' => $csrfHttp]);
             if ($csrfHttp >= 400) {
@@ -3406,7 +3413,14 @@ function connectors_download_report_file(array $connector, array $reportCfg, ?st
             'url' => (string)($loginCfg['url'] ?? ''),
             'method' => $loginMethod,
         ]);
-        $loginResponse = connectors_curl_request($loginCfg, $vars, !empty($connector['ssl_ignore']));
+        try {
+            $loginResponse = connectors_curl_request($loginCfg, $vars, !empty($connector['ssl_ignore']));
+        } catch (Throwable $e) {
+            $appendStepLog('login', 'Login-запрос завершился network/cURL ошибкой', [
+                'error' => $e->getMessage(),
+            ]);
+            throw new ConnectorStepLogException('Network ошибка логина через cURL: ' . $e->getMessage(), $stepLog, 0, $e);
+        }
         $loginHttp = (int)($loginResponse['http_code'] ?? 0);
         $appendStepLog('login', 'Login-запрос выполнен', ['http_code' => $loginHttp]);
         if ($loginHttp >= 400) {
@@ -3521,7 +3535,14 @@ function connectors_download_report_file(array $connector, array $reportCfg, ?st
             'method' => strtoupper((string)($requestCsrfCfg['method'] ?? 'GET')),
         ]);
 
-        $requestCsrfResponse = connectors_curl_request($requestCsrfCfg, $vars, !empty($connector['ssl_ignore']));
+        try {
+            $requestCsrfResponse = connectors_curl_request($requestCsrfCfg, $vars, !empty($connector['ssl_ignore']));
+        } catch (Throwable $e) {
+            $appendStepLog('request_preflight', 'Preflight перед скачиванием завершился network/cURL ошибкой', [
+                'error' => $e->getMessage(),
+            ]);
+            throw new ConnectorStepLogException('Network ошибка preflight перед скачиванием через cURL: ' . $e->getMessage(), $stepLog, 0, $e);
+        }
         $requestCsrfHttp = (int)($requestCsrfResponse['http_code'] ?? 0);
         $appendStepLog('request_preflight', 'Preflight перед скачиванием выполнен', ['http_code' => $requestCsrfHttp]);
         if ($requestCsrfHttp >= 400) {
