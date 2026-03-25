@@ -2839,38 +2839,9 @@ function connectors_download_report_file(array $connector, array $reportCfg, ?st
         throw new InvalidArgumentException('Для режима cURL нужен JSON-объект в report_curl_config_json с полем url (например {"url":"https://.../export","method":"POST"}).');
     }
 
-    $url = (string)connectors_apply_vars($url, $vars);
     $method = strtoupper(trim((string)($curlCfg['method'] ?? 'GET')));
     if ($method === '') {
         $method = 'GET';
-    }
-
-    $headers = [];
-    $hasAuthorizationHeader = false;
-    $hasCookieHeader = false;
-    if (isset($curlCfg['headers']) && is_array($curlCfg['headers'])) {
-        foreach ($curlCfg['headers'] as $k => $v) {
-            $headerName = trim((string)$k);
-            if (strcasecmp($headerName, 'Authorization') === 0) {
-                $hasAuthorizationHeader = true;
-            }
-            if (strcasecmp($headerName, 'Cookie') === 0) {
-                $hasCookieHeader = true;
-            }
-            $headers[] = $headerName . ': ' . (string)connectors_apply_vars((string)$v, $vars);
-        }
-    }
-
-    $bodyData = [];
-    if (isset($curlCfg['body']) && is_array($curlCfg['body'])) {
-        foreach ($curlCfg['body'] as $k => $v) {
-            $bodyData[$k] = connectors_apply_vars($v, $vars);
-        }
-    }
-
-
-    if (!$hasAuthorizationHeader && !empty($connector['auth_token'])) {
-        $headers[] = 'Authorization: Bearer ' . trim((string)$connector['auth_token']);
     }
 
     $cookieParts = [];
@@ -2918,6 +2889,64 @@ function connectors_download_report_file(array $connector, array $reportCfg, ?st
         if ($loginCookies !== '') {
             $cookieParts[] = $loginCookies;
         }
+
+
+        $loginBody = (string)($loginResponse['body'] ?? '');
+        $csrfToken = '';
+        if ($loginBody !== '') {
+            if (preg_match('/name\\s*=\\s*["\\\']_token["\\\']\\s+value\\s*=\\s*["\\\']([^"\\\']+)["\\\']/iu', $loginBody, $m)) {
+                $csrfToken = html_entity_decode((string)($m[1] ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+            } elseif (preg_match('/value\\s*=\\s*["\\\']([^"\\\']+)["\\\']\\s+name\\s*=\\s*["\\\']_token["\\\']/iu', $loginBody, $m)) {
+                $csrfToken = html_entity_decode((string)($m[1] ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+            } elseif (preg_match('/meta\\s+name\\s*=\\s*["\\\']csrf-token["\\\']\\s+content\\s*=\\s*["\\\']([^"\\\']+)["\\\']/iu', $loginBody, $m)) {
+                $csrfToken = html_entity_decode((string)($m[1] ?? ''), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+            }
+        }
+        if ($csrfToken !== '') {
+            $vars['csrf_token'] = $csrfToken;
+            $vars['_token'] = $csrfToken;
+        }
+    }
+
+    $combinedCookies = implode('; ', array_filter($cookieParts, static fn($c) => trim((string)$c) !== ''));
+    if ($combinedCookies !== '' && preg_match('/(?:^|;\\s*)XSRF-TOKEN=([^;]+)/i', $combinedCookies, $m)) {
+        $xsrfToken = urldecode((string)($m[1] ?? ''));
+        if ($xsrfToken !== '') {
+            $vars['xsrf_token'] = $xsrfToken;
+            if (empty($vars['csrf_token'])) {
+                $vars['csrf_token'] = $xsrfToken;
+                $vars['_token'] = $xsrfToken;
+            }
+        }
+    }
+
+    $url = (string)connectors_apply_vars($url, $vars);
+
+    $headers = [];
+    $hasAuthorizationHeader = false;
+    $hasCookieHeader = false;
+    if (isset($curlCfg['headers']) && is_array($curlCfg['headers'])) {
+        foreach ($curlCfg['headers'] as $k => $v) {
+            $headerName = trim((string)$k);
+            if (strcasecmp($headerName, 'Authorization') === 0) {
+                $hasAuthorizationHeader = true;
+            }
+            if (strcasecmp($headerName, 'Cookie') === 0) {
+                $hasCookieHeader = true;
+            }
+            $headers[] = $headerName . ': ' . (string)connectors_apply_vars((string)$v, $vars);
+        }
+    }
+
+    $bodyData = [];
+    if (isset($curlCfg['body']) && is_array($curlCfg['body'])) {
+        foreach ($curlCfg['body'] as $k => $v) {
+            $bodyData[$k] = connectors_apply_vars($v, $vars);
+        }
+    }
+
+    if (!$hasAuthorizationHeader && !empty($connector['auth_token'])) {
+        $headers[] = 'Authorization: Bearer ' . trim((string)$connector['auth_token']);
     }
 
     if (!$hasCookieHeader && !empty($cookieParts)) {
