@@ -52,14 +52,20 @@ $options = dbg_parse_cli_options($argv);
 if (isset($options['help']) || empty($options['login']) || empty($options['password'])) {
     $script = basename(__FILE__);
     fwrite(STDOUT, "Usage:\n");
-    fwrite(STDOUT, "  php {$script} login='email' password='pass' [from='YYYY-MM-DD'] [to='YYYY-MM-DD']\n");
-    fwrite(STDOUT, "  php {$script} --login='email' --password='pass' [--from='YYYY-MM-DD'] [--to='YYYY-MM-DD']\n");
+    fwrite(STDOUT, "  php {$script} login='email' password='pass' [from='YYYY-MM-DD'] [to='YYYY-MM-DD'] [login_field='email'] [password_field='password']\n");
+    fwrite(STDOUT, "  php {$script} --login='email' --password='pass' [--from='YYYY-MM-DD'] [--to='YYYY-MM-DD'] [--login_field='email'] [--password_field='password']\n");
     fwrite(STDOUT, "Примечание: формат key=value поддерживается специально для запуска в стиле: php {$script} login=... password=...\n");
     exit(isset($options['help']) ? 0 : 1);
 }
 
 $login = (string)$options['login'];
 $password = (string)$options['password'];
+$loginField = isset($options['login_field']) && trim((string)$options['login_field']) !== ''
+    ? trim((string)$options['login_field'])
+    : 'email';
+$passwordField = isset($options['password_field']) && trim((string)$options['password_field']) !== ''
+    ? trim((string)$options['password_field'])
+    : 'password';
 $fromDate = isset($options['from']) ? (string)$options['from'] : date('Y-m-d', strtotime('-7 days'));
 $toDate = isset($options['to']) ? (string)$options['to'] : date('Y-m-d');
 
@@ -72,6 +78,8 @@ $cookieJar = [];
 $vars = [
     'login' => $login,
     'password' => $password,
+    'login_field' => $loginField,
+    'password_field' => $passwordField,
     'date_from' => $fromDate,
     'date_to' => $toDate,
     'csrf_token' => '',
@@ -186,6 +194,8 @@ function dbg_curl_request(string $url, string $method, array $headers = [], arra
 
     $bodyRaw = curl_exec($ch);
     $httpCode = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+    $effectiveUrl = (string)curl_getinfo($ch, CURLINFO_EFFECTIVE_URL);
+    $redirectCount = (int)curl_getinfo($ch, CURLINFO_REDIRECT_COUNT);
     $error = curl_error($ch);
     curl_close($ch);
 
@@ -215,10 +225,24 @@ function dbg_curl_request(string $url, string $method, array $headers = [], arra
 
     return [
         'http_code' => $httpCode,
+        'effective_url' => $effectiveUrl,
+        'redirect_count' => $redirectCount,
         'body' => (string)$bodyRaw,
         'headers' => $responseHeaders,
         'cookies' => $updatedCookieJar,
     ];
+}
+
+function dbg_location_headers(array $headers): array
+{
+    $locations = [];
+    foreach ($headers as $line) {
+        if (stripos((string)$line, 'Location:') === 0) {
+            $locations[] = trim(substr((string)$line, strlen('Location:')));
+        }
+    }
+
+    return $locations;
 }
 
 try {
@@ -251,6 +275,9 @@ try {
     }
 
     dbg_print_kv('http_code', $csrfResponse['http_code']);
+    dbg_print_kv('redirect_count', $csrfResponse['redirect_count']);
+    dbg_print_kv('effective_url', $csrfResponse['effective_url']);
+    dbg_print_kv('location_headers', dbg_location_headers($csrfResponse['headers']));
     dbg_print_kv('cookies_count', count($cookieJar));
     dbg_print_kv('cookie_names', dbg_cookie_names($cookieJar));
     dbg_print_kv('csrf_token_found', $vars['csrf_token'] !== '' ? 'yes' : 'no');
@@ -258,6 +285,11 @@ try {
     dbg_print_kv('body_preview', mb_substr(trim(preg_replace('/\s+/u', ' ', (string)$csrfResponse['body']) ?? ''), 0, 260, 'UTF-8'));
 
     dbg_step('STEP 2: POST /login');
+    $loginPayload = [
+        '_token' => $vars['_token'],
+        $vars['login_field'] => $vars['login'],
+        $vars['password_field'] => $vars['password'],
+    ];
     $loginResponse = dbg_curl_request(
         $loginUrl,
         'POST',
@@ -270,11 +302,7 @@ try {
             'Accept' => 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
             'X-Requested-With' => 'XMLHttpRequest',
         ],
-        [
-            '_token' => $vars['_token'],
-            'email' => $vars['login'],
-            'password' => $vars['password'],
-        ],
+        $loginPayload,
         $cookieJar
     );
 
@@ -290,8 +318,12 @@ try {
     }
 
     dbg_print_kv('http_code', $loginResponse['http_code']);
+    dbg_print_kv('redirect_count', $loginResponse['redirect_count']);
+    dbg_print_kv('effective_url', $loginResponse['effective_url']);
+    dbg_print_kv('location_headers', dbg_location_headers($loginResponse['headers']));
     dbg_print_kv('cookies_count', count($cookieJar));
     dbg_print_kv('cookie_names', dbg_cookie_names($cookieJar));
+    dbg_print_kv('login_payload_keys', array_keys($loginPayload));
     dbg_print_kv('csrf_token_after_login', $vars['csrf_token'] !== '' ? 'yes' : 'no');
     dbg_print_kv('xsrf_token_after_login', $vars['xsrf_token'] !== '' ? 'yes' : 'no');
     dbg_print_kv('body_preview', mb_substr(trim(preg_replace('/\s+/u', ' ', (string)$loginResponse['body']) ?? ''), 0, 260, 'UTF-8'));
@@ -317,6 +349,9 @@ try {
     );
 
     dbg_print_kv('http_code', $reportResponse['http_code']);
+    dbg_print_kv('redirect_count', $reportResponse['redirect_count']);
+    dbg_print_kv('effective_url', $reportResponse['effective_url']);
+    dbg_print_kv('location_headers', dbg_location_headers($reportResponse['headers']));
     dbg_print_kv('response_headers_count', count($reportResponse['headers']));
     dbg_print_kv('body_preview', mb_substr(trim(preg_replace('/\s+/u', ' ', (string)$reportResponse['body']) ?? ''), 0, 400, 'UTF-8'));
 
