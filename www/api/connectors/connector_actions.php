@@ -4562,7 +4562,29 @@ function connectors_execute_subrunner(array $connector, array $operation, int $c
     ];
 }
 
-function connectors_execute_script_operation(array $operation): array
+
+function connectors_expand_script_arg_placeholders(string $value, array $context): string
+{
+    if ($value === '') {
+        return $value;
+    }
+
+    return (string)strtr($value, [
+        '{{from}}' => (string)($context['from'] ?? ''),
+        '{{to}}' => (string)($context['to'] ?? ''),
+        '{{period_from}}' => (string)($context['period_from'] ?? ''),
+        '{{period_to}}' => (string)($context['period_to'] ?? ''),
+        '{{connector_id}}' => (string)($context['connector_id'] ?? ''),
+        '{{base_url}}' => (string)($context['base_url'] ?? ''),
+        '{{auth_username}}' => (string)($context['auth_username'] ?? ''),
+        '{{auth_password}}' => (string)($context['auth_password'] ?? ''),
+        '{{auth_token}}' => (string)($context['auth_token'] ?? ''),
+        '{{api_token}}' => (string)($context['api_token'] ?? ''),
+        '{{target_table}}' => (string)($context['target_table'] ?? ''),
+    ]);
+}
+
+function connectors_execute_script_operation(array $operation, array $connector = [], ?string $periodFrom = null, ?string $periodTo = null): array
 {
     $config = isset($operation['config']) && is_array($operation['config']) ? $operation['config'] : [];
     $scriptPathRaw = trim((string)($config['script_path'] ?? ''));
@@ -4592,10 +4614,25 @@ function connectors_execute_script_operation(array $operation): array
         throw new InvalidArgumentException('kind=script: недопустимый interpreter (bash|sh|node|php|python3)');
     }
 
+
+    $argsContext = [
+        'from' => (string)($periodFrom ?? ($config['from'] ?? '')),
+        'to' => (string)($periodTo ?? ($config['to'] ?? '')),
+        'period_from' => (string)($periodFrom ?? ''),
+        'period_to' => (string)($periodTo ?? ''),
+        'connector_id' => (string)($connector['id'] ?? ''),
+        'base_url' => (string)($connector['base_url'] ?? ''),
+        'auth_username' => (string)($connector['auth_username'] ?? ''),
+        'auth_password' => (string)($connector['auth_password'] ?? ''),
+        'auth_token' => (string)($connector['auth_token'] ?? ''),
+        'api_token' => (string)($connector['api_token'] ?? ''),
+        'target_table' => (string)($config['target_table'] ?? ''),
+    ];
+
     $args = [];
     if (isset($config['args']) && is_array($config['args'])) {
         foreach ($config['args'] as $arg) {
-            $args[] = (string)$arg;
+            $args[] = connectors_expand_script_arg_placeholders((string)$arg, $argsContext);
         }
     }
 
@@ -4682,7 +4719,7 @@ function connectors_execute_operation_by_kind_for_manual_test(array $connector, 
     }
 
     if ($kind === 'script') {
-        $scriptResult = connectors_execute_script_operation($operation);
+        $scriptResult = connectors_execute_script_operation($operation, $connector, $periodFrom, $periodTo);
         return [
             'message' => (string)($scriptResult['message'] ?? 'Операция script выполнена'),
             'script' => isset($scriptResult['script']) && is_array($scriptResult['script']) ? $scriptResult['script'] : null,
