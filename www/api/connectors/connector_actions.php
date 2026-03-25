@@ -3475,7 +3475,36 @@ function connectors_download_report_file(array $connector, array $reportCfg, ?st
             ]);
 
             if (!$found) {
-                throw new ConnectorStepLogException('Логин через cURL не прошёл проверку success.selector', $stepLog);
+                $loginBodyPreview = trim(preg_replace('/\s+/u', ' ', mb_substr($loginBody, 0, 500, 'UTF-8')) ?? '');
+                $invalidCredentialsHint = false;
+                $loginErrorPatterns = [
+                    'invalid password',
+                    'invalid credentials',
+                    'incorrect password',
+                    'wrong password',
+                    'неверный пароль',
+                    'неверный логин',
+                    'ошибка авторизации',
+                    'authentication failed',
+                    'login failed',
+                ];
+                $loginBodyLower = function_exists('mb_strtolower')
+                    ? mb_strtolower($loginBody, 'UTF-8')
+                    : strtolower($loginBody);
+                foreach ($loginErrorPatterns as $pattern) {
+                    if ($pattern !== '' && mb_strpos($loginBodyLower, $pattern, 0, 'UTF-8') !== false) {
+                        $invalidCredentialsHint = true;
+                        break;
+                    }
+                }
+                $appendStepLog('login', 'login.success.selector не найден', [
+                    'response_body_preview' => $loginBodyPreview,
+                    'possible_invalid_credentials' => $invalidCredentialsHint,
+                ]);
+                $errorMessage = $invalidCredentialsHint
+                    ? 'Логин через cURL не прошёл проверку success.selector (похоже на неверный логин/пароль)'
+                    : 'Логин через cURL не прошёл проверку success.selector';
+                throw new ConnectorStepLogException($errorMessage, $stepLog);
             }
         } else {
             $locationHeaders = connectors_parse_location_headers(isset($loginResponse['headers']) && is_array($loginResponse['headers']) ? $loginResponse['headers'] : []);
