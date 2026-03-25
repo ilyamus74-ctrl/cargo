@@ -2221,6 +2221,38 @@ function connectors_parse_set_cookie_header(array $headers): string
 
 
 
+function connectors_merge_cookie_parts(array $cookieParts): string
+{
+    $cookies = [];
+    foreach ($cookieParts as $part) {
+        $line = trim((string)$part);
+        if ($line === '') {
+            continue;
+        }
+
+        $segments = explode(';', $line);
+        foreach ($segments as $segment) {
+            $pair = trim((string)$segment);
+            if ($pair === '' || strpos($pair, '=') === false) {
+                continue;
+            }
+            [$name, $value] = array_map('trim', explode('=', $pair, 2));
+            if ($name === '') {
+                continue;
+            }
+            $cookies[$name] = $value;
+        }
+    }
+
+    $pairs = [];
+    foreach ($cookies as $name => $value) {
+        $pairs[] = $name . '=' . $value;
+    }
+
+    return implode('; ', $pairs);
+}
+
+
 function connectors_parse_csrf_token_from_html(string $html): string
 {
     if ($html === '') {
@@ -2956,7 +2988,7 @@ function connectors_download_report_file(array $connector, array $reportCfg, ?st
 
             if (!connectors_cfg_has_cookie_header($csrfCfg) && !empty($cookieParts)) {
                 $csrfHeaders = isset($csrfCfg['headers']) && is_array($csrfCfg['headers']) ? $csrfCfg['headers'] : [];
-                $csrfHeaders['Cookie'] = implode('; ', $cookieParts);
+                $csrfHeaders['Cookie'] = connectors_merge_cookie_parts($cookieParts);
                 $csrfCfg['headers'] = $csrfHeaders;
             }
 
@@ -2983,7 +3015,7 @@ function connectors_download_report_file(array $connector, array $reportCfg, ?st
                 $vars['_token'] = $csrfToken;
             }
 
-            $preflightCookies = implode('; ', array_filter($cookieParts, static fn($c) => trim((string)$c) !== ''));
+            $preflightCookies = connectors_merge_cookie_parts($cookieParts);
             $xsrfToken = connectors_parse_xsrf_token_from_cookie_string($preflightCookies);
             if ($xsrfToken !== '') {
                 $vars['xsrf_token'] = $xsrfToken;
@@ -2996,7 +3028,7 @@ function connectors_download_report_file(array $connector, array $reportCfg, ?st
 
         if (!connectors_cfg_has_cookie_header($loginCfg) && !empty($cookieParts)) {
             $loginHeaders = isset($loginCfg['headers']) && is_array($loginCfg['headers']) ? $loginCfg['headers'] : [];
-            $loginHeaders['Cookie'] = implode('; ', $cookieParts);
+            $loginHeaders['Cookie'] = connectors_merge_cookie_parts($cookieParts);
             $loginCfg['headers'] = $loginHeaders;
         }
 
@@ -3076,7 +3108,7 @@ function connectors_download_report_file(array $connector, array $reportCfg, ?st
             $requestCsrfHeaders = isset($requestCsrfCfg['headers']) && is_array($requestCsrfCfg['headers'])
                 ? $requestCsrfCfg['headers']
                 : [];
-            $requestCsrfHeaders['Cookie'] = implode('; ', $cookieParts);
+            $requestCsrfHeaders['Cookie'] = connectors_merge_cookie_parts($cookieParts);
             $requestCsrfCfg['headers'] = $requestCsrfHeaders;
         }
 
@@ -3104,7 +3136,7 @@ function connectors_download_report_file(array $connector, array $reportCfg, ?st
         }
     }
 
-    $combinedCookies = implode('; ', array_filter($cookieParts, static fn($c) => trim((string)$c) !== ''));
+    $combinedCookies = connectors_merge_cookie_parts($cookieParts);
     if ($combinedCookies !== '') {
         $xsrfToken = connectors_parse_xsrf_token_from_cookie_string($combinedCookies);
         if ($xsrfToken !== '') {
@@ -3145,7 +3177,7 @@ function connectors_download_report_file(array $connector, array $reportCfg, ?st
     }
 
     if (!$hasCookieHeader && !empty($cookieParts)) {
-        $headers[] = 'Cookie: ' . implode('; ', $cookieParts);
+        $headers[] = 'Cookie: ' . connectors_merge_cookie_parts($cookieParts);
     }
 
     $appendStepLog('download_prepare', 'Подготовлен запрос на скачивание файла', [
