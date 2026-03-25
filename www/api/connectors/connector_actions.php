@@ -3197,19 +3197,28 @@ function connectors_download_report_file(array $connector, array $reportCfg, ?st
     }
 
     $url = (string)connectors_apply_vars($urlTemplate, $vars);
+    $followRedirects = array_key_exists('follow_redirects', $curlCfg)
+        ? !empty($curlCfg['follow_redirects'])
+        : false;
     $headers = [];
     $hasAuthorizationHeader = false;
     $hasCookieHeader = false;
     if (isset($curlCfg['headers']) && is_array($curlCfg['headers'])) {
         foreach ($curlCfg['headers'] as $k => $v) {
             $headerName = trim((string)$k);
+            $headerValue = (string)connectors_apply_vars((string)$v, $vars);
             if (strcasecmp($headerName, 'Authorization') === 0) {
                 $hasAuthorizationHeader = true;
             }
             if (strcasecmp($headerName, 'Cookie') === 0) {
                 $hasCookieHeader = true;
+
+                $headerValue = connectors_merge_cookie_parts([
+                    $headerValue,
+                    connectors_merge_cookie_parts($cookieParts),
+                ]);
             }
-            $headers[] = $headerName . ': ' . (string)connectors_apply_vars((string)$v, $vars);
+            $headers[] = $headerName . ': ' . $headerValue;
         }
     }
 
@@ -3231,7 +3240,9 @@ function connectors_download_report_file(array $connector, array $reportCfg, ?st
     $appendStepLog('download_prepare', 'Подготовлен запрос на скачивание файла', [
         'url' => $url,
         'method' => $method,
+        'follow_redirects' => $followRedirects,
         'has_cookie_header' => $hasCookieHeader || !empty($cookieParts),
+        'cookies_merged_with_config_header' => $hasCookieHeader && !empty($cookieParts),
     ]);
 
     $tmpFile = tempnam(sys_get_temp_dir(), 'connector-report-');
@@ -3247,10 +3258,15 @@ function connectors_download_report_file(array $connector, array $reportCfg, ?st
     }
 
     $ch = curl_init();
+    $responseHeaders = [];
     curl_setopt($ch, CURLOPT_URL, $url);
-    curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
+    curl_setopt($ch, CURLOPT_FOLLOWLOCATION, $followRedirects);
     curl_setopt($ch, CURLOPT_TIMEOUT, 120);
     curl_setopt($ch, CURLOPT_FILE, $fh);
+    curl_setopt($ch, CURLOPT_HEADERFUNCTION, static function ($ch, $line) use (&$responseHeaders) {
+        $responseHeaders[] = trim((string)$line);
+        return strlen($line);
+    });
     if (!empty($connector['ssl_ignore'])) {
         curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
         curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, false);
@@ -3267,14 +3283,28 @@ function connectors_download_report_file(array $connector, array $reportCfg, ?st
 
     $ok = curl_exec($ch);
     $httpCode = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+    $effectiveUrl = (string)curl_getinfo($ch, CURLINFO_EFFECTIVE_URL);
+    $redirectCount = (int)curl_getinfo($ch, CURLINFO_REDIRECT_COUNT);
     $curlErr = curl_error($ch);
     curl_close($ch);
     fclose($fh);
 
-    if (!$ok || $httpCode >= 400) {
+
+    $locationHeaders = connectors_parse_location_headers($responseHeaders);
+    $isRedirectHttp = $httpCode >= 300 && $httpCode < 400;
+    if (!$ok || $httpCode >= 400 || $isRedirectHttp) {
         @unlink($filePath);
-        $appendStepLog('download', 'Скачивание завершилось ошибкой', ['http_code' => $httpCode]);
-        throw new ConnectorStepLogException('Ошибка скачивания через cURL: HTTP ' . $httpCode . ' ' . $curlErr, $stepLog);
+        $appendStepLog('download', 'Скачивание завершилось ошибкой', [
+            'http_code' => $httpCode,
+            'effective_url' => $effectiveUrl,
+            'redirect_count' => $redirectCount,
+            'location_headers' => $locationHeaders,
+            'curl_error' => $curlErr,
+        ]);
+        $redirectNote = $isRedirectHttp && !empty($locationHeaders)
+            ? (' redirect_to=' . (string)$locationHeaders[0])
+            : '';
+        throw new ConnectorStepLogException('Ошибка скачивания через cURL: HTTP ' . $httpCode . ' ' . $curlErr . $redirectNote, $stepLog);
     }
 
     $size = (int)filesize($filePath);

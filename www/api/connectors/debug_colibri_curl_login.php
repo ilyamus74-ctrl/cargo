@@ -250,6 +250,72 @@ function dbg_location_headers(array $headers): array
     return $locations;
 }
 
+function dbg_header_values(array $headers, string $headerName): array
+{
+    $values = [];
+    $needle = strtolower(trim($headerName)) . ':';
+    foreach ($headers as $line) {
+        $line = trim((string)$line);
+        if ($line === '') {
+            continue;
+        }
+        if (str_starts_with(strtolower($line), $needle)) {
+            $values[] = trim(substr($line, strlen($needle)));
+        }
+    }
+
+    return $values;
+}
+
+function dbg_detect_download_filename(array $headers): string
+{
+    $contentDisposition = (string)(dbg_header_values($headers, 'Content-Disposition')[0] ?? '');
+    if ($contentDisposition === '') {
+        return '';
+    }
+
+    if (preg_match("/filename\\*\\s*=\\s*UTF-8''([^;]+)/iu", $contentDisposition, $m)) {
+        return trim(rawurldecode((string)($m[1] ?? '')));
+    }
+    if (preg_match('/filename\\s*=\\s*"([^"]+)"/iu', $contentDisposition, $m)) {
+        return trim((string)($m[1] ?? ''));
+    }
+    if (preg_match('/filename\\s*=\\s*([^;]+)/iu', $contentDisposition, $m)) {
+        return trim(trim((string)($m[1] ?? ''), "\"' "));
+    }
+
+    return '';
+}
+
+function dbg_is_binary_download(array $headers, string $body): bool
+{
+    $contentType = strtolower((string)(dbg_header_values($headers, 'Content-Type')[0] ?? ''));
+    if ($contentType !== '') {
+        foreach ([
+            'application/vnd.openxmlformats-officedocument',
+            'application/vnd.ms-excel',
+            'text/csv',
+            'application/octet-stream',
+            'application/zip',
+        ] as $needle) {
+            if (strpos($contentType, $needle) !== false) {
+                return true;
+            }
+        }
+    }
+
+    $contentDisposition = strtolower((string)(dbg_header_values($headers, 'Content-Disposition')[0] ?? ''));
+    if (strpos($contentDisposition, 'attachment') !== false) {
+        return true;
+    }
+
+    if ($body !== '' && str_starts_with($body, 'PK')) {
+        return true;
+    }
+
+    return false;
+}
+
 function dbg_detect_login_fields(string $html): array
 {
     $action = '';
@@ -461,8 +527,35 @@ try {
     dbg_print_kv('effective_url', $reportResponse['effective_url']);
     dbg_print_kv('location_headers', dbg_location_headers($reportResponse['headers']));
     dbg_print_kv('response_headers_count', count($reportResponse['headers']));
+    dbg_print_kv('content_type_headers', dbg_header_values($reportResponse['headers'], 'Content-Type'));
+    dbg_print_kv('content_disposition_headers', dbg_header_values($reportResponse['headers'], 'Content-Disposition'));
     dbg_print_kv('body_preview', mb_substr(trim(preg_replace('/\s+/u', ' ', (string)$reportResponse['body']) ?? ''), 0, 400, 'UTF-8'));
 
+    $downloadSaved = false;
+    if ((int)$reportResponse['http_code'] === 200 && dbg_is_binary_download($reportResponse['headers'], (string)$reportResponse['body'])) {
+        $filename = dbg_detect_download_filename($reportResponse['headers']);
+        if ($filename === '') {
+            $filename = 'all_packages_' . date('Ymd_His') . '.xlsx';
+        }
+        if (pathinfo($filename, PATHINFO_EXTENSION) === '') {
+            $filename .= '.xlsx';
+        }
+
+        $safeFilename = preg_replace('/[^A-Za-z0-9._-]+/', '_', $filename);
+        $targetPath = rtrim(sys_get_temp_dir(), DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . $safeFilename;
+        $bytes = file_put_contents($targetPath, (string)$reportResponse['body']);
+        if ($bytes !== false && $bytes > 0) {
+            $downloadSaved = true;
+            dbg_print_kv('download_saved', 'yes');
+            dbg_print_kv('download_path', $targetPath);
+            dbg_print_kv('download_bytes', $bytes);
+        }
+    }
+
+    if (!$downloadSaved) {
+        dbg_print_kv('download_saved', 'no');
+        dbg_print_kv('download_hint', 'Ответ не распознан как файл; проверьте headers/body и redirect_to в логах.');
+    }
     dbg_step('DONE');
     dbg_print_kv('final_status', 'ok');
     exit(0);
