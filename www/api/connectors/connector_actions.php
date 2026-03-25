@@ -1767,6 +1767,44 @@ function connectors_resolve_report_operation_id(array $runtimeOperations): ?stri
     return null;
 }
 
+function connectors_resolve_script_interpreter(array $config): string
+{
+    $interpreter = strtolower(trim((string)($config['interpreter'] ?? '')));
+    if ($interpreter !== '') {
+        return $interpreter;
+    }
+
+    $scriptPath = trim((string)($config['script_path'] ?? ''));
+    $ext = strtolower(pathinfo($scriptPath, PATHINFO_EXTENSION));
+    if ($ext === 'php') {
+        return 'php';
+    }
+    if ($ext === 'js') {
+        return 'node';
+    }
+
+    return 'bash';
+}
+
+function connectors_operation_supports_php_entrypoint(array $operation): bool
+{
+    $kind = strtolower(trim((string)($operation['kind'] ?? '')));
+    if ($kind === 'php_report') {
+        return true;
+    }
+    if ($kind !== 'script') {
+        return false;
+    }
+
+    $config = isset($operation['config']) && is_array($operation['config']) ? $operation['config'] : [];
+    $scriptPath = trim((string)($config['script_path'] ?? ''));
+    if ($scriptPath === '') {
+        return false;
+    }
+
+    return connectors_resolve_script_interpreter($config) === 'php';
+}
+
 function connectors_apply_php_entrypoint_mode(string $testOperation, array $runtimeOperations, string $entrypointMode = ''): string
 {
     $testOperation = trim($testOperation);
@@ -1786,21 +1824,11 @@ function connectors_apply_php_entrypoint_mode(string $testOperation, array $runt
     $candidate = $testOperation . '_php';
     if (isset($runtimeOperations[$candidate]) && is_array($runtimeOperations[$candidate])) {
         $candidateOperation = $runtimeOperations[$candidate];
-        $candidateKind = strtolower(trim((string)($candidateOperation['kind'] ?? '')));
-        $candidateConfig = isset($candidateOperation['config']) && is_array($candidateOperation['config'])
-            ? $candidateOperation['config']
-            : [];
-
-        if ($candidateKind === 'script') {
-            $scriptPath = trim((string)($candidateConfig['script_path'] ?? ''));
-            if ($scriptPath === '') {
-                return $testOperation;
-            }
+        if (connectors_operation_supports_php_entrypoint($candidateOperation)) {
+            return $candidate;
         }
         return $candidate;
     }
-
-    return $testOperation;
 }
 
 function connectors_evaluate_operation_runnable(array $operation, array $connector = []): array{
@@ -1876,7 +1904,6 @@ function connectors_resolve_test_entrypoint_with_diagnostics(array $operationsPa
 
     $candidateExists = isset($runtimeOperations[$candidatePhpOperationId]) && is_array($runtimeOperations[$candidatePhpOperationId]);
     $candidateOperation = $candidateExists ? $runtimeOperations[$candidatePhpOperationId] : [];
-    $candidateKind = strtolower(trim((string)($candidateOperation['kind'] ?? '')));
     $candidateRunnable = $candidateExists ? connectors_evaluate_operation_runnable($candidateOperation, $connector) : ['is_runnable' => false, 'reason' => 'missing_php_operation'];
     $candidateIsRunnable = !empty($candidateRunnable['is_runnable']);
     $candidateNotRunnableReason = $candidateIsRunnable ? '' : (string)($candidateRunnable['reason'] ?? 'not_runnable');
@@ -1892,14 +1919,9 @@ function connectors_resolve_test_entrypoint_with_diagnostics(array $operationsPa
     if ($phpModeRequested && $resolvedRequestedOperation !== 'submission') {
         $requestedExists = isset($runtimeOperations[$resolvedRequestedOperation]) && is_array($runtimeOperations[$resolvedRequestedOperation]);
         $requestedOperation = $requestedExists ? $runtimeOperations[$resolvedRequestedOperation] : [];
-        $requestedKind = strtolower(trim((string)($requestedOperation['kind'] ?? '')));
-        $requestedConfig = isset($requestedOperation['config']) && is_array($requestedOperation['config'])
-            ? $requestedOperation['config']
-            : [];
-        $requestedInterpreter = strtolower(trim((string)($requestedConfig['interpreter'] ?? '')));
         $requestedRunnable = $requestedExists ? connectors_evaluate_operation_runnable($requestedOperation, $connector) : ['is_runnable' => false, 'reason' => 'missing_operation'];
         $requestedIsRunnable = !empty($requestedRunnable['is_runnable']);
-        $requestedSupportsPhpEntrypoint = $requestedKind === 'php_report' || ($requestedKind === 'script' && $requestedInterpreter === 'php');
+        $requestedSupportsPhpEntrypoint = connectors_operation_supports_php_entrypoint($requestedOperation);
 
         if ($requestedSupportsPhpEntrypoint && $requestedIsRunnable) {
             $resolvedEntrypointOperation = $resolvedRequestedOperation;
@@ -1910,7 +1932,7 @@ function connectors_resolve_test_entrypoint_with_diagnostics(array $operationsPa
                 'to' => $resolvedRequestedOperation,
                 'reason' => 'missing_php_operation',
             ];
-        } elseif (!in_array($candidateKind, ['php_report', 'script'], true)) {
+        } elseif (!connectors_operation_supports_php_entrypoint($candidateOperation)) {
             $fallback = [
                 'used' => true,
                 'from' => $candidatePhpOperationId,
@@ -5971,7 +5993,7 @@ switch ($dispatchAction) {
                 $candidatePhpOperationId = trim((string)($entrypointDiagnostics['candidate_php']['operation_id'] ?? 'report_php')) ?: 'report_php';
                 $fallbackHumanMap = [
                     'missing_php_operation' => 'не найдена операция "' . $candidatePhpOperationId . '"',
-                    'php_entrypoint_kind_not_supported' => 'операция "' . $candidatePhpOperationId . '" имеет неподдерживаемый kind (разрешены php_report/script)',
+                    'php_entrypoint_kind_not_supported' => 'операция "' . $candidatePhpOperationId . '" не поддерживает PHP entrypoint (ожидается kind=php_report или kind=script с interpreter=php/файлом .php)',
                     'missing_script_path' => 'для операции "' . $candidatePhpOperationId . '" не указан config.script_path',
                     'missing_download_mode' => 'для операции "' . $candidatePhpOperationId . '" не указан config.download_mode',
                     'missing_curl_config_url' => 'для операции "' . $candidatePhpOperationId . '" не указан config.curl_config.url',
