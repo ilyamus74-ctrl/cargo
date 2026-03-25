@@ -1904,6 +1904,9 @@ function connectors_resolve_test_entrypoint_with_diagnostics(array $operationsPa
 
     $candidateExists = isset($runtimeOperations[$candidatePhpOperationId]) && is_array($runtimeOperations[$candidatePhpOperationId]);
     $candidateOperation = $candidateExists ? $runtimeOperations[$candidatePhpOperationId] : [];
+    $candidateKind = $candidateExists
+        ? strtolower(trim((string)($candidateOperation['kind'] ?? '')))
+        : '';
     $candidateRunnable = $candidateExists ? connectors_evaluate_operation_runnable($candidateOperation, $connector) : ['is_runnable' => false, 'reason' => 'missing_php_operation'];
     $candidateIsRunnable = !empty($candidateRunnable['is_runnable']);
     $candidateNotRunnableReason = $candidateIsRunnable ? '' : (string)($candidateRunnable['reason'] ?? 'not_runnable');
