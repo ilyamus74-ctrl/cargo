@@ -5817,6 +5817,7 @@ switch ($dispatchAction) {
         $smarty->assign('operations', $operations);
         $smarty->assign('operations_v3_json', json_encode($operationsV3Payload, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
         $smarty->assign('operations_last_status_json', json_encode($lastRunStatusByOperation, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+        $smarty->assign('operation_templates_json', json_encode(connectors_operation_config_templates(), JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
         $smarty->assign('addons', $addons);
         $openTab = trim((string)($_POST['open_tab'] ?? ''));
         $smarty->assign('open_tab', $openTab);

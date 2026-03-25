@@ -47,9 +47,6 @@
                 <label class="input-group-text" for="operation-template-select">Создать из шаблона</label>
                 <select class="form-select" id="operation-template-select">
                   <option value="">Выберите шаблон…</option>
-                  <option value="flights_list_fetch">Получить список рейсов</option>
-                  <option value="flight_upsert">Создать/обновить рейс</option>
-                  <option value="flight_containers_create">Создать контейнеры рейса</option>
                 </select>
                 <button type="button" class="btn btn-outline-secondary" id="create-from-template-btn">Добавить</button>
               </div>
@@ -235,6 +232,7 @@
 
   var payload;
   var operationLastStatus = parseJsonSafe(statusJsonEl && statusJsonEl.value ? statusJsonEl.value : '{}', {});
+  var backendOperationTemplates = {/literal}{$operation_templates_json|default:'{}' nofilter}{literal};
   try {
     payload = JSON.parse(textarea.value || '{"schema_version":3,"operations":[]}');
   } catch (e) {
@@ -244,6 +242,45 @@
   payload = ensureReportPhpOperation(payload);
 
   var operationTemplates = {
+    php_report: {
+      operation_id_prefix: 'report_php',
+      display_name: 'Report (PHP runtime)',
+      module: 'connectors',
+      action: '',
+      kind: 'php_report',
+      config: {
+        from: '{/literal}{$smarty.now|date_format:"%Y-%m-01"}{literal}',
+        to: '{/literal}{$smarty.now|date_format:"%Y-%m-%d"}{literal}',
+        target_table: 'connector_report_table',
+        download: {
+          url: 'https://example.com/report',
+          method: 'GET',
+          timeout_sec: 120
+        },
+        import: {
+          enabled: 1,
+          file_extension: 'xlsx',
+          field_mapping: {}
+        }
+      }
+    },
+    script_php_forwarder: {
+      operation_id_prefix: 'report_script_php',
+      display_name: 'Report (Forwarder script+php)',
+      module: 'connectors',
+      action: '',
+      kind: 'script',
+      config: {
+        interpreter: 'php',
+        script_path: 'www/scripts/mvp/app/Forwarder/run_report.php',
+        timeout_sec: 180,
+        args: [
+          '--from={{from}}',
+          '--to={{to}}',
+          '--target_table={{target_table}}'
+        ]
+      }
+    },
     flights_list_fetch: {
       operation_id_prefix: 'flights_list_fetch',
       display_name: 'Получить список рейсов',
@@ -289,6 +326,56 @@
       }
     }
   };
+
+
+  function mapBackendTemplateToUi(templatePayload) {
+    var op = templatePayload && typeof templatePayload.operation === 'object' ? templatePayload.operation : null;
+    if (!op) return null;
+    return {
+      operation_id_prefix: op.operation_id || 'op',
+      display_name: op.display_name || op.operation_id || 'Новая операция',
+      module: op.module || 'generic',
+      action: op.action || '',
+      kind: op.kind || 'browser_steps',
+      config: op.config && typeof op.config === 'object' ? op.config : {}
+    };
+  }
+
+  function mergeOperationTemplates(baseTemplates, templatesFromBackend) {
+    var merged = Object.assign({}, baseTemplates || {});
+    if (!templatesFromBackend || typeof templatesFromBackend !== 'object') {
+      return merged;
+    }
+    Object.keys(templatesFromBackend).forEach(function(key) {
+      var mapped = mapBackendTemplateToUi(templatesFromBackend[key]);
+      if (!mapped) return;
+      merged[key] = mapped;
+    });
+    return merged;
+  }
+
+  operationTemplates = mergeOperationTemplates(operationTemplates, backendOperationTemplates);
+
+  function buildTemplateLabel(templateKey, template) {
+    var opIdPrefix = String(template && template.operation_id_prefix || '').trim();
+    var title = String(template && template.display_name || '').trim();
+    if (title) return title;
+    if (opIdPrefix) return opIdPrefix;
+    return templateKey;
+  }
+
+  function renderTemplateOptions() {
+    var templateSelect = root ? root.querySelector('#operation-template-select') : document.getElementById('operation-template-select');
+    if (!templateSelect) return;
+    var keys = Object.keys(operationTemplates || {});
+    keys.sort();
+    var html = '<option value="">Выберите шаблон…</option>';
+    keys.forEach(function(templateKey) {
+      var template = operationTemplates[templateKey];
+      html += '<option value="' + esc(templateKey) + '">' + esc(buildTemplateLabel(templateKey, template)) + '</option>';
+    });
+    templateSelect.innerHTML = html;
+  }
 
   var actionRegistry = { generic: [] };
 
@@ -815,6 +902,7 @@
       }
     }, true);
   });
+  renderTemplateOptions();
   render();
   loadActionRegistry().then(render, function(){});
 })();
