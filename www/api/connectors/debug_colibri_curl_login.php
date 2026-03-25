@@ -291,6 +291,22 @@ function dbg_detect_login_fields(string $html): array
         'candidate_login_fields' => array_values(array_unique($candidateLoginFields)),
     ];
 }
+function dbg_detect_report_form_token(string $html, string $fallback = ''): string
+{
+    if (
+        preg_match('/<form\\b[^>]*\\baction\\s*=\\s*["\'][^"\']*\\/collector\\/reports\\/all_packages[^"\']*["\'][^>]*>(.*?)<\\/form>/isu', $html, $formMatch) === 1
+        && isset($formMatch[1])
+    ) {
+        $token = dbg_parse_csrf_from_html((string)$formMatch[1]);
+        if ($token !== '') {
+            return $token;
+        }
+    }
+
+    $token = dbg_parse_csrf_from_html($html);
+    return $token !== '' ? $token : $fallback;
+}
+
 try {
     dbg_step('STEP 1: CSRF preflight GET /login');
     $csrfResponse = dbg_curl_request(
@@ -328,9 +344,6 @@ try {
     dbg_print_kv('redirect_count', $csrfResponse['redirect_count']);
     dbg_print_kv('effective_url', $csrfResponse['effective_url']);
     dbg_print_kv('location_headers', dbg_location_headers($csrfResponse['headers']));
-    dbg_print_kv('redirect_count', $csrfResponse['redirect_count']);
-    dbg_print_kv('effective_url', $csrfResponse['effective_url']);
-    dbg_print_kv('location_headers', dbg_location_headers($csrfResponse['headers']));
     dbg_print_kv('cookies_count', count($cookieJar));
     dbg_print_kv('cookie_names', dbg_cookie_names($cookieJar));
     dbg_print_kv('login_form_action', $loginFormMeta['form_action']);
@@ -353,11 +366,6 @@ try {
         $loginPayload['remember'] = $vars['remember'];
     }
 
-    $loginPayload = [
-        '_token' => $vars['_token'],
-        $vars['login_field'] => $vars['login'],
-        $vars['password_field'] => $vars['password'],
-    ];
     $loginResponse = dbg_curl_request(
         $loginUrl,
         'POST',
@@ -368,7 +376,6 @@ try {
             'X-CSRF-TOKEN' => $vars['csrf_token'],
             'X-XSRF-TOKEN' => $vars['xsrf_token'],
             'Accept' => 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-            'X-Requested-With' => 'XMLHttpRequest',
         ],
         $loginPayload,
         $cookieJar
@@ -396,7 +403,40 @@ try {
     dbg_print_kv('xsrf_token_after_login', $vars['xsrf_token'] !== '' ? 'yes' : 'no');
     dbg_print_kv('body_preview', mb_substr(trim(preg_replace('/\s+/u', ' ', (string)$loginResponse['body']) ?? ''), 0, 260, 'UTF-8'));
 
-    dbg_step('STEP 3: POST report endpoint');
+    dbg_step('STEP 3: CSRF preflight GET report endpoint');
+    $reportGetResponse = dbg_curl_request(
+        $reportUrl,
+        'GET',
+        [
+            'Accept' => 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Referer' => $baseUrl . '/',
+        ],
+        [],
+        $cookieJar
+    );
+
+    $cookieJar = $reportGetResponse['cookies'];
+    $reportXsrf = dbg_extract_xsrf($cookieJar);
+    if ($reportXsrf !== '') {
+        $vars['xsrf_token'] = $reportXsrf;
+    }
+    $reportFormToken = dbg_detect_report_form_token((string)$reportGetResponse['body'], (string)$vars['_token']);
+    if ($reportFormToken !== '') {
+        $vars['csrf_token'] = $reportFormToken;
+        $vars['_token'] = $reportFormToken;
+    }
+
+    dbg_print_kv('http_code', $reportGetResponse['http_code']);
+    dbg_print_kv('redirect_count', $reportGetResponse['redirect_count']);
+    dbg_print_kv('effective_url', $reportGetResponse['effective_url']);
+    dbg_print_kv('location_headers', dbg_location_headers($reportGetResponse['headers']));
+    dbg_print_kv('cookies_count', count($cookieJar));
+    dbg_print_kv('cookie_names', dbg_cookie_names($cookieJar));
+    dbg_print_kv('csrf_token_after_report_get', $vars['csrf_token'] !== '' ? 'yes' : 'no');
+    dbg_print_kv('xsrf_token_after_report_get', $vars['xsrf_token'] !== '' ? 'yes' : 'no');
+    dbg_print_kv('body_preview', mb_substr(trim(preg_replace('/\s+/u', ' ', (string)$reportGetResponse['body']) ?? ''), 0, 260, 'UTF-8'));
+
+    dbg_step('STEP 4: POST report endpoint');
     $reportResponse = dbg_curl_request(
         $reportUrl,
         'POST',
