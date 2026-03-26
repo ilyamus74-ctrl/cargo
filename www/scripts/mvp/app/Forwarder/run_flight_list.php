@@ -147,9 +147,33 @@ function forwarder_flight_list_import_rows(
         require_once $requiredPath;
     }
 
+    if (!class_exists('mysqli')) {
+        return [
+            'status' => 'skipped',
+            'message' => 'mysqli extension is not available, импорт пропущен',
+            'imported_rows' => 0,
+            'rows_detected' => 0,
+            'rows_skipped' => 0,
+            'write_mode' => $writeMode,
+            'target_table' => $targetTable,
+            'headers_detected' => [],
+            'errors' => [],
+        ];
+    }
+
     $db = $GLOBALS['dbcnx'] ?? null;
     if (!($db instanceof mysqli)) {
-        throw new RuntimeException('run_flight_list: mysqli connection is not available');
+        return [
+            'status' => 'skipped',
+            'message' => 'mysqli connection is not available, импорт пропущен',
+            'imported_rows' => 0,
+            'rows_detected' => 0,
+            'rows_skipped' => 0,
+            'write_mode' => $writeMode,
+            'target_table' => $targetTable,
+            'headers_detected' => [],
+            'errors' => [],
+        ];
     }
 
     $mode = strtolower(trim($writeMode));

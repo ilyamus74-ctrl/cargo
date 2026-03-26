@@ -712,17 +712,17 @@ function connectors_subrunner_find_existing_flight_row_id(mysqli $db, string $ta
     $sourceRowId = trim((string)($row['source_row_id'] ?? ''));
     $awb = trim((string)($row['awb'] ?? ''));
 
-    if ($sourceRowId !== '') {
-        $stmt = $db->prepare("SELECT id FROM {$safeTable} WHERE connector_id = ? AND source_row_id = ? ORDER BY id DESC LIMIT 1");
+    if ($externalId !== '') {
+        $stmt = $db->prepare("SELECT id FROM {$safeTable} WHERE connector_id = ? AND external_id = ? ORDER BY id DESC LIMIT 1");
         if (!$stmt) {
-            throw new RuntimeException('DB prepare error (find flight by source_row_id): ' . $db->error);
+            throw new RuntimeException('DB prepare error (find flight by external_id): ' . $db->error);
         }
 
-        $stmt->bind_param('is', $connectorId, $sourceRowId);
+        $stmt->bind_param('is', $connectorId, $externalId);
         if (!$stmt->execute()) {
             $err = $stmt->error;
             $stmt->close();
-            throw new RuntimeException('DB execute error (find flight by source_row_id): ' . $err);
+            throw new RuntimeException('DB execute error (find flight by external_id): ' . $err);
         }
 
         $result = $stmt->get_result();
@@ -738,17 +738,17 @@ function connectors_subrunner_find_existing_flight_row_id(mysqli $db, string $ta
     }
 
 
-    if ($externalId !== '') {
-        $stmt = $db->prepare("SELECT id FROM {$safeTable} WHERE connector_id = ? AND external_id = ? ORDER BY id DESC LIMIT 1");
+    if ($sourceRowId !== '') {
+        $stmt = $db->prepare("SELECT id FROM {$safeTable} WHERE connector_id = ? AND source_row_id = ? ORDER BY id DESC LIMIT 1");
         if (!$stmt) {
-            throw new RuntimeException('DB prepare error (find flight by external_id): ' . $db->error);
+            throw new RuntimeException('DB prepare error (find flight by source_row_id): ' . $db->error);
         }
 
-        $stmt->bind_param('is', $connectorId, $externalId);
+        $stmt->bind_param('is', $connectorId, $sourceRowId);
         if (!$stmt->execute()) {
             $err = $stmt->error;
             $stmt->close();
-            throw new RuntimeException('DB execute error (find flight by external_id): ' . $err);
+            throw new RuntimeException('DB execute error (find flight by source_row_id): ' . $err);
         }
 
         $result = $stmt->get_result();

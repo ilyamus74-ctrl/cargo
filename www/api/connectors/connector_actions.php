@@ -4929,21 +4929,91 @@ function connectors_expand_script_arg_placeholders(string $value, array $context
         '{{target_table}}' => (string)($context['target_table'] ?? ''),
     ]);
 }
+function connectors_mask_script_arg(string $arg): string
+{
+    $trimmed = trim($arg);
+    if ($trimmed === '') {
+        return $arg;
+    }
+
+    if (preg_match('/^(--(?:password|auth_password|token|api-token|auth-token))=/i', $trimmed, $m)) {
+        return $m[1] . '=***';
+    }
+
+    return $arg;
+}
 
 function connectors_execute_script_operation(array $operation, array $connector = [], ?string $periodFrom = null, ?string $periodTo = null): array
 {
-    $config = isset($operation['config']) && is_array($operation['config']) ? $operation['config'] : [];
+    $rawConfig = isset($operation['config']) && is_array($operation['config']) ? $operation['config'] : [];
     $operationId = trim((string)($operation['operation_id'] ?? ''));
-    $config = connectors_unwrap_embedded_operation_config($config, $operationId);
+
+    $config = connectors_unwrap_embedded_operation_config($rawConfig, $operationId);
+    $resolvedTargetTable = trim((string)($config['target_table'] ?? ''));
+    $targetTableTrace = [
+        'from_unwrapped_config' => $resolvedTargetTable,
+        'from_raw_config' => '',
+        'from_raw_config_operations' => '',
+        'from_operation' => trim((string)($operation['target_table'] ?? '')),
+    ];
+    if ($resolvedTargetTable === '') {
+        $resolvedTargetTable = trim((string)($rawConfig['target_table'] ?? ''));
+        $targetTableTrace['from_raw_config'] = $resolvedTargetTable;
+    }
+    if ($resolvedTargetTable === '' && isset($rawConfig['operations']) && is_array($rawConfig['operations'])) {
+        foreach ($rawConfig['operations'] as $candidate) {
+            if (!is_array($candidate)) {
+                continue;
+            }
+            $candidateId = trim((string)($candidate['operation_id'] ?? ''));
+            if ($operationId !== '' && $candidateId !== '' && strcasecmp($candidateId, $operationId) !== 0) {
+                continue;
+            }
+            $resolvedTargetTable = trim((string)($candidate['target_table'] ?? ''));
+            if ($resolvedTargetTable === '') {
+                $candidateCfg = isset($candidate['config']) && is_array($candidate['config']) ? $candidate['config'] : [];
+                $resolvedTargetTable = trim((string)($candidateCfg['target_table'] ?? ''));
+            }
+            if ($resolvedTargetTable !== '') {
+                $targetTableTrace['from_raw_config_operations'] = $resolvedTargetTable;
+                break;
+            }
+        }
+    }
+    if ($resolvedTargetTable === '') {
+        $resolvedTargetTable = trim((string)($operation['target_table'] ?? ''));
+    }
+
     $scriptPathRaw = trim((string)($config['script_path'] ?? ''));
     if ($scriptPathRaw === '') {
         throw new InvalidArgumentException('Для kind=script укажите operation.config.script_path');
     }
 
     $rootPath = realpath(__DIR__ . '/../../');
-    $scriptPath = realpath($scriptPathRaw);
-    if ($scriptPath === false && $rootPath !== false) {
-        $scriptPath = realpath($rootPath . '/' . ltrim($scriptPathRaw, '/'));
+
+    $repoRootPath = realpath(__DIR__ . '/../../../');
+    $scriptPath = false;
+
+    $scriptCandidates = [
+        $scriptPathRaw,
+    ];
+
+    if ($rootPath !== false) {
+        $scriptCandidates[] = $rootPath . '/' . ltrim($scriptPathRaw, '/');
+    }
+    if ($repoRootPath !== false) {
+        $scriptCandidates[] = $repoRootPath . '/' . ltrim($scriptPathRaw, '/');
+        if (strpos($scriptPathRaw, 'www/') === 0) {
+            $scriptCandidates[] = $repoRootPath . '/' . ltrim(substr($scriptPathRaw, 4), '/');
+        }
+    }
+
+    foreach ($scriptCandidates as $candidatePath) {
+        $resolvedPath = realpath($candidatePath);
+        if ($resolvedPath !== false && is_file($resolvedPath)) {
+            $scriptPath = $resolvedPath;
+            break;
+        }
     }
     if ($scriptPath === false || !is_file($scriptPath)) {
         throw new RuntimeException('kind=script: файл не найден: ' . $scriptPathRaw);
@@ -4974,13 +5044,16 @@ function connectors_execute_script_operation(array $operation, array $connector 
         'auth_password' => (string)($connector['auth_password'] ?? ''),
         'auth_token' => (string)($connector['auth_token'] ?? ''),
         'api_token' => (string)($connector['api_token'] ?? ''),
-        'target_table' => (string)($config['target_table'] ?? ''),
+        'target_table' => $resolvedTargetTable,
     ];
 
     $args = [];
+    $argsMasked = [];
     if (isset($config['args']) && is_array($config['args'])) {
         foreach ($config['args'] as $arg) {
-            $args[] = connectors_expand_script_arg_placeholders((string)$arg, $argsContext);
+            $expandedArg = connectors_expand_script_arg_placeholders((string)$arg, $argsContext);
+            $args[] = $expandedArg;
+            $argsMasked[] = connectors_mask_script_arg($expandedArg);
         }
     }
 
@@ -4999,6 +5072,29 @@ function connectors_execute_script_operation(array $operation, array $connector 
         throw new RuntimeException('kind=script завершился с ошибкой (exit_code=' . $exitCode . '): ' . $output);
     }
 
+
+    $parsedJson = null;
+    if ($output !== '') {
+        $decoded = json_decode($output, true);
+        if (is_array($decoded)) {
+            $parsedJson = $decoded;
+        }
+    }
+
+    if (is_array($parsedJson)) {
+        $importStatus = strtolower(trim((string)($parsedJson['import_status'] ?? '')));
+        if (in_array($importStatus, ['error', 'failed'], true)) {
+            $importMessage = trim((string)($parsedJson['import_message'] ?? 'script import returned error'));
+            $importErrors = $parsedJson['import_errors'] ?? [];
+            $details = '';
+            if (is_array($importErrors) && $importErrors !== []) {
+                $details = '; errors=' . json_encode($importErrors, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            }
+            throw new RuntimeException('kind=script import error: ' . $importMessage . $details);
+        }
+    }
+
+
     return [
         'message' => 'Операция script выполнена',
         'script' => [
@@ -5006,7 +5102,17 @@ function connectors_execute_script_operation(array $operation, array $connector 
             'interpreter' => $interpreter,
             'output' => $output,
             'exit_code' => $exitCode,
+            'args_expanded_masked' => $argsMasked,
+            'parsed_json' => $parsedJson,
+            'debug' => [
+                'target_table_resolved' => $resolvedTargetTable,
+                'target_table_resolution' => $targetTableTrace,
+            ],
         ],
+        'target_table' => is_array($parsedJson) ? (string)($parsedJson['target_table'] ?? '') : '',
+        'imported_rows' => is_array($parsedJson) ? (int)($parsedJson['imported_rows'] ?? 0) : 0,
+        'rows_detected' => is_array($parsedJson) ? (int)($parsedJson['rows_detected'] ?? 0) : 0,
+        'import_status' => is_array($parsedJson) ? (string)($parsedJson['import_status'] ?? '') : '',
     ];
 }
 
@@ -5068,9 +5174,23 @@ function connectors_execute_operation_by_kind_for_manual_test(array $connector, 
 
     if ($kind === 'script') {
         $scriptResult = connectors_execute_script_operation($operation, $connector, $periodFrom, $periodTo);
+        $scriptMeta = isset($scriptResult['script']) && is_array($scriptResult['script']) ? $scriptResult['script'] : [];
+        $scriptParsed = isset($scriptMeta['parsed_json']) && is_array($scriptMeta['parsed_json']) ? $scriptMeta['parsed_json'] : [];
+        $message = (string)($scriptResult['message'] ?? 'Операция script выполнена');
+        if ($scriptParsed !== []) {
+            $importStatus = trim((string)($scriptParsed['import_status'] ?? ''));
+            $importedRows = (int)($scriptParsed['imported_rows'] ?? 0);
+            $rowsDetected = (int)($scriptParsed['rows_detected'] ?? 0);
+            if ($importStatus !== '') {
+                $message .= ' import_status=' . $importStatus;
+            }
+            $message .= ' imported_rows=' . $importedRows . ' rows_detected=' . $rowsDetected;
+        }
         return [
-            'message' => (string)($scriptResult['message'] ?? 'Операция script выполнена'),
-            'script' => isset($scriptResult['script']) && is_array($scriptResult['script']) ? $scriptResult['script'] : null,
+            'message' => $message,
+            'script' => $scriptMeta !== [] ? $scriptMeta : null,
+            'target_table' => trim((string)($scriptResult['target_table'] ?? ($scriptParsed['target_table'] ?? ''))),
+            'imported_rows' => (int)($scriptResult['imported_rows'] ?? ($scriptParsed['imported_rows'] ?? 0)),
             'trace_meta' => ['kind' => 'script'],
         ];
     }
