@@ -255,6 +255,7 @@ if ($pagePath === '' || $pagePath[0] !== '/') {
 
 $repoRoot = dirname(__DIR__, 5);
 $targetTable = forwarder_flight_list_arg($args, 'target-table', 'target_table');
+$targetTable = $targetTable !== '' ? $targetTable : trim((string)getenv('FORWARDER_TARGET_TABLE'));
 $writeMode = forwarder_flight_list_arg($args, 'write-mode', 'write_mode');
 $writeMode = $writeMode !== '' ? $writeMode : 'upsert';
 $tableSelector = forwarder_flight_list_arg($args, 'table-selector', 'table_selector');
