@@ -4932,6 +4932,7 @@ function connectors_expand_script_arg_placeholders(string $value, array $context
     ]);
 }
 
+
 function connectors_mask_script_arg(string $arg): string
 {
     $trimmed = trim($arg);
@@ -4987,7 +4988,6 @@ function connectors_execute_script_operation(array $operation, array $connector 
 {
     $rawConfig = isset($operation['config']) && is_array($operation['config']) ? $operation['config'] : [];
     $operationId = trim((string)($operation['operation_id'] ?? ''));
-
     $config = connectors_unwrap_embedded_operation_config($rawConfig, $operationId);
     $resolvedTargetTable = trim((string)($config['target_table'] ?? ''));
     $targetTableTrace = [
@@ -5088,14 +5088,23 @@ function connectors_execute_script_operation(array $operation, array $connector 
 
     $args = [];
     $argsMasked = [];
+    $hasTargetTableArg = false;
     if (isset($config['args']) && is_array($config['args'])) {
         foreach ($config['args'] as $arg) {
             $expandedArg = connectors_expand_script_arg_placeholders((string)$arg, $argsContext);
             $args[] = $expandedArg;
             $argsMasked[] = connectors_mask_script_arg($expandedArg);
+            if (preg_match('/^--target(?:-|_)table=/i', trim($expandedArg))) {
+                $hasTargetTableArg = true;
+            }
         }
     }
 
+    if (!$hasTargetTableArg && $resolvedTargetTable !== '') {
+        $forcedTargetArg = '--target-table=' . $resolvedTargetTable;
+        $args[] = $forcedTargetArg;
+        $argsMasked[] = connectors_mask_script_arg($forcedTargetArg);
+    }
     $timeoutSec = max(1, (int)($config['timeout_sec'] ?? 60));
     $parts = ['timeout', (string)$timeoutSec, $interpreter, escapeshellarg($scriptPath)];
     foreach ($args as $arg) {
@@ -5110,7 +5119,6 @@ function connectors_execute_script_operation(array $operation, array $connector 
     if ($exitCode !== 0) {
         throw new RuntimeException('kind=script завершился с ошибкой (exit_code=' . $exitCode . '): ' . $output);
     }
-
 
 
     $parsedJson = connectors_try_decode_script_json_output($output);
