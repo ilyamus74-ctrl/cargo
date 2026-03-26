@@ -13,6 +13,22 @@ final class SessionManager
 
     private string $csrfToken = '';
 
+
+
+    private function decodeCookieToken(string $value): string
+    {
+        $decoded = urldecode($value);
+        $length = strlen($decoded);
+        if (
+            $length >= 2
+            && (($decoded[0] === '"' && $decoded[$length - 1] === '"') || ($decoded[0] === "'" && $decoded[$length - 1] === "'"))
+        ) {
+            $decoded = substr($decoded, 1, -1);
+        }
+
+        return trim($decoded);
+    }
+
     public function updateFromHeaders(string $headersRaw): void
     {
         if ($headersRaw === '') {
@@ -43,7 +59,7 @@ final class SessionManager
 
             $this->cookies[$name] = $value;
             if (strcasecmp($name, 'XSRF-TOKEN') === 0) {
-                $this->xsrfToken = urldecode($value);
+                $this->xsrfToken = $this->decodeCookieToken($value);
             }
         }
     }

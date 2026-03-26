@@ -41,7 +41,7 @@ final class LoginService
         $payload = [
             'username' => $this->config->username(),
             'password' => $this->config->password(),
-            '_token' => $this->session->xsrfToken(),
+            '_token' => $this->session->csrfToken() !== '' ? $this->session->csrfToken() : $this->session->xsrfToken(),
         ];
 
         $loginPostPath = (string)($this->config->endpoint('login_post')['path'] ?? $this->config->loginPath());

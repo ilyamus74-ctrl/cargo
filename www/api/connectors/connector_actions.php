@@ -1797,10 +1797,6 @@ function connectors_operation_supports_php_entrypoint(array $operation): bool
     }
 
     $config = isset($operation['config']) && is_array($operation['config']) ? $operation['config'] : [];
-    $scriptPath = trim((string)($config['script_path'] ?? ''));
-    if ($scriptPath === '') {
-        return false;
-    }
 
     return connectors_resolve_script_interpreter($config) === 'php';
 }

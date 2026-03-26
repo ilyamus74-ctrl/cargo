@@ -120,6 +120,22 @@
 ## 4) Реализация по вкладкам (практический чек-лист)
 
 > Повторить этот блок для каждой вкладки.
+### 4.0 Практичный боевой процесс (быстро и без боли)
+
+- [X] Реализован baseline-скрипт `run_flight_list.php` для DEV_COLIBRI (session-aware fetch списка рейсов через PHP runtime) и подготовлен для подключения в `kind=script` operation (2026-03-26).
+- [X] Для `run_flight_list.php` добавлена нормализация `--base-url` (поддержка `https://host` и `https://host/login`) и расширен debug output (`base_url`) для быстрой диагностики (2026-03-26).
+- [X] Исправлена CSRF-авторизация в session runtime: декодирование/очистка `XSRF-TOKEN` cookie (без кавычек) и приоритет `csrfToken` для POST `/login` payload, чтобы убрать `419 auth_failed` на DEV_COLIBRI (2026-03-26).
+- [ ] Подключить `run_flight_list.php` в активную PHP-вкладку коннектора и зафиксировать успешный `test_connector_operations` run_id.
+- [ ] Добавить в `run_flight_list.php` импорт в целевую таблицу (`target_table`) и итоговую метрику `imported_rows`.
+- [X] Зафиксировать smoke-run после CSRF-фикса: CLI-команда + `run_id` + `status=ok` + `rows_detected` в этом плане.
+
+#### Подтверждённый smoke-run: `run_flight_list.php` (2026-03-26)
+
+- [X] Команда: `php run_flight_list.php --base-url="https://dev-backend.colibri.az/login" --login="w" --password="Sik" --page-path="/collector/flights"`
+- [X] `run_id` / `correlation_id`: `run-flight-list-20260326065436-da2f4228`
+- [X] Login: `ok=true`, `status_code=302`
+- [X] Результат: `status=ok`, `rows_detected=20`
+- [X] Заголовки таблицы успешно распознаны: `No, Name, Flight Time, Carrier, Flight, AWB, Departure, Destination, Packages count, Total weight, Closed date`
 
 ### 4.A Создать отдельную PHP operation
 - [ ] Добавить operation в `operations_json`.
