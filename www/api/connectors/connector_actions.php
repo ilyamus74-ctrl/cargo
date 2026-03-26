@@ -5,12 +5,7 @@ declare(strict_types=1);
 // Доступны: $action, $user, $dbcnx, $smarty
 //$response = ['status' => 'error', 'message' => 'Unknown connector action'];
 
-$routeActionRaw = $action ?? '';
-$postActionRaw = $_POST['action'] ?? '';
-$getActionRaw = $_GET['action'] ?? '';
 
-// Важно: handler должен в первую очередь доверять action, уже отмаршрутизированному в core_api.php.
-// Это исключает расхождение между роутером и switch при «грязном» POST/GET.
 $routeActionRaw = isset($action) ? (string)$action : '';
 $postActionRaw = isset($_POST['action']) ? (string)$_POST['action'] : '';
 $getActionRaw = isset($_GET['action']) ? (string)$_GET['action'] : '';
@@ -1836,6 +1831,13 @@ function connectors_unwrap_embedded_operation_config(array $config, string $oper
                 }
             }
         }
+    }
+
+
+    if ($operationId === '') {
+        // Если operation_id неизвестен, не надо «угадывать» и брать первый попавшийся nested config:
+        // это может подменить config текущей операции (в т.ч. потерять target_table).
+        return $config;
     }
 
     foreach ($candidates as $candidate) {
@@ -4929,6 +4931,7 @@ function connectors_expand_script_arg_placeholders(string $value, array $context
         '{{target_table}}' => (string)($context['target_table'] ?? ''),
     ]);
 }
+
 function connectors_mask_script_arg(string $arg): string
 {
     $trimmed = trim($arg);
@@ -4941,6 +4944,43 @@ function connectors_mask_script_arg(string $arg): string
     }
 
     return $arg;
+}
+
+function connectors_try_decode_script_json_output(string $output): ?array
+{
+    $output = trim($output);
+    if ($output === '') {
+        return null;
+    }
+
+    $decoded = json_decode($output, true);
+    if (is_array($decoded)) {
+        return $decoded;
+    }
+
+    $lines = preg_split('/\R/', $output) ?: [];
+    for ($i = count($lines) - 1; $i >= 0; $i--) {
+        $line = trim((string)$lines[$i]);
+        if ($line === '') {
+            continue;
+        }
+        $decodedLine = json_decode($line, true);
+        if (is_array($decodedLine)) {
+            return $decodedLine;
+        }
+    }
+
+    $firstBrace = strpos($output, '{');
+    $lastBrace = strrpos($output, '}');
+    if ($firstBrace !== false && $lastBrace !== false && $lastBrace > $firstBrace) {
+        $slice = substr($output, $firstBrace, $lastBrace - $firstBrace + 1);
+        $decodedSlice = json_decode((string)$slice, true);
+        if (is_array($decodedSlice)) {
+            return $decodedSlice;
+        }
+    }
+
+    return null;
 }
 
 function connectors_execute_script_operation(array $operation, array $connector = [], ?string $periodFrom = null, ?string $periodTo = null): array
@@ -4983,7 +5023,6 @@ function connectors_execute_script_operation(array $operation, array $connector 
     if ($resolvedTargetTable === '') {
         $resolvedTargetTable = trim((string)($operation['target_table'] ?? ''));
     }
-
     $scriptPathRaw = trim((string)($config['script_path'] ?? ''));
     if ($scriptPathRaw === '') {
         throw new InvalidArgumentException('Для kind=script укажите operation.config.script_path');
@@ -5073,13 +5112,8 @@ function connectors_execute_script_operation(array $operation, array $connector 
     }
 
 
-    $parsedJson = null;
-    if ($output !== '') {
-        $decoded = json_decode($output, true);
-        if (is_array($decoded)) {
-            $parsedJson = $decoded;
-        }
-    }
+
+    $parsedJson = connectors_try_decode_script_json_output($output);
 
     if (is_array($parsedJson)) {
         $importStatus = strtolower(trim((string)($parsedJson['import_status'] ?? '')));
@@ -5093,8 +5127,6 @@ function connectors_execute_script_operation(array $operation, array $connector 
             throw new RuntimeException('kind=script import error: ' . $importMessage . $details);
         }
     }
-
-
     return [
         'message' => 'Операция script выполнена',
         'script' => [
@@ -5191,7 +5223,15 @@ function connectors_execute_operation_by_kind_for_manual_test(array $connector, 
             'script' => $scriptMeta !== [] ? $scriptMeta : null,
             'target_table' => trim((string)($scriptResult['target_table'] ?? ($scriptParsed['target_table'] ?? ''))),
             'imported_rows' => (int)($scriptResult['imported_rows'] ?? ($scriptParsed['imported_rows'] ?? 0)),
-            'trace_meta' => ['kind' => 'script'],
+            'rows_detected' => (int)($scriptResult['rows_detected'] ?? ($scriptParsed['rows_detected'] ?? 0)),
+            'import_status' => trim((string)($scriptResult['import_status'] ?? ($scriptParsed['import_status'] ?? ''))),
+            'trace_meta' => [
+                'kind' => 'script',
+                'target_table' => trim((string)($scriptResult['target_table'] ?? ($scriptParsed['target_table'] ?? ''))),
+                'imported_rows' => (int)($scriptResult['imported_rows'] ?? ($scriptParsed['imported_rows'] ?? 0)),
+                'rows_detected' => (int)($scriptResult['rows_detected'] ?? ($scriptParsed['rows_detected'] ?? 0)),
+                'import_status' => trim((string)($scriptResult['import_status'] ?? ($scriptParsed['import_status'] ?? ''))),
+            ],
         ];
     }
 
@@ -6455,6 +6495,9 @@ switch ($dispatchAction) {
                     'run_id' => $runId,
                     'entrypoint_mode' => $entrypointMode,
                     'resolved_entrypoint_operation' => $entrypoint,
+                    'imported_rows' => (int)($mainResult['imported_rows'] ?? 0),
+                    'rows_detected' => (int)($mainResult['rows_detected'] ?? 0),
+                    'import_status' => trim((string)($mainResult['import_status'] ?? '')),
                     'target_table' => $targetTable,
                     'download' => $lastDownload,
                     'api_response' => $lastApiResponse,
