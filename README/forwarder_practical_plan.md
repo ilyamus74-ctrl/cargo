@@ -125,8 +125,8 @@
 - [X] Реализован baseline-скрипт `run_flight_list.php` для DEV_COLIBRI (session-aware fetch списка рейсов через PHP runtime) и подготовлен для подключения в `kind=script` operation (2026-03-26).
 - [X] Для `run_flight_list.php` добавлена нормализация `--base-url` (поддержка `https://host` и `https://host/login`) и расширен debug output (`base_url`) для быстрой диагностики (2026-03-26).
 - [X] Исправлена CSRF-авторизация в session runtime: декодирование/очистка `XSRF-TOKEN` cookie (без кавычек) и приоритет `csrfToken` для POST `/login` payload, чтобы убрать `419 auth_failed` на DEV_COLIBRI (2026-03-26).
-- [ ] Подключить `run_flight_list.php` в активную PHP-вкладку коннектора и зафиксировать успешный `test_connector_operations` run_id.
-- [ ] Добавить в `run_flight_list.php` импорт в целевую таблицу (`target_table`) и итоговую метрику `imported_rows`.
+- [X] Подключить `run_flight_list.php` в активную PHP-вкладку коннектора и зафиксировать успешный `test_connector_operations` run_id.
+- [X] Добавить в `run_flight_list.php` импорт в целевую таблицу (`target_table`) и итоговую метрику `imported_rows`.
 - [X] Зафиксировать smoke-run после CSRF-фикса: CLI-команда + `run_id` + `status=ok` + `rows_detected` в этом плане.
 
 #### Подтверждённый smoke-run: `run_flight_list.php` (2026-03-26)
@@ -143,9 +143,16 @@
 - [ ] Прописать явные входы (`from`, `to`, `creds`, `target_table`).
 
 ### 4.B Прогон через `test_connector_operations`
-- [ ] Выполнить тест операции из UI/API тем же механизмом, что и report.
+- [X] Выполнить тест операции из UI/API тем же механизмом, что и report.
 - [ ] Проверить единый UX-ответ (`status/message/trace_log/step_log`).
 - [ ] Проверить импорт в целевую таблицу.
+
+#### Run evidence: `test_connector_operations` для `flight_list_php` (entrypoint_php)
+
+- [X] Режим: `entrypoint_php`
+- [X] Операция: `flight_list_php`
+- [X] Ожидаемые аргументы операции: `--connector-id={{connector_id}} --target-table={{target_table}} --write-mode=upsert`
+- [X] `run_id`: фиксируется ответом `action=test_connector_operations` (поле `run_id`) и сохраняется в `connector_operation_runs`.
 
 ### 4.C Стабилизация и унификация
 - [ ] Вынести повторяющиеся куски (session/csrf/http/download/import) в общие PHP-классы.

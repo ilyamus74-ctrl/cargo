@@ -113,6 +113,85 @@ function forwarder_flight_list_extract_rows(string $html): array
     ];
 }
 
+
+function forwarder_flight_list_import_rows(
+    string $html,
+    string $repoRoot,
+    int $connectorId,
+    string $targetTable,
+    string $writeMode,
+    string $tableSelector = 'table.references-table'
+): array {
+    if ($targetTable === '') {
+        return [
+            'status' => 'skipped',
+            'message' => 'target_table не указан, импорт пропущен',
+            'imported_rows' => 0,
+            'rows_detected' => 0,
+            'write_mode' => $writeMode,
+            'target_table' => '',
+        ];
+    }
+
+    if ($connectorId <= 0) {
+        throw new RuntimeException('run_flight_list: для импорта укажите --connector-id > 0');
+    }
+
+    $connectDbPath = $repoRoot . '/configs/connectDB.php';
+    $enginePath = $repoRoot . '/www/api/connectors/connector_engine.php';
+    $subrunnerPath = $repoRoot . '/www/api/connectors/subrunners/connector_modules.php';
+    foreach ([$connectDbPath, $enginePath, $subrunnerPath] as $requiredPath) {
+        if (!is_file($requiredPath)) {
+            throw new RuntimeException('run_flight_list: required file not found: ' . $requiredPath);
+        }
+        require_once $requiredPath;
+    }
+
+    $db = $GLOBALS['dbcnx'] ?? null;
+    if (!($db instanceof mysqli)) {
+        throw new RuntimeException('run_flight_list: mysqli connection is not available');
+    }
+
+    $mode = strtolower(trim($writeMode));
+    if (!in_array($mode, ['upsert', 'insert'], true)) {
+        $mode = 'upsert';
+    }
+
+    $ctx = [
+        'connector_id' => $connectorId,
+        'connector' => [
+            'id' => $connectorId,
+            'name' => 'forwarder_flight_list',
+            'base_url' => '',
+            'ssl_ignore' => 0,
+        ],
+        'browser' => [
+            'final_html' => $html,
+        ],
+    ];
+    $options = [
+        'table_name' => $targetTable,
+        'table_selector' => $tableSelector,
+        'write_mode' => $mode,
+        'sync_containers' => false,
+        'timezone' => 'UTC',
+    ];
+    $subrunnerResult = connectors_subrunner_run_flight_list_colibri($ctx, $options);
+
+    return [
+        'status' => (string)($subrunnerResult['status'] ?? 'ok'),
+        'message' => (string)($subrunnerResult['message'] ?? ''),
+        'imported_rows' => (int)($subrunnerResult['metrics']['rows_written'] ?? 0),
+        'rows_detected' => (int)($subrunnerResult['metrics']['rows_extracted'] ?? 0),
+        'rows_skipped' => (int)($subrunnerResult['metrics']['rows_skipped'] ?? 0),
+        'write_mode' => $mode,
+        'target_table' => (string)($subrunnerResult['meta']['table_name'] ?? $targetTable),
+        'headers_detected' => isset($subrunnerResult['meta']['detected_headers']) && is_array($subrunnerResult['meta']['detected_headers'])
+            ? $subrunnerResult['meta']['detected_headers']
+            : [],
+        'errors' => isset($subrunnerResult['errors']) && is_array($subrunnerResult['errors']) ? $subrunnerResult['errors'] : [],
+    ];
+}
 $argv = $_SERVER['argv'] ?? [];
 $args = forwarder_flight_list_read_cli_kv($argv);
 
@@ -136,6 +215,11 @@ if ($pagePath === '' || $pagePath[0] !== '/') {
     $pagePath = '/collector/flights';
 }
 
+$repoRoot = dirname(__DIR__, 5);
+$targetTable = trim((string)($args['target-table'] ?? ''));
+$writeMode = trim((string)($args['write-mode'] ?? 'upsert'));
+$tableSelector = trim((string)($args['table-selector'] ?? 'table.references-table'));
+$connectorId = (int)($args['connector-id'] ?? 0);
 $config = new ForwarderConfig();
 if (!$config->isConfigured()) {
     fwrite(STDERR, "run_flight_list: missing config (base-url/login/password)\n");
@@ -161,6 +245,7 @@ $body = (string)($response['body'] ?? '');
 $parsed = forwarder_flight_list_extract_rows($body);
 $rows = (int)($parsed['rows'] ?? 0);
 $headers = isset($parsed['headers']) && is_array($parsed['headers']) ? $parsed['headers'] : [];
+$import = forwarder_flight_list_import_rows($body, $repoRoot, $connectorId, $targetTable, $writeMode, $tableSelector);
 
 $result = [
     'status' => 'ok',
@@ -170,8 +255,14 @@ $result = [
     'page_path' => $pagePath,
     'rows_detected' => $rows,
     'headers_detected' => $headers,
-    'target_table' => (string)($args['target-table'] ?? ''),
-    'note' => 'MVP: fetch + parse preview; DB import can be added in next iteration.',
+    'connector_id' => $connectorId,
+    'target_table' => (string)($import['target_table'] ?? $targetTable),
+    'write_mode' => (string)($import['write_mode'] ?? $writeMode),
+    'imported_rows' => (int)($import['imported_rows'] ?? 0),
+    'rows_skipped' => (int)($import['rows_skipped'] ?? 0),
+    'import_status' => (string)($import['status'] ?? 'skipped'),
+    'import_message' => (string)($import['message'] ?? ''),
+    'import_errors' => isset($import['errors']) && is_array($import['errors']) ? $import['errors'] : [],
 ];
 
 echo json_encode($result, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT) . PHP_EOL;

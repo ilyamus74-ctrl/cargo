@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-03-26 06:36:42
+/* Smarty version 5.3.1, created on 2026-03-26 07:41:59
   from 'file:cells_NA_API_connector_operations_modal.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_69c4d3fa4331f7_90692214',
+  'unifunc' => 'content_69c4e3478e5a78_65307157',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '4e0cfb81384357625659d5eca445a63482fe7323' => 
     array (
       0 => 'cells_NA_API_connector_operations_modal.html',
-      1 => 1774467363,
+      1 => 1774509952,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_69c4d3fa4331f7_90692214 (\Smarty\Template $_smarty_tpl) {
+function content_69c4e3478e5a78_65307157 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?><section class="section">
   <style>
@@ -263,6 +263,59 @@ $_smarty_current_dir = '/home/cells/web/templates';
     return payloadLike;
   }
 
+  function ensureFlightListPhpOperation(payloadLike) {
+    if (!payloadLike || !Array.isArray(payloadLike.operations)) return payloadLike;
+
+    var hasFlightList = false;
+    var hasFlightListPhp = false;
+    var inheritedTargetTable = '';
+
+    payloadLike.operations.forEach(function(op) {
+      var opId = String(op && op.operation_id || '').trim().toLowerCase();
+      if (opId === 'flight_list') {
+        hasFlightList = true;
+        var cfg = op && typeof op.config === 'object' && op.config ? op.config : {};
+        inheritedTargetTable = String(cfg.target_table || '').trim();
+      }
+      if (opId === 'flight_list_php') {
+        hasFlightListPhp = true;
+      }
+    });
+
+    if (!hasFlightList || hasFlightListPhp) return payloadLike;
+
+    payloadLike.operations.push({
+      operation_id: 'flight_list_php',
+      display_name: 'Операция flight_list_php',
+      module: 'connectors',
+      action: '',
+      kind: 'script',
+      enabled: 1,
+      entrypoint: 0,
+      on_dependency_fail: 'stop',
+      run_after: [],
+      run_with: [],
+      run_finally: [],
+      config: {
+        interpreter: 'php',
+        script_path: 'www/scripts/mvp/app/Forwarder/run_flight_list.php',
+        timeout_sec: 180,
+        target_table: inheritedTargetTable || 'connector_dev_colibri_operation_flight_list',
+        args: [
+          '--base-url={{base_url}}',
+          '--login={{auth_username}}',
+          '--password={{auth_password}}',
+          '--page-path=/collector/flights',
+          '--connector-id={{connector_id}}',
+          '--target-table={{target_table}}',
+          '--write-mode=upsert'
+        ]
+      }
+    });
+
+    return payloadLike;
+  }
+
   var payload;
   var operationLastStatus = parseJsonSafe(statusJsonEl && statusJsonEl.value ? statusJsonEl.value : '{}', {});
   var backendOperationTemplates = <?php echo (($tmp = $_smarty_tpl->getValue('operation_templates_json') ?? null)===null||$tmp==='' ? '{}' ?? null : $tmp);?>
@@ -274,6 +327,7 @@ $_smarty_current_dir = '/home/cells/web/templates';
   }
   payload = normalizePayload(payload);
   payload = ensureReportPhpOperation(payload);
+  payload = ensureFlightListPhpOperation(payload);
 
   var operationTemplates = {
     php_report: {
@@ -314,6 +368,28 @@ $_smarty_current_dir = '/home/cells/web/templates';
           '--from={{from}}',
           '--to={{to}}',
           '--target_table={{target_table}}'
+        ]
+      }
+    },
+    flight_list_php: {
+      operation_id_prefix: 'flight_list_php',
+      display_name: 'Flight list (script+php upsert)',
+      module: 'connectors',
+      action: '',
+      kind: 'script',
+      config: {
+        interpreter: 'php',
+        script_path: 'www/scripts/mvp/app/Forwarder/run_flight_list.php',
+        timeout_sec: 180,
+        target_table: 'connector_dev_colibri_operation_flight_list',
+        args: [
+          '--base-url={{base_url}}',
+          '--login={{auth_username}}',
+          '--password={{auth_password}}',
+          '--page-path=/collector/flights',
+          '--connector-id={{connector_id}}',
+          '--target-table={{target_table}}',
+          '--write-mode=upsert'
         ]
       }
     },

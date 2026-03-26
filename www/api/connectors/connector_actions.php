@@ -611,6 +611,36 @@ function connectors_operation_config_templates(): array
                 ],
             ],
         ],
+        'flight_list_php' => [
+            'description' => 'Flight list через PHP runtime + import/update (upsert) в target_table.',
+            'operation' => [
+                'operation_id' => 'flight_list_php',
+                'display_name' => 'Flight list (PHP)',
+                'module' => 'connectors',
+                'kind' => 'script',
+                'enabled' => 1,
+                'entrypoint' => 0,
+                'on_dependency_fail' => 'stop',
+                'run_after' => [],
+                'run_with' => [],
+                'run_finally' => [],
+                'config' => [
+                    'interpreter' => 'php',
+                    'script_path' => 'www/scripts/mvp/app/Forwarder/run_flight_list.php',
+                    'target_table' => 'connector_dev_colibri_operation_flight_list',
+                    'timeout_sec' => 180,
+                    'args' => [
+                        '--base-url={{base_url}}',
+                        '--login={{auth_username}}',
+                        '--password={{auth_password}}',
+                        '--page-path=/collector/flights',
+                        '--connector-id={{connector_id}}',
+                        '--target-table={{target_table}}',
+                        '--write-mode=upsert',
+                    ],
+                ],
+            ],
+        ],
         'browser_steps' => [
             'description' => 'Node fallback для браузерных flow (DOM/клики/JS-рендер).',
             'operation' => [
@@ -1786,6 +1816,41 @@ function connectors_resolve_script_interpreter(array $config): string
     return 'bash';
 }
 
+function connectors_unwrap_embedded_operation_config(array $config, string $operationId = ''): array
+{
+    if (!isset($config['operations']) || !is_array($config['operations'])) {
+        return $config;
+    }
+
+    $candidates = $config['operations'];
+    if ($operationId !== '') {
+        foreach ($candidates as $candidate) {
+            if (!is_array($candidate)) {
+                continue;
+            }
+            $candidateId = trim((string)($candidate['operation_id'] ?? ''));
+            if ($candidateId !== '' && strcasecmp($candidateId, $operationId) === 0) {
+                $nestedConfig = isset($candidate['config']) && is_array($candidate['config']) ? $candidate['config'] : null;
+                if (is_array($nestedConfig)) {
+                    return $nestedConfig;
+                }
+            }
+        }
+    }
+
+    foreach ($candidates as $candidate) {
+        if (!is_array($candidate)) {
+            continue;
+        }
+        $nestedConfig = isset($candidate['config']) && is_array($candidate['config']) ? $candidate['config'] : null;
+        if (is_array($nestedConfig)) {
+            return $nestedConfig;
+        }
+    }
+
+    return $config;
+}
+
 function connectors_operation_supports_php_entrypoint(array $operation): bool
 {
     $kind = strtolower(trim((string)($operation['kind'] ?? '')));
@@ -1795,8 +1860,9 @@ function connectors_operation_supports_php_entrypoint(array $operation): bool
     if ($kind !== 'script') {
         return false;
     }
-
+    $operationId = trim((string)($operation['operation_id'] ?? ''));
     $config = isset($operation['config']) && is_array($operation['config']) ? $operation['config'] : [];
+    $config = connectors_unwrap_embedded_operation_config($config, $operationId);
 
     return connectors_resolve_script_interpreter($config) === 'php';
 }
@@ -1830,6 +1896,8 @@ function connectors_apply_php_entrypoint_mode(string $testOperation, array $runt
 function connectors_evaluate_operation_runnable(array $operation, array $connector = []): array{
     $kind = strtolower(trim((string)($operation['kind'] ?? 'browser_steps')));
     $config = isset($operation['config']) && is_array($operation['config']) ? $operation['config'] : [];
+    $operationId = trim((string)($operation['operation_id'] ?? ''));
+    $config = connectors_unwrap_embedded_operation_config($config, $operationId);
 
     if ($kind === 'script') {
         $scriptPath = trim((string)($config['script_path'] ?? ''));
@@ -4865,6 +4933,8 @@ function connectors_expand_script_arg_placeholders(string $value, array $context
 function connectors_execute_script_operation(array $operation, array $connector = [], ?string $periodFrom = null, ?string $periodTo = null): array
 {
     $config = isset($operation['config']) && is_array($operation['config']) ? $operation['config'] : [];
+    $operationId = trim((string)($operation['operation_id'] ?? ''));
+    $config = connectors_unwrap_embedded_operation_config($config, $operationId);
     $scriptPathRaw = trim((string)($config['script_path'] ?? ''));
     if ($scriptPathRaw === '') {
         throw new InvalidArgumentException('Для kind=script укажите operation.config.script_path');
