@@ -25,29 +25,11 @@ if ! git remote get-url "${REMOTE}" >/dev/null 2>&1; then
   exit 1
 fi
 
-# 1. Добавляем все изменения для файлов с расширениями .php, .js, .html и других
-echo "==> Добавляем изменения для файлов с расширениями .php, .js, .html"
-git add *.php *.js *.html
-
-# Проверяем, если есть изменения
-if git diff --cached --quiet; then
-  echo "==> Нет изменений для коммита."
-else
-  echo "==> Добавлены новые изменения. Коммитим..."
-  git commit -m "Auto commit: добавлены изменения для .php, .js, .html файлов"
-  
-  # Пушим изменения на удаленный репозиторий
-  echo "==> Пушим изменения в ${REMOTE}/${BRANCH}"
-  git push -u "${REMOTE}" "${BRANCH}"
-fi
-
-# 2. Получаем последние изменения с удаленного репозитория
 echo "==> Fetch latest ${REMOTE}/${BRANCH}"
 git fetch "${REMOTE}" "${BRANCH}" --prune
 
 REMOTE_HEAD_BEFORE="$(git rev-parse "${REMOTE}/${BRANCH}")"
 
-# 3. Pull latest changes from remote branch
 echo "==> Pull latest changes from ${REMOTE}/${BRANCH}"
 git pull "${REMOTE}" "${BRANCH}"
 
