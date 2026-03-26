@@ -4932,7 +4932,6 @@ function connectors_expand_script_arg_placeholders(string $value, array $context
     ]);
 }
 
-
 function connectors_mask_script_arg(string $arg): string
 {
     $trimmed = trim($arg);
@@ -5106,7 +5105,11 @@ function connectors_execute_script_operation(array $operation, array $connector 
         $argsMasked[] = connectors_mask_script_arg($forcedTargetArg);
     }
     $timeoutSec = max(1, (int)($config['timeout_sec'] ?? 60));
-    $parts = ['timeout', (string)$timeoutSec, $interpreter, escapeshellarg($scriptPath)];
+    $parts = [];
+    if ($resolvedTargetTable !== '') {
+        $parts[] = 'FORWARDER_TARGET_TABLE=' . escapeshellarg($resolvedTargetTable);
+    }
+    $parts = array_merge($parts, ['timeout', (string)$timeoutSec, $interpreter, escapeshellarg($scriptPath)]);
     foreach ($args as $arg) {
         $parts[] = escapeshellarg($arg);
     }
