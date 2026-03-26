@@ -49,6 +49,19 @@ function forwarder_flight_list_read_cli_kv(array $argv): array
     return $result;
 }
 
+function forwarder_flight_list_arg(array $args, string $primaryKey, string ...$aliases): string
+{
+    $candidates = array_merge([$primaryKey], $aliases);
+    foreach ($candidates as $key) {
+        if (!array_key_exists($key, $args)) {
+            continue;
+        }
+        return trim((string)$args[$key]);
+    }
+
+    return '';
+}
+
 function forwarder_flight_list_set_env(string $name, string $value): void
 {
     if ($value === '') {
@@ -223,27 +236,31 @@ $args = forwarder_flight_list_read_cli_kv($argv);
 // Example accepted inputs:
 //   https://dev-backend.colibri.az
 //   https://dev-backend.colibri.az/login
-$normalizedBaseUrl = forwarder_flight_list_normalize_base_url((string)($args['base-url'] ?? ''));
+$normalizedBaseUrl = forwarder_flight_list_normalize_base_url(forwarder_flight_list_arg($args, 'base-url', 'base_url'));
 
 forwarder_flight_list_set_env('DEV_COLIBRI_BASE_URL', $normalizedBaseUrl);
-forwarder_flight_list_set_env('DEV_COLIBRI_LOGIN', trim((string)($args['login'] ?? '')));
-forwarder_flight_list_set_env('DEV_COLIBRI_PASSWORD', trim((string)($args['password'] ?? '')));
+forwarder_flight_list_set_env('DEV_COLIBRI_LOGIN', forwarder_flight_list_arg($args, 'login'));
+forwarder_flight_list_set_env('DEV_COLIBRI_PASSWORD', forwarder_flight_list_arg($args, 'password'));
 forwarder_flight_list_set_env('FORWARDER_BASE_URL', $normalizedBaseUrl);
-forwarder_flight_list_set_env('FORWARDER_LOGIN', trim((string)($args['login'] ?? '')));
-forwarder_flight_list_set_env('FORWARDER_PASSWORD', trim((string)($args['password'] ?? '')));
-forwarder_flight_list_set_env('FORWARDER_SESSION_FILE', trim((string)($args['session-file'] ?? '')));
-forwarder_flight_list_set_env('FORWARDER_SESSION_TTL_SECONDS', trim((string)($args['session-ttl-seconds'] ?? '')));
+forwarder_flight_list_set_env('FORWARDER_LOGIN', forwarder_flight_list_arg($args, 'login'));
+forwarder_flight_list_set_env('FORWARDER_PASSWORD', forwarder_flight_list_arg($args, 'password'));
+forwarder_flight_list_set_env('FORWARDER_SESSION_FILE', forwarder_flight_list_arg($args, 'session-file', 'session_file'));
+forwarder_flight_list_set_env('FORWARDER_SESSION_TTL_SECONDS', forwarder_flight_list_arg($args, 'session-ttl-seconds', 'session_ttl_seconds'));
 
-$pagePath = trim((string)($args['page-path'] ?? '/collector/flights'));
+$pagePath = forwarder_flight_list_arg($args, 'page-path', 'page_path');
+$pagePath = $pagePath !== '' ? $pagePath : '/collector/flights';
 if ($pagePath === '' || $pagePath[0] !== '/') {
     $pagePath = '/collector/flights';
 }
 
 $repoRoot = dirname(__DIR__, 5);
-$targetTable = trim((string)($args['target-table'] ?? ''));
-$writeMode = trim((string)($args['write-mode'] ?? 'upsert'));
-$tableSelector = trim((string)($args['table-selector'] ?? 'table.references-table'));
-$connectorId = (int)($args['connector-id'] ?? 0);
+$targetTable = forwarder_flight_list_arg($args, 'target-table', 'target_table');
+$writeMode = forwarder_flight_list_arg($args, 'write-mode', 'write_mode');
+$writeMode = $writeMode !== '' ? $writeMode : 'upsert';
+$tableSelector = forwarder_flight_list_arg($args, 'table-selector', 'table_selector');
+$tableSelector = $tableSelector !== '' ? $tableSelector : 'table.references-table';
+$connectorIdRaw = forwarder_flight_list_arg($args, 'connector-id', 'connector_id');
+$connectorId = (int)($connectorIdRaw !== '' ? $connectorIdRaw : 0);
 $config = new ForwarderConfig();
 if (!$config->isConfigured()) {
     fwrite(STDERR, "run_flight_list: missing config (base-url/login/password)\n");
