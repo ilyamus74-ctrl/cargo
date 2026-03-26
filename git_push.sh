@@ -1,14 +1,52 @@
-#!/bin/bash
+#!/usr/bin/env bash
+set -euo pipefail
 
-git fetch origin main          # обновить знание о том, что на сервере
-git push --force-with-lease=main:$(git rev-parse origin/main) origin HEAD:main
-git add -A && git commit -m "sync local -> remote" || true && git push -u origin main --force-with-lease
+# Usage:
+#   ./git_push.sh
+#   ./git_push.sh "my commit message"
+#   ./git_push.sh "my commit message" origin main
+#
+# Defaults:
+#   message = "sync local -> remote"
+#   remote  = origin
+#   branch  = current branch (or main if detached)
 
+COMMIT_MESSAGE="${1:-sync local -> remote}"
+REMOTE="${2:-origin}"
+CURRENT_BRANCH="$(git rev-parse --abbrev-ref HEAD)"
+if [[ "$CURRENT_BRANCH" == "HEAD" ]]; then
+  CURRENT_BRANCH="main"
+fi
+BRANCH="${3:-$CURRENT_BRANCH}"
 
-#cd /home/ilyamus/GPTGROKWORK/AITrainer_V3
-#git init
-#git add -A
-#git commit -m "Initial commit from local"
-#git branch -M main
-#git remote add origin git@github-2probe:ilyamus74-ctrl/predict
-#git push -u origin main
+echo "==> Remote: ${REMOTE}"
+echo "==> Branch: ${BRANCH}"
+
+if ! git remote get-url "${REMOTE}" >/dev/null 2>&1; then
+  echo "ERROR: remote '${REMOTE}' is not configured."
+  echo "Hint: git remote add ${REMOTE} <repo-url>"
+  exit 1
+fi
+
+echo "==> Fetch latest ${REMOTE}/${BRANCH}"
+git fetch "${REMOTE}" "${BRANCH}" --prune
+
+echo "==> Stage all changes"
+git add -A
+
+if git diff --cached --quiet; then
+  echo "==> No staged changes to commit."
+else
+  echo "==> Commit: ${COMMIT_MESSAGE}"
+  git commit -m "${COMMIT_MESSAGE}"
+fi
+
+LOCAL_HEAD="$(git rev-parse HEAD)"
+REMOTE_HEAD="$(git rev-parse "${REMOTE}/${BRANCH}")"
+
+echo "==> Push with lease"
+echo "    local : ${LOCAL_HEAD}"
+echo "    remote: ${REMOTE_HEAD}"
+git push -u "${REMOTE}" "HEAD:${BRANCH}" --force-with-lease="${BRANCH}:${REMOTE_HEAD}"
+
+echo "==> Done."
