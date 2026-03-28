@@ -242,6 +242,10 @@ if (!str_starts_with($pagePath, '/')) {
 
 $flightId = forwarder_add_container_arg($args, 'flight-id', 'flight_id', 'target-flight-id', 'target_flight_id', 'external_id');
 
+$connectorId = (int)forwarder_add_container_arg($args, 'connector-id', 'connector_id');
+$flightTable = forwarder_add_container_arg($args, 'target-table', 'target_table', 'flight-table', 'flight_table');
+$containersTable = forwarder_add_container_arg($args, 'containers-table', 'containers_table');
+
 if ($flightId === '') {
     fwrite(STDERR, "run_add_container_to_flight: missing required --flight-id/--flight_id\n");
     exit(2);
@@ -325,6 +329,25 @@ $containerVerifiedById = $createdContainerId !== '' && str_contains($afterContai
 $containerVerified = $containerVerifiedById || $containersListChanged;
 $verifyStatus = ($verifyOk && $afterContainersOk && $containerVerified) ? 'passed' : 'failed';
 $overallOk = $submitOk && $submitCaseOk;
+$syncResult = [
+    'status' => 'skipped',
+    'message' => 'sync disabled: connector_id is not provided',
+    'written' => 0,
+    'fetched' => 0,
+    'deactivated' => 0,
+];
+if ($overallOk && $connectorId > 0) {
+    $syncResult = forwarder_sync_flight_containers_kernel([
+        'repo_root' => dirname(__DIR__, 5),
+        'session_client' => $sessionClient,
+        'connector_id' => $connectorId,
+        'flight_id' => $flightId,
+        'flight_table' => $flightTable !== '' ? $flightTable : 'connector_dev_colibri_operation_flight_list',
+        'containers_table' => $containersTable,
+        'page_path' => $pagePath,
+        'csrf_token' => $csrfToken,
+    ]);
+}
 $fallbackUsed = false;
 $fallbackHttpStatus = 0;
 $fallbackError = '';
@@ -356,6 +379,13 @@ $result = [
     'containers_list_changed' => $containersListChanged,
     'container_verified_by_id' => $containerVerifiedById,
     'container_verified_in_list' => $containerVerified,
+    'sync_db_status' => (string)($syncResult['status'] ?? 'skipped'),
+    'sync_db_message' => (string)($syncResult['message'] ?? ''),
+    'sync_db_written' => (int)($syncResult['written'] ?? 0),
+    'sync_db_fetched' => (int)($syncResult['fetched'] ?? 0),
+    'sync_db_deactivated' => (int)($syncResult['deactivated'] ?? 0),
+    'sync_db_flight_table' => (string)($syncResult['flight_table'] ?? ($flightTable !== '' ? $flightTable : 'connector_dev_colibri_operation_flight_list')),
+    'sync_db_containers_table' => (string)($syncResult['containers_table'] ?? $containersTable),
     'fallback_used' => $fallbackUsed,
     'fallback_http_status' => $fallbackHttpStatus,
     'fallback_error' => $fallbackError,

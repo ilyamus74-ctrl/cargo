@@ -77,10 +77,13 @@
 - **Следующий шаг миграции:** `ContainerApi::createForFlight(flightId)`.
 
 ### 2.4 Удаление контейнера
-- **Статус:** ⏳ Не описано явно (требуется разведка endpoint).
-- **План разведки:**
-  - найти delete endpoint в `/collector/containers`.
-- **Целевой метод:** `ContainerApi::delete(containerId)`.
+- **Статус:** ✅ Добавлен flow `run_del_container_from_flight`.
+- **Текущая реализация:**
+  - GET `/collector/containers` (получить CSRF token),
+  - DELETE `/collector/containers/delete`
+  - payload: `id`, `_token`
+  - ожидаемый success-response: `case=success` (или `success=true`).
+- **Следующий шаг миграции:** `ContainerApi::delete(containerId)`.
 
 ### 2.5 Свойства контейнера (посылки в контейнере)
 - **Статус:** ⏳ Частично есть по report API, но нет полного CRUD.

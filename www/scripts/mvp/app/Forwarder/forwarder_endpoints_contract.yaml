@@ -25,6 +25,9 @@ entrypoints:
         - [session-file, session_file]
         - [session-ttl-seconds, session_ttl_seconds]
         - [page-path, page_path]
+        - [connector-id, connector_id]
+        - [target-table, target_table, flight-table, flight_table]
+        - [containers-table, containers_table]
     flow:
       - step: open_containers_page
         method: GET
@@ -127,6 +130,102 @@ entrypoints:
                   number: "CONT-0001"
                 - id: 102
                   number: "CONT-0002"
+
+  run_del_container_from_flight:
+    cli_args:
+      required_one_of:
+        - [container-id, container_id, target-container-id, target_container_id, id]
+      optional:
+        - [base-url, base_url]
+        - [login]
+        - [password]
+        - [session-file, session_file]
+        - [session-ttl-seconds, session_ttl_seconds]
+        - [page-path, page_path]
+        - [delete-path, delete_path, url]
+        - [flight-id, flight_id, target-flight-id, target_flight_id, external_id]
+        - [connector-id, connector_id]
+        - [target-table, target_table, flight-table, flight_table]
+        - [containers-table, containers_table]
+    flow:
+      - step: open_containers_page
+        method: GET
+        path: "{page_path|/collector/containers}"
+        params: {}
+        response:
+          content_type: text/html
+          parse:
+            csrf_token:
+              source: "input[name=_token] | meta[name=csrf-token]"
+              required: true
+          example:
+            status: 200
+            body_fragment: "<input type='hidden' name='_token' value='...'>"
+      - step: delete_container
+        method: DELETE
+        path: "{delete_path|/collector/containers/delete}"
+        params:
+          id: "{container_id}"
+          _token: "{csrf_token}"
+        response:
+          content_type: "application/json | text/html (зависит от реализации)"
+          parse:
+            case:
+              source: "$.case"
+              required: false
+            success:
+              source: "$.success"
+              required: false
+            message:
+              source: "$.message | html flash message"
+              required: false
+          example:
+            status: 200
+            data: "id=24420&_token=uNgcJ9UQ0BWyRQZNvQ7Oq7fFHZiEkYDqjARxJkLf"
+
+  run_sync_flight_containers:
+    cli_args:
+      required:
+        - [flight-id, flight_id, target-flight-id, target_flight_id, external_id]
+        - [connector-id, connector_id]
+      optional:
+        - [base-url, base_url]
+        - [login]
+        - [password]
+        - [session-file, session_file]
+        - [session-ttl-seconds, session_ttl_seconds]
+        - [page-path, page_path]
+        - [target-table, target_table, flight-table, flight_table]
+        - [containers-table, containers_table]
+    flow:
+      - step: get_containers
+        method: GET
+        path: /collector/get-containers
+        params:
+          flight_id: "{flight_id}"
+          _token: "{csrf_token_from_containers_page}"
+        response:
+          content_type: application/json
+          parse:
+            rows:
+              source: "$.data | $[*]"
+              required: false
+      - step: sync_local_db_tables
+        method: LOCAL_DB
+        path: "connector_dev_colibri_operation_flight_list_containers"
+        params:
+          connector_id: "{connector_id}"
+          flight_external_id: "{flight_id}"
+        response:
+          content_type: application/json
+          parse:
+            written:
+              source: "upsert count"
+              required: false
+            deactivated:
+              source: "rows marked is_active=0"
+              required: false
+
   run_add_flight:
     cli_args:
       required:
