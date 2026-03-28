@@ -127,7 +127,6 @@ entrypoints:
                   number: "CONT-0001"
                 - id: 102
                   number: "CONT-0002"
-
   run_add_flight:
     cli_args:
       required:
@@ -185,6 +184,68 @@ entrypoints:
           example:
             status: 200
             html_fragment: "<div class='alert alert-success'>...</div>"
+
+
+  run_edit_flight:
+    cli_args:
+      required:
+        - [id, flight-id, flight_id, target-flight-id, target_flight_id]
+        - [carrier]
+        - [flight-number, flight_number]
+        - [awb]
+        - [departure]
+        - [destination]
+        - [flight-time, flight_time]
+      optional:
+        - [_token, token, csrf-token, csrf_token]
+        - [base-url, base_url]
+        - [login]
+        - [password]
+        - [session-file, session_file]
+        - [session-ttl-seconds, session_ttl_seconds]
+        - [page-path, page_path]
+        - [update-path, update_path, url]
+    flow:
+      - step: ensure_csrf_token
+        method: "CLI | GET"
+        path: "{page_path|/collector/flights}"
+        params: {}
+        response:
+          content_type: text/html
+          parse:
+            csrf_token:
+              source: "CLI --_token | input[name=_token] | meta[name=csrf-token]"
+              required: true
+          example:
+            status: 200
+            body_fragment: "<input type='hidden' name='_token' value='...'>"
+      - step: submit_edit_flight
+        method: POST
+        path: "{update_path|/collector/flights/update}"
+        params:
+          _token: "{csrf_token}"
+          id: "{flight_id}"
+          carrier: "{carrier}"
+          flight_number: "{flight_number}"
+          awb: "{awb}"
+          departure: "{departure}"
+          destination: "{destination}"
+          flight_time: "{flight_time}"
+        response:
+          content_type: "text/html | application/json"
+          parse:
+            success_flag:
+              source: "flash success | $.success"
+              required: false
+            validation_errors:
+              source: "html ошибки формы | $.errors"
+              required: false
+            updated_row_id:
+              source: "id из payload | $.id"
+              required: false
+          example:
+            status: 200
+            data: "_token=...&id=2369&carrier=HHN&flight_number=2026-04-05&awb=0505050506&departure=HHN&destination=GYD&flight_time=HHN05042026"
 
   run_delete_flight:
     cli_args:

@@ -42,12 +42,12 @@
 - **Следующий шаг миграции:** `FlightApi::delete(id|search)`.
 
 ### 1.4 Редактирование рейса
-- **Статус:** ⏳ Не описано в контракте (требуется разведка).
-- **План разведки:**
-  - найти edit endpoint в HTML (`/collector/flights/edit...`) или XHR,
-  - зафиксировать обязательные поля формы,
-  - добавить в контракт (`run_edit_flight`).
-- **Целевой метод:** `FlightApi::update(id, payload)`.
+- **Статус:** ✅ Добавлен flow `run_edit_flight` и endpoint-контракт.
+- **Текущая реализация:**
+  - POST `/collector/flights/update`
+  - payload: `_token`, `id`, `carrier`, `flight_number`, `awb`, `departure`, `destination`, `flight_time`
+  - если `_token` не передан через CLI, раннер автоматически пытается получить его c `/collector/flights`.
+- **Следующий шаг миграции:** `FlightApi::update(id, payload)`.
 
 ### 1.5 Закрытие рейса
 - **Статус:** ⏳ Не описано в контракте (требуется разведка).

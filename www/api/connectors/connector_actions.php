@@ -667,6 +667,38 @@ function connectors_operation_config_templates(): array
                 ],
             ],
         ],
+        'edit_flight' => [
+            'description' => 'Редактирование рейса через PHP runtime (обновление только даты и AWB).',
+            'operation' => [
+                'operation_id' => 'edit_flight',
+                'display_name' => 'Edit flight (PHP)',
+                'module' => 'connectors',
+                'kind' => 'script',
+                'enabled' => 1,
+                'entrypoint' => 0,
+                'on_dependency_fail' => 'stop',
+                'run_after' => [],
+                'run_with' => [],
+                'run_finally' => [],
+                'config' => [
+                    'interpreter' => 'php',
+                    'script_path' => 'www/scripts/mvp/app/Forwarder/run_edit_flight.php',
+                    'timeout_sec' => 180,
+                    'set_date' => '',
+                    'awb' => '',
+                    'target_flight_id' => '',
+                    'args' => [
+                        '--base-url={{base_url}}',
+                        '--login={{auth_username}}',
+                        '--password={{auth_password}}',
+                        '--page-path=/collector/flights',
+                        '--id={{target_flight_id}}',
+                        '--flight-number={{set_date}}',
+                        '--awb={{awb}}',
+                    ],
+                ],
+            ],
+        ],
         'delete_flight_php' => [
             'description' => 'Удаление рейса через PHP runtime (session client, search + delete URL).',
             'operation' => [
