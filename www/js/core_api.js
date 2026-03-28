@@ -3211,6 +3211,7 @@ const CoreAPI = {
             const runtimeVars = {
                 flight,
                 flight_id: flightId,
+                'flight-id': flightId,
                 flight_record_id: flightRecordId,
                 external_id: flightId,
                 flight_no: flight,
@@ -3226,10 +3227,15 @@ const CoreAPI = {
                 departure_date: flight,
                 add_container_to_flight: flight,
                 add_container_to_flight_id: flightId,
+                add_container_to_flight_php: flight,
+                add_container_to_flight_php_id: flightId,
                 container_id: containerId,
                 container_name: containerName,
                 container_label: containerName,
-                container_code: containerName
+                container_code: containerName,
+                departure_id: '6',
+                destination_id: '1',
+                count: '1'
             };
 
             if (setDate) {
@@ -3262,6 +3268,12 @@ const CoreAPI = {
             const successMessage = String(button?.getAttribute('data-success-message') || '').trim();
             const runtimeVars = this.buildFlightRuntimeVars(button);
             const flight = runtimeVars.flight || '—';
+            const requiresContainerReconcile = [
+                'add_container_to_flight',
+                'add_container_to_flight_php',
+                'delete_container',
+                'delete_container_php'
+            ].includes(operationId);
 
             if (operationId === 'edit_flight') {
                 if (!runtimeVars.set_date) {
@@ -3288,8 +3300,30 @@ const CoreAPI = {
                     const cleanupResult = await this.deleteLocalDepartureFlight(connectorId, runtimeVars);
                     this.setActionStatus(cleanupResult?.message || 'Локальная запись рейса удалена. Обновляю список...', 'primary', statusEl);
                 }
-                if (refreshOperation) {
-                    await this.runConnectorOperation(connectorId, refreshOperation, runtimeVars);
+                const refreshQueue = [];
+                if (requiresContainerReconcile) {
+                    refreshQueue.push('flight_list');
+                    refreshQueue.push('flight_list_php');
+                    if (refreshOperation && !refreshQueue.includes(refreshOperation)) {
+                        refreshQueue.push(refreshOperation);
+                    }
+                } else if (refreshOperation) {
+                    refreshQueue.push(refreshOperation);
+                }
+
+                for (const refreshOp of refreshQueue) {
+                    if (!refreshOp) {
+                        continue;
+                    }
+                    try {
+                        await this.runConnectorOperation(connectorId, refreshOp, runtimeVars);
+                    } catch (refreshErr) {
+                        const isMandatoryReconcileRefresh = requiresContainerReconcile && refreshOp === 'flight_list';
+                        if (isMandatoryReconcileRefresh) {
+                            throw refreshErr;
+                        }
+                        console.warn(`core_api warning (departures refresh ${refreshOp}):`, refreshErr?.payload || refreshErr);
+                    }
                 }
                 await this.load();
                 const finalStatusEl = statusEl && statusEl.isConnected ? statusEl : this.addFlightStatus;

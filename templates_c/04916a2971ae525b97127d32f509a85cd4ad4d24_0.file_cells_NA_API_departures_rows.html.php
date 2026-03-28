@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-03-28 10:57:40
+/* Smarty version 5.3.1, created on 2026-03-28 12:55:21
   from 'file:cells_NA_API_departures_rows.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_69c7b4241796c0_09737682',
+  'unifunc' => 'content_69c7cfb9321303_45815085',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '04916a2971ae525b97127d32f509a85cd4ad4d24' => 
     array (
       0 => 'cells_NA_API_departures_rows.html',
-      1 => 1774695244,
+      1 => 1774702507,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_69c7b4241796c0_09737682 (\Smarty\Template $_smarty_tpl) {
+function content_69c7cfb9321303_45815085 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 if ($_smarty_tpl->getSmarty()->getModifierCallback('count')($_smarty_tpl->getValue('departure_rows')) > 0) {?>
   <?php
@@ -118,8 +118,8 @@ $foreach0DoElse = false;
               <?php if (mb_strtolower((string) $_smarty_tpl->getValue('flight')['status'], 'UTF-8') == 'open') {?>
                 <button type="button"
                         class="btn btn-sm btn-outline-primary js-departure-placeholder-action"
-                        data-operation="add_container_to_flight"
-                        data-refresh-operation="flight_list"
+                        data-operation="add_container_to_flight_php"
+                        data-refresh-operation="flight_list_php"
                         data-connector-id="<?php echo $_smarty_tpl->getSmarty()->getModifierCallback('escape')((($tmp = $_smarty_tpl->getValue('flight')['connector_id'] ?? null)===null||$tmp==='' ? 0 ?? null : $tmp), 'htmlattr');?>
 "
                         data-flight="<?php echo $_smarty_tpl->getSmarty()->getModifierCallback('escape')((($tmp = $_smarty_tpl->getValue('flight')['flight_no'] ?? null)===null||$tmp==='' ? '' ?? null : $tmp), 'htmlattr');?>
