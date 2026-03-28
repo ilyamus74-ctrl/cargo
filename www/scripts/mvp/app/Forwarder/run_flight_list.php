@@ -174,7 +174,13 @@ function forwarder_flight_list_import_rows(
         ];
     }
 
-    $db = $GLOBALS['dbcnx'] ?? null;
+    // connectDB.php подключается внутри функции и может создать $dbcnx в локальном scope.
+    // Пробрасываем его в $GLOBALS, чтобы subrunner использовал активное соединение.
+    if (isset($dbcnx) && $dbcnx instanceof mysqli) {
+        $GLOBALS['dbcnx'] = $dbcnx;
+    }
+
+    $db = $GLOBALS['dbcnx'] ?? ($dbcnx ?? null);
     if (!($db instanceof mysqli)) {
         return [
             'status' => 'skipped',
