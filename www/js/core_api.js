@@ -3311,6 +3311,7 @@ const CoreAPI = {
                 return;
             }
 
+            const operationId = String(button?.getAttribute('data-operation') || '').trim() || 'add_flight_php';
             const dateSelector = button?.getAttribute('data-date-input') || '';
             const awbSelector = button?.getAttribute('data-input') || '';
             const dateInput = dateSelector ? this.root.querySelector(dateSelector) : this.addFlightDateInput;
@@ -3336,25 +3337,48 @@ const CoreAPI = {
             const statusEl = this.resolveActionStatusElement(button);
 
             this.setActionBusy(button, true);
-            this.setActionStatus(`Запускаю add_flight для AWB ${awb}...`, 'primary', statusEl);
+            this.setActionStatus(`Запускаю ${operationId} для AWB ${awb}...`, 'primary', statusEl);
 
             try {
                 const runtimeVars = {
                     set_date: setDate,
                     add_flight: awb
                 };
-                const addFlightResult = await this.runConnectorOperation(connectorId, 'add_flight', runtimeVars);
-                this.setActionStatus(addFlightResult?.message || 'Рейс добавлен. Обновляю список рейсов...', 'primary', statusEl);
+
+                const addFlightResult = await this.runConnectorOperation(connectorId, operationId, runtimeVars);
+
+                const parsed = addFlightResult?.script?.parsed_json && typeof addFlightResult.script.parsed_json === 'object'
+                    ? addFlightResult.script.parsed_json
+                    : null;
+                const reportChunks = [];
+                if (parsed?.status) {
+                    reportChunks.push(`status=${parsed.status}`);
+                }
+                if (parsed?.http_status) {
+                    reportChunks.push(`http=${parsed.http_status}`);
+                }
+                if (parsed?.submit_method || parsed?.submit_path) {
+                    reportChunks.push(`submit=${String(parsed?.submit_method || '').toUpperCase()} ${parsed?.submit_path || ''}`.trim());
+                }
+                if (parsed?.message) {
+                    reportChunks.push(String(parsed.message));
+                }
+
+                const operationReport = reportChunks.length > 0
+                    ? `Отчёт ${operationId}: ${reportChunks.join(' | ')}`
+                    : (addFlightResult?.message || `Операция ${operationId} выполнена.`);
+
+                this.setActionStatus(`${operationReport} Обновляю список рейсов...`, 'primary', statusEl);
                 if (refreshOperation) {
                     await this.runConnectorOperation(connectorId, refreshOperation, runtimeVars);
                 }
                 await this.load();
-                this.setActionStatus(`Рейс для AWB ${awb} добавлен, список рейсов обновлён.`, 'success', statusEl);
+                this.setActionStatus(`Рейс для AWB ${awb} добавлен, список рейсов обновлён. ${operationReport}`, 'success', statusEl);
                 showToast('Рейс добавлен и список рейсов обновлён', 2500);
             } catch (err) {
-                console.error('core_api error (departures add_flight):', err?.payload || err);
-                this.setActionStatus(err?.message || 'Не удалось выполнить add_flight.', 'danger', statusEl);
-                alert(err?.message || 'Не удалось выполнить add_flight');
+                console.error(`core_api error (departures ${operationId}):`, err?.payload || err);
+                this.setActionStatus(err?.message || `Не удалось выполнить ${operationId}.`, 'danger', statusEl);
+                alert(err?.message || `Не удалось выполнить ${operationId}`);
             } finally {
                 this.setActionBusy(button, false);
             }

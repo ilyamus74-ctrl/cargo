@@ -124,6 +124,8 @@
 
 - [X] Реализован baseline-скрипт `run_flight_list.php` для DEV_COLIBRI (session-aware fetch списка рейсов через PHP runtime) и подготовлен для подключения в `kind=script` operation (2026-03-26).
 - [X] Для `run_flight_list.php` добавлена нормализация `--base-url` (поддержка `https://host` и `https://host/login`) и расширен debug output (`base_url`) для быстрой диагностики (2026-03-26).
+- [X] Подключён шаблон/автоподстановка `flight_list_php` в активную PHP-вкладку коннектора: `kind=script`, `interpreter=php`, `script_path=www/scripts/mvp/app/Forwarder/run_flight_list.php`, аргументы для `connector_id/target_table/write_mode` (2026-03-26).
+- [X] В `run_flight_list.php` добавлен импорт в `target_table` c переключаемым `--write-mode=upsert|insert` (по умолчанию `upsert`) и метриками `imported_rows/rows_skipped/import_status` (2026-03-26).
 - [X] Исправлена CSRF-авторизация в session runtime: декодирование/очистка `XSRF-TOKEN` cookie (без кавычек) и приоритет `csrfToken` для POST `/login` payload, чтобы убрать `419 auth_failed` на DEV_COLIBRI (2026-03-26).
 - [X] Подключить `run_flight_list.php` в активную PHP-вкладку коннектора и зафиксировать успешный `test_connector_operations` run_id.
 - [X] Добавить в `run_flight_list.php` импорт в целевую таблицу (`target_table`) и итоговую метрику `imported_rows`.

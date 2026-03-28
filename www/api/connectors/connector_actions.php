@@ -636,6 +636,37 @@ function connectors_operation_config_templates(): array
                 ],
             ],
         ],
+        'add_flight_php' => [
+            'description' => 'Добавление рейса через PHP runtime (session client, form submit).',
+            'operation' => [
+                'operation_id' => 'add_flight_php',
+                'display_name' => 'Add flight (PHP)',
+                'module' => 'connectors',
+                'kind' => 'script',
+                'enabled' => 1,
+                'entrypoint' => 0,
+                'on_dependency_fail' => 'stop',
+                'run_after' => [],
+                'run_with' => [],
+                'run_finally' => [],
+                'config' => [
+                    'interpreter' => 'php',
+                    'script_path' => 'www/scripts/mvp/app/Forwarder/run_add_flight.php',
+                    'timeout_sec' => 180,
+                    // Можно переопределить в UI под конкретный запуск операции.
+                    'set_date' => '',
+                    'add_flight' => '',
+                    'args' => [
+                        '--base-url={{base_url}}',
+                        '--login={{auth_username}}',
+                        '--password={{auth_password}}',
+                        '--page-path=/collector/flights',
+                        '--flight-number={{set_date}}',
+                        '--awb={{add_flight}}',
+                    ],
+                ],
+            ],
+        ],
         'browser_steps' => [
             'description' => 'Node fallback для браузерных flow (DOM/клики/JS-рендер).',
             'operation' => [
@@ -4929,6 +4960,8 @@ function connectors_expand_script_arg_placeholders(string $value, array $context
         '{{auth_token}}' => (string)($context['auth_token'] ?? ''),
         '{{api_token}}' => (string)($context['api_token'] ?? ''),
         '{{target_table}}' => (string)($context['target_table'] ?? ''),
+        '{{set_date}}' => (string)($context['set_date'] ?? ''),
+        '{{add_flight}}' => (string)($context['add_flight'] ?? ''),
     ]);
 }
 
@@ -5083,6 +5116,8 @@ function connectors_execute_script_operation(array $operation, array $connector 
         'auth_token' => (string)($connector['auth_token'] ?? ''),
         'api_token' => (string)($connector['api_token'] ?? ''),
         'target_table' => $resolvedTargetTable,
+        'set_date' => (string)($config['set_date'] ?? ''),
+        'add_flight' => (string)($config['add_flight'] ?? ''),
     ];
 
     $args = [];

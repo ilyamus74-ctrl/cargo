@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-03-18 13:59:49
+/* Smarty version 5.3.1, created on 2026-03-28 09:50:26
   from 'file:cells_NA_API_departures.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_69baafd54f1a21_50466761',
+  'unifunc' => 'content_69c7a462851183_08736983',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '0f6acec5f8cd1dbfcef00308f07d4fd68a44caf7' => 
     array (
       0 => 'cells_NA_API_departures.html',
-      1 => 1773842383,
+      1 => 1774691146,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_69baafd54f1a21_50466761 (\Smarty\Template $_smarty_tpl) {
+function content_69c7a462851183_08736983 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?><div class="pagetitle">
   <h1>Отправления</h1>
@@ -111,7 +111,7 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
                   <div class="col-12 col-md-auto">
                     <button type="button"
                             class="btn btn-sm btn-success js-departure-placeholder-action d-inline-flex align-items-center gap-2 px-3 shadow-sm"
-                            data-operation="add_flight"
+                            data-operation="add_flight_php"
                             data-input="#departures-add-flight-awb"
                             data-date-input="#departures-add-flight-date"
                             data-refresh-operation="flight_list"
