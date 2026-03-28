@@ -112,7 +112,7 @@ function forwarder_delete_flight_path_from_url(string $raw, string $defaultPath)
     return str_starts_with($path, '/') ? $path : ('/' . ltrim($path, '/'));
 }
 
-/** @return array{action:string,method:string,payload_defaults:array<string,string>} */
+/** @return array{action:string,method:string,payload_defaults:array<string,string>,search_field:string} */
 function forwarder_delete_flight_extract_search_form(string $html): array
 {
     libxml_use_internal_errors(true);
@@ -124,6 +124,7 @@ function forwarder_delete_flight_extract_search_form(string $html): array
             'action' => '/collector/flights',
             'method' => 'GET',
             'payload_defaults' => [],
+            'search_field' => 'search_values',
         ];
     }
 
@@ -134,7 +135,16 @@ function forwarder_delete_flight_extract_search_form(string $html): array
             'action' => '/collector/flights',
             'method' => 'GET',
             'payload_defaults' => [],
+            'search_field' => 'search_values',
         ];
+    }
+
+    $searchField = trim((string)$inputNode->getAttribute('column_name'));
+    if ($searchField === '') {
+        $searchField = trim((string)$inputNode->getAttribute('name'));
+    }
+    if ($searchField === '') {
+        $searchField = 'search_values';
     }
 
     $formNode = $inputNode;
@@ -146,7 +156,10 @@ function forwarder_delete_flight_extract_search_form(string $html): array
         return [
             'action' => '/collector/flights',
             'method' => 'GET',
-            'payload_defaults' => [],
+            'payload_defaults' => [
+                'search' => '1',
+            ],
+            'search_field' => $searchField,
         ];
     }
 
@@ -183,10 +196,56 @@ function forwarder_delete_flight_extract_search_form(string $html): array
         'action' => $action,
         'method' => $method,
         'payload_defaults' => $payloadDefaults,
+        'search_field' => $searchField,
     ];
 }
 
-/** @return array{ok:bool,delete_path:string,error:string} */
+
+function forwarder_delete_flight_extract_csrf_token(DOMXPath $xpath): string
+{
+    $metaToken = $xpath->query('//meta[@name="csrf-token"]')->item(0);
+    if ($metaToken instanceof DOMElement) {
+        $value = trim((string)$metaToken->getAttribute('content'));
+        if ($value !== '') {
+            return $value;
+        }
+    }
+
+    $inputToken = $xpath->query('//input[@name="_token"]')->item(0);
+    if ($inputToken instanceof DOMElement) {
+        $value = trim((string)$inputToken->getAttribute('value'));
+        if ($value !== '') {
+            return $value;
+        }
+    }
+
+    return '';
+}
+
+function forwarder_delete_flight_extract_row_id(DOMElement $rowNode): string
+{
+    $rowIdAttr = trim((string)$rowNode->getAttribute('id'));
+    if ($rowIdAttr !== '' && preg_match('/(\d+)/', $rowIdAttr, $m)) {
+        return (string)$m[1];
+    }
+
+    $onclick = trim((string)$rowNode->getAttribute('onclick'));
+    if ($onclick !== '' && preg_match('/select_row\((\d+)\)/', $onclick, $m)) {
+        return (string)$m[1];
+    }
+
+    $firstCell = $rowNode->getElementsByTagName('td')->item(0);
+    if ($firstCell instanceof DOMElement) {
+        $firstCellText = trim((string)$firstCell->textContent);
+        if ($firstCellText !== '' && preg_match('/^\d+$/', $firstCellText)) {
+            return $firstCellText;
+        }
+    }
+
+    return '';
+}
+
+/** @return array{ok:bool,delete_path:string,delete_method:string,delete_payload:array<string,string>,error:string} */
 function forwarder_delete_flight_extract_delete_path(string $html, string $targetFlightId, string $flightSearchValue, string $pagePath): array
 {
     libxml_use_internal_errors(true);
@@ -194,13 +253,13 @@ function forwarder_delete_flight_extract_delete_path(string $html, string $targe
     $loaded = @$dom->loadHTML($html);
     libxml_clear_errors();
     if (!$loaded) {
-        return ['ok' => false, 'delete_path' => '', 'error' => 'invalid_html'];
+        return ['ok' => false, 'delete_path' => '', 'delete_method' => 'GET', 'delete_payload' => [], 'error' => 'invalid_html'];
     }
 
     $xpath = new DOMXPath($dom);
     $rowNodes = $xpath->query('//table[contains(@class,"references-table")]//tbody//tr');
     if (!($rowNodes instanceof DOMNodeList) || $rowNodes->length === 0) {
-        return ['ok' => false, 'delete_path' => '', 'error' => 'rows_not_found'];
+        return ['ok' => false, 'delete_path' => '', 'delete_method' => 'GET', 'delete_payload' => [], 'error' => 'rows_not_found'];
     }
 
     $normalizedTargetId = mb_strtolower(trim($targetFlightId));
@@ -212,39 +271,63 @@ function forwarder_delete_flight_extract_delete_path(string $html, string $targe
         }
 
         $rowText = mb_strtolower(trim((string)$rowNode->textContent));
-        if ($normalizedTargetId !== '' && !str_contains($rowText, $normalizedTargetId)) {
-            continue;
-        }
-        if ($normalizedTargetId === '' && $normalizedSearch !== '' && !str_contains($rowText, $normalizedSearch)) {
+        $targetIdMatched = ($normalizedTargetId !== '' && str_contains($rowText, $normalizedTargetId));
+        $searchMatched = ($normalizedSearch !== '' && str_contains($rowText, $normalizedSearch));
+
+        // В ряде интерфейсов ID рейса не отображается в строке таблицы.
+        // Поэтому, если ID не найден в тексте строки, допускаем fallback по номеру рейса.
+        if ($normalizedTargetId !== '' || $normalizedSearch !== '') {
+            if (!$targetIdMatched && !$searchMatched) {
+                continue;
+            }
+        } elseif ($rowText === '') {
             continue;
         }
 
         $deleteLink = $xpath->query('.//a[contains(@class,"action-btn")][contains(@onclick,"/collector/flights/delete") or contains(@href,"/collector/flights/delete")]', $rowNode)->item(0);
-        if (!($deleteLink instanceof DOMElement)) {
+
+        if ($deleteLink instanceof DOMElement) {
+            $onclick = trim((string)$deleteLink->getAttribute('onclick'));
+            $href = trim((string)$deleteLink->getAttribute('href'));
+            $candidate = '';
+
+            if ($onclick !== '' && preg_match('#(/collector/flights/delete[^"\'\s]*)#', $onclick, $m)) {
+                $candidate = (string)$m[1];
+            }
+            if ($candidate === '' && $href !== '' && str_contains($href, '/collector/flights/delete')) {
+                $candidate = $href;
+            }
+
+            if ($candidate !== '') {
+                return [
+                    'ok' => true,
+                    'delete_path' => forwarder_delete_flight_path_from_url($candidate, $pagePath),
+                    'delete_method' => 'GET',
+                    'delete_payload' => [],
+                    'error' => '',
+                ];
+            }
+
+        $rowId = forwarder_delete_flight_extract_row_id($rowNode);
+        if ($rowId === '') {
             continue;
-        }
+        $csrfToken = forwarder_delete_flight_extract_csrf_token($xpath);
+        if ($csrfToken === '') {
+            continue;
 
-        $onclick = trim((string)$deleteLink->getAttribute('onclick'));
-        $href = trim((string)$deleteLink->getAttribute('href'));
-        $candidate = '';
 
-        if ($onclick !== '' && preg_match('#(/collector/flights/delete[^"\'\s]*)#', $onclick, $m)) {
-            $candidate = (string)$m[1];
-        }
-        if ($candidate === '' && $href !== '' && str_contains($href, '/collector/flights/delete')) {
-            $candidate = $href;
-        }
+        return [
+            'ok' => true,
+            'delete_path' => '/collector/flights/delete',
+            'delete_method' => 'POST',
+            'delete_payload' => [
+                'id' => $rowId,
+                '_token' => $csrfToken,
+            ],
+            'error' => '',
+        ];
 
-        if ($candidate !== '') {
-            return [
-                'ok' => true,
-                'delete_path' => forwarder_delete_flight_path_from_url($candidate, $pagePath),
-                'error' => '',
-            ];
-        }
-    }
-
-    return ['ok' => false, 'delete_path' => '', 'error' => 'delete_link_not_found'];
+    return ['ok' => false, 'delete_path' => '', 'delete_method' => 'GET', 'delete_payload' => [], 'error' => 'delete_link_not_found'];
 }
 
 $argv = $_SERVER['argv'] ?? [];
@@ -300,9 +383,16 @@ $searchBody = (string)($pageResponse['body'] ?? '');
 $searchForm = forwarder_delete_flight_extract_search_form($searchBody);
 $searchActionPath = forwarder_delete_flight_path_from_url((string)($searchForm['action'] ?? ''), $pagePath);
 $searchMethod = strtoupper(trim((string)($searchForm['method'] ?? 'GET')));
+$searchField = trim((string)($searchForm['search_field'] ?? 'search_values'));
+if ($searchField === '') {
+    $searchField = 'search_values';
+}
 $searchPayload = isset($searchForm['payload_defaults']) && is_array($searchForm['payload_defaults']) ? $searchForm['payload_defaults'] : [];
-$searchPayload['search_values'] = $flightSearchValue !== '' ? $flightSearchValue : $targetFlightId;
 
+$searchPayload[$searchField] = $flightSearchValue !== '' ? $flightSearchValue : $targetFlightId;
+if (!array_key_exists('search', $searchPayload)) {
+    $searchPayload['search'] = '1';
+}
 $searchResponse = $sessionClient->requestWithSession($searchMethod === 'POST' ? 'POST' : 'GET', $searchActionPath, $searchPayload, false);
 $searchStatusCode = (int)($searchResponse['status_code'] ?? 0);
 if (empty($searchResponse['ok']) || $searchStatusCode < 200 || $searchStatusCode >= 400) {
@@ -332,7 +422,8 @@ $result = [
     'page_path' => $pagePath,
     'search_path' => $searchActionPath,
     'search_method' => $searchMethod === 'POST' ? 'POST' : 'GET',
-    'search_value' => $searchPayload['search_values'] ?? '',
+    'search_field' => $searchField,
+    'search_value' => $searchPayload[$searchField] ?? '',
     'target_flight_id' => $targetFlightId,
     'delete_path' => $deletePath,
     'http_status' => $deleteStatusCode,
@@ -340,4 +431,5 @@ $result = [
 ];
 
 echo json_encode($result, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT) . PHP_EOL;
+
 exit($deleteOk ? 0 : 1);
