@@ -10,6 +10,7 @@ use App\Forwarder\Logging\ForwarderLogger;
 use App\Forwarder\Services\LoginService;
 
 require_once __DIR__ . '/bootstrap.php';
+require_once __DIR__ . '/sync_kernel.php';
 
 /** @return array<string, string> */
 function forwarder_add_container_read_cli_kv(array $argv): array

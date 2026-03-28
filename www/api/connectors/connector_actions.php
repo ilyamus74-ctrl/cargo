@@ -5243,7 +5243,11 @@ function connectors_execute_script_operation(array $operation, array $connector 
     }
 
     $scriptBasename = strtolower(basename($scriptPath));
-    if ($scriptBasename === 'run_flight_list.php' && $runtimeFlightId !== '') {
+    if ($runtimeFlightId !== '' && in_array($scriptBasename, [
+        'run_flight_list.php',
+        'run_add_container_to_flight.php',
+        'run_sync_flight_containers.php',
+    ], true)) {
         $hasFlightIdArg = false;
         foreach ($args as $arg) {
             if (preg_match('/^--flight(?:-|_)id=/i', trim((string)$arg))) {
@@ -5255,6 +5259,28 @@ function connectors_execute_script_operation(array $operation, array $connector 
             $forcedFlightIdArg = '--flight-id=' . $runtimeFlightId;
             $args[] = $forcedFlightIdArg;
             $argsMasked[] = connectors_mask_script_arg($forcedFlightIdArg);
+        }
+    }
+
+    if (
+        in_array($scriptBasename, [
+            'run_add_container_to_flight.php',
+            'run_del_container_from_flight.php',
+            'run_sync_flight_containers.php',
+        ], true)
+        && trim((string)($connector['id'] ?? '')) !== ''
+    ) {
+        $hasConnectorIdArg = false;
+        foreach ($args as $arg) {
+            if (preg_match('/^--connector(?:-|_)id=/i', trim((string)$arg))) {
+                $hasConnectorIdArg = true;
+                break;
+            }
+        }
+        if (!$hasConnectorIdArg) {
+            $forcedConnectorIdArg = '--connector-id=' . (string)$connector['id'];
+            $args[] = $forcedConnectorIdArg;
+            $argsMasked[] = connectors_mask_script_arg($forcedConnectorIdArg);
         }
     }
 

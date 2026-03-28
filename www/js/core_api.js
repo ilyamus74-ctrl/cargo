@@ -3304,11 +3304,11 @@ const CoreAPI = {
                 if (requiresContainerReconcile) {
                     const isPhpContainerOperation = operationId.endsWith('_php');
                     if (isPhpContainerOperation) {
-                        if (refreshOperation) {
+                        const normalizedRefreshOperation = refreshOperation.toLowerCase();
+                        // Для PHP-операций add/delete контейнера скрипт уже синхронизирует контейнеры в БД.
+                        // Повторный flight_list_php может перезаписать containers_* полями из списка рейсов.
+                        if (refreshOperation && normalizedRefreshOperation !== 'flight_list_php') {
                             refreshQueue.push(refreshOperation);
-                        }
-                        if (!refreshQueue.includes('flight_list_php')) {
-                            refreshQueue.push('flight_list_php');
                         }
                     } else {
                         refreshQueue.push('flight_list');

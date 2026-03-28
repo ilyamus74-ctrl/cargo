@@ -160,6 +160,7 @@ function forwarder_sync_flight_containers_kernel(array $params): array
 
     $rows = forwarder_sync_kernel_extract_containers_rows($containersJson);
     $activeIds = [];
+    $normalizedContainers = [];
     $written = 0;
     foreach ($rows as $index => $row) {
         $normalized = forwarder_sync_kernel_normalize_container_row($row, $flightRow, $index + 1);
@@ -177,6 +178,7 @@ function forwarder_sync_flight_containers_kernel(array $params): array
         );
         $written++;
         $activeIds[] = (string)$normalized['container_external_id'];
+        $normalizedContainers[] = $normalized;
     }
 
     $deactivated = forwarder_sync_kernel_mark_missing_and_count(
@@ -189,10 +191,10 @@ function forwarder_sync_flight_containers_kernel(array $params): array
 
     $snapshotRow = $flightRow;
     $snapshotRow['containers_url'] = '/collector/get-containers?flight_id=' . rawurlencode($flightId);
-    $snapshotRow['containers_json'] = (string)json_encode($rows, JSON_UNESCAPED_UNICODE);
-    $snapshotRow['containers_count'] = count($rows);
+    $snapshotRow['containers_json'] = (string)json_encode($normalizedContainers, JSON_UNESCAPED_UNICODE);
+    $snapshotRow['containers_count'] = count($normalizedContainers);
     $snapshotRow['containers_synced_at'] = gmdate('Y-m-d H:i:s');
-    $snapshotRow['containers_sync_status'] = empty($rows) ? 'empty' : 'synced';
+    $snapshotRow['containers_sync_status'] = empty($normalizedContainers) ? 'empty' : 'synced';
     $snapshotRow['containers_sync_error'] = null;
     connectors_subrunner_update_flight_container_snapshot($db, $safeFlightTable, (int)$flightRow['id'], $snapshotRow);
 

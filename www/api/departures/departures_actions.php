@@ -223,6 +223,75 @@ function departures_decode_containers($rawContainers): array
     return $containers;
 }
 
+
+function departures_load_containers_from_table(mysqli $dbcnx, string $flightTableName, int $connectorId, int $flightRecordId, string $flightExternalId): array
+{
+    if ($connectorId <= 0 || ($flightRecordId <= 0 && $flightExternalId === '')) {
+        return [];
+    }
+
+    $containersTableName = connectors_subrunner_resolve_flight_containers_table_name($flightTableName, []);
+    if (!departures_table_exists($dbcnx, $containersTableName)) {
+        return [];
+    }
+
+    $safeContainersTable = '`' . str_replace('`', '``', $containersTableName) . '`';
+    if ($flightRecordId > 0) {
+        $sql = "SELECT container_external_id, name, flight, departure, destination, awb, packages_count, total_weight
+                  FROM {$safeContainersTable}
+                 WHERE connector_id = ? AND flight_record_id = ? AND is_active = 1
+                 ORDER BY updated_at DESC, id DESC";
+        $stmt = $dbcnx->prepare($sql);
+        if (!$stmt) {
+            error_log('departures containers prepare error: ' . $dbcnx->error);
+            return [];
+        }
+        $stmt->bind_param('ii', $connectorId, $flightRecordId);
+    } else {
+        $sql = "SELECT container_external_id, name, flight, departure, destination, awb, packages_count, total_weight
+                  FROM {$safeContainersTable}
+                 WHERE connector_id = ? AND flight_external_id = ? AND is_active = 1
+                 ORDER BY updated_at DESC, id DESC";
+        $stmt = $dbcnx->prepare($sql);
+        if (!$stmt) {
+            error_log('departures containers prepare error: ' . $dbcnx->error);
+            return [];
+        }
+        $stmt->bind_param('is', $connectorId, $flightExternalId);
+    }
+
+    if (!$stmt->execute()) {
+        error_log('departures containers execute error: ' . $stmt->error);
+        $stmt->close();
+        return [];
+    }
+
+    $containers = [];
+    $res = $stmt->get_result();
+    if ($res instanceof mysqli_result) {
+        while ($row = $res->fetch_assoc()) {
+            if (!is_array($row)) {
+                continue;
+            }
+            $containers[] = [
+                'container_external_id' => trim((string)($row['container_external_id'] ?? '')),
+                'name' => trim((string)($row['name'] ?? '')),
+                'flight' => trim((string)($row['flight'] ?? '')),
+                'departure' => trim((string)($row['departure'] ?? '')),
+                'destination' => trim((string)($row['destination'] ?? '')),
+                'awb' => trim((string)($row['awb'] ?? '')),
+                'packages_count' => $row['packages_count'] !== null ? (int)$row['packages_count'] : null,
+                'total_weight' => $row['total_weight'] !== null ? (float)$row['total_weight'] : null,
+                'can_close_flight' => false,
+            ];
+        }
+        $res->free();
+    }
+
+    $stmt->close();
+
+    return $containers;
+}
 function departures_fetch_rows(mysqli $dbcnx, array $connector, string $statusFilter = 'ALL'): array
 {
     $connectorId = (int)($connector['id'] ?? 0);
@@ -288,10 +357,22 @@ function departures_fetch_rows(mysqli $dbcnx, array $connector, string $statusFi
                 }
 
                 $containers = departures_decode_containers($flight['containers_json'] ?? '');
+                if ($containers === []) {
+                    $containers = departures_load_containers_from_table(
+                        $dbcnx,
+                        $tableName,
+                        $connectorId,
+                        (int)($flight['id'] ?? 0),
+                        trim((string)($flight['external_id'] ?? ''))
+                    );
+                }
                 $containersTotal = isset($flight['containers_count']) && $flight['containers_count'] !== null
                     ? (int)$flight['containers_count']
                     : count($containers);
 
+                if ($containersTotal <= 0 && $containers !== []) {
+                    $containersTotal = count($containers);
+                }
                 $canCloseFlight = false;
                 foreach ($containers as $container) {
                     if (!empty($container['can_close_flight'])) {
