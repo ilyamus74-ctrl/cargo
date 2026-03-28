@@ -82,6 +82,7 @@ function connectors_subrunner_run_flight_list_colibri(array $ctx, array $options
 
     $tableSelector = trim((string)($options['table_selector'] ?? '#flights_table'));
     $containerTableSelector = trim((string)($options['container_table_selector'] ?? 'table.references-table'));
+    $onlyFlightExternalId = trim((string)($options['only_flight_external_id'] ?? ''));
     $timezone = trim((string)($options['timezone'] ?? 'UTC'));
     $writeMode = strtolower(trim((string)($options['write_mode'] ?? 'upsert')));
     if (!in_array($writeMode, ['upsert', 'insert'], true)) {
@@ -117,6 +118,14 @@ function connectors_subrunner_run_flight_list_colibri(array $ctx, array $options
                 continue;
             }
 
+            if ($onlyFlightExternalId !== '') {
+                $normalizedExternalId = trim((string)($normalized['external_id'] ?? ''));
+                $normalizedFlightNo = trim((string)($normalized['flight_no'] ?? ''));
+                if ($normalizedExternalId !== $onlyFlightExternalId && $normalizedFlightNo !== $onlyFlightExternalId) {
+                    $skipped++;
+                    continue;
+                }
+            }
             if ($writeMode === 'insert') {
                 $flightRowId = connectors_subrunner_insert_flight_row($db, $tableName, $connectorId, $normalized);
             } else {
@@ -173,6 +182,7 @@ function connectors_subrunner_run_flight_list_colibri(array $ctx, array $options
             'connector_id' => $connectorId,
             'table_selector' => $tableSelector,
             'container_table_selector' => $containerTableSelector,
+            'only_flight_external_id' => $onlyFlightExternalId,
             'timezone' => $timezone,
             'write_mode' => $writeMode,
             'sync_containers' => $syncContainers,
@@ -241,6 +251,36 @@ function connectors_subrunner_extract_table_rows(string $html, string $tableSele
     return ['headers' => $headers, 'rows' => $rows];
 }
 
+
+function connectors_subrunner_extract_table_rows_with_fallback(string $html, string $primarySelector, array $fallbackSelectors = []): array
+{
+    $selectors = [];
+    foreach (array_merge([$primarySelector], $fallbackSelectors) as $selector) {
+        $selector = trim((string)$selector);
+        if ($selector === '' || in_array($selector, $selectors, true)) {
+            continue;
+        }
+        $selectors[] = $selector;
+    }
+
+    $lastError = null;
+    foreach ($selectors as $selector) {
+        try {
+            $parsed = connectors_subrunner_extract_table_rows($html, $selector);
+            $parsed['selector_used'] = $selector;
+            return $parsed;
+        } catch (Throwable $e) {
+            $lastError = $e;
+            continue;
+        }
+    }
+
+    if ($lastError instanceof Throwable) {
+        throw $lastError;
+    }
+
+    throw new RuntimeException('Subrunner flight_list_colibri: не удалось определить селектор таблицы');
+}
 function connectors_subrunner_make_table_row_payload(DOMElement $tr, array $cols): array
 {
     $attrs = [];
@@ -998,7 +1038,16 @@ function connectors_subrunner_sync_flight_containers(
 
         $html = connectors_subrunner_http_get($url, $requestConnector, !empty($options['ssl_ignore']));
         $selector = trim((string)($options['container_table_selector'] ?? 'table.references-table'));
-        $parsed = connectors_subrunner_extract_table_rows($html, $selector);
+        $parsed = connectors_subrunner_extract_table_rows_with_fallback(
+            $html,
+            $selector,
+            [
+                '#containers_table',
+                'table#containers',
+                'table.table',
+                'table',
+            ]
+        );
         $headers = (array)($parsed['headers'] ?? []);
         $rows = (array)($parsed['rows'] ?? []);
 

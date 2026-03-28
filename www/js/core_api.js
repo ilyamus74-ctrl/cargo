@@ -3302,10 +3302,20 @@ const CoreAPI = {
                 }
                 const refreshQueue = [];
                 if (requiresContainerReconcile) {
-                    refreshQueue.push('flight_list');
-                    refreshQueue.push('flight_list_php');
-                    if (refreshOperation && !refreshQueue.includes(refreshOperation)) {
-                        refreshQueue.push(refreshOperation);
+                    const isPhpContainerOperation = operationId.endsWith('_php');
+                    if (isPhpContainerOperation) {
+                        if (refreshOperation) {
+                            refreshQueue.push(refreshOperation);
+                        }
+                        if (!refreshQueue.includes('flight_list_php')) {
+                            refreshQueue.push('flight_list_php');
+                        }
+                    } else {
+                        refreshQueue.push('flight_list');
+                        refreshQueue.push('flight_list_php');
+                        if (refreshOperation && !refreshQueue.includes(refreshOperation)) {
+                            refreshQueue.push(refreshOperation);
+                        }
                     }
                 } else if (refreshOperation) {
                     refreshQueue.push(refreshOperation);
@@ -3318,7 +3328,9 @@ const CoreAPI = {
                     try {
                         await this.runConnectorOperation(connectorId, refreshOp, runtimeVars);
                     } catch (refreshErr) {
-                        const isMandatoryReconcileRefresh = requiresContainerReconcile && refreshOp === 'flight_list';
+                        const isMandatoryReconcileRefresh = requiresContainerReconcile
+                            && !operationId.endsWith('_php')
+                            && refreshOp === 'flight_list';
                         if (isMandatoryReconcileRefresh) {
                             throw refreshErr;
                         }

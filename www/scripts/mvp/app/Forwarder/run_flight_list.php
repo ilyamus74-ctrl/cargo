@@ -133,7 +133,8 @@ function forwarder_flight_list_import_rows(
     int $connectorId,
     string $targetTable,
     string $writeMode,
-    string $tableSelector = 'table.references-table'
+    string $tableSelector = 'table.references-table',
+    string $onlyFlightExternalId = ''
 ): array {
     if ($targetTable === '') {
         return [
@@ -217,6 +218,7 @@ function forwarder_flight_list_import_rows(
         'table_selector' => $tableSelector,
         'write_mode' => $mode,
         'sync_containers' => false,
+        'only_flight_external_id' => trim($onlyFlightExternalId),
         'timezone' => 'UTC',
     ];
     $subrunnerResult = connectors_subrunner_run_flight_list_colibri($ctx, $options);

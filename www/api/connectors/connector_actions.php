@@ -4995,6 +4995,10 @@ function connectors_expand_script_arg_placeholders(string $value, array $context
         '{{flight_search_value}}' => (string)($context['flight_search_value'] ?? ''),
         '{{target_flight_id}}' => (string)($context['target_flight_id'] ?? ''),
         '{{target_flight_name}}' => (string)($context['target_flight_name'] ?? ''),
+        '{{flight_id}}' => (string)($context['flight_id'] ?? ''),
+        '{{departure_id}}' => (string)($context['departure_id'] ?? ''),
+        '{{destination_id}}' => (string)($context['destination_id'] ?? ''),
+        '{{count}}' => (string)($context['count'] ?? ''),
     ]);
 }
 
@@ -5161,6 +5165,14 @@ function connectors_execute_script_operation(array $operation, array $connector 
         $runtimeTargetFlightName = trim((string)($runtimeVars['flight_name'] ?? ($runtimeVars['flight_no'] ?? '')));
     }
 
+    $runtimeFlightId = trim((string)($runtimeVars['flight_id'] ?? ($runtimeVars['external_id'] ?? '')));
+    if ($runtimeFlightId === '') {
+        $runtimeFlightId = trim((string)($runtimeVars['target_flight_id'] ?? ''));
+    }
+    $runtimeDepartureId = trim((string)($runtimeVars['departure_id'] ?? ''));
+    $runtimeDestinationId = trim((string)($runtimeVars['destination_id'] ?? ''));
+    $runtimeCount = trim((string)($runtimeVars['count'] ?? ''));
+
     $argsContext = [
         'from' => (string)($periodFrom ?? ($config['from'] ?? '')),
         'to' => (string)($periodTo ?? ($config['to'] ?? '')),
@@ -5178,6 +5190,10 @@ function connectors_execute_script_operation(array $operation, array $connector 
         'flight_search_value' => $runtimeFlightSearchValue !== '' ? $runtimeFlightSearchValue : (string)($config['flight_search_value'] ?? ''),
         'target_flight_id' => $runtimeTargetFlightId !== '' ? $runtimeTargetFlightId : (string)($config['target_flight_id'] ?? ''),
         'target_flight_name' => $runtimeTargetFlightName !== '' ? $runtimeTargetFlightName : (string)($config['target_flight_name'] ?? ''),
+        'flight_id' => $runtimeFlightId !== '' ? $runtimeFlightId : (string)($config['flight_id'] ?? ''),
+        'departure_id' => $runtimeDepartureId !== '' ? $runtimeDepartureId : (string)($config['departure_id'] ?? ''),
+        'destination_id' => $runtimeDestinationId !== '' ? $runtimeDestinationId : (string)($config['destination_id'] ?? ''),
+        'count' => $runtimeCount !== '' ? $runtimeCount : (string)($config['count'] ?? ''),
     ];
 
     $args = [];
@@ -5191,6 +5207,22 @@ function connectors_execute_script_operation(array $operation, array $connector 
             if (preg_match('/^--target(?:-|_)table=/i', trim($expandedArg))) {
                 $hasTargetTableArg = true;
             }
+        }
+    }
+
+    $scriptBasename = strtolower(basename($scriptPath));
+    if ($scriptBasename === 'run_flight_list.php' && $runtimeFlightId !== '') {
+        $hasFlightIdArg = false;
+        foreach ($args as $arg) {
+            if (preg_match('/^--flight(?:-|_)id=/i', trim((string)$arg))) {
+                $hasFlightIdArg = true;
+                break;
+            }
+        }
+        if (!$hasFlightIdArg) {
+            $forcedFlightIdArg = '--flight-id=' . $runtimeFlightId;
+            $args[] = $forcedFlightIdArg;
+            $argsMasked[] = connectors_mask_script_arg($forcedFlightIdArg);
         }
     }
 
