@@ -308,25 +308,6 @@ function forwarder_delete_flight_extract_delete_path(string $html, string $targe
                 ];
             }
         }
-
-        $rowId = forwarder_delete_flight_extract_row_id($rowNode);
-        if ($rowId === '') {
-            continue;
-        $csrfToken = forwarder_delete_flight_extract_csrf_token($xpath);
-        if ($csrfToken === '') {
-            continue;
-        }
-
-        return [
-            'ok' => true,
-            'delete_path' => '/collector/flights/delete',
-            'delete_method' => 'POST',
-            'delete_payload' => [
-                'id' => $rowId,
-                '_token' => $csrfToken,
-            ],
-            'error' => '',
-        ];
     }
     return ['ok' => false, 'delete_path' => '', 'delete_method' => 'GET', 'delete_payload' => [], 'error' => 'delete_link_not_found'];
 }
@@ -427,11 +408,15 @@ $result = [
     'search_method' => $searchMethod === 'POST' ? 'POST' : 'GET',
     'search_field' => $searchField,
     'search_value' => $searchPayload[$searchField] ?? '',
+    'search_response_status' => $searchStatusCode,
+    'search_response_error' => (string)($searchResponse['error'] ?? ''),
+    'search_response_body' => $searchResultHtml,
     'target_flight_id' => $targetFlightId,
     'delete_path' => $deletePath,
     'delete_method' => $deleteMethod === 'POST' ? 'POST' : 'GET',
     'http_status' => $deleteStatusCode,
     'error' => (string)($deleteResponse['error'] ?? ''),
+    'delete_response_body' => (string)($deleteResponse['body'] ?? ''),
 ];
 
 echo json_encode($result, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT) . PHP_EOL;
