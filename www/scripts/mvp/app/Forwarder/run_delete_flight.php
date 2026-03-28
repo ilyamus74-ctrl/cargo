@@ -307,6 +307,7 @@ function forwarder_delete_flight_extract_delete_path(string $html, string $targe
                     'error' => '',
                 ];
             }
+        }
 
         $rowId = forwarder_delete_flight_extract_row_id($rowNode);
         if ($rowId === '') {
@@ -314,7 +315,7 @@ function forwarder_delete_flight_extract_delete_path(string $html, string $targe
         $csrfToken = forwarder_delete_flight_extract_csrf_token($xpath);
         if ($csrfToken === '') {
             continue;
-
+        }
 
         return [
             'ok' => true,
@@ -326,7 +327,7 @@ function forwarder_delete_flight_extract_delete_path(string $html, string $targe
             ],
             'error' => '',
         ];
-
+    }
     return ['ok' => false, 'delete_path' => '', 'delete_method' => 'GET', 'delete_payload' => [], 'error' => 'delete_link_not_found'];
 }
 
@@ -410,7 +411,9 @@ if (empty($deleteTarget['ok'])) {
 }
 
 $deletePath = (string)($deleteTarget['delete_path'] ?? '');
-$deleteResponse = $sessionClient->requestWithSession('GET', $deletePath, [], false);
+$deleteMethod = strtoupper(trim((string)($deleteTarget['delete_method'] ?? 'GET')));
+$deletePayload = isset($deleteTarget['delete_payload']) && is_array($deleteTarget['delete_payload']) ? $deleteTarget['delete_payload'] : [];
+$deleteResponse = $sessionClient->requestWithSession($deleteMethod === 'POST' ? 'POST' : 'GET', $deletePath, $deletePayload, false);
 $deleteStatusCode = (int)($deleteResponse['status_code'] ?? 0);
 $deleteOk = !empty($deleteResponse['ok']) && $deleteStatusCode >= 200 && $deleteStatusCode < 400;
 
@@ -426,6 +429,7 @@ $result = [
     'search_value' => $searchPayload[$searchField] ?? '',
     'target_flight_id' => $targetFlightId,
     'delete_path' => $deletePath,
+    'delete_method' => $deleteMethod === 'POST' ? 'POST' : 'GET',
     'http_status' => $deleteStatusCode,
     'error' => (string)($deleteResponse['error'] ?? ''),
 ];
