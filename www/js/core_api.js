@@ -3035,7 +3035,7 @@ const CoreAPI = {
                 const placeholderButton = event.target.closest('.js-departure-placeholder-action');
                 if (placeholderButton) {
                     const operation = placeholderButton.getAttribute('data-operation') || '';
-                    if (operation === 'add_flight') {
+                    if (operation === 'add_flight' || operation === 'add_flight_php') {
                         this.triggerAddFlight(placeholderButton);
                         return;
                     }
@@ -3284,7 +3284,7 @@ const CoreAPI = {
             try {
                 const result = await this.runConnectorOperation(connectorId, operationId, runtimeVars);
                 this.setActionStatus(result?.message || `Операция ${operationId} завершена.`, 'primary', statusEl);
-                if (operationId === 'delete_flight') {
+                if (operationId === 'delete_flight' || operationId === 'delete_flight_php') {
                     const cleanupResult = await this.deleteLocalDepartureFlight(connectorId, runtimeVars);
                     this.setActionStatus(cleanupResult?.message || 'Локальная запись рейса удалена. Обновляю список...', 'primary', statusEl);
                 }
@@ -3316,7 +3316,7 @@ const CoreAPI = {
             const awbSelector = button?.getAttribute('data-input') || '';
             const dateInput = dateSelector ? this.root.querySelector(dateSelector) : this.addFlightDateInput;
             const awbInput = awbSelector ? this.root.querySelector(awbSelector) : this.addFlightAwbInput;
-            const refreshOperation = button?.getAttribute('data-refresh-operation') || 'flight_list';
+            const refreshOperation = button?.getAttribute('data-refresh-operation') || 'flight_list_php';
             const setDate = (dateInput?.value || '').trim();
             const awb = this.normalizeAwb(awbInput?.value || '');
 

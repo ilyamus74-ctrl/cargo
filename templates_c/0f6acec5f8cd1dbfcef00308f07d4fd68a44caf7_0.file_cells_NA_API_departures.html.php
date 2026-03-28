@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-03-28 09:50:26
+/* Smarty version 5.3.1, created on 2026-03-28 10:36:09
   from 'file:cells_NA_API_departures.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_69c7a462851183_08736983',
+  'unifunc' => 'content_69c7af19cbb478_90087065',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '0f6acec5f8cd1dbfcef00308f07d4fd68a44caf7' => 
     array (
       0 => 'cells_NA_API_departures.html',
-      1 => 1774691146,
+      1 => 1774693940,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_69c7a462851183_08736983 (\Smarty\Template $_smarty_tpl) {
+function content_69c7af19cbb478_90087065 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?><div class="pagetitle">
   <h1>Отправления</h1>
@@ -114,7 +114,7 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
                             data-operation="add_flight_php"
                             data-input="#departures-add-flight-awb"
                             data-date-input="#departures-add-flight-date"
-                            data-refresh-operation="flight_list"
+                            data-refresh-operation="flight_list_php"
                             data-label="Добавить рейс"
                             data-busy-label="Добавляю рейс..."
                             style="min-width: 180px;">

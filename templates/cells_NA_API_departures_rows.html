@@ -101,8 +101,8 @@
                 </button>
                 <button type="button"
                         class="btn btn-sm btn-outline-danger js-departure-placeholder-action"
-                        data-operation="delete_flight"
-                        data-refresh-operation="flight_list"
+                        data-operation="delete_flight_php"
+                        data-refresh-operation="flight_list_php"
                         data-connector-id="{$flight.connector_id|default:0|escape:'htmlattr'}"
                         data-flight="{$flight.flight_no|default:''|escape:'htmlattr'}"
                         data-flight-name="{$flight.name|default:$flight.flight_no|default:''|escape:'htmlattr'}"

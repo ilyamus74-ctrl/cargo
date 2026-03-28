@@ -667,6 +667,36 @@ function connectors_operation_config_templates(): array
                 ],
             ],
         ],
+        'delete_flight_php' => [
+            'description' => 'Удаление рейса через PHP runtime (session client, search + delete URL).',
+            'operation' => [
+                'operation_id' => 'delete_flight_php',
+                'display_name' => 'Delete flight (PHP)',
+                'module' => 'connectors',
+                'kind' => 'script',
+                'enabled' => 1,
+                'entrypoint' => 0,
+                'on_dependency_fail' => 'stop',
+                'run_after' => [],
+                'run_with' => [],
+                'run_finally' => [],
+                'config' => [
+                    'interpreter' => 'php',
+                    'script_path' => 'www/scripts/mvp/app/Forwarder/run_delete_flight.php',
+                    'timeout_sec' => 180,
+                    'flight_search_value' => '',
+                    'target_flight_id' => '',
+                    'args' => [
+                        '--base-url={{base_url}}',
+                        '--login={{auth_username}}',
+                        '--password={{auth_password}}',
+                        '--page-path=/collector/flights',
+                        '--flight-search={{flight_search_value}}',
+                        '--target-flight-id={{target_flight_id}}',
+                    ],
+                ],
+            ],
+        ],
         'browser_steps' => [
             'description' => 'Node fallback для браузерных flow (DOM/клики/JS-рендер).',
             'operation' => [
@@ -4962,6 +4992,9 @@ function connectors_expand_script_arg_placeholders(string $value, array $context
         '{{target_table}}' => (string)($context['target_table'] ?? ''),
         '{{set_date}}' => (string)($context['set_date'] ?? ''),
         '{{add_flight}}' => (string)($context['add_flight'] ?? ''),
+        '{{flight_search_value}}' => (string)($context['flight_search_value'] ?? ''),
+        '{{target_flight_id}}' => (string)($context['target_flight_id'] ?? ''),
+        '{{target_flight_name}}' => (string)($context['target_flight_name'] ?? ''),
     ]);
 }
 
@@ -5104,6 +5137,30 @@ function connectors_execute_script_operation(array $operation, array $connector 
     }
 
 
+
+    $runtimeVars = connectors_decode_runtime_vars_from_post();
+    $runtimeSetDate = trim((string)($runtimeVars['set_date'] ?? ''));
+    if ($runtimeSetDate === '') {
+        $runtimeSetDate = trim((string)($runtimeVars['flight_number'] ?? ''));
+    }
+    $runtimeAddFlight = trim((string)($runtimeVars['add_flight'] ?? ''));
+    if ($runtimeAddFlight === '') {
+        $runtimeAddFlight = trim((string)($runtimeVars['awb'] ?? ''));
+    }
+
+    $runtimeFlightSearchValue = trim((string)($runtimeVars['flight_search_value'] ?? ''));
+    if ($runtimeFlightSearchValue === '') {
+        $runtimeFlightSearchValue = trim((string)($runtimeVars['flight_name'] ?? ($runtimeVars['flight'] ?? '')));
+    }
+    $runtimeTargetFlightId = trim((string)($runtimeVars['target_flight_id'] ?? ''));
+    if ($runtimeTargetFlightId === '') {
+        $runtimeTargetFlightId = trim((string)($runtimeVars['flight_id'] ?? ($runtimeVars['external_id'] ?? '')));
+    }
+    $runtimeTargetFlightName = trim((string)($runtimeVars['target_flight_name'] ?? ''));
+    if ($runtimeTargetFlightName === '') {
+        $runtimeTargetFlightName = trim((string)($runtimeVars['flight_name'] ?? ($runtimeVars['flight_no'] ?? '')));
+    }
+
     $argsContext = [
         'from' => (string)($periodFrom ?? ($config['from'] ?? '')),
         'to' => (string)($periodTo ?? ($config['to'] ?? '')),
@@ -5116,8 +5173,11 @@ function connectors_execute_script_operation(array $operation, array $connector 
         'auth_token' => (string)($connector['auth_token'] ?? ''),
         'api_token' => (string)($connector['api_token'] ?? ''),
         'target_table' => $resolvedTargetTable,
-        'set_date' => (string)($config['set_date'] ?? ''),
-        'add_flight' => (string)($config['add_flight'] ?? ''),
+        'set_date' => $runtimeSetDate !== '' ? $runtimeSetDate : (string)($config['set_date'] ?? ''),
+        'add_flight' => $runtimeAddFlight !== '' ? $runtimeAddFlight : (string)($config['add_flight'] ?? ''),
+        'flight_search_value' => $runtimeFlightSearchValue !== '' ? $runtimeFlightSearchValue : (string)($config['flight_search_value'] ?? ''),
+        'target_flight_id' => $runtimeTargetFlightId !== '' ? $runtimeTargetFlightId : (string)($config['target_flight_id'] ?? ''),
+        'target_flight_name' => $runtimeTargetFlightName !== '' ? $runtimeTargetFlightName : (string)($config['target_flight_name'] ?? ''),
     ];
 
     $args = [];

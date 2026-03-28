@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-03-19 14:17:52
+/* Smarty version 5.3.1, created on 2026-03-28 10:57:40
   from 'file:cells_NA_API_departures_rows.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_69bc05905a06b2_85918503',
+  'unifunc' => 'content_69c7b4241796c0_09737682',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '04916a2971ae525b97127d32f509a85cd4ad4d24' => 
     array (
       0 => 'cells_NA_API_departures_rows.html',
-      1 => 1773929815,
+      1 => 1774695244,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_69bc05905a06b2_85918503 (\Smarty\Template $_smarty_tpl) {
+function content_69c7b4241796c0_09737682 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 if ($_smarty_tpl->getSmarty()->getModifierCallback('count')($_smarty_tpl->getValue('departure_rows')) > 0) {?>
   <?php
@@ -167,8 +167,8 @@ _status"
                 </button>
                 <button type="button"
                         class="btn btn-sm btn-outline-danger js-departure-placeholder-action"
-                        data-operation="delete_flight"
-                        data-refresh-operation="flight_list"
+                        data-operation="delete_flight_php"
+                        data-refresh-operation="flight_list_php"
                         data-connector-id="<?php echo $_smarty_tpl->getSmarty()->getModifierCallback('escape')((($tmp = $_smarty_tpl->getValue('flight')['connector_id'] ?? null)===null||$tmp==='' ? 0 ?? null : $tmp), 'htmlattr');?>
 "
                         data-flight="<?php echo $_smarty_tpl->getSmarty()->getModifierCallback('escape')((($tmp = $_smarty_tpl->getValue('flight')['flight_no'] ?? null)===null||$tmp==='' ? '' ?? null : $tmp), 'htmlattr');?>
