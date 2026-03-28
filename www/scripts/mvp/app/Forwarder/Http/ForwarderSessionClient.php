@@ -28,6 +28,10 @@ final class ForwarderSessionClient
     /** @return array<string, mixed> */
     public function requestWithSession(string $method, string $endpointPath, array $payload = [], bool $asJson = true): array
     {
+        $httpMethod = strtoupper(trim($method));
+        if ($httpMethod === '') {
+            $httpMethod = 'GET';
+        }
         $authStep = $this->ensureSession();
         if (!$authStep['ok']) {
             return [
@@ -42,9 +46,15 @@ final class ForwarderSessionClient
         }
 
         $headers = $this->session->securityHeaders(true);
-        $response = $method === 'POST'
-            ? $this->httpClient->post($endpointPath, $payload, $headers, $asJson, $this->session->cookieHeader())
-            : $this->httpClient->get($endpointPath, $headers, $this->session->cookieHeader());
+
+        $response = $this->httpClient->request(
+            $httpMethod,
+            $endpointPath,
+            $payload,
+            $headers,
+            $asJson,
+            $this->session->cookieHeader()
+        );
 
         $this->session->updateFromHeaders((string)($response['headers_raw'] ?? ''));
         $this->persistSession();
@@ -63,9 +73,15 @@ final class ForwarderSessionClient
         }
 
         $headers = $this->session->securityHeaders(true);
-        $retryResponse = $method === 'POST'
-            ? $this->httpClient->post($endpointPath, $payload, $headers, $asJson, $this->session->cookieHeader())
-            : $this->httpClient->get($endpointPath, $headers, $this->session->cookieHeader());
+
+        $retryResponse = $this->httpClient->request(
+            $httpMethod,
+            $endpointPath,
+            $payload,
+            $headers,
+            $asJson,
+            $this->session->cookieHeader()
+        );
 
         $this->session->updateFromHeaders((string)($retryResponse['headers_raw'] ?? ''));
         $this->persistSession();

@@ -19,7 +19,7 @@ final class ForwarderHttpClient
      */
     public function get(string $endpointPath, array $headers = [], string $cookieHeader = ''): array
     {
-        return $this->send('GET', $endpointPath, $headers, [], false, $cookieHeader);
+        return $this->request('GET', $endpointPath, [], $headers, false, $cookieHeader);
     }
 
     /**
@@ -29,7 +29,24 @@ final class ForwarderHttpClient
      */
     public function post(string $endpointPath, array $payload, array $headers = [], bool $asJson = true, string $cookieHeader = ''): array
     {
-        return $this->send('POST', $endpointPath, $headers, $payload, $asJson, $cookieHeader);
+        return $this->request('POST', $endpointPath, $payload, $headers, $asJson, $cookieHeader);
+    }
+
+    /**
+     * @param array<string, mixed> $payload
+     * @param array<string, string> $headers
+     * @return array<string, mixed>
+     */
+    public function request(
+        string $method,
+        string $endpointPath,
+        array $payload = [],
+        array $headers = [],
+        bool $asJson = true,
+        string $cookieHeader = ''
+    ): array {
+        return $this->send($method, $endpointPath, $headers, $payload, $asJson, $cookieHeader);
+
     }
 
     /**
@@ -39,6 +56,10 @@ final class ForwarderHttpClient
      */
     private function send(string $method, string $endpointPath, array $headers, array $payload, bool $asJson, string $cookieHeader): array
     {
+        $method = strtoupper(trim($method));
+        if ($method === '') {
+            $method = 'GET';
+        }
         $url = $this->config->baseUrl() . $endpointPath;
         $attempt = 0;
         $maxAttempts = $this->config->retryCount() + 1;
@@ -64,8 +85,13 @@ final class ForwarderHttpClient
                 $httpHeaders[] = $name . ': ' . $value;
             }
 
-            if ($method === 'POST') {
-                curl_setopt($ch, CURLOPT_POST, true);
+
+            if ($method !== 'GET') {
+                if ($method === 'POST') {
+                    curl_setopt($ch, CURLOPT_POST, true);
+                } else {
+                    curl_setopt($ch, CURLOPT_CUSTOMREQUEST, $method);
+                }
                 if ($asJson) {
                     $httpHeaders[] = 'Content-Type: application/json';
                     curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($payload, JSON_UNESCAPED_UNICODE));
