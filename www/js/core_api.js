@@ -3305,8 +3305,19 @@ const CoreAPI = {
                     const isPhpContainerOperation = operationId.endsWith('_php');
                     if (isPhpContainerOperation) {
                         const normalizedRefreshOperation = refreshOperation.toLowerCase();
+
+                        const syncStatus = String(result?.sync_db_status || '').toLowerCase();
+                        const syncFailed = syncStatus !== '' && syncStatus !== 'ok';
+                        if (syncFailed) {
+                            const syncMessage = String(result?.sync_db_message || '').trim();
+                            throw new Error(syncMessage || 'Контейнер на форварде изменён, но локальная синхронизация БД завершилась с ошибкой.');
+                        }
                         // Для PHP-операций add/delete контейнера скрипт уже синхронизирует контейнеры в БД.
                         // Повторный flight_list_php может перезаписать containers_* полями из списка рейсов.
+                        // Но если sync_db_status != ok, запускаем fallback refresh flight_list_php.
+                        if (syncFailed) {
+                            refreshQueue.push('flight_list_php');
+                        }
                         if (refreshOperation && normalizedRefreshOperation !== 'flight_list_php') {
                             refreshQueue.push(refreshOperation);
                         }

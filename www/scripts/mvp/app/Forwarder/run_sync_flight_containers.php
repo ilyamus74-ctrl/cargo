@@ -136,6 +136,7 @@ $syncResult = forwarder_sync_flight_containers_kernel([
     'flight_table' => $flightTable !== '' ? $flightTable : 'connector_dev_colibri_operation_flight_list',
     'containers_table' => $containersTable,
     'page_path' => $pagePath,
+    'allow_empty_result_deactivate' => true,
 ]);
 
 $result = [

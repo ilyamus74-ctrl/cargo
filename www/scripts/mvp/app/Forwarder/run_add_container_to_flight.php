@@ -347,6 +347,7 @@ if ($overallOk && $connectorId > 0) {
         'containers_table' => $containersTable,
         'page_path' => $pagePath,
         'csrf_token' => $csrfToken,
+        'deactivate_missing' => false,
     ]);
 }
 $fallbackUsed = false;

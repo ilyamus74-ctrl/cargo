@@ -218,6 +218,7 @@ if ($overallOk && $connectorId > 0 && $flightId !== '') {
         'containers_table' => $containersTable,
         'page_path' => $pagePath,
         'csrf_token' => $csrfToken,
+        'allow_empty_result_deactivate' => true,
     ]);
 }
 

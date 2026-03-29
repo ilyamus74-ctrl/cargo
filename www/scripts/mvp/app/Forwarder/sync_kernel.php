@@ -15,7 +15,9 @@ use App\Forwarder\Http\ForwarderSessionClient;
  *   flight_table?:string,
  *   containers_table?:string,
  *   page_path?:string,
- *   csrf_token?:string
+ *   csrf_token?:string,
+ *   allow_empty_result_deactivate?:bool,
+ *   deactivate_missing?:bool
  * } $params
  *
  * @return array<string,mixed>
@@ -28,6 +30,8 @@ function forwarder_sync_flight_containers_kernel(array $params): array
     $flightTable = trim((string)($params['flight_table'] ?? 'connector_dev_colibri_operation_flight_list'));
     $containersTable = trim((string)($params['containers_table'] ?? ''));
     $pagePath = trim((string)($params['page_path'] ?? '/collector/containers'));
+    $allowEmptyResultDeactivate = !empty($params['allow_empty_result_deactivate']);
+    $deactivateMissing = !array_key_exists('deactivate_missing', $params) || !empty($params['deactivate_missing']);
     $sessionClient = $params['session_client'] ?? null;
 
     if ($repoRoot === '' || $flightId === '' || $connectorId <= 0 || !($sessionClient instanceof ForwarderSessionClient)) {
@@ -159,6 +163,26 @@ function forwarder_sync_flight_containers_kernel(array $params): array
     }
 
     $rows = forwarder_sync_kernel_extract_containers_rows($containersJson);
+    $activeBeforeSync = forwarder_sync_kernel_count_active_containers(
+        $db,
+        $resolvedContainersTable,
+        $connectorId,
+        (string)($flightRow['external_id'] ?? '')
+    );
+    if ($rows === [] && $activeBeforeSync > 0 && !$allowEmptyResultDeactivate) {
+        return [
+            'status' => 'error',
+            'message' => 'empty get-containers payload; deactivation skipped to avoid data loss',
+            'written' => 0,
+            'fetched' => 0,
+            'deactivated' => 0,
+            'flight_table' => $safeFlightTable,
+            'containers_table' => $resolvedContainersTable,
+            'flight_row_id' => (int)$flightRow['id'],
+            'flight_external_id' => (string)$flightRow['external_id'],
+            'active_before_sync' => $activeBeforeSync,
+        ];
+    }
     $activeIds = [];
     $normalizedContainers = [];
     $written = 0;
@@ -180,14 +204,31 @@ function forwarder_sync_flight_containers_kernel(array $params): array
         $activeIds[] = (string)$normalized['container_external_id'];
         $normalizedContainers[] = $normalized;
     }
+    if ($activeIds === [] && $activeBeforeSync > 0 && !$allowEmptyResultDeactivate) {
+        return [
+            'status' => 'error',
+            'message' => 'container rows could not be normalized; deactivation skipped to avoid data loss',
+            'written' => $written,
+            'fetched' => count($rows),
+            'deactivated' => 0,
+            'flight_table' => $safeFlightTable,
+            'containers_table' => $resolvedContainersTable,
+            'flight_row_id' => (int)$flightRow['id'],
+            'flight_external_id' => (string)$flightRow['external_id'],
+            'active_before_sync' => $activeBeforeSync,
+        ];
+    }
 
-    $deactivated = forwarder_sync_kernel_mark_missing_and_count(
-        $db,
-        $resolvedContainersTable,
-        $connectorId,
-        (string)($flightRow['external_id'] ?? ''),
-        $activeIds
-    );
+    $deactivated = 0;
+    if ($deactivateMissing) {
+        $deactivated = forwarder_sync_kernel_mark_missing_and_count(
+            $db,
+            $resolvedContainersTable,
+            $connectorId,
+            (string)($flightRow['external_id'] ?? ''),
+            $activeIds
+        );
+    }
 
     $snapshotRow = $flightRow;
     $snapshotRow['containers_url'] = '/collector/get-containers?flight_id=' . rawurlencode($flightId);
@@ -209,6 +250,40 @@ function forwarder_sync_flight_containers_kernel(array $params): array
         'flight_row_id' => (int)$flightRow['id'],
         'flight_external_id' => (string)$flightRow['external_id'],
     ];
+}
+
+
+function forwarder_sync_kernel_count_active_containers(
+    mysqli $db,
+    string $containersTable,
+    int $connectorId,
+    string $flightExternalId
+): int {
+    if ($flightExternalId === '') {
+        return 0;
+    }
+
+    $safeTable = '`' . str_replace('`', '``', $containersTable) . '`';
+    $sql = "SELECT COUNT(*) AS cnt FROM {$safeTable} WHERE connector_id = ? AND flight_external_id = ? AND is_active = 1";
+    $stmt = $db->prepare($sql);
+    if (!$stmt) {
+        throw new RuntimeException('DB prepare error (count active containers): ' . $db->error);
+    }
+    $stmt->bind_param('is', $connectorId, $flightExternalId);
+    if (!$stmt->execute()) {
+        $err = $stmt->error;
+        $stmt->close();
+        throw new RuntimeException('DB execute error (count active containers): ' . $err);
+    }
+
+    $result = $stmt->get_result();
+    $row = $result instanceof mysqli_result ? $result->fetch_assoc() : null;
+    if ($result instanceof mysqli_result) {
+        $result->close();
+    }
+    $stmt->close();
+
+    return is_array($row) ? (int)($row['cnt'] ?? 0) : 0;
 }
 
 function forwarder_sync_kernel_load_flight_row(mysqli $db, string $flightTable, int $connectorId, string $flightId): ?array
