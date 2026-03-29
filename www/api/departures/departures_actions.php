@@ -356,16 +356,18 @@ function departures_fetch_rows(mysqli $dbcnx, array $connector, string $statusFi
                     continue;
                 }
 
-                $containers = departures_decode_containers($flight['containers_json'] ?? '');
-                if ($containers === []) {
-                    $containers = departures_load_containers_from_table(
-                        $dbcnx,
-                        $tableName,
-                        $connectorId,
-                        (int)($flight['id'] ?? 0),
-                        trim((string)($flight['external_id'] ?? ''))
-                    );
-                }
+                $containersFromSnapshot = departures_decode_containers($flight['containers_json'] ?? '');
+                $containersFromTable = departures_load_containers_from_table(
+                    $dbcnx,
+                    $tableName,
+                    $connectorId,
+                    (int)($flight['id'] ?? 0),
+                    trim((string)($flight['external_id'] ?? ''))
+                );
+
+                // Приоритет за фактическими данными из *_flight_list_containers,
+                // чтобы UI отражал изменения, сделанные в таблице контейнеров.
+                $containers = $containersFromTable !== [] ? $containersFromTable : $containersFromSnapshot;
                 $containersTotal = isset($flight['containers_count']) && $flight['containers_count'] !== null
                     ? (int)$flight['containers_count']
                     : count($containers);

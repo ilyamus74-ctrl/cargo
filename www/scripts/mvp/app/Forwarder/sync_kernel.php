@@ -390,13 +390,21 @@ function forwarder_sync_kernel_extract_csrf_token(string $html): string
 /** @return array<int,array<string,mixed>> */
 function forwarder_sync_kernel_extract_containers_rows(array $payload): array
 {
+    if (isset($payload['containers']) && is_array($payload['containers'])) {
+        $rows = [];
+        foreach ($payload['containers'] as $row) {
+            if (is_array($row)) {
+                $rows[] = $row;
+            }
+        }
+
+        return $rows;
+    }
+
     $data = $payload['data'] ?? $payload;
-
-
     if (is_string($data)) {
         return forwarder_sync_kernel_extract_containers_rows_from_html($data);
     }
-
     if (is_array($data) && isset($data['html']) && is_string($data['html'])) {
         return forwarder_sync_kernel_extract_containers_rows_from_html((string)$data['html']);
     }
@@ -414,6 +422,19 @@ function forwarder_sync_kernel_extract_containers_rows(array $payload): array
         }
     }
 
+
+    if (count($rows) === 1 && isset($rows[0]) && is_array($rows[0]) && array_is_list($rows[0])) {
+        $flattened = [];
+        foreach ($rows[0] as $nestedRow) {
+            if (is_array($nestedRow)) {
+                $flattened[] = $nestedRow;
+            }
+        }
+
+        if ($flattened !== []) {
+            return $flattened;
+        }
+    }
     return $rows;
 }
 
@@ -510,11 +531,11 @@ function forwarder_sync_kernel_normalize_container_row(array $row, array $flight
 
     $packagesCountRaw = (string)($row['packages_count'] ?? $row['package_count'] ?? '');
     $packagesCountRaw = preg_replace('/[^0-9\-]/', '', $packagesCountRaw) ?? '';
-    $packagesCount = $packagesCountRaw === '' ? null : (int)$packagesCountRaw;
+    $packagesCount = $packagesCountRaw === '' ? 0 : (int)$packagesCountRaw;
 
     $totalWeightRaw = (string)($row['total_weight'] ?? $row['weight'] ?? '');
     $totalWeightRaw = str_replace(',', '.', preg_replace('/[^0-9,\.\-]/', '', $totalWeightRaw) ?? '');
-    $totalWeight = $totalWeightRaw === '' ? null : (float)$totalWeightRaw;
+    $totalWeight = $totalWeightRaw === '' ? 0.0 : (float)$totalWeightRaw;
 
     return [
         'container_external_id' => $containerExternalId,

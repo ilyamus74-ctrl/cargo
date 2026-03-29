@@ -67,6 +67,7 @@
   - GET `/collector/containers?search=1&flight={flight_id}`
 - **CLI:** `php run_list_container_to_flight.php --base-url=... --login=... --password=... --flight-id=...`
 - **Следующий шаг миграции:** вынести в `ContainerApi::listByFlight(flightId)`.
+
 ### 2.2 Принадлежность контейнера к рейсу
 - **Статус:** ✅ Есть в текущем flow (контейнер добавляется к конкретному `flight`).
 - **Проверка:** сравнение списков контейнеров до/после операции.
