@@ -200,9 +200,10 @@ function departures_decode_containers($rawContainers): array
         $packagesCountRaw = $container['packages_count'] ?? null;
         $totalWeightRaw = $container['total_weight'] ?? null;
 
-        $containerExternalId = trim((string)($container['container_external_id'] ?? ''));
-        $hasZeroPackages = is_numeric($packagesCountRaw) && (float)$packagesCountRaw == 0.0;
-        $hasZeroWeight = is_numeric($totalWeightRaw) && (float)$totalWeightRaw == 0.0;
+        $hasZeroPackages = departures_value_is_zero($packagesCountRaw);
+        $hasZeroWeight = departures_value_is_zero($totalWeightRaw);
+        $hasZeroPackages = departures_value_is_zero($packagesCountRaw);
+        $hasZeroWeight = departures_value_is_zero($totalWeightRaw);
         $hasPackages = is_numeric($packagesCountRaw) && (float)$packagesCountRaw > 0.0;
         $hasWeight = is_numeric($totalWeightRaw) && (float)$totalWeightRaw > 0.0;
 
@@ -216,11 +217,35 @@ function departures_decode_containers($rawContainers): array
             'packages_count' => departures_format_value($packagesCountRaw, 0),
             'total_weight' => departures_format_value($totalWeightRaw),
             'is_empty_placeholder' => $hasZeroPackages && $hasZeroWeight,
+            'can_delete_placeholder' => $containerExternalId !== '' && $hasZeroPackages,
             'can_close_flight' => $containerExternalId !== '' && $hasPackages && $hasWeight,
         ];
     }
 
     return $containers;
+}
+
+function departures_value_is_zero($value): bool
+{
+    if ($value === null) {
+        return false;
+    }
+
+    if (is_int($value) || is_float($value)) {
+        return (float)$value == 0.0;
+    }
+
+    $normalized = trim((string)$value);
+    if ($normalized === '' || $normalized === '—' || $normalized === '-') {
+        return false;
+    }
+
+    $normalized = str_replace(',', '.', $normalized);
+    if (!is_numeric($normalized)) {
+        return false;
+    }
+
+    return (float)$normalized == 0.0;
 }
 
 
@@ -273,16 +298,27 @@ function departures_load_containers_from_table(mysqli $dbcnx, string $flightTabl
             if (!is_array($row)) {
                 continue;
             }
+
+            $packagesCountRaw = $row['packages_count'] ?? null;
+            $totalWeightRaw = $row['total_weight'] ?? null;
+            $containerExternalId = trim((string)($row['container_external_id'] ?? ''));
+            $hasZeroPackages = departures_value_is_zero($packagesCountRaw);
+            $hasZeroWeight = departures_value_is_zero($totalWeightRaw);
+            $hasPackages = is_numeric($packagesCountRaw) && (float)$packagesCountRaw > 0.0;
+            $hasWeight = is_numeric($totalWeightRaw) && (float)$totalWeightRaw > 0.0;
+
             $containers[] = [
-                'container_external_id' => trim((string)($row['container_external_id'] ?? '')),
+                'container_external_id' => $containerExternalId,
                 'name' => trim((string)($row['name'] ?? '')),
                 'flight' => trim((string)($row['flight'] ?? '')),
                 'departure' => trim((string)($row['departure'] ?? '')),
                 'destination' => trim((string)($row['destination'] ?? '')),
                 'awb' => trim((string)($row['awb'] ?? '')),
-                'packages_count' => $row['packages_count'] !== null ? (int)$row['packages_count'] : null,
-                'total_weight' => $row['total_weight'] !== null ? (float)$row['total_weight'] : null,
-                'can_close_flight' => false,
+                'packages_count' => departures_format_value($packagesCountRaw, 0),
+                'total_weight' => departures_format_value($totalWeightRaw),
+                'is_empty_placeholder' => $hasZeroPackages && $hasZeroWeight,
+                'can_delete_placeholder' => $containerExternalId !== '' && $hasZeroPackages,
+                'can_close_flight' => $containerExternalId !== '' && $hasPackages && $hasWeight,
             ];
         }
         $res->free();

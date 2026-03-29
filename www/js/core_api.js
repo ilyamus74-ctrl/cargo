@@ -3294,15 +3294,36 @@ const CoreAPI = {
             this.setActionStatus(`Запускаю ${operationId} для рейса ${flight}...`, 'primary', statusEl);
 
             try {
-                const result = await this.runConnectorOperation(connectorId, operationId, runtimeVars);
-                this.setActionStatus(result?.message || `Операция ${operationId} завершена.`, 'primary', statusEl);
-                if (operationId === 'delete_flight' || operationId === 'delete_flight_php') {
+
+                let effectiveOperationId = operationId;
+                let result;
+                try {
+                    result = await this.runConnectorOperation(connectorId, effectiveOperationId, runtimeVars);
+                } catch (operationErr) {
+                    const fallbackOperationId = operationId.endsWith('_php') ? operationId.replace(/_php$/i, '') : '';
+                    const errorMessage = String(operationErr?.message || '').toLowerCase();
+                    const shouldFallback = fallbackOperationId
+                        && fallbackOperationId !== operationId
+                        && (errorMessage.includes('не найдена') || errorMessage.includes('not found'));
+
+                    if (!shouldFallback) {
+                        throw operationErr;
+                    }
+
+                    console.warn(`core_api warning (departures ${operationId}): operation missing, fallback to ${fallbackOperationId}`, operationErr?.payload || operationErr);
+                    this.setActionStatus(`Операция ${operationId} не найдена, пробую ${fallbackOperationId}...`, 'warning', statusEl);
+                    effectiveOperationId = fallbackOperationId;
+                    result = await this.runConnectorOperation(connectorId, effectiveOperationId, runtimeVars);
+                }
+
+                this.setActionStatus(result?.message || `Операция ${effectiveOperationId} завершена.`, 'primary', statusEl);
+                if (effectiveOperationId === 'delete_flight' || effectiveOperationId === 'delete_flight_php') {
                     const cleanupResult = await this.deleteLocalDepartureFlight(connectorId, runtimeVars);
                     this.setActionStatus(cleanupResult?.message || 'Локальная запись рейса удалена. Обновляю список...', 'primary', statusEl);
                 }
                 const refreshQueue = [];
                 if (requiresContainerReconcile) {
-                    const isPhpContainerOperation = operationId.endsWith('_php');
+                    const isPhpContainerOperation = effectiveOperationId.endsWith('_php');
                     if (isPhpContainerOperation) {
                         const normalizedRefreshOperation = refreshOperation.toLowerCase();
 
@@ -3340,7 +3361,7 @@ const CoreAPI = {
                         await this.runConnectorOperation(connectorId, refreshOp, runtimeVars);
                     } catch (refreshErr) {
                         const isMandatoryReconcileRefresh = requiresContainerReconcile
-                            && !operationId.endsWith('_php')
+                            && !effectiveOperationId.endsWith('_php')
                             && refreshOp === 'flight_list';
                         if (isMandatoryReconcileRefresh) {
                             throw refreshErr;
@@ -3350,8 +3371,8 @@ const CoreAPI = {
                 }
                 await this.load();
                 const finalStatusEl = statusEl && statusEl.isConnected ? statusEl : this.addFlightStatus;
-                this.setActionStatus(successMessage || `Операция ${operationId} выполнена, список рейсов обновлён.`, 'success', finalStatusEl);
-                showToast(successMessage || `Операция ${operationId} выполнена`, 2500);
+                this.setActionStatus(successMessage || `Операция ${effectiveOperationId} выполнена, список рейсов обновлён.`, 'success', finalStatusEl);
+                showToast(successMessage || `Операция ${effectiveOperationId} выполнена`, 2500);
             } catch (err) {
                 console.error(`core_api error (departures ${operationId}):`, err?.payload || err);
                 const errorMessage = err?.message || `Не удалось выполнить ${operationId}.`;

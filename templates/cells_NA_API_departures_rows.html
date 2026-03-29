@@ -200,11 +200,11 @@
                       <td>{$container.total_weight|default:'—'|escape}</td>
 
                       <td class="text-end">
-                        {if $flight.status|lower == 'open' && $container.is_empty_placeholder && $container.container_external_id}
+                        {if $flight.status|lower == 'open' && $container.can_delete_placeholder}
                           <button type="button"
                                   class="btn btn-sm btn-outline-danger js-departure-placeholder-action"
-                                  data-operation="delete_container"
-                                  data-refresh-operation="flight_list"
+                                  data-operation="delete_container_php"
+                                  data-refresh-operation="flight_list_php"
                                   data-connector-id="{$flight.connector_id|default:0|escape:'htmlattr'}"
                                   data-flight="{$flight.flight_no|default:''|escape:'htmlattr'}"
                                   data-flight-name="{$flight.name|default:$flight.flight_no|default:''|escape:'htmlattr'}"
