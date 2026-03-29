@@ -729,6 +729,7 @@ function connectors_operation_config_templates(): array
                         '--delete-path=/collector/containers/delete',
                         '--flight-id={{flight_id}}',
                         '--container-id={{container_id}}',
+                        '--container-name={{container_name}}',
                         '--connector-id={{connector_id}}',
                     ],
                 ],
@@ -2271,54 +2272,7 @@ function connectors_apply_php_entrypoint_template_fallback(array $runtimeOperati
     return $runtimeOperations;
 }
 
-function connectors_apply_php_entrypoint_template_fallback(array $runtimeOperations, string $operationId, array $connector = []): array
-{
-    $operationId = trim($operationId);
-    if ($operationId === '') {
-        return $runtimeOperations;
-    }
 
-    $currentExists = isset($runtimeOperations[$operationId]) && is_array($runtimeOperations[$operationId]);
-    $currentOperation = $currentExists ? $runtimeOperations[$operationId] : [];
-    $currentSupportsPhp = $currentExists && connectors_operation_supports_php_entrypoint($currentOperation);
-    $currentRunnable = $currentExists ? connectors_evaluate_operation_runnable($currentOperation, $connector) : ['is_runnable' => false];
-    if ($currentSupportsPhp && !empty($currentRunnable['is_runnable'])) {
-        return $runtimeOperations;
-    }
-
-    foreach (connectors_operation_config_templates() as $templatePayload) {
-        if (!is_array($templatePayload) || !isset($templatePayload['operation']) || !is_array($templatePayload['operation'])) {
-            continue;
-        }
-        $templateOperation = $templatePayload['operation'];
-        $templateOperationId = trim((string)($templateOperation['operation_id'] ?? ''));
-        if ($templateOperationId !== $operationId) {
-            continue;
-        }
-
-        $templateRuntimeOperations = connectors_v3_payload_to_runtime_operations([
-            'schema_version' => 3,
-            'operations' => [$templateOperation],
-        ]);
-        $templateRuntimeOperation = $templateRuntimeOperations[$templateOperationId] ?? null;
-        if (!is_array($templateRuntimeOperation)) {
-            return $runtimeOperations;
-        }
-
-        if (!connectors_operation_supports_php_entrypoint($templateRuntimeOperation)) {
-            return $runtimeOperations;
-        }
-        $templateRunnable = connectors_evaluate_operation_runnable($templateRuntimeOperation, $connector);
-        if (empty($templateRunnable['is_runnable'])) {
-            return $runtimeOperations;
-        }
-
-        $runtimeOperations[$operationId] = $templateRuntimeOperation;
-        return $runtimeOperations;
-    }
-
-    return $runtimeOperations;
-}
 
 function connectors_resolve_legacy_test_entrypoint(array $operationsPayload, string $testOperation, string $entrypointMode = ''): string
 {
@@ -5203,6 +5157,11 @@ function connectors_expand_script_arg_placeholders(string $value, array $context
         '{{target_flight_id}}' => (string)($context['target_flight_id'] ?? ''),
         '{{target_flight_name}}' => (string)($context['target_flight_name'] ?? ''),
         '{{flight_id}}' => (string)($context['flight_id'] ?? ''),
+        '{{container_id}}' => (string)($context['container_id'] ?? ''),
+        '{{target_container_id}}' => (string)($context['target_container_id'] ?? ''),
+        '{{id}}' => (string)($context['id'] ?? ''),
+        '{{container_name}}' => (string)($context['container_name'] ?? ''),
+        '{{target_container_name}}' => (string)($context['target_container_name'] ?? ''),
         '{{departure_id}}' => (string)($context['departure_id'] ?? ''),
         '{{destination_id}}' => (string)($context['destination_id'] ?? ''),
         '{{count}}' => (string)($context['count'] ?? ''),

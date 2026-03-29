@@ -3275,7 +3275,9 @@ const CoreAPI = {
             const statusEl = this.resolveActionStatusElement(button);
             const refreshOperation = String(button?.getAttribute('data-refresh-operation') || '').trim();
             const successMessage = String(button?.getAttribute('data-success-message') || '').trim();
-            const entrypointMode = String(button?.getAttribute('data-entrypoint-mode') || '').trim();
+            const entrypointModeRaw = String(button?.getAttribute('data-entrypoint-mode') || '').trim();
+            const isPhpOperationId = /_php$/i.test(operationId);
+            const entrypointMode = entrypointModeRaw !== '' ? entrypointModeRaw : (isPhpOperationId ? 'php' : '');
             const entrypointModeNormalized = entrypointMode.toLowerCase();
             const phpEntrypointRequired = ['php', 'entrypoint_php'].includes(entrypointModeNormalized);
             const runtimeVars = this.buildFlightRuntimeVars(button);
