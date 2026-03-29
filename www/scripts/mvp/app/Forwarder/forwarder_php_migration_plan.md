@@ -87,17 +87,36 @@
 - **Следующий шаг миграции:** `ContainerApi::delete(containerId)`.
 
 ### 2.5 Свойства контейнера (посылки в контейнере)
-- **Статус:** ⏳ Частично есть по report API, но нет полного CRUD.
-- **План:**
-  - определить endpoint получения состава контейнера,
-  - описать поля посылок (track, статус, даты).
+- **Статус:** ✅ Добавлен exploratory runner `run_list_container`.
+- **Текущая реализация:**
+  - GET `/collector/packages` (HTML-страница),
+  - опциональная активация контейнера через POST `/collect/check-position` (`--position=...`) перед чтением списка,
+  - при ответе-заглушке `Please select Flight or Container` раннер делает retry с query-фильтрами `position/container/search`,
+  - парсинг `table.references-table` в структурированный JSON (`headers`, `packages`),
+  - поддержка empty-state (`No packages!`) и обход пагинации (`--all-pages=1`, `--max-pages=N`).
+- **CLI:** `php run_list_container.php --base-url=... --login=... --password=... [--position=24458] [--all-pages=1]`.
+- **Подтверждённые smoke-примеры (2026-03-29):**
+  - `--position=24458` → `count=1`, `Track=H1025022509733301044`, `Weight=0.900`.
+  - `--position=24369` → `count=3` (мульти-строка в таблице контейнера).
 - **Целевой метод:** `ContainerApi::getPackages(containerId)`.
 
 ### 2.6 Добавление посылок в контейнер
-- **Статус:** ⏳ Не описано (требуется разведка).
-- **План:**
-  - найти форму/endpoint add package to container,
-  - зафиксировать обязательные поля и формат ответа.
+- **Статус:** ✅ Добавлен exploratory runner `run_add_package_to_container` и endpoint-контракт.
+- **Текущая реализация:**
+  - POST `/collect/check-position` (`{"position":"..."}`),
+  - POST `/collect/change-position` (`track`, `position`, form-urlencoded),
+  - опционально POST `/collector/check-package` для post-check (`--verify-check-package=1`).
+- **CLI:** `php run_add_package_to_container.php --base-url=... --login=... --password=... --track=... --position=...`.
+- **Строка проверки:**
+  ```bash
+  php run_add_package_to_container.php \
+    --base-url=https://dev-backend.colibri.az \
+    --login='w' \
+    --password='S' \
+    --track='H1025022509733301044' \
+    --position='24458' \
+    --verify-check-package=1
+  ```
 - **Целевой метод:** `ContainerApi::addPackage(containerId, track)`.
 
 ### 2.7 Закрытие контейнера

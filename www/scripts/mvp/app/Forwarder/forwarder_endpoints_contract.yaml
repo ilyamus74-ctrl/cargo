@@ -855,6 +855,229 @@ entrypoints:
               has_container_details: false
               container_details: []
 
+  run_add_package_to_container:
+    cli_args:
+      required:
+        - [track, number, tracking, tracking_number]
+        - [position, container, container_id]
+      optional:
+        - [base-url, base_url]
+        - [login]
+        - [password]
+        - [session-file, session_file]
+        - [session-ttl-seconds, session_ttl_seconds]
+        - [check-path, check_path]
+        - [change-path, change_path]
+        - [verify-path, verify_path]
+        - [verify-check-package, verify_check_package]
+        - [verify-number, verify_number, check-number, check_number]
+    flow:
+      - step: check_container_position
+        method: POST
+        path: "{check_path|/collect/check-position}"
+        json:
+          position: "{position}"
+        response:
+          content_type: application/json
+          parse:
+            case:
+              source: "$.case"
+              required: false
+            change:
+              source: "$.change"
+              required: false
+            content:
+              source: "$.content"
+              required: false
+            sum:
+              source: "$.sum"
+              required: false
+          example:
+            status: 200
+            json:
+              case: "success"
+              change: true
+              content: "ok "
+              sum: "0.900"
+      - step: assign_track_to_position
+        method: POST
+        path: "{change_path|/collect/change-position}"
+        form:
+          track: "{track}"
+          position: "{position}"
+        response:
+          content_type: application/json
+          parse:
+            case:
+              source: "$.case"
+              required: false
+            change:
+              source: "$.change"
+              required: false
+            content:
+              source: "$.content"
+              required: false
+            track:
+              source: "$.track"
+              required: false
+            weight:
+              source: "$.weight"
+              required: false
+          example:
+            status: 200
+            json:
+              case: "success"
+              change: true
+              content: "Position is changed! 781116"
+              track: "H1025022509733301044"
+              weight: "0.900"
+      - step: optional_verify_check_package
+        when: "{verify_check_package in [1,true,yes,on]}"
+        method: POST
+        path: "{verify_path|/collector/check-package}"
+        json:
+          number: "{verify_number|track}"
+        response:
+          content_type: application/json
+          parse:
+            case:
+              source: "$.case"
+              required: false
+            content:
+              source: "$.content"
+              required: false
+          example:
+            status: 200
+            json:
+              case: "warning"
+              type: "validation"
+      verified_cli_example:
+        captured_at_utc: "2026-03-29T19:02:08Z"
+        command: "php run_add_package_to_container.php --base-url='https://dev-backend.colibri.az' --login='w' --password='S' --track='H1025022509733301044' --position='24458' --verify-check-package=1"
+        output:
+          status: "ok"
+          check:
+            case: "success"
+            sum: "0.900"
+          change:
+            case: "success"
+            track: "H1025022509733301044"
+            weight: "0.900"
+
+  run_list_container:
+    cli_args:
+      required: []
+      optional:
+        - [base-url, base_url]
+        - [login]
+        - [password]
+        - [session-file, session_file]
+        - [session-ttl-seconds, session_ttl_seconds]
+        - [page-path, page_path, path]
+        - [page, page-start, page_start]
+        - [all-pages, all_pages]
+        - [max-pages, max_pages]
+        - [position, container, container_id]
+        - [check-path, check_path]
+    flow:
+      - step: optional_activate_position
+        when: "{position is provided}"
+        method: POST
+        path: "{check_path|/collect/check-position}"
+        json:
+          position: "{position}"
+        response:
+          content_type: application/json
+          parse:
+            case:
+              source: "$.case"
+              required: false
+            change:
+              source: "$.change"
+              required: false
+            sum:
+              source: "$.sum"
+              required: false
+      - step: open_packages_page
+        method: GET
+        path: "{page_path|/collector/packages}"
+        query:
+          page: "{page|1}"
+          position: "{position|''}"
+        response:
+          content_type: text/html
+          parse:
+            headers:
+              source: "table.references-table thead th"
+              required: false
+            rows:
+              source: "table.references-table tbody tr"
+              required: false
+            empty_state:
+              source: "text contains 'No packages!'"
+              required: false
+            placeholder_state:
+              source: "first row contains 'Please select Flight or Container'"
+              required: false
+      - step: retry_with_container_filter_if_placeholder
+        when: "{placeholder_state == true and position is provided}"
+        method: GET
+        path: "{page_path|/collector/packages}"
+        query:
+          page: "{page|1}"
+          position: "{position}"
+          container: "{position}"
+          search: "1"
+        response:
+          content_type: text/html
+          parse:
+            rows_after_retry:
+              source: "table.references-table tbody tr"
+              required: false
+            used_container_filter_retry:
+              source: "runner visited_pages[].used_container_filter_retry"
+              required: true
+      - step: parse_all_pages_optional
+        when: "{all_pages in [1,true,yes,on]}"
+        method: GET_LOOP
+        path: "{page_path|/collector/packages}?page={n}"
+        params:
+          max_pages: "{max_pages|20}"
+        response:
+          content_type: text/html
+          parse:
+            pagination:
+              source: "a[href*=page=]"
+              required: false
+            packages:
+              source: "aggregated parsed rows"
+              required: false
+      verified_cli_example:
+        captured_at_utc: "2026-03-29T19:01:38Z"
+        command: "php run_list_container.php --base-url='https://dev-backend.colibri.az' --login='n' --password='S' --position='24458' --all-pages=1 --max-pages=20"
+        output:
+          status: "ok"
+          position: "24458"
+          count: 1
+          packages:
+            - Track: "H1025022509733301044"
+              Weight: "0.900"
+          visited_pages:
+            - page: 1
+              placeholder_detected: false
+              used_container_filter_retry: true
+      verified_cli_example_2:
+        captured_at_utc: "2026-03-29T19:02:08Z"
+        command: "php run_list_container.php --base-url='https://dev-backend.colibri.az' --login='w' --password='S' --position='24369'"
+        output:
+          status: "ok"
+          position: "24369"
+          count: 3
+          visited_pages:
+            - page: 1
+              placeholder_detected: false
+              used_container_filter_retry: true
+
   run_search_forward:
     cli_args:
       required: []
