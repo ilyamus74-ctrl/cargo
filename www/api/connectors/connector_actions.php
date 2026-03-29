@@ -667,6 +667,73 @@ function connectors_operation_config_templates(): array
                 ],
             ],
         ],
+
+        'add_container_to_flight_php' => [
+            'description' => 'Добавление контейнера в рейс через PHP runtime.',
+            'operation' => [
+                'operation_id' => 'add_container_to_flight_php',
+                'display_name' => 'Add container to flight (PHP)',
+                'module' => 'connectors',
+                'kind' => 'script',
+                'enabled' => 1,
+                'entrypoint' => 0,
+                'on_dependency_fail' => 'stop',
+                'run_after' => [],
+                'run_with' => [],
+                'run_finally' => [],
+                'config' => [
+                    'interpreter' => 'php',
+                    'script_path' => 'www/scripts/mvp/app/Forwarder/run_add_container_to_flight.php',
+                    'timeout_sec' => 180,
+                    'flight_id' => '{{flight_id}}',
+                    'departure_id' => '{{departure_id}}',
+                    'destination_id' => '{{destination_id}}',
+                    'count' => '{{count}}',
+                    'args' => [
+                        '--base-url={{base_url}}',
+                        '--login={{auth_username}}',
+                        '--password={{auth_password}}',
+                        '--page-path=/collector/containers',
+                        '--flight-id={{flight_id}}',
+                        '--departure-id={{departure_id}}',
+                        '--destination-id={{destination_id}}',
+                        '--count={{count}}',
+                    ],
+                ],
+            ],
+        ],
+        'delete_container_php' => [
+            'description' => 'Удаление контейнера из рейса через PHP runtime.',
+            'operation' => [
+                'operation_id' => 'delete_container_php',
+                'display_name' => 'Delete container from flight (PHP)',
+                'module' => 'connectors',
+                'kind' => 'script',
+                'enabled' => 1,
+                'entrypoint' => 0,
+                'on_dependency_fail' => 'stop',
+                'run_after' => [],
+                'run_with' => [],
+                'run_finally' => [],
+                'config' => [
+                    'interpreter' => 'php',
+                    'script_path' => 'www/scripts/mvp/app/Forwarder/run_del_container_from_flight.php',
+                    'timeout_sec' => 180,
+                    'flight_id' => '{{flight_id}}',
+                    'container_id' => '{{container_id}}',
+                    'args' => [
+                        '--base-url={{base_url}}',
+                        '--login={{auth_username}}',
+                        '--password={{auth_password}}',
+                        '--page-path=/collector/containers',
+                        '--delete-path=/collector/containers/delete',
+                        '--flight-id={{flight_id}}',
+                        '--container-id={{container_id}}',
+                        '--connector-id={{connector_id}}',
+                    ],
+                ],
+            ],
+        ],
         'edit_flight' => [
             'description' => 'Редактирование рейса через PHP runtime (обновление только даты и AWB).',
             'operation' => [
@@ -5201,6 +5268,15 @@ function connectors_execute_script_operation(array $operation, array $connector 
     if ($runtimeFlightId === '') {
         $runtimeFlightId = trim((string)($runtimeVars['target_flight_id'] ?? ''));
     }
+
+    $runtimeContainerId = trim((string)($runtimeVars['container_id'] ?? ''));
+    if ($runtimeContainerId === '') {
+        $runtimeContainerId = trim((string)($runtimeVars['target_container_id'] ?? ($runtimeVars['id'] ?? '')));
+    }
+    $runtimeContainerName = trim((string)($runtimeVars['container_name'] ?? ''));
+    if ($runtimeContainerName === '') {
+        $runtimeContainerName = trim((string)($runtimeVars['target_container_name'] ?? ($runtimeVars['container_label'] ?? '')));
+    }
     $runtimeDepartureId = trim((string)($runtimeVars['departure_id'] ?? ''));
     $runtimeDestinationId = trim((string)($runtimeVars['destination_id'] ?? ''));
     $runtimeCount = trim((string)($runtimeVars['count'] ?? ''));
@@ -5223,6 +5299,11 @@ function connectors_execute_script_operation(array $operation, array $connector 
         'target_flight_id' => $runtimeTargetFlightId !== '' ? $runtimeTargetFlightId : (string)($config['target_flight_id'] ?? ''),
         'target_flight_name' => $runtimeTargetFlightName !== '' ? $runtimeTargetFlightName : (string)($config['target_flight_name'] ?? ''),
         'flight_id' => $runtimeFlightId !== '' ? $runtimeFlightId : (string)($config['flight_id'] ?? ''),
+        'container_id' => $runtimeContainerId !== '' ? $runtimeContainerId : (string)($config['container_id'] ?? ''),
+        'target_container_id' => $runtimeContainerId !== '' ? $runtimeContainerId : (string)($config['target_container_id'] ?? ''),
+        'id' => $runtimeContainerId !== '' ? $runtimeContainerId : (string)($config['id'] ?? ''),
+        'container_name' => $runtimeContainerName !== '' ? $runtimeContainerName : (string)($config['container_name'] ?? ''),
+        'target_container_name' => $runtimeContainerName !== '' ? $runtimeContainerName : (string)($config['target_container_name'] ?? ''),
         'departure_id' => $runtimeDepartureId !== '' ? $runtimeDepartureId : (string)($config['departure_id'] ?? ''),
         'destination_id' => $runtimeDestinationId !== '' ? $runtimeDestinationId : (string)($config['destination_id'] ?? ''),
         'count' => $runtimeCount !== '' ? $runtimeCount : (string)($config['count'] ?? ''),

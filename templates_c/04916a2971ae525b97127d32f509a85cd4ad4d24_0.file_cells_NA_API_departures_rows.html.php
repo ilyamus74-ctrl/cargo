@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-03-29 11:02:48
+/* Smarty version 5.3.1, created on 2026-03-29 11:33:20
   from 'file:cells_NA_API_departures_rows.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_69c906d831d3b7_90661454',
+  'unifunc' => 'content_69c90e00a085a6_07174465',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '04916a2971ae525b97127d32f509a85cd4ad4d24' => 
     array (
       0 => 'cells_NA_API_departures_rows.html',
-      1 => 1774782116,
+      1 => 1774783980,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_69c906d831d3b7_90661454 (\Smarty\Template $_smarty_tpl) {
+function content_69c90e00a085a6_07174465 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 if ($_smarty_tpl->getSmarty()->getModifierCallback('count')($_smarty_tpl->getValue('departure_rows')) > 0) {?>
   <?php
@@ -305,7 +305,7 @@ $foreach1DoElse = false;
                         <?php if (mb_strtolower((string) $_smarty_tpl->getValue('flight')['status'], 'UTF-8') == 'open' && $_smarty_tpl->getValue('container')['can_delete_placeholder']) {?>
                           <button type="button"
                                   class="btn btn-sm btn-outline-danger js-departure-placeholder-action"
-                                  data-operation="delete_container_php"
+                                  data-operation="delete_container"
                                   data-refresh-operation="flight_list_php"
                                   data-connector-id="<?php echo $_smarty_tpl->getSmarty()->getModifierCallback('escape')((($tmp = $_smarty_tpl->getValue('flight')['connector_id'] ?? null)===null||$tmp==='' ? 0 ?? null : $tmp), 'htmlattr');?>
 "

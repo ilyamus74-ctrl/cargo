@@ -3156,13 +3156,17 @@ const CoreAPI = {
                 this.activeActionButton = null;
             }
         },
-        async runConnectorOperation(connectorId, operationId, runtimeVars) {
+        async runConnectorOperation(connectorId, operationId, runtimeVars, options = {}) {
             const fd = new FormData();
             fd.append('action', 'test_connector_operations');
             fd.append('connector_id', String(connectorId));
             fd.append('test_operation', String(operationId || ''));
             if (runtimeVars && typeof runtimeVars === 'object') {
                 fd.append('runtime_vars_json', JSON.stringify(runtimeVars));
+            }
+            const entrypointMode = String(options?.entrypointMode || '').trim();
+            if (entrypointMode) {
+                fd.append('entrypoint_mode', entrypointMode);
             }
             const data = await CoreAPI.client.call(fd);
             if (!data || data.status !== 'ok') {
@@ -3266,6 +3270,9 @@ const CoreAPI = {
             const statusEl = this.resolveActionStatusElement(button);
             const refreshOperation = String(button?.getAttribute('data-refresh-operation') || '').trim();
             const successMessage = String(button?.getAttribute('data-success-message') || '').trim();
+            const entrypointMode = String(button?.getAttribute('data-entrypoint-mode') || '').trim();
+            const entrypointModeNormalized = entrypointMode.toLowerCase();
+            const phpEntrypointRequired = ['php', 'entrypoint_php'].includes(entrypointModeNormalized);
             const runtimeVars = this.buildFlightRuntimeVars(button);
             const flight = runtimeVars.flight || '—';
             const requiresContainerReconcile = [
@@ -3298,12 +3305,15 @@ const CoreAPI = {
                 let effectiveOperationId = operationId;
                 let result;
                 try {
-                    result = await this.runConnectorOperation(connectorId, effectiveOperationId, runtimeVars);
+                    result = await this.runConnectorOperation(connectorId, effectiveOperationId, runtimeVars, {
+                        entrypointMode
+                    });
                 } catch (operationErr) {
                     const fallbackOperationId = operationId.endsWith('_php') ? operationId.replace(/_php$/i, '') : '';
                     const errorMessage = String(operationErr?.message || '').toLowerCase();
                     const shouldFallback = fallbackOperationId
                         && fallbackOperationId !== operationId
+                        && !phpEntrypointRequired
                         && (errorMessage.includes('не найдена') || errorMessage.includes('not found'));
 
                     if (!shouldFallback) {
@@ -3313,7 +3323,16 @@ const CoreAPI = {
                     console.warn(`core_api warning (departures ${operationId}): operation missing, fallback to ${fallbackOperationId}`, operationErr?.payload || operationErr);
                     this.setActionStatus(`Операция ${operationId} не найдена, пробую ${fallbackOperationId}...`, 'warning', statusEl);
                     effectiveOperationId = fallbackOperationId;
-                    result = await this.runConnectorOperation(connectorId, effectiveOperationId, runtimeVars);
+
+                    result = await this.runConnectorOperation(connectorId, effectiveOperationId, runtimeVars, {
+                        entrypointMode
+                    });
+                }
+
+                if (phpEntrypointRequired && result?.entrypoint_diagnostics?.fallback?.used) {
+                    const fallbackFrom = String(result?.entrypoint_diagnostics?.fallback?.from || '').trim();
+                    const fallbackTo = String(result?.entrypoint_diagnostics?.fallback?.to || '').trim();
+                    throw new Error(`PHP entrypoint обязателен: fallback ${fallbackFrom || 'php'} → ${fallbackTo || effectiveOperationId} недопустим.`);
                 }
 
                 this.setActionStatus(result?.message || `Операция ${effectiveOperationId} завершена.`, 'primary', statusEl);

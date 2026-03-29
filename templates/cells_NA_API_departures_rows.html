@@ -203,7 +203,7 @@
                         {if $flight.status|lower == 'open' && $container.can_delete_placeholder}
                           <button type="button"
                                   class="btn btn-sm btn-outline-danger js-departure-placeholder-action"
-                                  data-operation="delete_container_php"
+                                  data-operation="delete_container"
                                   data-refresh-operation="flight_list_php"
                                   data-connector-id="{$flight.connector_id|default:0|escape:'htmlattr'}"
                                   data-flight="{$flight.flight_no|default:''|escape:'htmlattr'}"
