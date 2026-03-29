@@ -40,7 +40,8 @@
         </div>
       </td>
       <td>
-        <span class="badge bg-light text-dark border">{$flight.containers_sync_status|default:'pending'|escape}</span>
+        {assign var=syncStatus value=$flight.containers_sync_status|default:'pending'|lower}
+        <span class="badge {if $syncStatus == "synced" || $syncStatus == "matched"}bg-success{elseif $syncStatus == "mismatch" || $syncStatus == "error"}bg-warning text-dark{else}bg-light text-dark border{/if}">{$flight.containers_sync_status|default:'pending'|escape}</span>
         {if $flight.containers_synced_at}
           <div class="small text-muted mt-1">{$flight.containers_synced_at|escape}</div>
         {/if}
@@ -179,8 +180,8 @@
                     <th scope="col">Рейс</th>
                     <th scope="col">Маршрут</th>
                     <th scope="col">AWB</th>
-                    <th scope="col">Мест</th>
-                    <th scope="col">Вес</th>
+                    <th scope="col">Склад (мест/вес)</th>
+                    <th scope="col">Форвард (мест/вес)</th>
                     <th scope="col" class="text-end">Действие</th>
                   </tr>
                 </thead>
@@ -196,8 +197,18 @@
                       <td>{$container.flight|default:'—'|escape}</td>
                       <td>{$container.departure|default:'—'|escape} → {$container.destination|default:'—'|escape}</td>
                       <td>{$container.awb|default:'—'|escape}</td>
-                      <td>{$container.packages_count|default:'—'|escape}</td>
-                      <td>{$container.total_weight|default:'—'|escape}</td>
+                      <td class="{if $container.compare_status|default:'pending' == 'matched'}table-success{elseif $container.compare_status|default:'pending' == 'mismatch'}table-warning{/if}">
+                        <div>{$container.warehouse_packages_count|default:'—'|escape} / {$container.warehouse_total_weight|default:'—'|escape}</div>
+                      </td>
+                      <td class="{if $container.compare_status|default:'pending' == 'matched'}table-success{elseif $container.compare_status|default:'pending' == 'mismatch'}table-warning{/if}">
+                        <div>{$container.packages_count|default:'—'|escape} / {$container.total_weight|default:'—'|escape}</div>
+                        {if $container.compared_at}
+                          <div class="small text-muted">{$container.compared_at|escape}</div>
+                        {/if}
+                        {if $container.compare_error && $container.compare_status|default:'pending' == 'mismatch'}
+                          <div class="small text-warning-emphasis">{$container.compare_error|escape}</div>
+                        {/if}
+                      </td>
 
                       <td class="text-end">
                         {if $flight.status|lower == 'open' && $container.can_delete_placeholder}

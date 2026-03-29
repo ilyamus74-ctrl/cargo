@@ -681,6 +681,11 @@ function connectors_subrunner_ensure_flight_containers_table(mysqli $db, string 
             awb VARCHAR(128) NOT NULL DEFAULT '',
             packages_count INT NULL,
             total_weight DECIMAL(12,3) NULL,
+            warehouse_packages_count INT NULL,
+            warehouse_total_weight DECIMAL(12,3) NULL,
+            compare_status VARCHAR(32) NOT NULL DEFAULT 'pending',
+            compared_at DATETIME NULL,
+            compare_error TEXT NULL,
             is_active TINYINT(1) NOT NULL DEFAULT 1,
             raw_json LONGTEXT NULL,
             created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -696,6 +701,37 @@ function connectors_subrunner_ensure_flight_containers_table(mysqli $db, string 
     if (!$db->query($sql)) {
         throw new RuntimeException('Не удалось создать таблицу flight_list_containers: ' . $db->error);
     }
+
+    connectors_subrunner_ensure_column(
+        $db,
+        $tableName,
+        'warehouse_packages_count',
+        "ALTER TABLE {$safeTable} ADD COLUMN warehouse_packages_count INT NULL AFTER total_weight"
+    );
+    connectors_subrunner_ensure_column(
+        $db,
+        $tableName,
+        'warehouse_total_weight',
+        "ALTER TABLE {$safeTable} ADD COLUMN warehouse_total_weight DECIMAL(12,3) NULL AFTER warehouse_packages_count"
+    );
+    connectors_subrunner_ensure_column(
+        $db,
+        $tableName,
+        'compare_status',
+        "ALTER TABLE {$safeTable} ADD COLUMN compare_status VARCHAR(32) NOT NULL DEFAULT 'pending' AFTER warehouse_total_weight"
+    );
+    connectors_subrunner_ensure_column(
+        $db,
+        $tableName,
+        'compared_at',
+        "ALTER TABLE {$safeTable} ADD COLUMN compared_at DATETIME NULL AFTER compare_status"
+    );
+    connectors_subrunner_ensure_column(
+        $db,
+        $tableName,
+        'compare_error',
+        "ALTER TABLE {$safeTable} ADD COLUMN compare_error TEXT NULL AFTER compared_at"
+    );
 }
 
 function connectors_subrunner_ensure_column(mysqli $db, string $tableName, string $columnName, string $alterSql): void
@@ -1238,6 +1274,21 @@ function connectors_subrunner_upsert_container_row(
             awb = VALUES(awb),
             packages_count = VALUES(packages_count),
             total_weight = VALUES(total_weight),
+            compare_status = CASE
+                WHEN warehouse_packages_count IS NULL OR warehouse_total_weight IS NULL THEN 'pending'
+                WHEN warehouse_packages_count = VALUES(packages_count)
+                     AND ABS(warehouse_total_weight - VALUES(total_weight)) < 0.0005 THEN 'matched'
+                ELSE 'mismatch'
+            END,
+            compared_at = UTC_TIMESTAMP(),
+            compare_error = CASE
+                WHEN warehouse_packages_count IS NULL OR warehouse_total_weight IS NULL
+                    THEN 'warehouse metrics are not set'
+                WHEN warehouse_packages_count = VALUES(packages_count)
+                     AND ABS(warehouse_total_weight - VALUES(total_weight)) < 0.0005
+                    THEN NULL
+                ELSE CONCAT('warehouse=', COALESCE(warehouse_packages_count, 'null'), '/', COALESCE(warehouse_total_weight, 'null'), '; forwarder=', COALESCE(VALUES(packages_count), 'null'), '/', COALESCE(VALUES(total_weight), 'null'))
+            END,
             is_active = VALUES(is_active),
             raw_json = VALUES(raw_json)
     ";

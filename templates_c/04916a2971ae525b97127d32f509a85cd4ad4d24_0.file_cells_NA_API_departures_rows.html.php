@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-03-29 13:34:06
+/* Smarty version 5.3.1, created on 2026-03-29 19:52:58
   from 'file:cells_NA_API_departures_rows.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_69c92a4ea17bf6_18534195',
+  'unifunc' => 'content_69c9831a046426_78821942',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '04916a2971ae525b97127d32f509a85cd4ad4d24' => 
     array (
       0 => 'cells_NA_API_departures_rows.html',
-      1 => 1774791233,
+      1 => 1774813650,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_69c92a4ea17bf6_18534195 (\Smarty\Template $_smarty_tpl) {
+function content_69c9831a046426_78821942 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 if ($_smarty_tpl->getSmarty()->getModifierCallback('count')($_smarty_tpl->getValue('departure_rows')) > 0) {?>
   <?php
@@ -85,7 +85,8 @@ $foreach0DoElse = false;
         </div>
       </td>
       <td>
-        <span class="badge bg-light text-dark border"><?php echo htmlspecialchars((string)(($tmp = $_smarty_tpl->getValue('flight')['containers_sync_status'] ?? null)===null||$tmp==='' ? 'pending' ?? null : $tmp), ENT_QUOTES, 'UTF-8', true);?>
+        <?php $_smarty_tpl->assign('syncStatus', mb_strtolower((string) (($tmp = $_smarty_tpl->getValue('flight')['containers_sync_status'] ?? null)===null||$tmp==='' ? 'pending' ?? null : $tmp), 'UTF-8'), false, NULL);?>
+        <span class="badge <?php if ($_smarty_tpl->getValue('syncStatus') == "synced" || $_smarty_tpl->getValue('syncStatus') == "matched") {?>bg-success<?php } elseif ($_smarty_tpl->getValue('syncStatus') == "mismatch" || $_smarty_tpl->getValue('syncStatus') == "error") {?>bg-warning text-dark<?php } else { ?>bg-light text-dark border<?php }?>"><?php echo htmlspecialchars((string)(($tmp = $_smarty_tpl->getValue('flight')['containers_sync_status'] ?? null)===null||$tmp==='' ? 'pending' ?? null : $tmp), ENT_QUOTES, 'UTF-8', true);?>
 </span>
         <?php if ($_smarty_tpl->getValue('flight')['containers_synced_at']) {?>
           <div class="small text-muted mt-1"><?php echo htmlspecialchars((string)$_smarty_tpl->getValue('flight')['containers_synced_at'], ENT_QUOTES, 'UTF-8', true);?>
@@ -268,8 +269,8 @@ _edit"
                     <th scope="col">Рейс</th>
                     <th scope="col">Маршрут</th>
                     <th scope="col">AWB</th>
-                    <th scope="col">Мест</th>
-                    <th scope="col">Вес</th>
+                    <th scope="col">Склад (мест/вес)</th>
+                    <th scope="col">Форвард (мест/вес)</th>
                     <th scope="col" class="text-end">Действие</th>
                   </tr>
                 </thead>
@@ -296,10 +297,24 @@ $foreach1DoElse = false;
 </td>
                       <td><?php echo htmlspecialchars((string)(($tmp = $_smarty_tpl->getValue('container')['awb'] ?? null)===null||$tmp==='' ? '—' ?? null : $tmp), ENT_QUOTES, 'UTF-8', true);?>
 </td>
-                      <td><?php echo htmlspecialchars((string)(($tmp = $_smarty_tpl->getValue('container')['packages_count'] ?? null)===null||$tmp==='' ? '—' ?? null : $tmp), ENT_QUOTES, 'UTF-8', true);?>
-</td>
-                      <td><?php echo htmlspecialchars((string)(($tmp = $_smarty_tpl->getValue('container')['total_weight'] ?? null)===null||$tmp==='' ? '—' ?? null : $tmp), ENT_QUOTES, 'UTF-8', true);?>
-</td>
+                      <td class="<?php if ((($tmp = $_smarty_tpl->getValue('container')['compare_status'] ?? null)===null||$tmp==='' ? 'pending' ?? null : $tmp) == 'matched') {?>table-success<?php } elseif ((($tmp = $_smarty_tpl->getValue('container')['compare_status'] ?? null)===null||$tmp==='' ? 'pending' ?? null : $tmp) == 'mismatch') {?>table-warning<?php }?>">
+                        <div><?php echo htmlspecialchars((string)(($tmp = $_smarty_tpl->getValue('container')['warehouse_packages_count'] ?? null)===null||$tmp==='' ? '—' ?? null : $tmp), ENT_QUOTES, 'UTF-8', true);?>
+ / <?php echo htmlspecialchars((string)(($tmp = $_smarty_tpl->getValue('container')['warehouse_total_weight'] ?? null)===null||$tmp==='' ? '—' ?? null : $tmp), ENT_QUOTES, 'UTF-8', true);?>
+</div>
+                      </td>
+                      <td class="<?php if ((($tmp = $_smarty_tpl->getValue('container')['compare_status'] ?? null)===null||$tmp==='' ? 'pending' ?? null : $tmp) == 'matched') {?>table-success<?php } elseif ((($tmp = $_smarty_tpl->getValue('container')['compare_status'] ?? null)===null||$tmp==='' ? 'pending' ?? null : $tmp) == 'mismatch') {?>table-warning<?php }?>">
+                        <div><?php echo htmlspecialchars((string)(($tmp = $_smarty_tpl->getValue('container')['packages_count'] ?? null)===null||$tmp==='' ? '—' ?? null : $tmp), ENT_QUOTES, 'UTF-8', true);?>
+ / <?php echo htmlspecialchars((string)(($tmp = $_smarty_tpl->getValue('container')['total_weight'] ?? null)===null||$tmp==='' ? '—' ?? null : $tmp), ENT_QUOTES, 'UTF-8', true);?>
+</div>
+                        <?php if ($_smarty_tpl->getValue('container')['compared_at']) {?>
+                          <div class="small text-muted"><?php echo htmlspecialchars((string)$_smarty_tpl->getValue('container')['compared_at'], ENT_QUOTES, 'UTF-8', true);?>
+</div>
+                        <?php }?>
+                        <?php if ($_smarty_tpl->getValue('container')['compare_error'] && (($tmp = $_smarty_tpl->getValue('container')['compare_status'] ?? null)===null||$tmp==='' ? 'pending' ?? null : $tmp) == 'mismatch') {?>
+                          <div class="small text-warning-emphasis"><?php echo htmlspecialchars((string)$_smarty_tpl->getValue('container')['compare_error'], ENT_QUOTES, 'UTF-8', true);?>
+</div>
+                        <?php }?>
+                      </td>
 
                       <td class="text-end">
                         <?php if (mb_strtolower((string) $_smarty_tpl->getValue('flight')['status'], 'UTF-8') == 'open' && $_smarty_tpl->getValue('container')['can_delete_placeholder']) {?>

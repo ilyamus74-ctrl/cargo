@@ -246,12 +246,24 @@ function forwarder_sync_flight_containers_kernel(array $params): array
     }
 
     $snapshotRow = $flightRow;
+
+    $compareStats = forwarder_sync_kernel_collect_compare_stats(
+        $db,
+        $resolvedContainersTable,
+        $connectorId,
+        (string)($flightRow['external_id'] ?? '')
+    );
     $snapshotRow['containers_url'] = '/collector/get-containers?flight_id=' . rawurlencode($flightId);
     $snapshotRow['containers_json'] = (string)json_encode($normalizedContainers, JSON_UNESCAPED_UNICODE);
     $snapshotRow['containers_count'] = count($normalizedContainers);
     $snapshotRow['containers_synced_at'] = gmdate('Y-m-d H:i:s');
-    $snapshotRow['containers_sync_status'] = empty($normalizedContainers) ? 'empty' : 'synced';
-    $snapshotRow['containers_sync_error'] = null;
+    if (!empty($compareStats['mismatch'])) {
+        $snapshotRow['containers_sync_status'] = 'mismatch';
+        $snapshotRow['containers_sync_error'] = 'Есть расхождения по местам/весу: ' . (int)$compareStats['mismatch'];
+    } else {
+        $snapshotRow['containers_sync_status'] = empty($normalizedContainers) ? 'empty' : 'synced';
+        $snapshotRow['containers_sync_error'] = null;
+    }
     connectors_subrunner_update_flight_container_snapshot($db, $safeFlightTable, (int)$flightRow['id'], $snapshotRow);
 
     return [
@@ -260,6 +272,7 @@ function forwarder_sync_flight_containers_kernel(array $params): array
         'written' => $written,
         'fetched' => count($rows),
         'deactivated' => $deactivated,
+        'compare_stats' => $compareStats,
         'flight_table' => $safeFlightTable,
         'containers_table' => $resolvedContainersTable,
         'flight_row_id' => (int)$flightRow['id'],
@@ -267,6 +280,44 @@ function forwarder_sync_flight_containers_kernel(array $params): array
     ];
 }
 
+function forwarder_sync_kernel_collect_compare_stats(
+    mysqli $db,
+    string $containersTable,
+    int $connectorId,
+    string $flightExternalId
+): array {
+    if ($flightExternalId === '') {
+        return ['total' => 0, 'matched' => 0, 'mismatch' => 0, 'pending' => 0];
+    }
+
+    $safeTable = '`' . str_replace('`', '``', $containersTable) . '`';
+    $sql = "SELECT
+                COUNT(*) AS total,
+                SUM(CASE WHEN compare_status = 'matched' THEN 1 ELSE 0 END) AS matched,
+                SUM(CASE WHEN compare_status = 'mismatch' THEN 1 ELSE 0 END) AS mismatch,
+                SUM(CASE WHEN compare_status = 'pending' THEN 1 ELSE 0 END) AS pending
+            FROM {$safeTable}
+            WHERE connector_id = ? AND flight_external_id = ? AND is_active = 1";
+    $stmt = $db->prepare($sql);
+    if (!$stmt) {
+        return ['total' => 0, 'matched' => 0, 'mismatch' => 0, 'pending' => 0];
+    }
+    $stmt->bind_param('is', $connectorId, $flightExternalId);
+    if (!$stmt->execute()) {
+        $stmt->close();
+        return ['total' => 0, 'matched' => 0, 'mismatch' => 0, 'pending' => 0];
+    }
+
+    $row = $stmt->get_result()?->fetch_assoc() ?: [];
+    $stmt->close();
+
+    return [
+        'total' => (int)($row['total'] ?? 0),
+        'matched' => (int)($row['matched'] ?? 0),
+        'mismatch' => (int)($row['mismatch'] ?? 0),
+        'pending' => (int)($row['pending'] ?? 0),
+    ];
+}
 
 function forwarder_sync_kernel_count_active_containers(
     mysqli $db,

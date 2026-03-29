@@ -196,12 +196,10 @@ function departures_decode_containers($rawContainers): array
         if (!is_array($container)) {
             continue;
         }
-
+        $containerExternalId = trim((string)($container['container_external_id'] ?? ''));
         $packagesCountRaw = $container['packages_count'] ?? null;
         $totalWeightRaw = $container['total_weight'] ?? null;
 
-        $hasZeroPackages = departures_value_is_zero($packagesCountRaw);
-        $hasZeroWeight = departures_value_is_zero($totalWeightRaw);
         $hasZeroPackages = departures_value_is_zero($packagesCountRaw);
         $hasZeroWeight = departures_value_is_zero($totalWeightRaw);
         $hasPackages = is_numeric($packagesCountRaw) && (float)$packagesCountRaw > 0.0;
@@ -248,6 +246,33 @@ function departures_value_is_zero($value): bool
     return (float)$normalized == 0.0;
 }
 
+function departures_get_table_columns(mysqli $dbcnx, string $tableName): array
+{
+    static $cache = [];
+    if (isset($cache[$tableName])) {
+        return $cache[$tableName];
+    }
+
+    if (!departures_table_exists($dbcnx, $tableName)) {
+        $cache[$tableName] = [];
+        return [];
+    }
+
+    $safeTable = '`' . str_replace('`', '``', $tableName) . '`';
+    $columns = [];
+    if ($res = $dbcnx->query("SHOW COLUMNS FROM {$safeTable}")) {
+        while ($row = $res->fetch_assoc()) {
+            $field = trim((string)($row['Field'] ?? ''));
+            if ($field !== '') {
+                $columns[] = $field;
+            }
+        }
+        $res->free();
+    }
+
+    $cache[$tableName] = $columns;
+    return $columns;
+}
 
 function departures_load_containers_from_table(mysqli $dbcnx, string $flightTableName, int $connectorId, int $flightRecordId, string $flightExternalId): array
 {
@@ -261,8 +286,26 @@ function departures_load_containers_from_table(mysqli $dbcnx, string $flightTabl
     }
 
     $safeContainersTable = '`' . str_replace('`', '``', $containersTableName) . '`';
+
+    $availableColumns = array_map('strtolower', departures_get_table_columns($dbcnx, $containersTableName));
+    $selectColumns = [
+        'container_external_id',
+        'name',
+        'flight',
+        'departure',
+        'destination',
+        'awb',
+        'packages_count',
+        'total_weight',
+    ];
+    foreach (['warehouse_packages_count', 'warehouse_total_weight', 'compare_status', 'compared_at', 'compare_error'] as $optionalColumn) {
+        if (in_array(strtolower($optionalColumn), $availableColumns, true)) {
+            $selectColumns[] = $optionalColumn;
+        }
+    }
+    $selectSql = implode(', ', $selectColumns);
     if ($flightRecordId > 0) {
-        $sql = "SELECT container_external_id, name, flight, departure, destination, awb, packages_count, total_weight
+        $sql = "SELECT {$selectSql}
                   FROM {$safeContainersTable}
                  WHERE connector_id = ? AND flight_record_id = ? AND is_active = 1
                  ORDER BY updated_at DESC, id DESC";
@@ -273,7 +316,7 @@ function departures_load_containers_from_table(mysqli $dbcnx, string $flightTabl
         }
         $stmt->bind_param('ii', $connectorId, $flightRecordId);
     } else {
-        $sql = "SELECT container_external_id, name, flight, departure, destination, awb, packages_count, total_weight
+        $sql = "SELECT container_external_id, name, flight, departure, destination, awb, packages_count, total_weight, warehouse_packages_count, warehouse_total_weight, compare_status, compared_at, compare_error
                   FROM {$safeContainersTable}
                  WHERE connector_id = ? AND flight_external_id = ? AND is_active = 1
                  ORDER BY updated_at DESC, id DESC";
@@ -307,6 +350,21 @@ function departures_load_containers_from_table(mysqli $dbcnx, string $flightTabl
             $hasPackages = is_numeric($packagesCountRaw) && (float)$packagesCountRaw > 0.0;
             $hasWeight = is_numeric($totalWeightRaw) && (float)$totalWeightRaw > 0.0;
 
+            $warehousePackagesRaw = $row['warehouse_packages_count'] ?? null;
+            $warehouseWeightRaw = $row['warehouse_total_weight'] ?? null;
+            $compareStatus = trim((string)($row['compare_status'] ?? 'pending'));
+            if ($compareStatus === '') {
+                if (is_numeric($warehousePackagesRaw) && is_numeric($warehouseWeightRaw)
+                    && is_numeric($packagesCountRaw) && is_numeric($totalWeightRaw)
+                    && (int)$warehousePackagesRaw === (int)$packagesCountRaw
+                    && abs((float)$warehouseWeightRaw - (float)$totalWeightRaw) < 0.0005) {
+                    $compareStatus = 'matched';
+                } elseif (is_numeric($warehousePackagesRaw) && is_numeric($warehouseWeightRaw)) {
+                    $compareStatus = 'mismatch';
+                } else {
+                    $compareStatus = 'pending';
+                }
+            }
             $containers[] = [
                 'container_external_id' => $containerExternalId,
                 'name' => trim((string)($row['name'] ?? '')),
@@ -316,6 +374,11 @@ function departures_load_containers_from_table(mysqli $dbcnx, string $flightTabl
                 'awb' => trim((string)($row['awb'] ?? '')),
                 'packages_count' => departures_format_value($packagesCountRaw, 0),
                 'total_weight' => departures_format_value($totalWeightRaw),
+                'warehouse_packages_count' => departures_format_value($warehousePackagesRaw, 0),
+                'warehouse_total_weight' => departures_format_value($warehouseWeightRaw),
+                'compare_status' => $compareStatus,
+                'compared_at' => departures_format_datetime($row['compared_at'] ?? null),
+                'compare_error' => trim((string)($row['compare_error'] ?? '')),
                 'is_empty_placeholder' => $hasZeroPackages && $hasZeroWeight,
                 'can_delete_placeholder' => $containerExternalId !== '' && $hasZeroPackages,
                 'can_close_flight' => $containerExternalId !== '' && $hasPackages && $hasWeight,
