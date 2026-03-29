@@ -332,12 +332,12 @@ $verifyStatus = ($verifyOk && $afterContainersOk && $containerVerified) ? 'passe
 $overallOk = $submitOk && $submitCaseOk;
 $syncResult = [
     'status' => 'skipped',
-    'message' => 'sync disabled: connector_id is not provided',
+    'message' => 'sync disabled: add --connector-id or ensure flight_id exists in flight table for connector autodetect',
     'written' => 0,
     'fetched' => 0,
     'deactivated' => 0,
 ];
-if ($overallOk && $connectorId > 0) {
+if ($overallOk) {
     $syncResult = forwarder_sync_flight_containers_kernel([
         'repo_root' => dirname(__DIR__, 5),
         'session_client' => $sessionClient,
@@ -347,7 +347,7 @@ if ($overallOk && $connectorId > 0) {
         'containers_table' => $containersTable,
         'page_path' => $pagePath,
         'csrf_token' => $csrfToken,
-        'deactivate_missing' => false,
+        'deactivate_missing' => true,
     ]);
 }
 $fallbackUsed = false;

@@ -10,7 +10,7 @@ use App\Forwarder\Http\ForwarderSessionClient;
  * @param array{
  *   repo_root:string,
  *   session_client:ForwarderSessionClient,
- *   connector_id:int,
+ *   connector_id?:int,
  *   flight_id:string,
  *   flight_table?:string,
  *   containers_table?:string,
@@ -34,10 +34,10 @@ function forwarder_sync_flight_containers_kernel(array $params): array
     $deactivateMissing = !array_key_exists('deactivate_missing', $params) || !empty($params['deactivate_missing']);
     $sessionClient = $params['session_client'] ?? null;
 
-    if ($repoRoot === '' || $flightId === '' || $connectorId <= 0 || !($sessionClient instanceof ForwarderSessionClient)) {
+    if ($repoRoot === '' || $flightId === '' || !($sessionClient instanceof ForwarderSessionClient)) {
         return [
             'status' => 'skipped',
-            'message' => 'sync prerequisites are missing (repo_root/session_client/connector_id/flight_id)',
+            'message' => 'sync prerequisites are missing (repo_root/session_client/flight_id)',
             'written' => 0,
             'fetched' => 0,
             'deactivated' => 0,
@@ -93,6 +93,21 @@ function forwarder_sync_flight_containers_kernel(array $params): array
 
     connectors_subrunner_ensure_flight_table($db, $safeFlightTable);
     connectors_subrunner_ensure_flight_containers_table($db, $resolvedContainersTable);
+
+    if ($connectorId <= 0) {
+        $connectorId = forwarder_sync_kernel_detect_connector_id($db, $safeFlightTable, $flightId);
+    }
+    if ($connectorId <= 0) {
+        return [
+            'status' => 'error',
+            'message' => 'connector_id is not provided and could not be detected by flight_id=' . $flightId,
+            'written' => 0,
+            'fetched' => 0,
+            'deactivated' => 0,
+            'flight_table' => $safeFlightTable,
+            'containers_table' => $resolvedContainersTable,
+        ];
+    }
 
     $flightRow = forwarder_sync_kernel_load_flight_row($db, $safeFlightTable, $connectorId, $flightId);
     if ($flightRow === null) {
@@ -312,6 +327,59 @@ function forwarder_sync_kernel_load_flight_row(mysqli $db, string $flightTable, 
     return is_array($row) ? $row : null;
 }
 
+
+function forwarder_sync_kernel_detect_connector_id(mysqli $db, string $flightTable, string $flightId): int
+{
+    $safeTable = '`' . str_replace('`', '``', $flightTable) . '`';
+    $sql = "SELECT connector_id FROM {$safeTable} WHERE external_id = ? ORDER BY is_active DESC, updated_at DESC, id DESC LIMIT 1";
+    $stmt = $db->prepare($sql);
+    if (!$stmt) {
+        throw new RuntimeException('DB prepare error (detect connector_id): ' . $db->error);
+    }
+
+    $stmt->bind_param('s', $flightId);
+    if (!$stmt->execute()) {
+        $err = $stmt->error;
+        $stmt->close();
+        throw new RuntimeException('DB execute error (detect connector_id): ' . $err);
+    }
+
+    $result = $stmt->get_result();
+    $row = $result instanceof mysqli_result ? $result->fetch_assoc() : null;
+    if ($result instanceof mysqli_result) {
+        $result->close();
+    }
+    $stmt->close();
+
+    return is_array($row) ? (int)($row['connector_id'] ?? 0) : 0;
+}
+
+function forwarder_sync_kernel_detect_connector_id(mysqli $db, string $flightTable, string $flightId): int
+{
+    $safeTable = '`' . str_replace('`', '``', $flightTable) . '`';
+    $sql = "SELECT connector_id FROM {$safeTable} WHERE external_id = ? ORDER BY is_active DESC, updated_at DESC, id DESC LIMIT 1";
+    $stmt = $db->prepare($sql);
+    if (!$stmt) {
+        throw new RuntimeException('DB prepare error (detect connector_id): ' . $db->error);
+    }
+
+    $stmt->bind_param('s', $flightId);
+    if (!$stmt->execute()) {
+        $err = $stmt->error;
+        $stmt->close();
+        throw new RuntimeException('DB execute error (detect connector_id): ' . $err);
+    }
+
+    $result = $stmt->get_result();
+    $row = $result instanceof mysqli_result ? $result->fetch_assoc() : null;
+    if ($result instanceof mysqli_result) {
+        $result->close();
+    }
+    $stmt->close();
+
+    return is_array($row) ? (int)($row['connector_id'] ?? 0) : 0;
+}
+
 function forwarder_sync_kernel_extract_csrf_token(string $html): string
 {
     libxml_use_internal_errors(true);
@@ -346,7 +414,19 @@ function forwarder_sync_kernel_extract_csrf_token(string $html): string
 function forwarder_sync_kernel_extract_containers_rows(array $payload): array
 {
     $data = $payload['data'] ?? $payload;
+
+
+    if (is_string($data)) {
+        return forwarder_sync_kernel_extract_containers_rows_from_html($data);
+    }
+
+    if (is_array($data) && isset($data['html']) && is_string($data['html'])) {
+        return forwarder_sync_kernel_extract_containers_rows_from_html((string)$data['html']);
+    }
     if (!is_array($data)) {
+        if (isset($payload['html']) && is_string($payload['html'])) {
+            return forwarder_sync_kernel_extract_containers_rows_from_html((string)$payload['html']);
+        }
         return [];
     }
 
@@ -355,6 +435,73 @@ function forwarder_sync_kernel_extract_containers_rows(array $payload): array
         if (is_array($row)) {
             $rows[] = $row;
         }
+    }
+
+    return $rows;
+}
+
+
+/** @return array<int,array<string,mixed>> */
+function forwarder_sync_kernel_extract_containers_rows_from_html(string $html): array
+{
+    $html = trim($html);
+    if ($html === '') {
+        return [];
+    }
+
+    libxml_use_internal_errors(true);
+    $dom = new DOMDocument();
+    $loaded = @$dom->loadHTML($html);
+    libxml_clear_errors();
+    if (!$loaded) {
+        return [];
+    }
+
+    $xpath = new DOMXPath($dom);
+    $rowNodes = $xpath->query('//table[contains(concat(" ", normalize-space(@class), " "), " references-table ")]//tbody//tr');
+    if (!($rowNodes instanceof DOMNodeList) || $rowNodes->length === 0) {
+        $rowNodes = $xpath->query('//tbody//tr');
+    }
+    if (!($rowNodes instanceof DOMNodeList)) {
+        return [];
+    }
+
+    $rows = [];
+    foreach ($rowNodes as $rowNode) {
+        if (!($rowNode instanceof DOMElement)) {
+            continue;
+        }
+
+        $cells = [];
+        foreach ($xpath->query('.//td', $rowNode) as $tdNode) {
+            if ($tdNode instanceof DOMElement) {
+                $cells[] = trim((string)$tdNode->textContent);
+            }
+        }
+        if ($cells === []) {
+            continue;
+        }
+
+        $rowIdAttr = trim((string)$rowNode->getAttribute('id'));
+        $containerId = '';
+        if ($rowIdAttr !== '' && preg_match('/(\d+)/', $rowIdAttr, $m)) {
+            $containerId = (string)$m[1];
+        }
+        if ($containerId === '' && preg_match('/(\d+)/', (string)($cells[0] ?? ''), $m)) {
+            $containerId = (string)$m[1];
+        }
+
+        $rows[] = [
+            'id' => $containerId,
+            'name' => (string)($cells[0] ?? ''),
+            'flight' => (string)($cells[1] ?? ''),
+            'departure' => (string)($cells[2] ?? ''),
+            'destination' => (string)($cells[3] ?? ''),
+            'awb' => (string)($cells[4] ?? ''),
+            'packages_count' => (string)($cells[5] ?? ''),
+            'total_weight' => (string)($cells[6] ?? ''),
+            'raw_row_html' => $dom->saveHTML($rowNode),
+        ];
     }
 
     return $rows;
