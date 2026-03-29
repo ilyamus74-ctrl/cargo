@@ -132,11 +132,15 @@
 ## 4) Сбор посылок (`/collector`) — добавление и редактирование
 
 ### 4.1 Добавление посылки
-- **Статус:** ⏳ Не описано в текущем контракте.
-- **План разведки:**
-  - открыть `/collector`,
-  - определить форму добавления и submit endpoint,
-  - зафиксировать обязательные поля (track, получатель, вес, стоимость и т.д.).
+- **Статус:** ✅ Добавлен flow `run_add_package` и endpoint-контракт.
+- **Текущая реализация:**
+  - GET `/collector` (получить `form#form`, default payload и endpoint submit),
+  - POST `/collector/add` (или action из формы),
+  - payload поддерживает основные поля web-form: `number`, `client_name_surname`, `destination`, `gross_weight`, `currency`, `quantity`, `status_id` + доп. поля (`category`, `invoice`, `title`, `subCat`, и т.д.),
+  - добавлены business-правила в раннере:
+    - если `client_id` пустой или `0` → `status_id` принудительно `36`, `client_name_surname` обязателен;
+    - если `client_id` задан (не `0`) → `status_id` принудительно `37`, `client_name_surname` опционален (форвардер может автоподставить корректное ФИО),
+  - ожидаемый success-response: JSON с `case=success` и `internal_id`.
 - **Целевой метод:** `PackageApi::create(payload)`.
 
 ### 4.2 Редактирование посылки

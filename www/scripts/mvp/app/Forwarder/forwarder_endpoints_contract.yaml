@@ -722,7 +722,138 @@ entrypoints:
               connector_id: "13"
               correlation_id: "run-report-single-20260329162341-94e3b875"
 
-
+  run_add_package:
+    cli_args:
+      required:
+        - [number, track, tracking, tracking_number]
+        - [destination]
+        - [gross-weight, gross_weight, weight]
+        - [currency]
+        - [quantity]
+      optional:
+        - [base-url, base_url]
+        - [login]
+        - [password]
+        - [session-file, session_file]
+        - [session-ttl-seconds, session_ttl_seconds]
+        - [page-path, page_path]
+        - [submit-path, submit_path, add-path, add_path, url]
+        - [total-images, total_images]
+        - [length]
+        - [height]
+        - [width]
+        - [client-id, client_id]
+        - [seller]
+        - [category]
+        - [invoice]
+        - [container-id, container_id]
+        - [position]
+        - [tracking-internal-same, tracking_internal_same]
+        - [description]
+        - [tariff-type-id, tariff_type_id]
+        - [is-legal-entity, is_legal_entity]
+        - [invoice-status, invoice_status]
+        - [title]
+        - [sub-cat, sub_cat, subCat]
+    rules:
+      - when: "client_id is empty or 0"
+        enforce:
+          status_id: "36"
+          client_name_surname: "required"
+      - when: "client_id is non-zero numeric"
+        enforce:
+          status_id: "37"
+          client_name_surname: "optional (forwarder may auto-resolve real FIO)"
+    flow:
+      - step: open_collector_page
+        method: GET
+        path: "{page_path|/collector}"
+        params: {}
+        response:
+          content_type: text/html
+          parse:
+            add_form_action:
+              source: "form#form[action*=collector/add]"
+              required: false
+            add_form_method:
+              source: "form#form@method"
+              required: false
+            form_defaults:
+              source: "input/select/textarea[name] default values from add form"
+              required: false
+          example:
+            status: 200
+            body_fragment: "<form id='form' action='/collector/add' method='POST'>...</form>"
+      - step: submit_package_add
+        method: "{form_method|POST}"
+        path: "{form_action|/collector/add}"
+        form:
+          total_images: "{total_images|0}"
+          number: "{number}"
+          length: "{length|''}"
+          height: "{height|''}"
+          width: "{width|''}"
+          client_id: "{client_id|0}"
+          client_name_surname: "{client_name_surname}"
+          seller: "{seller|''}"
+          destination: "{destination}"
+          gross_weight: "{gross_weight}"
+          currency: "{currency}"
+          category: "{category|''}"
+          invoice: "{invoice|0}"
+          quantity: "{quantity}"
+          container_id: "{container_id|''}"
+          position: "{position|''}"
+          tracking_internal_same: "{tracking_internal_same|0}"
+          status_id: "{status_id}"
+          description: "{description|''}"
+          tariff_type_id: "{tariff_type_id|1}"
+          is_legal_entity: "{is_legal_entity|off}"
+          invoice_status: "{invoice_status|1}"
+          title: "{title|''}"
+          subCat: "{subCat|''}"
+          status_id_business_rule:
+            source: "if client_id in ['', '0'] => status_id=36; else status_id=37"
+            required: true
+        response:
+          content_type: application/json
+          parse:
+            case:
+              source: "$.case"
+              required: false
+            internal_id:
+              source: "$.internal_id"
+              required: false
+            amount_response:
+              source: "$.amount_response"
+              required: false
+            message:
+              source: "$.content | $.title"
+              required: false
+            status_id_effective:
+              source: "runner result.status_id_effective"
+              required: false
+            status_id_was_adjusted:
+              source: "runner result.status_id_was_adjusted"
+              required: false
+          example:
+            status: 200
+            json:
+              case: "success"
+              title: "Success!"
+              type: "success"
+              content: "Success!"
+              amount_response:
+                type: true
+                amount: "8.45"
+                currency: "EUR"
+                currency_id: 5
+                chargeable_weight_type: 1
+                used_contract_detail_id: 21
+              internal_id: "CBR859606"
+              flight_details: false
+              has_container_details: false
+              container_details: []
 
 common_endpoints:
   auth:
