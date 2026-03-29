@@ -37,6 +37,15 @@ const CoreAPI = {
          */
         async parseJSON(response) {
             const text = await response.text();
+            if (!text || text.trim() === '') {
+                const err = new Error(`Пустой ответ от core_api.php (HTTP ${response.status}).`);
+                err.payload = {
+                    status: 'error',
+                    message: 'core_api.php вернул пустой ответ',
+                    http_status: response.status
+                };
+                throw err;
+            }
             try {
                 return JSON.parse(text);
             } catch (err) {
@@ -3035,10 +3044,6 @@ const CoreAPI = {
                 const placeholderButton = event.target.closest('.js-departure-placeholder-action');
                 if (placeholderButton) {
                     const operation = placeholderButton.getAttribute('data-operation') || '';
-                    if (operation === 'add_flight' || operation === 'add_flight_php') {
-                        this.triggerAddFlight(placeholderButton);
-                        return;
-                    }
                     if (operation === 'delete_flight' && placeholderButton.disabled) {
                         return;
                     }
@@ -3291,6 +3296,21 @@ const CoreAPI = {
                 }
                 if (!runtimeVars.awb) {
                     alert('Укажите новый AWB цифрами без префикса AWB.');
+                    const awbSelector = String(button?.getAttribute('data-awb-input') || button?.getAttribute('data-input') || '').trim();
+                    this.root?.querySelector(awbSelector)?.focus();
+                    return;
+                }
+            }
+
+            if (operationId === 'add_flight' || operationId === 'add_flight_php') {
+                if (!runtimeVars.set_date) {
+                    alert('Укажите дату рейса.');
+                    const dateSelector = String(button?.getAttribute('data-date-input') || '').trim();
+                    this.root?.querySelector(dateSelector)?.focus();
+                    return;
+                }
+                if (!runtimeVars.add_flight) {
+                    alert('Укажите AWB цифрами без префикса AWB.');
                     const awbSelector = String(button?.getAttribute('data-awb-input') || button?.getAttribute('data-input') || '').trim();
                     this.root?.querySelector(awbSelector)?.focus();
                     return;
