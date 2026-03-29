@@ -61,6 +61,13 @@ final class ForwarderHttpClient
             $method = 'GET';
         }
         $url = $this->config->baseUrl() . $endpointPath;
+        if ($method === 'GET' && $payload !== []) {
+            $query = http_build_query($payload, '', '&', PHP_QUERY_RFC3986);
+            if ($query !== '') {
+                $separator = str_contains($url, '?') ? '&' : '?';
+                $url .= $separator . $query;
+            }
+        }
         $attempt = 0;
         $maxAttempts = $this->config->retryCount() + 1;
         $lastError = '';

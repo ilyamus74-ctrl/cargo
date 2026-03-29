@@ -61,12 +61,12 @@
 ## 2) Контейнеры (containers)
 
 ### 2.1 Список контейнеров
-- **Статус:** ✅ Частично есть (`/collector/get-containers` по `flight_id`, `run_add_container_to_flight`).
+- **Статус:** ✅ Есть (`/collector/get-containers` по `flight_id`, `run_list_container_to_flight`).
 - **Действия:**
   - GET `/collector/get-containers` (`flight_id`, `_token`)
   - GET `/collector/containers?search=1&flight={flight_id}`
-- **Следующий шаг миграции:** `ContainerApi::listByFlight(flightId)`.
-
+- **CLI:** `php run_list_container_to_flight.php --base-url=... --login=... --password=... --flight-id=...`
+- **Следующий шаг миграции:** вынести в `ContainerApi::listByFlight(flightId)`.
 ### 2.2 Принадлежность контейнера к рейсу
 - **Статус:** ✅ Есть в текущем flow (контейнер добавляется к конкретному `flight`).
 - **Проверка:** сравнение списков контейнеров до/после операции.

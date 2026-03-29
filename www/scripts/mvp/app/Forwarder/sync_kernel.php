@@ -356,57 +356,6 @@ if (!function_exists('forwarder_sync_kernel_detect_connector_id')) {
     }
 }
 
-function forwarder_sync_kernel_detect_connector_id(mysqli $db, string $flightTable, string $flightId): int
-{
-    $safeTable = '`' . str_replace('`', '``', $flightTable) . '`';
-    $sql = "SELECT connector_id FROM {$safeTable} WHERE external_id = ? ORDER BY is_active DESC, updated_at DESC, id DESC LIMIT 1";
-    $stmt = $db->prepare($sql);
-    if (!$stmt) {
-        throw new RuntimeException('DB prepare error (detect connector_id): ' . $db->error);
-    }
-
-    $stmt->bind_param('s', $flightId);
-    if (!$stmt->execute()) {
-        $err = $stmt->error;
-        $stmt->close();
-        throw new RuntimeException('DB execute error (detect connector_id): ' . $err);
-    }
-
-    $result = $stmt->get_result();
-    $row = $result instanceof mysqli_result ? $result->fetch_assoc() : null;
-    if ($result instanceof mysqli_result) {
-        $result->close();
-    }
-    $stmt->close();
-
-    return is_array($row) ? (int)($row['connector_id'] ?? 0) : 0;
-}
-
-function forwarder_sync_kernel_detect_connector_id(mysqli $db, string $flightTable, string $flightId): int
-{
-    $safeTable = '`' . str_replace('`', '``', $flightTable) . '`';
-    $sql = "SELECT connector_id FROM {$safeTable} WHERE external_id = ? ORDER BY is_active DESC, updated_at DESC, id DESC LIMIT 1";
-    $stmt = $db->prepare($sql);
-    if (!$stmt) {
-        throw new RuntimeException('DB prepare error (detect connector_id): ' . $db->error);
-    }
-
-    $stmt->bind_param('s', $flightId);
-    if (!$stmt->execute()) {
-        $err = $stmt->error;
-        $stmt->close();
-        throw new RuntimeException('DB execute error (detect connector_id): ' . $err);
-    }
-
-    $result = $stmt->get_result();
-    $row = $result instanceof mysqli_result ? $result->fetch_assoc() : null;
-    if ($result instanceof mysqli_result) {
-        $result->close();
-    }
-    $stmt->close();
-
-    return is_array($row) ? (int)($row['connector_id'] ?? 0) : 0;
-}
 
 function forwarder_sync_kernel_extract_csrf_token(string $html): string
 {
