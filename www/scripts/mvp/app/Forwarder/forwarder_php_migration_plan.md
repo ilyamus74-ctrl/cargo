@@ -150,6 +150,26 @@
   - добавить optimistic/pessimistic проверки после сохранения.
 - **Целевой метод:** `PackageApi::update(id, payload)`.
 
+### 4.3 Поиск посылок (anonymous/show)
+- **Статус:** ✅ Добавлен отдельный flow `run_search_forward`.
+- **Endpoint:** `GET /collector/anonymous/show`
+- **Фильтры:** `code`, `internal_id`, `client`, `seller`, `from_date`, `to_date`, `page`.
+- **CLI пример:**
+  ```bash
+  php run_search_forward.php \
+    --base-url=https://dev-backend.colibri.az \
+    --login='w' \
+    --password='S' \
+    --code=151515 \
+    --page=1
+  ```
+- **Подтвержденный пример результата:**
+  - `status=FOUND`
+  - `http_status=200`
+  - `result.total=1`
+  - `result.exact_match.internal_id=CBR859613`
+  - `result.exact_match.client_name_surname=\"kon kon\"`
+
 ---
 
 ## Приоритизация (что делаем первым)

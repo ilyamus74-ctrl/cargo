@@ -855,6 +855,114 @@ entrypoints:
               has_container_details: false
               container_details: []
 
+  run_search_forward:
+    cli_args:
+      required: []
+      optional:
+        - [base-url, base_url]
+        - [login]
+        - [password]
+        - [session-file, session_file]
+        - [session-ttl-seconds, session_ttl_seconds]
+        - [code, track, number]
+        - [internal-id, internal_id]
+        - [client, client-name, client_name]
+        - [seller]
+        - [from-date, from_date]
+        - [to-date, to_date]
+        - [page]
+    cli_example:
+      command: "php run_search_forward.php --base-url=https://dev-backend.colibri.az --login='w' --password='S' --code=151515 --page=1"
+    flow:
+      - step: search_anonymous_orders
+        method: GET
+        path: /collector/anonymous/show
+        params:
+          code: "{code|''}"
+          internal_id: "{internal_id|''}"
+          client: "{client|''}"
+          seller: "{seller|''}"
+          from_date: "{from_date|''}"
+          to_date: "{to_date|''}"
+          page: "{page|1}"
+        response:
+          content_type: application/json
+          parse:
+            case:
+              source: "$.case"
+              required: true
+            current_page:
+              source: "$.orders.current_page"
+              required: false
+            total:
+              source: "$.orders.total"
+              required: false
+            data:
+              source: "$.orders.data[]"
+              required: false
+            internal_id:
+              source: "$.orders.data[*].internal_id"
+              required: false
+            client_name_surname:
+              source: "$.orders.data[*].client_name_surname"
+              required: false
+            seller:
+              source: "$.orders.data[*].seller"
+              required: false
+            status:
+              source: "$.orders.data[*].status"
+              required: false
+          example:
+            status: 200
+            json:
+              case: "success"
+              orders:
+                current_page: 1
+                data:
+                  - id: 795113
+                    number: "151515"
+                    internal_id: "CBR859613"
+                    client_name_surname: "kon kon"
+                    seller: null
+                    category: "Auto parts"
+                    status: "Unknown client"
+                    created_at: "2026-03-29 21:30:33"
+                total: 1
+    runner_output_example:
+      status: "FOUND"
+      mode: "forwarder_search"
+      query:
+        code: "151515"
+        internal_id: ""
+        client: ""
+        seller: ""
+        from_date: ""
+        to_date: ""
+        page: "1"
+      response_meta:
+        http_status: 200
+        latency_ms: 225
+        error: ""
+      result:
+        total: 1
+        current_page: 1
+        last_page: 1
+        count_on_page: 1
+        exact_match_found: true
+        exact_match:
+          id: 795113
+          number: "151515"
+          internal_id: "CBR859613"
+          client_name_surname: "kon kon"
+          seller: null
+          status: "Unknown client"
+          category: "Auto parts"
+          gross_weight: "1.000"
+          amount: "8.45"
+          amount_currency: "EUR"
+          created_at: "2026-03-29 21:30:33"
+      raw_case: "success"
+
 common_endpoints:
   auth:
     login_get:
