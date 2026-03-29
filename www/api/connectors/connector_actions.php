@@ -2128,6 +2128,15 @@ function connectors_resolve_test_entrypoint_with_diagnostics(array $operationsPa
         $candidatePhpOperationId = preg_match('/_php$/i', $resolvedRequestedOperation) ? $resolvedRequestedOperation : ($resolvedRequestedOperation . '_php');
     }
 
+
+    if ($phpModeRequested && $resolvedRequestedOperation !== 'submission') {
+        $forceTemplateForRequested = in_array($resolvedRequestedOperation, ['delete_container_php'], true);
+        $runtimeOperations = connectors_apply_php_entrypoint_template_fallback($runtimeOperations, $resolvedRequestedOperation, $connector, $forceTemplateForRequested);
+        if ($candidatePhpOperationId !== $resolvedRequestedOperation) {
+            $forceTemplateForCandidate = in_array($candidatePhpOperationId, ['delete_container_php'], true);
+            $runtimeOperations = connectors_apply_php_entrypoint_template_fallback($runtimeOperations, $candidatePhpOperationId, $connector, $forceTemplateForCandidate);
+        }
+    }
     $candidateExists = isset($runtimeOperations[$candidatePhpOperationId]) && is_array($runtimeOperations[$candidatePhpOperationId]);
     $candidateOperation = $candidateExists ? $runtimeOperations[$candidatePhpOperationId] : [];
     $candidateKind = $candidateExists
@@ -2210,6 +2219,105 @@ function connectors_resolve_test_entrypoint_with_diagnostics(array $operationsPa
             'fallback' => $fallback,
         ],
     ];
+}
+
+
+function connectors_apply_php_entrypoint_template_fallback(array $runtimeOperations, string $operationId, array $connector = [], bool $forceTemplate = false): array
+{
+    $operationId = trim($operationId);
+    if ($operationId === '') {
+        return $runtimeOperations;
+    }
+
+    $currentExists = isset($runtimeOperations[$operationId]) && is_array($runtimeOperations[$operationId]);
+    $currentOperation = $currentExists ? $runtimeOperations[$operationId] : [];
+    $currentSupportsPhp = $currentExists && connectors_operation_supports_php_entrypoint($currentOperation);
+    $currentRunnable = $currentExists ? connectors_evaluate_operation_runnable($currentOperation, $connector) : ['is_runnable' => false];
+    if (!$forceTemplate && $currentSupportsPhp && !empty($currentRunnable['is_runnable'])) {
+        return $runtimeOperations;
+    }
+
+    foreach (connectors_operation_config_templates() as $templatePayload) {
+        if (!is_array($templatePayload) || !isset($templatePayload['operation']) || !is_array($templatePayload['operation'])) {
+            continue;
+        }
+        $templateOperation = $templatePayload['operation'];
+        $templateOperationId = trim((string)($templateOperation['operation_id'] ?? ''));
+        if ($templateOperationId !== $operationId) {
+            continue;
+        }
+
+        $templateRuntimeOperations = connectors_v3_payload_to_runtime_operations([
+            'schema_version' => 3,
+            'operations' => [$templateOperation],
+        ]);
+        $templateRuntimeOperation = $templateRuntimeOperations[$templateOperationId] ?? null;
+        if (!is_array($templateRuntimeOperation)) {
+            return $runtimeOperations;
+        }
+
+        if (!connectors_operation_supports_php_entrypoint($templateRuntimeOperation)) {
+            return $runtimeOperations;
+        }
+        $templateRunnable = connectors_evaluate_operation_runnable($templateRuntimeOperation, $connector);
+        if (empty($templateRunnable['is_runnable'])) {
+            return $runtimeOperations;
+        }
+
+        $runtimeOperations[$operationId] = $templateRuntimeOperation;
+        return $runtimeOperations;
+    }
+
+    return $runtimeOperations;
+}
+
+function connectors_apply_php_entrypoint_template_fallback(array $runtimeOperations, string $operationId, array $connector = []): array
+{
+    $operationId = trim($operationId);
+    if ($operationId === '') {
+        return $runtimeOperations;
+    }
+
+    $currentExists = isset($runtimeOperations[$operationId]) && is_array($runtimeOperations[$operationId]);
+    $currentOperation = $currentExists ? $runtimeOperations[$operationId] : [];
+    $currentSupportsPhp = $currentExists && connectors_operation_supports_php_entrypoint($currentOperation);
+    $currentRunnable = $currentExists ? connectors_evaluate_operation_runnable($currentOperation, $connector) : ['is_runnable' => false];
+    if ($currentSupportsPhp && !empty($currentRunnable['is_runnable'])) {
+        return $runtimeOperations;
+    }
+
+    foreach (connectors_operation_config_templates() as $templatePayload) {
+        if (!is_array($templatePayload) || !isset($templatePayload['operation']) || !is_array($templatePayload['operation'])) {
+            continue;
+        }
+        $templateOperation = $templatePayload['operation'];
+        $templateOperationId = trim((string)($templateOperation['operation_id'] ?? ''));
+        if ($templateOperationId !== $operationId) {
+            continue;
+        }
+
+        $templateRuntimeOperations = connectors_v3_payload_to_runtime_operations([
+            'schema_version' => 3,
+            'operations' => [$templateOperation],
+        ]);
+        $templateRuntimeOperation = $templateRuntimeOperations[$templateOperationId] ?? null;
+        if (!is_array($templateRuntimeOperation)) {
+            return $runtimeOperations;
+        }
+
+        if (!connectors_operation_supports_php_entrypoint($templateRuntimeOperation)) {
+            return $runtimeOperations;
+        }
+        $templateRunnable = connectors_evaluate_operation_runnable($templateRuntimeOperation, $connector);
+        if (empty($templateRunnable['is_runnable'])) {
+            return $runtimeOperations;
+        }
+
+        $runtimeOperations[$operationId] = $templateRuntimeOperation;
+        return $runtimeOperations;
+    }
+
+    return $runtimeOperations;
 }
 
 function connectors_resolve_legacy_test_entrypoint(array $operationsPayload, string $testOperation, string $entrypointMode = ''): string
