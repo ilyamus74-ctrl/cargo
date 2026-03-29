@@ -36,6 +36,22 @@ return [
                 'response' => 'Expected business case: PACKAGE_OK or PACKAGE_NOT_DECLARED.',
             ],
         ],
+        'check_package_single' => [
+            'method' => 'POST',
+            'path' => '/collector/check-package',
+            'notes' => [
+                'request' => 'Fields: number, _token (csrf). Used to check a single package by track without report export.',
+                'response' => 'Expected JSON: case=success, package_exist, package, client_packages[].',
+            ],
+        ],
+        'collector_page' => [
+            'method' => 'GET',
+            'path' => '/collector',
+            'notes' => [
+                'request' => 'No payload. Used to refresh csrf token before form posts in collector module.',
+                'response' => 'Expected HTML with hidden input _token or csrf meta token.',
+            ],
+        ],
     ],
     'http' => [
         'timeout_connect_ms' => (int)(getenv('FORWARDER_TIMEOUT_CONNECT_MS') ?: 3000),

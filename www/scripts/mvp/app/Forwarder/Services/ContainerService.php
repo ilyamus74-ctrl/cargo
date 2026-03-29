@@ -47,4 +47,50 @@ final class ContainerService
             (int)$response['latency_ms']
         );
     }
+
+    public function checkPackageSingle(string $track): StepResult
+    {
+        $path = (string)($this->config->endpoint('check_package_single')['path'] ?? '/collector/check-package');
+        $this->primeCollectorCsrf();
+        $response = $this->sessionClient->requestWithSession('POST', $path, $this->buildSingleCheckPayload($track), false);
+        if ((int)($response['status_code'] ?? 0) === 419) {
+            $this->primeCollectorCsrf();
+            $response = $this->sessionClient->requestWithSession('POST', $path, $this->buildSingleCheckPayload($track), false);
+        }
+
+        $json = $response['json'];
+        if (!is_array($json)) {
+            $decoded = json_decode((string)($response['body'] ?? ''), true);
+            $json = is_array($decoded) ? $decoded : null;
+        }
+
+        $isBusinessSuccess = is_array($json) && (($json['case'] ?? '') === 'success');
+        $ok = (bool)$response['ok'] && $isBusinessSuccess;
+
+        return new StepResult(
+            $ok,
+            (int)$response['status_code'],
+            $ok ? 'PACKAGE_SINGLE_OK' : 'PACKAGE_SINGLE_ERROR',
+            ['raw' => $json ?? $response['body']],
+            (int)$response['latency_ms']
+        );
+    }
+
+    /** @return array<string, string> */
+    private function buildSingleCheckPayload(string $track): array
+    {
+        $payload = ['number' => $track];
+        $csrf = $this->sessionClient->csrfToken();
+        if ($csrf !== '') {
+            $payload['_token'] = $csrf;
+        }
+
+        return $payload;
+    }
+
+    private function primeCollectorCsrf(): void
+    {
+        $collectorPath = (string)($this->config->endpoint('collector_page')['path'] ?? '/collector');
+        $this->sessionClient->requestWithSession('GET', $collectorPath, [], false);
+    }
 }

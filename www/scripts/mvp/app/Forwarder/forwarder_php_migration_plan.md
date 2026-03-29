@@ -112,11 +112,16 @@
 ## 3) Репорты (XML)
 
 ### 3.1 Получение репортов
-- **Статус:** ✅ Частично есть (`run_report` для JSON endpoint’ов).
+- **Статус:** ✅ Закрыто для текущих operational-сценариев (`run_report` + `run_report_single`); отдельный XML API `ReportApi::exportXml(filters)` остаётся как техдолг/улучшение.
 - **Сейчас есть:**
   - POST `/api/check-position`
   - POST `/api/check-package`
-- **Нужно добавить:**
+  - POST `/collector/check-package` (single-check по `number`, без выгрузки файла)
+- **Добавлено в PHP:**
+  - CLI `run_report_single.php --track=...`
+  - поиск совпадения по track сначала в `package`, затем в `client_packages[]` (большой payload ~56KB)
+  - консольный вывод `package_summary` для быстрых smoke-проверок.
+  - подтвержденный smoke-кейс: `status=ACCEPTED`, `http_status=200`, `internal_id=CBR859569` для `track=H1000844804054601044`.
   - endpoint(ы) выгрузки XML,
   - формат авторизации и фильтров,
   - XSD/структуру XML.

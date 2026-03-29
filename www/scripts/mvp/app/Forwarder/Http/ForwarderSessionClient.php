@@ -25,6 +25,15 @@ final class ForwarderSessionClient
         return $this->requestWithSession('POST', $endpointPath, $payload, true);
     }
 
+    public function csrfToken(): string
+    {
+        $csrf = $this->session->csrfToken();
+        if ($csrf !== '') {
+            return $csrf;
+        }
+
+        return $this->session->xsrfToken();
+    }
     /** @return array<string, mixed> */
     public function requestWithSession(string $method, string $endpointPath, array $payload = [], bool $asJson = true): array
     {
@@ -57,6 +66,7 @@ final class ForwarderSessionClient
         );
 
         $this->session->updateFromHeaders((string)($response['headers_raw'] ?? ''));
+        $this->session->updateFromHtml((string)($response['body'] ?? ''));
         $this->persistSession();
 
         if (!$this->isSessionExpiredResponse($response)) {
@@ -84,6 +94,7 @@ final class ForwarderSessionClient
         );
 
         $this->session->updateFromHeaders((string)($retryResponse['headers_raw'] ?? ''));
+        $this->session->updateFromHtml((string)($retryResponse['body'] ?? ''));
         $this->persistSession();
 
         return $retryResponse;

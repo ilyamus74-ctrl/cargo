@@ -617,6 +617,113 @@ entrypoints:
                   - ts: "2026-03-10T12:00:00Z"
                     text: "Arrived to warehouse"
 
+  run_report_single:
+    cli_args:
+      mode_scan_required:
+        - [track]
+      resolved_from:
+        track: ["--track", "argv[1]", "FORWARDER_TRACK"]
+    flow:
+      - step: auth_bootstrap
+        method: GET
+        path: /login
+        params: {}
+        response:
+          content_type: text/html
+          parse:
+            csrf_or_xsrf_token:
+              source: "input[name=_token] | meta[name=csrf-token]"
+              required: true
+      - step: auth_submit
+        method: POST
+        path: /login
+        params:
+          username: "{FORWARDER_LOGIN}"
+          password: "{FORWARDER_PASSWORD}"
+          _token: "{csrf_or_xsrf_token}"
+        response:
+          content_type: "text/html (redirect) | application/json"
+          parse:
+            auth_ok:
+              source: "redirect to protected page | $.success"
+              required: true
+      - step: check_package_single
+        method: GET
+        path: /collector
+        params: {}
+        response:
+          content_type: text/html
+          parse:
+            csrf_or_xsrf_token:
+              source: "input[name=_token] | meta[name=csrf-token]"
+              required: true
+      - step: check_package_single_submit
+        method: POST
+        path: /collector/check-package
+        form:
+          number: "{track}"
+          _token: "{csrf_or_xsrf_token}"
+        response:
+          content_type: application/json
+          parse:
+            case:
+              source: "$.case"
+              required: true
+            package_exist:
+              source: "$.package_exist"
+              required: true
+            package:
+              source: "$.package"
+              required: false
+            client_packages:
+              source: "$.client_packages[]"
+              required: false
+            matched_package:
+              source: "$.package.track == {track} OR $.client_packages[number|track|internal_id == {track}]"
+              required: false
+          example:
+            status: 200
+            json:
+              case: "success"
+              package_exist: true
+              package:
+                track: "H1000844804054601044"
+                internal_id: "CBR859569"
+                position: "PSB010"
+              client_packages:
+                - number: "H1000844804054601044"
+                  internal_id: "CBR859569"
+          verified_cli_example:
+            captured_at_utc: "2026-03-29T16:23:41Z"
+            command: "php run_report_single.php --base-url='https://dev-backend.colibri.az' --login='w' --password='S' --track='H1000844804054601044' --connector-id='13'"
+            output:
+              status: "ACCEPTED"
+              mode: "single_package_check"
+              track: "H1000844804054601044"
+              package_exist: true
+              matched_track_found: true
+              package_summary:
+                track: "H1000844804054601044"
+                internal_id: "CBR859569"
+                status: null
+                status_id: 40
+                position: "PSB010"
+                gross_weight: "0.700"
+                volume_weight: "0.000"
+                amount: "7.45 EUR"
+                currency: "USD"
+                destination: "Baku"
+                client_name: "Ulviyya Mammadova"
+                seller: ""
+              response_meta:
+                http_status: 200
+                latency_ms: 226
+                client_packages_count: 200
+              connector_id: "13"
+              correlation_id: "run-report-single-20260329162341-94e3b875"
+
+
+
 common_endpoints:
   auth:
     login_get:
