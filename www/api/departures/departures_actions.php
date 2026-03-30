@@ -380,7 +380,7 @@ function departures_load_containers_from_table(mysqli $dbcnx, string $flightTabl
         'packages_count',
         'total_weight',
     ];
-    foreach (['warehouse_packages_count', 'warehouse_total_weight', 'compare_status', 'compared_at', 'compare_error'] as $optionalColumn) {
+    foreach (['warehouse_packages_count', 'warehouse_total_weight', 'compare_status', 'compared_at', 'compare_error', 'forwarder_packages_synced_at'] as $optionalColumn) {
         if (in_array(strtolower($optionalColumn), $availableColumns, true)) {
             $selectColumns[] = $optionalColumn;
         }
@@ -398,7 +398,7 @@ function departures_load_containers_from_table(mysqli $dbcnx, string $flightTabl
         }
         $stmt->bind_param('ii', $connectorId, $flightRecordId);
     } else {
-        $sql = "SELECT container_external_id, name, flight, departure, destination, awb, packages_count, total_weight, warehouse_packages_count, warehouse_total_weight, compare_status, compared_at, compare_error
+        $sql = "SELECT {$selectSql}
                   FROM {$safeContainersTable}
                  WHERE connector_id = ? AND flight_external_id = ? AND is_active = 1
                  ORDER BY updated_at DESC, id DESC";
@@ -491,6 +491,7 @@ function departures_load_containers_from_table(mysqli $dbcnx, string $flightTabl
             'warehouse_total_weight' => departures_format_value($warehouseWeightRaw),
             'compare_status' => $compareStatus,
             'compared_at' => departures_format_datetime($row['compared_at'] ?? null),
+            'forwarder_packages_synced_at' => departures_format_datetime($row['forwarder_packages_synced_at'] ?? null),
             'compare_error' => trim((string)($calculatedCompare['error'] ?? ($row['compare_error'] ?? ''))),
             'is_empty_placeholder' => $hasZeroPackages && $hasZeroWeight,
             'can_delete_placeholder' => $containerExternalId !== '' && $hasZeroPackages,

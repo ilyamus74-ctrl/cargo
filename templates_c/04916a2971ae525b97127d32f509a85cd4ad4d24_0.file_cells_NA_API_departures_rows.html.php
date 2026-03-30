@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-03-29 20:14:01
+/* Smarty version 5.3.1, created on 2026-03-30 11:07:05
   from 'file:cells_NA_API_departures_rows.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_69c9880991e482_90925885',
+  'unifunc' => 'content_69ca5959e48c15_48585377',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '04916a2971ae525b97127d32f509a85cd4ad4d24' => 
     array (
       0 => 'cells_NA_API_departures_rows.html',
-      1 => 1774815107,
+      1 => 1774868765,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_69c9880991e482_90925885 (\Smarty\Template $_smarty_tpl) {
+function content_69ca5959e48c15_48585377 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 if ($_smarty_tpl->getSmarty()->getModifierCallback('count')($_smarty_tpl->getValue('departure_rows')) > 0) {?>
   <?php
@@ -306,8 +306,12 @@ $foreach1DoElse = false;
                         <div><?php echo htmlspecialchars((string)(($tmp = $_smarty_tpl->getValue('container')['packages_count'] ?? null)===null||$tmp==='' ? '—' ?? null : $tmp), ENT_QUOTES, 'UTF-8', true);?>
  / <?php echo htmlspecialchars((string)(($tmp = $_smarty_tpl->getValue('container')['total_weight'] ?? null)===null||$tmp==='' ? '—' ?? null : $tmp), ENT_QUOTES, 'UTF-8', true);?>
 </div>
+                        <?php if ($_smarty_tpl->getValue('container')['forwarder_packages_synced_at']) {?>
+                          <div class="small text-muted"><?php echo htmlspecialchars((string)$_smarty_tpl->getValue('container')['forwarder_packages_synced_at'], ENT_QUOTES, 'UTF-8', true);?>
+</div>
+                        <?php }?>
                         <?php if ($_smarty_tpl->getValue('container')['compared_at']) {?>
-                          <div class="small text-muted"><?php echo htmlspecialchars((string)$_smarty_tpl->getValue('container')['compared_at'], ENT_QUOTES, 'UTF-8', true);?>
+                          <div class="small text-muted">Сверка: <?php echo htmlspecialchars((string)$_smarty_tpl->getValue('container')['compared_at'], ENT_QUOTES, 'UTF-8', true);?>
 </div>
                         <?php }?>
                         <?php if ($_smarty_tpl->getValue('container')['compare_error'] && (($tmp = $_smarty_tpl->getValue('container')['compare_status'] ?? null)===null||$tmp==='' ? 'pending' ?? null : $tmp) == 'mismatch') {?>

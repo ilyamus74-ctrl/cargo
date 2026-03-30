@@ -43,7 +43,7 @@
             forwarder_packages_synced_at,
 
             (опционально) warehouse_aggregated_at как время расчёта.
-
+готово
 5    Автосинхронизация при confirm send
 
         При подтверждении отправки в warehouse_item_out_confirm_send:

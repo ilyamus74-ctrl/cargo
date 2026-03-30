@@ -202,8 +202,11 @@
                       </td>
                       <td class="{if $container.compare_status|default:'pending' == 'matched'}table-success{elseif $container.compare_status|default:'pending' == 'mismatch'}table-warning{/if}">
                         <div>{$container.packages_count|default:'—'|escape} / {$container.total_weight|default:'—'|escape}</div>
+                        {if $container.forwarder_packages_synced_at}
+                          <div class="small text-muted">{$container.forwarder_packages_synced_at|escape}</div>
+                        {/if}
                         {if $container.compared_at}
-                          <div class="small text-muted">{$container.compared_at|escape}</div>
+                          <div class="small text-muted">Сверка: {$container.compared_at|escape}</div>
                         {/if}
                         {if $container.compare_error && $container.compare_status|default:'pending' == 'mismatch'}
                           <div class="small text-warning-emphasis">{$container.compare_error|escape}</div>
