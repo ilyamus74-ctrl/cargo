@@ -894,7 +894,7 @@ function departures_update_container_forwarder_snapshot(
         if (!$stmt) {
             continue;
         }
-        $stmt->bind_param('sidis', $snapshotJson, $forwarderPackagesCount, $forwarderTotalWeight, $connectorId, $flightRecordId, $containerExternalId);
+        $stmt->bind_param('sidiis', $snapshotJson, $forwarderPackagesCount, $forwarderTotalWeight, $connectorId, $flightRecordId, $containerExternalId);
         if ($stmt->execute()) {
             $updated += (int)$stmt->affected_rows;
         }

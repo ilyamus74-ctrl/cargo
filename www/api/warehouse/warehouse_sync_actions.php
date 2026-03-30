@@ -1726,7 +1726,7 @@ if (!function_exists('warehouse_sync_update_forwarder_snapshot_for_container')) 
             if (!$stmt) {
                 continue;
             }
-            $stmt->bind_param('sidis', $snapshotJson, $forwarderPackagesCount, $forwarderTotalWeight, $connectorId, $flightRecordId, $containerExternalId);
+            $stmt->bind_param('sidiis', $snapshotJson, $forwarderPackagesCount, $forwarderTotalWeight, $connectorId, $flightRecordId, $containerExternalId);
             if ($stmt->execute()) {
                 $updated += (int)$stmt->affected_rows;
             }
