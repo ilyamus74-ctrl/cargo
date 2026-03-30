@@ -279,7 +279,8 @@ function departures_load_live_warehouse_metrics(mysqli $dbcnx, array $containerN
 {
     $normalizedContainerNames = [];
     foreach ($containerNames as $name) {
-        foreach (departures_container_aliases((string)$name) as $value) {
+        $value = departures_normalize_container_key((string)$name);
+        if ($value !== '') {
             $normalizedContainerNames[$value] = true;
         }
     }
@@ -345,7 +346,8 @@ function departures_load_live_warehouse_packages(mysqli $dbcnx, array $container
 {
     $normalizedContainerNames = [];
     foreach ($containerNames as $name) {
-        foreach (departures_container_aliases((string)$name) as $value) {
+        $value = departures_normalize_container_key((string)$name);
+        if ($value !== '') {
             $normalizedContainerNames[$value] = true;
         }
     }
@@ -382,19 +384,8 @@ function departures_load_live_warehouse_packages(mysqli $dbcnx, array $container
     if ($res instanceof mysqli_result) {
         while ($row = $res->fetch_assoc()) {
             $containerName = trim((string)($row['container_name'] ?? ''));
-
-            $aliases = departures_container_aliases($containerName);
-            if ($aliases === []) {
-                continue;
-            }
-            $normalizedKey = '';
-            foreach ($aliases as $alias) {
-                if (isset($normalizedContainerNames[$alias])) {
-                    $normalizedKey = $alias;
-                    break;
-                }
-            }
-            if ($normalizedKey === '') {
+            $normalizedKey = departures_normalize_container_key($containerName);
+            if ($normalizedKey === '' || !isset($normalizedContainerNames[$normalizedKey])) {
                 continue;
             }
             if (!isset($packages[$normalizedKey])) {
@@ -478,104 +469,6 @@ function departures_normalize_container_key(string $value): string
 }
 
 
-function departures_container_aliases(string $value): array
-{
-    $aliases = [];
-    $normalized = departures_normalize_container_key($value);
-    if ($normalized !== '') {
-        $aliases[$normalized] = true;
-    }
-
-    $parts = preg_split('/[\/|,\s]+/', strtoupper(trim($value)));
-    if (is_array($parts)) {
-        foreach ($parts as $part) {
-            $partNormalized = departures_normalize_container_key((string)$part);
-            if ($partNormalized !== '') {
-                $aliases[$partNormalized] = true;
-            }
-        }
-    }
-
-    return array_keys($aliases);
-}
-
-function departures_find_container_metric(array $metrics, string $containerName, string $containerExternalId): ?array
-{
-    foreach ([$containerName, $containerExternalId] as $candidate) {
-        foreach (departures_container_aliases($candidate) as $alias) {
-            if (isset($metrics[$alias])) {
-                return $metrics[$alias];
-            }
-        }
-    }
-    return null;
-}
-
-function departures_load_latest_forwarder_packages_snapshots(
-    mysqli $dbcnx,
-    string $containersTableName,
-    int $connectorId,
-    array $containerExternalIds
-): array {
-    if ($connectorId <= 0 || $containerExternalIds === [] || !departures_table_exists($dbcnx, $containersTableName)) {
-        return [];
-    }
-
-    $normalizedIds = [];
-    foreach ($containerExternalIds as $id) {
-        $id = trim((string)$id);
-        if ($id !== '') {
-            $normalizedIds[$id] = true;
-        }
-    }
-    $ids = array_keys($normalizedIds);
-    if ($ids === []) {
-        return [];
-    }
-
-    $safeTable = '`' . str_replace('`', '``', $containersTableName) . '`';
-    $placeholders = implode(', ', array_fill(0, count($ids), '?'));
-    $sql = "SELECT container_external_id, forwarder_packages_json
-            FROM {$safeTable}
-            WHERE connector_id = ?
-              AND container_external_id IN ({$placeholders})
-              AND TRIM(COALESCE(forwarder_packages_json, '')) <> ''
-            ORDER BY updated_at DESC, id DESC";
-    $stmt = $dbcnx->prepare($sql);
-    if (!$stmt) {
-        return [];
-    }
-
-    $types = 'i' . str_repeat('s', count($ids));
-    $params = [$connectorId, ...$ids];
-    $bindArgs = [$types];
-    foreach ($params as $key => $param) {
-        $bindArgs[] = &$params[$key];
-    }
-    call_user_func_array([$stmt, 'bind_param'], $bindArgs);
-
-    if (!$stmt->execute()) {
-        $stmt->close();
-        return [];
-    }
-
-    $snapshots = [];
-    $res = $stmt->get_result();
-    if ($res instanceof mysqli_result) {
-        while ($row = $res->fetch_assoc()) {
-            $externalId = trim((string)($row['container_external_id'] ?? ''));
-            if ($externalId === '' || isset($snapshots[$externalId])) {
-                continue;
-            }
-            $snapshots[$externalId] = (string)($row['forwarder_packages_json'] ?? '');
-        }
-        $res->free();
-    }
-    $stmt->close();
-
-    return $snapshots;
-}
-
 function departures_load_containers_from_table(mysqli $dbcnx, string $flightTableName, int $connectorId, int $flightRecordId, string $flightExternalId): array
 {
     if ($connectorId <= 0 || ($flightRecordId <= 0 && $flightExternalId === '')) {
@@ -646,11 +539,13 @@ function departures_load_containers_from_table(mysqli $dbcnx, string $flightTabl
                 continue;
             }
             $rawRows[] = $row;
-            foreach (departures_container_aliases((string)($row['name'] ?? '')) as $alias) {
-                $containerLookupKeys[$alias] = true;
+            $containerName = departures_normalize_container_key((string)($row['name'] ?? ''));
+            $containerExternalId = departures_normalize_container_key((string)($row['container_external_id'] ?? ''));
+            if ($containerName !== '') {
+                $containerLookupKeys[$containerName] = true;
             }
-            foreach (departures_container_aliases((string)($row['container_external_id'] ?? '')) as $alias) {
-                $containerLookupKeys[$alias] = true;
+            if ($containerExternalId !== '') {
+                $containerLookupKeys[$containerExternalId] = true;
             }
         }
         $res->free();
@@ -668,12 +563,6 @@ function departures_load_containers_from_table(mysqli $dbcnx, string $flightTabl
         array_keys($containerLookupKeys)
     );
 
-    $latestForwarderSnapshots = departures_load_latest_forwarder_packages_snapshots(
-        $dbcnx,
-        $containersTableName,
-        $connectorId,
-        array_map(static fn(array $item): string => trim((string)($item['container_external_id'] ?? '')), $rawRows)
-    );
     $containers = [];
     foreach ($rawRows as $row) {
         $packagesCountRaw = $row['packages_count'] ?? null;
@@ -685,7 +574,14 @@ function departures_load_containers_from_table(mysqli $dbcnx, string $flightTabl
         $hasPackages = is_numeric($packagesCountRaw) && (float)$packagesCountRaw > 0.0;
         $hasWeight = is_numeric($totalWeightRaw) && (float)$totalWeightRaw > 0.0;
 
-        $liveMetrics = departures_find_container_metric($warehouseMetrics, $containerName, $containerExternalId);
+        $liveMetrics = null;
+        $normalizedName = departures_normalize_container_key($containerName);
+        $normalizedExternalId = departures_normalize_container_key($containerExternalId);
+        if ($normalizedName !== '' && isset($warehouseMetrics[$normalizedName])) {
+            $liveMetrics = $warehouseMetrics[$normalizedName];
+        } elseif ($normalizedExternalId !== '' && isset($warehouseMetrics[$normalizedExternalId])) {
+            $liveMetrics = $warehouseMetrics[$normalizedExternalId];
+        }
 
         $warehousePackagesRaw = $liveMetrics['warehouse_packages_count'] ?? null;
         $warehouseWeightRaw = $liveMetrics['warehouse_total_weight'] ?? null;
@@ -700,12 +596,14 @@ function departures_load_containers_from_table(mysqli $dbcnx, string $flightTabl
             $compareStatus = (string)$calculatedCompare['status'];
         }
 
-        $warehousePackagesDetail = departures_find_container_metric($warehousePackages, $containerName, $containerExternalId) ?? [];
-        $forwarderPackagesJson = trim((string)($row['forwarder_packages_json'] ?? ''));
-        if ($forwarderPackagesJson === '' && $containerExternalId !== '' && isset($latestForwarderSnapshots[$containerExternalId])) {
-            $forwarderPackagesJson = trim((string)$latestForwarderSnapshots[$containerExternalId]);
+        $warehousePackagesDetail = [];
+        if ($normalizedName !== '' && isset($warehousePackages[$normalizedName])) {
+            $warehousePackagesDetail = $warehousePackages[$normalizedName];
+        } elseif ($normalizedExternalId !== '' && isset($warehousePackages[$normalizedExternalId])) {
+            $warehousePackagesDetail = $warehousePackages[$normalizedExternalId];
         }
-        $forwarderPackagesDetail = departures_extract_forwarder_packages($forwarderPackagesJson);
+        $forwarderPackagesDetail = departures_extract_forwarder_packages((string)($row['forwarder_packages_json'] ?? ''));
+
         $containers[] = [
             'container_external_id' => $containerExternalId,
             'name' => $containerName,
@@ -968,12 +866,14 @@ function departures_update_container_compare_from_db(
                 $containerExternalId,
             ]
         );
-
-        $metrics = departures_find_container_metric(
-            $warehouseMetrics,
-            (string)($row['name'] ?? ''),
-            (string)($row['container_external_id'] ?? '')
-        );
+        $normalizedName = departures_normalize_container_key((string)($row['name'] ?? ''));
+        $normalizedExternalId = departures_normalize_container_key((string)($row['container_external_id'] ?? ''));
+        $metrics = null;
+        if ($normalizedName !== '' && isset($warehouseMetrics[$normalizedName])) {
+            $metrics = $warehouseMetrics[$normalizedName];
+        } elseif ($normalizedExternalId !== '' && isset($warehouseMetrics[$normalizedExternalId])) {
+            $metrics = $warehouseMetrics[$normalizedExternalId];
+        }
         $warehousePackages = isset($metrics['warehouse_packages_count']) ? (int)$metrics['warehouse_packages_count'] : null;
         $warehouseWeight = isset($metrics['warehouse_total_weight']) ? (float)$metrics['warehouse_total_weight'] : null;
 
@@ -1534,10 +1434,3 @@ switch ($normalizedAction) {
         }
         break;
 }
-
-    $latestForwarderSnapshots = departures_load_latest_forwarder_packages_snapshots(
-        $dbcnx,
-        $containersTableName,
-        $connectorId,
-        array_map(static fn(array $row): string => trim((string)($row['container_external_id'] ?? '')), $rawRows)
-    );
