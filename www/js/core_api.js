@@ -2974,6 +2974,7 @@ const CoreAPI = {
         compareModalError: null,
         compareModalWarehouse: null,
         compareModalForwarder: null,
+        compareModalForceSyncButton: null,
         activeActionButton: null,
         initialized: false,
         init() {
@@ -2994,6 +2995,7 @@ const CoreAPI = {
             this.compareModalError = document.getElementById('departures-compare-modal-error');
             this.compareModalWarehouse = document.getElementById('departures-compare-modal-warehouse');
             this.compareModalForwarder = document.getElementById('departures-compare-modal-forwarder');
+            this.compareModalForceSyncButton = document.getElementById('departures-compare-modal-force-sync');
             if (this.compareModalEl && window.bootstrap?.Modal) {
                 this.compareModalInstance = bootstrap.Modal.getOrCreateInstance(this.compareModalEl);
             }
@@ -3118,6 +3120,14 @@ const CoreAPI = {
                     icon.classList.toggle('bi-chevron-up', !isOpen);
                 }
             });
+            if (this.compareModalEl) {
+                this.compareModalEl.addEventListener('click', (event) => {
+                    const containerActionButton = event.target.closest('.js-departure-container-action');
+                    if (containerActionButton) {
+                        this.triggerContainerAction(containerActionButton);
+                    }
+                });
+            }
         },
 
         normalizeAwb(value) {
@@ -3219,6 +3229,10 @@ const CoreAPI = {
             return null;
         },
         async openCompareModal(button) {
+            const connectorId = String(button?.getAttribute('data-connector-id') || '').trim();
+            const flightId = String(button?.getAttribute('data-flight-id') || '').trim();
+            const flightRecordId = String(button?.getAttribute('data-flight-record-id') || '').trim();
+            const containerExternalId = String(button?.getAttribute('data-container-id') || '').trim();
             const rawPayload = String(button?.getAttribute('data-compare-payload') || '{}').trim();
             let payload = {};
             try {
@@ -3257,6 +3271,14 @@ const CoreAPI = {
             }
             if (this.compareModalForwarder) {
                 this.compareModalForwarder.innerHTML = this.renderCompareList(sortedForwarder, warehouseSet);
+            }
+            if (this.compareModalForceSyncButton) {
+                this.compareModalForceSyncButton.setAttribute('data-connector-id', connectorId);
+                this.compareModalForceSyncButton.setAttribute('data-flight-id', flightId);
+                this.compareModalForceSyncButton.setAttribute('data-flight-record-id', flightRecordId);
+                this.compareModalForceSyncButton.setAttribute('data-container-id', containerExternalId);
+                this.compareModalForceSyncButton.setAttribute('data-status-target', '#departures-compare-modal-error');
+                this.compareModalForceSyncButton.setAttribute('data-busy-label', 'Синхронизация...');
             }
             this.compareModalInstance?.show();
         },
@@ -3416,12 +3438,28 @@ const CoreAPI = {
                     }
                 }
                 const finalStatusEl = statusEl && statusEl.isConnected ? statusEl : this.addFlightStatus;
-                const message = result?.message || 'Операция контейнера выполнена.';
+                const forceSyncLastError = String(result?.result?.last_error?.message || '').trim();
+                const message = forceSyncLastError
+                    ? `${result?.message || 'Операция контейнера выполнена.'} Последняя ошибка: ${forceSyncLastError}`
+                    : (result?.message || 'Операция контейнера выполнена.');
                 this.setActionStatus(message, 'success', finalStatusEl);
                 if (statusSelector) {
                     const refreshedStatusEl = this.root?.querySelector(statusSelector) || document.querySelector(statusSelector);
                     if (refreshedStatusEl) {
+                        refreshedStatusEl.classList.remove('d-none');
                         this.setActionStatus(message, 'success', refreshedStatusEl);
+                    }
+                }
+                if (operation === 'force_sync_missing' && this.compareModalEl?.classList.contains('show')) {
+                    const freshPayload = await this.fetchComparePayload(button);
+                    if (freshPayload && typeof freshPayload === 'object') {
+                        const modalPayloadButton = document.createElement('button');
+                        modalPayloadButton.setAttribute('data-compare-payload', JSON.stringify(freshPayload));
+                        modalPayloadButton.setAttribute('data-connector-id', button?.getAttribute('data-connector-id') || '');
+                        modalPayloadButton.setAttribute('data-flight-id', button?.getAttribute('data-flight-id') || '');
+                        modalPayloadButton.setAttribute('data-flight-record-id', button?.getAttribute('data-flight-record-id') || '');
+                        modalPayloadButton.setAttribute('data-container-id', button?.getAttribute('data-container-id') || '');
+                        await this.openCompareModal(modalPayloadButton);
                     }
                 }
                 showToast(message, 2500);

@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-03-30 11:49:52
+/* Smarty version 5.3.1, created on 2026-03-30 13:45:33
   from 'file:cells_NA_API_departures.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_69ca6360c239c0_63254404',
+  'unifunc' => 'content_69ca7e7ded5fb6_86170167',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '0f6acec5f8cd1dbfcef00308f07d4fd68a44caf7' => 
     array (
       0 => 'cells_NA_API_departures.html',
-      1 => 1774871164,
+      1 => 1774878029,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_69ca6360c239c0_63254404 (\Smarty\Template $_smarty_tpl) {
+function content_69ca7e7ded5fb6_86170167 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?><div class="pagetitle">
   <h1>Отправления</h1>
@@ -178,6 +178,17 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
         </div>
       </div>
       <div class="modal-footer">
+        <button type="button"
+                id="departures-compare-modal-force-sync"
+                class="btn btn-outline-primary btn-sm js-departure-container-action"
+                data-operation="force_sync_missing"
+                data-connector-id=""
+                data-flight-id=""
+                data-flight-record-id=""
+                data-container-id=""
+                title="Принудительно добавить посылки со статусом sended, которых нет у форварда">
+          Принудительная синхронизация sended
+        </button>
         <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Закрыть</button>
       </div>
     </div>

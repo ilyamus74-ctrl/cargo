@@ -197,6 +197,7 @@
                                 class="btn btn-link btn-sm p-0 mt-1 js-departure-compare-open"
                                 data-compare-payload="{$container.compare_modal_payload_json|default:'{}'|escape:'htmlattr'}"
                                 data-connector-id="{$flight.connector_id|default:0|escape:'htmlattr'}"
+                                data-flight-id="{$flight.flight_id|default:''|escape:'htmlattr'}"
                                 data-flight-record-id="{$flight.flight_record_id|default:0|escape:'htmlattr'}"
                                 data-container-id="{$container.container_external_id|default:''|escape:'htmlattr'}">
                           Сверка позиций
@@ -233,17 +234,6 @@
                                   data-status-target="#{$flight.row_uid|escape:'htmlattr'}_status"
                                   title="Запросить данные у форварда по контейнеру">
                             <i class="bi bi-cloud-arrow-down"></i>
-                          </button>
-                          <button type="button"
-                                  class="btn btn-sm btn-outline-secondary js-departure-container-action"
-                                  data-operation="sync_local"
-                                  data-connector-id="{$flight.connector_id|default:0|escape:'htmlattr'}"
-                                  data-flight-id="{$flight.flight_id|default:''|escape:'htmlattr'}"
-                                  data-flight-record-id="{$flight.flight_record_id|default:0|escape:'htmlattr'}"
-                                  data-container-id="{$container.container_external_id|escape:'htmlattr'}"
-                                  data-status-target="#{$flight.row_uid|escape:'htmlattr'}_status"
-                                  title="Запросить локальные данные из БД по контейнеру">
-                            <i class="bi bi-database-down"></i>
                           </button>
                         </div>
                         {if $flight.status|lower == 'open' && $container.can_delete_placeholder}

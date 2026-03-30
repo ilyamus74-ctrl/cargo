@@ -1158,6 +1158,213 @@ function departures_sync_forwarder_container_packages(array $connector, string $
     return $parsed;
 }
 
+function departures_load_container_snapshot_context(
+    mysqli $dbcnx,
+    array $connector,
+    int $flightRecordId,
+    string $containerExternalId
+): ?array {
+    if ($flightRecordId <= 0 || $containerExternalId === '') {
+        return null;
+    }
+
+    $connectorId = (int)($connector['id'] ?? 0);
+    if ($connectorId <= 0) {
+        return null;
+    }
+
+    foreach (departures_resolve_table_names($connector) as $flightTableName) {
+        $containersTableName = connectors_subrunner_resolve_flight_containers_table_name($flightTableName, []);
+        if (!departures_table_exists($dbcnx, $containersTableName)) {
+            continue;
+        }
+
+        $safeTable = '`' . str_replace('`', '``', $containersTableName) . '`';
+        $stmt = $dbcnx->prepare("
+            SELECT id, name, container_external_id, forwarder_packages_json
+              FROM {$safeTable}
+             WHERE connector_id = ?
+               AND flight_record_id = ?
+               AND container_external_id = ?
+               AND is_active = 1
+             LIMIT 1
+        ");
+        if (!$stmt) {
+            continue;
+        }
+
+        $stmt->bind_param('iis', $connectorId, $flightRecordId, $containerExternalId);
+        if (!$stmt->execute()) {
+            $stmt->close();
+            continue;
+        }
+        $row = $stmt->get_result()?->fetch_assoc() ?: null;
+        $stmt->close();
+        if (!is_array($row)) {
+            continue;
+        }
+
+        return [
+            'table_name' => $containersTableName,
+            'container_row_id' => (int)($row['id'] ?? 0),
+            'container_name' => trim((string)($row['name'] ?? '')),
+            'container_external_id' => trim((string)($row['container_external_id'] ?? '')),
+            'forwarder_packages_json' => trim((string)($row['forwarder_packages_json'] ?? '')),
+        ];
+    }
+
+    return null;
+}
+
+function departures_force_sync_missing_container_packages(
+    mysqli $dbcnx,
+    array $connector,
+    int $flightRecordId,
+    string $containerExternalId,
+    int $userId = 0
+): array {
+    if ($flightRecordId <= 0 || $containerExternalId === '') {
+        throw new InvalidArgumentException('Не переданы flight_record_id/container_external_id для принудительной синхронизации посылок.');
+    }
+
+    $context = departures_load_container_snapshot_context($dbcnx, $connector, $flightRecordId, $containerExternalId);
+    if (!is_array($context)) {
+        throw new RuntimeException('Контейнер не найден в локальной таблице контейнеров.');
+    }
+
+    $containerName = trim((string)($context['container_name'] ?? ''));
+    $forwarderSnapshotRaw = trim((string)($context['forwarder_packages_json'] ?? ''));
+    $forwarderPackages = departures_extract_forwarder_packages($forwarderSnapshotRaw);
+    $forwarderTrackingSet = [];
+    foreach ($forwarderPackages as $row) {
+        if (!is_array($row)) {
+            continue;
+        }
+        $tracking = strtoupper(trim((string)($row['tracking'] ?? '')));
+        if ($tracking !== '') {
+            $forwarderTrackingSet[$tracking] = true;
+        }
+    }
+
+    $warehousePackages = departures_load_live_warehouse_packages(
+        $dbcnx,
+        [$containerName, $containerExternalId]
+    );
+    $warehouseRows = departures_find_container_metric($warehousePackages, $containerName, $containerExternalId);
+
+    $missingTrackings = [];
+    foreach ($warehouseRows as $row) {
+        if (!is_array($row)) {
+            continue;
+        }
+        $trackingRaw = trim((string)($row['tracking'] ?? ''));
+        $tracking = strtoupper($trackingRaw);
+        if ($tracking === '' || isset($forwarderTrackingSet[$tracking])) {
+            continue;
+        }
+        $missingTrackings[$tracking] = $trackingRaw;
+    }
+
+    $baseUrl = trim((string)($connector['base_url'] ?? ''));
+    $login = trim((string)($connector['auth_username'] ?? ''));
+    $password = trim((string)($connector['auth_password'] ?? ''));
+    if ($baseUrl === '' || $login === '' || $password === '') {
+        throw new RuntimeException('Недостаточно данных коннектора для добавления посылок в контейнер у форварда.');
+    }
+
+    $scriptPath = dirname(__DIR__, 2) . '/scripts/mvp/app/Forwarder/run_add_package_to_container.php';
+    if (!is_file($scriptPath)) {
+        throw new RuntimeException('Не найден скрипт run_add_package_to_container: ' . $scriptPath);
+    }
+
+    $attempted = [];
+    $success = [];
+    $failed = [];
+
+    foreach ($missingTrackings as $normalizedTracking => $trackingOriginal) {
+        $cmdParts = [
+            'php',
+            $scriptPath,
+            '--base-url=' . $baseUrl,
+            '--login=' . $login,
+            '--password=' . $password,
+            '--track=' . $trackingOriginal,
+            '--position=' . $containerExternalId,
+            '--verify-check-package=1',
+        ];
+        $cmd = implode(' ', array_map('escapeshellarg', $cmdParts)) . ' 2>&1';
+        $lines = [];
+        $exitCode = 0;
+        @exec($cmd, $lines, $exitCode);
+        $output = trim((string)implode("\n", $lines));
+        $parsed = json_decode($output, true);
+        if (!is_array($parsed)) {
+            $parsed = ['status' => $exitCode === 0 ? 'ok' : 'error', 'raw_output' => $output];
+        }
+
+        $resultStatus = strtolower(trim((string)($parsed['status'] ?? '')));
+        $isOk = $exitCode === 0 && $resultStatus === 'ok';
+        $attemptEntry = [
+            'tracking' => $trackingOriginal,
+            'exit_code' => $exitCode,
+            'status' => $parsed['status'] ?? ($isOk ? 'ok' : 'error'),
+            'message' => trim((string)($parsed['message'] ?? '')),
+            'response' => $parsed,
+        ];
+        $attempted[] = $attemptEntry;
+
+        if ($isOk) {
+            $success[] = $attemptEntry;
+            continue;
+        }
+
+        $failed[] = $attemptEntry;
+        if (function_exists('audit_log')) {
+            audit_log(
+                $userId,
+                'DEPARTURE_FORCE_SYNC_PACKAGE_ERROR',
+                'DEPARTURE_CONTAINER',
+                $flightRecordId,
+                'Не удалось добавить посылку в контейнер у форварда',
+                [
+                    'connector_id' => (int)($connector['id'] ?? 0),
+                    'container_external_id' => $containerExternalId,
+                    'container_name' => $containerName,
+                    'tracking' => $trackingOriginal,
+                    'exit_code' => $exitCode,
+                    'script' => 'run_add_package_to_container.php',
+                    'response' => $parsed,
+                ]
+            );
+        }
+    }
+
+    $lastError = null;
+    if ($failed !== []) {
+        $last = $failed[count($failed) - 1];
+        $lastError = [
+            'tracking' => (string)($last['tracking'] ?? ''),
+            'message' => trim((string)($last['message'] ?? '')) ?: 'Ошибка добавления посылки к форварду',
+            'exit_code' => (int)($last['exit_code'] ?? 0),
+            'response' => $last['response'] ?? null,
+        ];
+    }
+
+    return [
+        'container_external_id' => $containerExternalId,
+        'container_name' => $containerName,
+        'warehouse_sended_total' => count($warehouseRows),
+        'forwarder_snapshot_total' => count($forwarderPackages),
+        'missing_total' => count($missingTrackings),
+        'attempted_total' => count($attempted),
+        'success_total' => count($success),
+        'failed_total' => count($failed),
+        'missing_trackings' => array_values($missingTrackings),
+        'attempted' => $attempted,
+        'last_error' => $lastError,
+    ];
+}
+
 function departures_update_container_forwarder_snapshot(
     mysqli $dbcnx,
     array $connector,
@@ -1638,17 +1845,40 @@ switch ($normalizedAction) {
                 break;
             }
 
-            if ($operation === 'sync_local') {
-                $syncResult = departures_update_container_compare_from_db(
+
+            if ($operation === 'force_sync_missing') {
+                $userId = isset($user['id']) ? (int)$user['id'] : 0;
+                $syncMissingResult = departures_force_sync_missing_container_packages(
+                    $dbcnx,
+                    $connector,
+                    $flightRecordId,
+                    $containerExternalId,
+                    $userId
+                );
+                $snapshotResult = departures_sync_forwarder_container_packages($connector, $containerExternalId);
+                $forwarderSnapshot = departures_update_container_forwarder_snapshot(
+                    $dbcnx,
+                    $connector,
+                    $flightRecordId,
+                    $containerExternalId,
+                    $snapshotResult
+                );
+                $compareRefresh = departures_update_container_compare_from_db(
                     $dbcnx,
                     $connector,
                     $flightRecordId,
                     $containerExternalId
                 );
+                $failedTotal = (int)($syncMissingResult['failed_total'] ?? 0);
+                $message = $failedTotal > 0
+                    ? ('Принудительная синхронизация завершена с ошибками: ' . $failedTotal . '. Последняя ошибка сохранена в audit_logs.')
+                    : 'Принудительная синхронизация выполнена, snapshot и локальная сверка обновлены.';
                 $response = [
                     'status' => 'ok',
-                    'message' => 'Сверка контейнера с локальными полями выполнена.',
-                    'result' => $syncResult,
+                    'message' => $message,
+                    'result' => $syncMissingResult,
+                    'forwarder_snapshot' => $forwarderSnapshot,
+                    'compare_refresh' => $compareRefresh,
                 ];
                 break;
             }
