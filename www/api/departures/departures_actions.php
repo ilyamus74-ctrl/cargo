@@ -438,9 +438,24 @@ function departures_extract_forwarder_packages($rawJson): array
         return [];
     }
 
-    $sourcePackages = isset($decoded['packages']) && is_array($decoded['packages'])
-        ? $decoded['packages']
-        : [];
+
+    $sourcePackages = [];
+    if (isset($decoded['packages']) && is_array($decoded['packages'])) {
+        $sourcePackages = $decoded['packages'];
+    } else {
+        $looksLikeList = true;
+        $index = 0;
+        foreach (array_keys($decoded) as $key) {
+            if ((string)$key !== (string)$index) {
+                $looksLikeList = false;
+                break;
+            }
+            $index++;
+        }
+        if ($looksLikeList) {
+            $sourcePackages = $decoded;
+        }
+    }
 
     $packages = [];
     foreach ($sourcePackages as $row) {
@@ -457,6 +472,26 @@ function departures_extract_forwarder_packages($rawJson): array
             }
         }
 
+        if ($tracking === '') {
+            foreach ($row as $key => $value) {
+                $normalizedKey = mb_strtolower(trim((string)$key));
+                $normalizedKey = preg_replace('/\s+/', ' ', (string)$normalizedKey);
+                if (
+                    str_contains($normalizedKey, 'tracking')
+                    || str_contains($normalizedKey, 'track number')
+                    || str_contains($normalizedKey, 'track no')
+                    || str_contains($normalizedKey, 'трек')
+                    || str_contains($normalizedKey, 'номер')
+                ) {
+                    $candidate = trim((string)$value);
+                    if ($candidate !== '') {
+                        $tracking = $candidate;
+                        break;
+                    }
+                }
+            }
+        }
+
         $weight = '';
         foreach (['Weight', 'weight', 'weight_kg', 'total_weight'] as $weightKey) {
             if (!array_key_exists($weightKey, $row)) {
@@ -470,6 +505,24 @@ function departures_extract_forwarder_packages($rawJson): array
             }
         }
 
+        if ($weight === '') {
+            foreach ($row as $key => $value) {
+                $normalizedKey = mb_strtolower(trim((string)$key));
+                $normalizedKey = preg_replace('/\s+/', ' ', (string)$normalizedKey);
+                if (
+                    str_contains($normalizedKey, 'weight')
+                    || str_contains($normalizedKey, 'kg')
+                    || str_contains($normalizedKey, 'вес')
+                ) {
+                    $rawWeight = str_replace(',', '.', trim((string)$value));
+                    $rawWeight = preg_replace('/[^0-9.\-]/', '', $rawWeight);
+                    if ($rawWeight !== '' && is_numeric($rawWeight)) {
+                        $weight = departures_format_value((float)$rawWeight);
+                        break;
+                    }
+                }
+            }
+        }
         $packages[] = [
             'tracking' => $tracking,
             'weight' => $weight,
