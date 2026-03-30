@@ -274,6 +274,7 @@ function departures_get_table_columns(mysqli $dbcnx, string $tableName): array
     return $columns;
 }
 
+
 function departures_load_live_warehouse_metrics(mysqli $dbcnx, array $containerNames): array
 {
     $normalizedContainerNames = [];
@@ -354,6 +355,7 @@ function departures_normalize_container_key(string $value): string
     return trim((string)$normalized);
 }
 
+
 function departures_load_containers_from_table(mysqli $dbcnx, string $flightTableName, int $connectorId, int $flightRecordId, string $flightExternalId): array
 {
     if ($connectorId <= 0 || ($flightRecordId <= 0 && $flightExternalId === '')) {
@@ -424,15 +426,13 @@ function departures_load_containers_from_table(mysqli $dbcnx, string $flightTabl
                 continue;
             }
             $rawRows[] = $row;
-            $containerName = trim((string)($row['name'] ?? ''));
-            $containerExternalId = trim((string)($row['container_external_id'] ?? ''));
-
+            $containerName = departures_normalize_container_key((string)($row['name'] ?? ''));
+            $containerExternalId = departures_normalize_container_key((string)($row['container_external_id'] ?? ''));
             if ($containerName !== '') {
                 $containerLookupKeys[$containerName] = true;
             }
             if ($containerExternalId !== '') {
                 $containerLookupKeys[$containerExternalId] = true;
-            }
         }
         $res->free();
     }
@@ -456,14 +456,16 @@ function departures_load_containers_from_table(mysqli $dbcnx, string $flightTabl
         $hasWeight = is_numeric($totalWeightRaw) && (float)$totalWeightRaw > 0.0;
 
         $liveMetrics = null;
-        if ($containerName !== '' && isset($warehouseMetrics[$containerName])) {
-            $liveMetrics = $warehouseMetrics[$containerName];
-        } elseif ($containerExternalId !== '' && isset($warehouseMetrics[$containerExternalId])) {
-            $liveMetrics = $warehouseMetrics[$containerExternalId];
+        $normalizedName = departures_normalize_container_key($containerName);
+        $normalizedExternalId = departures_normalize_container_key($containerExternalId);
+        if ($normalizedName !== '' && isset($warehouseMetrics[$normalizedName])) {
+            $liveMetrics = $warehouseMetrics[$normalizedName];
+        } elseif ($normalizedExternalId !== '' && isset($warehouseMetrics[$normalizedExternalId])) {
+            $liveMetrics = $warehouseMetrics[$normalizedExternalId];
         }
 
-        $warehousePackagesRaw = $liveMetrics['warehouse_packages_count'] ?? ($row['warehouse_packages_count'] ?? null);
-        $warehouseWeightRaw = $liveMetrics['warehouse_total_weight'] ?? ($row['warehouse_total_weight'] ?? null);
+        $warehousePackagesRaw = $liveMetrics['warehouse_packages_count'] ?? null;
+        $warehouseWeightRaw = $liveMetrics['warehouse_total_weight'] ?? null;
         $compareStatus = trim((string)($row['compare_status'] ?? 'pending'));
         $calculatedCompare = departures_recalculate_compare_status(
             is_numeric($warehousePackagesRaw) ? (int)$warehousePackagesRaw : null,
@@ -494,7 +496,6 @@ function departures_load_containers_from_table(mysqli $dbcnx, string $flightTabl
             'can_close_flight' => $containerExternalId !== '' && $hasPackages && $hasWeight,
         ];
     }
-
     return $containers;
 }
 function departures_fetch_rows(mysqli $dbcnx, array $connector, string $statusFilter = 'ALL'): array
@@ -707,7 +708,7 @@ function departures_update_container_compare_from_db(
 
         $tables[] = $containersTableName;
         $safeTable = '`' . str_replace('`', '``', $containersTableName) . '`';
-        $selectStmt = $dbcnx->prepare("SELECT id, warehouse_packages_count, warehouse_total_weight, packages_count, total_weight FROM {$safeTable} WHERE connector_id = ? AND flight_record_id = ? AND container_external_id = ? LIMIT 1");
+        $selectStmt = $dbcnx->prepare("SELECT id, name, container_external_id, packages_count, total_weight FROM {$safeTable} WHERE connector_id = ? AND flight_record_id = ? AND container_external_id = ? LIMIT 1");
         if (!$selectStmt) {
             continue;
         }
@@ -722,8 +723,26 @@ function departures_update_container_compare_from_db(
             continue;
         }
 
-        $warehousePackages = isset($row['warehouse_packages_count']) ? (int)$row['warehouse_packages_count'] : null;
-        $warehouseWeight = isset($row['warehouse_total_weight']) ? (float)$row['warehouse_total_weight'] : null;
+;
+        $warehouseMetrics = departures_load_live_warehouse_metrics(
+            $dbcnx,
+            [
+                (string)($row['name'] ?? ''),
+                (string)($row['container_external_id'] ?? ''),
+                $containerExternalId,
+            ]
+        );
+        $normalizedName = departures_normalize_container_key((string)($row['name'] ?? ''));
+        $normalizedExternalId = departures_normalize_container_key((string)($row['container_external_id'] ?? ''));
+        $metrics = null;
+        if ($normalizedName !== '' && isset($warehouseMetrics[$normalizedName])) {
+            $metrics = $warehouseMetrics[$normalizedName];
+        } elseif ($normalizedExternalId !== '' && isset($warehouseMetrics[$normalizedExternalId])) {
+            $metrics = $warehouseMetrics[$normalizedExternalId];
+        }
+        $warehousePackages = isset($metrics['warehouse_packages_count']) ? (int)$metrics['warehouse_packages_count'] : null;
+        $warehouseWeight = isset($metrics['warehouse_total_weight']) ? (float)$metrics['warehouse_total_weight'] : null;
+
         $forwarderPackages = isset($row['packages_count']) ? (int)$row['packages_count'] : null;
         $forwarderWeight = isset($row['total_weight']) ? (float)$row['total_weight'] : null;
         $compare = departures_recalculate_compare_status($warehousePackages, $warehouseWeight, $forwarderPackages, $forwarderWeight);
