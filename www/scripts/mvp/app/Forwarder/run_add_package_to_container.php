@@ -118,6 +118,7 @@ $verifyRequested = forwarder_add_package_to_container_as_bool(
 $checkPath = $checkPath !== '' ? $checkPath : '/collect/check-position';
 $changePath = $changePath !== '' ? $changePath : '/collect/change-position';
 $verifyPath = $verifyPath !== '' ? $verifyPath : '/collector/check-package';
+$collectorPagePath = '/collector/packages';
 
 if ($track === '') {
     fwrite(STDERR, "run_add_package_to_container: missing required --track\n");
@@ -144,6 +145,11 @@ $sessionClient = new ForwarderSessionClient($config, $httpClient, $session, $log
 
 $checkPayload = ['position' => $position];
 $checkResponse = $sessionClient->requestWithSession('POST', $checkPath, $checkPayload, true);
+$checkStatusCode = (int)($checkResponse['status_code'] ?? 0);
+if ($checkStatusCode === 419) {
+    $sessionClient->requestWithSession('GET', $collectorPagePath, [], false);
+    $checkResponse = $sessionClient->requestWithSession('POST', $checkPath, $checkPayload, true);
+}
 $checkStatusCode = (int)($checkResponse['status_code'] ?? 0);
 $checkJson = is_array($checkResponse['json'] ?? null)
     ? $checkResponse['json']

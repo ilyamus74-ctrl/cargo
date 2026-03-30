@@ -2830,6 +2830,7 @@ const CoreAPI = {
             fd.append('flight_no', containerMeta.flightNo);
             fd.append('flight_name', containerMeta.flightName);
             fd.append('flight_id', containerMeta.flightId);
+            fd.append('flight_record_id', containerMeta.flightRecordId || '');
             fd.append('container_id', containerMeta.containerId || containerMeta.value);
             fd.append('container_name', containerMeta.containerName || containerMeta.containerDisplay);
             fd.append('container_label', containerMeta.label);

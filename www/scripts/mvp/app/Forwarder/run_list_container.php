@@ -93,9 +93,17 @@ function forwarder_list_container_packages_bool(string $value): bool
 function forwarder_list_container_packages_position_check(
     ForwarderSessionClient $sessionClient,
     string $checkPath,
-    string $position
+    string $position,
+    string $collectorPagePath = '/collector/packages'
 ): array {
     $response = $sessionClient->requestWithSession('POST', $checkPath, ['position' => $position], true);
+    $statusCode = (int)($response['status_code'] ?? 0);
+    if ($statusCode === 419) {
+        // На части инстансов после relogin нужен preflight GET collector page,
+        // чтобы получить свежий CSRF/сессионные куки перед check-position.
+        $sessionClient->requestWithSession('GET', $collectorPagePath, [], false);
+        $response = $sessionClient->requestWithSession('POST', $checkPath, ['position' => $position], true);
+    }
     $statusCode = (int)($response['status_code'] ?? 0);
     $json = is_array($response['json'] ?? null)
         ? $response['json']
@@ -335,7 +343,7 @@ $sessionClient = new ForwarderSessionClient($config, $httpClient, $session, $log
 
 $positionCheck = null;
 if ($position !== '') {
-    $positionCheck = forwarder_list_container_packages_position_check($sessionClient, $checkPath, $position);
+    $positionCheck = forwarder_list_container_packages_position_check($sessionClient, $checkPath, $position, $pagePath);
     if (empty($positionCheck['ok'])) {
         $result = [
             'status' => 'error',

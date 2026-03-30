@@ -1642,6 +1642,148 @@ if (!function_exists('warehouse_sync_submission_steps')) {
 
 
 
+if (!function_exists('warehouse_sync_exec_forwarder_cli_script')) {
+    function warehouse_sync_exec_forwarder_cli_script(string $scriptName, array $args): array
+    {
+        $scriptPath = dirname(__DIR__, 2) . '/scripts/mvp/app/Forwarder/' . ltrim($scriptName, '/');
+        if (!is_file($scriptPath)) {
+            throw new RuntimeException('Не найден скрипт: ' . $scriptPath);
+        }
+
+        $cmdParts = ['php', $scriptPath];
+        foreach ($args as $key => $value) {
+            $normalizedKey = trim((string)$key);
+            if ($normalizedKey === '') {
+                continue;
+            }
+            $cmdParts[] = '--' . $normalizedKey . '=' . (string)$value;
+        }
+
+        $cmd = implode(' ', array_map('escapeshellarg', $cmdParts)) . ' 2>&1';
+        $lines = [];
+        $exitCode = 0;
+        @exec($cmd, $lines, $exitCode);
+        $output = trim((string)implode("\n", $lines));
+        $parsed = json_decode($output, true);
+        if (!is_array($parsed)) {
+            $parsed = [
+                'status' => $exitCode === 0 ? 'ok' : 'error',
+                'raw_output' => $output,
+            ];
+        }
+        $parsed['_meta'] = [
+            'script' => $scriptName,
+            'exit_code' => $exitCode,
+            'raw_output' => $output,
+        ];
+
+        return $parsed;
+    }
+}
+
+if (!function_exists('warehouse_sync_update_forwarder_snapshot_for_container')) {
+    function warehouse_sync_update_forwarder_snapshot_for_container(
+        mysqli $dbcnx,
+        int $connectorId,
+        int $flightRecordId,
+        string $containerExternalId,
+        array $snapshot
+    ): array {
+        if ($connectorId <= 0 || $flightRecordId <= 0 || $containerExternalId === '') {
+            return ['updated' => 0, 'tables_checked' => []];
+        }
+
+        $tablesChecked = [];
+        $updated = 0;
+        $snapshotJson = json_encode($snapshot, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        $metrics = warehouse_sync_extract_forwarder_metrics_from_snapshot($snapshot);
+        $forwarderPackagesCount = $metrics['packages_count'];
+        $forwarderTotalWeight = $metrics['total_weight'];
+
+        if ($res = $dbcnx->query("SHOW TABLES LIKE 'connector\\_%\\_flight\\_list\\_containers'")) {
+            while ($row = $res->fetch_row()) {
+                $tableName = trim((string)($row[0] ?? ''));
+                if ($tableName !== '') {
+                    $tablesChecked[] = $tableName;
+                }
+            }
+            $res->free();
+        }
+
+        foreach ($tablesChecked as $tableName) {
+            $safeTable = '`' . str_replace('`', '``', $tableName) . '`';
+            $stmt = $dbcnx->prepare("
+                UPDATE {$safeTable}
+                   SET forwarder_packages_json = ?,
+                       forwarder_packages_synced_at = UTC_TIMESTAMP(),
+                       packages_count = ?,
+                       total_weight = ?
+                 WHERE connector_id = ?
+                   AND flight_record_id = ?
+                   AND container_external_id = ?
+                 LIMIT 1
+            ");
+            if (!$stmt) {
+                continue;
+            }
+            $stmt->bind_param('sidis', $snapshotJson, $forwarderPackagesCount, $forwarderTotalWeight, $connectorId, $flightRecordId, $containerExternalId);
+            if ($stmt->execute()) {
+                $updated += (int)$stmt->affected_rows;
+            }
+            $stmt->close();
+        }
+
+        return ['updated' => $updated, 'tables_checked' => $tablesChecked];
+    }
+}
+
+if (!function_exists('warehouse_sync_extract_forwarder_metrics_from_snapshot')) {
+    function warehouse_sync_extract_forwarder_metrics_from_snapshot(array $snapshot): array
+    {
+        $packages = isset($snapshot['packages']) && is_array($snapshot['packages'])
+            ? $snapshot['packages']
+            : [];
+
+        $packagesCount = 0;
+        $totalWeight = 0.0;
+        foreach ($packages as $row) {
+            if (!is_array($row)) {
+                continue;
+            }
+
+            $itemCount = 1;
+            foreach (['Count', 'count', 'qty', 'quantity'] as $countKey) {
+                if (!array_key_exists($countKey, $row)) {
+                    continue;
+                }
+                $raw = str_replace(',', '.', trim((string)$row[$countKey]));
+                if ($raw !== '' && is_numeric($raw)) {
+                    $itemCount = max(1, (int)round((float)$raw));
+                    break;
+                }
+            }
+            $packagesCount += $itemCount;
+
+            foreach (['Weight', 'weight', 'total_weight', 'weight_kg'] as $weightKey) {
+                if (!array_key_exists($weightKey, $row)) {
+                    continue;
+                }
+                $raw = str_replace(',', '.', trim((string)$row[$weightKey]));
+                $raw = preg_replace('/[^0-9.\\-]/', '', $raw);
+                if ($raw !== '' && is_numeric($raw)) {
+                    $totalWeight += (float)$raw;
+                    break;
+                }
+            }
+        }
+
+        return [
+            'packages_count' => $packagesCount,
+            'total_weight' => round($totalWeight, 3),
+        ];
+    }
+}
+
 if (!function_exists('warehouse_sync_submission_error_selector')) {
     function warehouse_sync_submission_error_selector(array $connector): string
     {
@@ -2520,9 +2662,17 @@ if ($action === 'warehouse_item_out_confirm_send') {
     }
 
     $sqlSelect = "
-        SELECT id, stock_item_id, tracking_no, tuid, status
-        FROM warehouse_item_out
-        WHERE stock_item_id = ?
+        SELECT
+            wo.id,
+            wo.stock_item_id,
+            wo.tracking_no,
+            wo.tuid,
+            wo.status,
+            COALESCE(NULLIF(wo.receiver_company, ''), wi.receiver_company) AS receiver_company,
+            COALESCE(NULLIF(wo.receiver_country_code, ''), wi.receiver_country_code) AS receiver_country_code
+        FROM warehouse_item_out wo
+        LEFT JOIN warehouse_item_stock wi ON wi.id = wo.stock_item_id
+        WHERE wo.stock_item_id = ?
         LIMIT 1
     ";
     $item = null;
@@ -2607,10 +2757,73 @@ if ($action === 'warehouse_item_out_confirm_send') {
         ]);
     }
 
+    $forwarderSync = [
+        'status' => 'skipped',
+        'message' => 'snapshot форварда не обновлялся',
+    ];
+    try {
+        $trackingForForwarder = trim((string)($item['tracking_no'] ?? $item['tuid'] ?? $trackingNo));
+        $containerPosition = trim($containerId !== '' ? $containerId : $containerDisplay);
+        $flightRecordId = max(0, (int)($_POST['flight_record_id'] ?? 0));
+        if ($trackingForForwarder !== '' && $containerPosition !== '' && $flightRecordId > 0) {
+            $connector = warehouse_sync_resolve_permitted_connector($dbcnx, $item, 0);
+            $baseUrl = trim((string)($connector['base_url'] ?? ''));
+            $login = trim((string)($connector['auth_username'] ?? ''));
+            $password = trim((string)($connector['auth_password'] ?? ''));
+
+            if ($baseUrl !== '' && $login !== '' && $password !== '') {
+                $addResult = warehouse_sync_exec_forwarder_cli_script('run_add_package_to_container.php', [
+                    'base-url' => $baseUrl,
+                    'login' => $login,
+                    'password' => $password,
+                    'track' => $trackingForForwarder,
+                    'position' => $containerPosition,
+                ]);
+                $addStatus = strtolower(trim((string)($addResult['status'] ?? '')));
+                if ($addStatus !== 'ok') {
+                    throw new RuntimeException(trim((string)($addResult['message'] ?? 'Не удалось добавить посылку в контейнер форварда')));
+                }
+
+                $snapshotResult = warehouse_sync_exec_forwarder_cli_script('run_list_container.php', [
+                    'base-url' => $baseUrl,
+                    'login' => $login,
+                    'password' => $password,
+                    'position' => $containerPosition,
+                    'all-pages' => '1',
+                ]);
+                $snapshotStatus = strtolower(trim((string)($snapshotResult['status'] ?? '')));
+                if ($snapshotStatus !== 'ok' && $snapshotStatus !== 'warning') {
+                    throw new RuntimeException(trim((string)($snapshotResult['message'] ?? 'Не удалось получить snapshot контейнера форварда')));
+                }
+
+                $snapshotUpdate = warehouse_sync_update_forwarder_snapshot_for_container(
+                    $dbcnx,
+                    (int)($connector['id'] ?? 0),
+                    $flightRecordId,
+                    $containerPosition,
+                    $snapshotResult
+                );
+
+                $forwarderSync = [
+                    'status' => 'ok',
+                    'message' => 'Посылка добавлена в контейнер форварда, snapshot обновлён',
+                    'add_result' => $addResult,
+                    'snapshot_update' => $snapshotUpdate,
+                ];
+            }
+        }
+    } catch (Throwable $e) {
+        $forwarderSync = [
+            'status' => 'error',
+            'message' => $e->getMessage(),
+        ];
+    }
+
     $response = [
         'status' => 'ok',
         'message' => 'Посылка отправлена в контейнер',
         'shipment_cell' => $shipmentCell,
+        'forwarder_sync' => $forwarderSync,
     ];
 }
 

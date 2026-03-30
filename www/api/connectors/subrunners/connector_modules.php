@@ -681,6 +681,8 @@ function connectors_subrunner_ensure_flight_containers_table(mysqli $db, string 
             awb VARCHAR(128) NOT NULL DEFAULT '',
             packages_count INT NULL,
             total_weight DECIMAL(12,3) NULL,
+            forwarder_packages_json LONGTEXT NULL,
+            forwarder_packages_synced_at DATETIME NULL,
             warehouse_packages_count INT NULL,
             warehouse_total_weight DECIMAL(12,3) NULL,
             compare_status VARCHAR(32) NOT NULL DEFAULT 'pending',
@@ -705,8 +707,20 @@ function connectors_subrunner_ensure_flight_containers_table(mysqli $db, string 
     connectors_subrunner_ensure_column(
         $db,
         $tableName,
+        'forwarder_packages_json',
+        "ALTER TABLE {$safeTable} ADD COLUMN forwarder_packages_json LONGTEXT NULL AFTER total_weight"
+    );
+    connectors_subrunner_ensure_column(
+        $db,
+        $tableName,
+        'forwarder_packages_synced_at',
+        "ALTER TABLE {$safeTable} ADD COLUMN forwarder_packages_synced_at DATETIME NULL AFTER forwarder_packages_json"
+    );
+    connectors_subrunner_ensure_column(
+        $db,
+        $tableName,
         'warehouse_packages_count',
-        "ALTER TABLE {$safeTable} ADD COLUMN warehouse_packages_count INT NULL AFTER total_weight"
+        "ALTER TABLE {$safeTable} ADD COLUMN warehouse_packages_count INT NULL AFTER forwarder_packages_synced_at"
     );
     connectors_subrunner_ensure_column(
         $db,
