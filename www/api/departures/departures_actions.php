@@ -433,6 +433,7 @@ function departures_load_containers_from_table(mysqli $dbcnx, string $flightTabl
             }
             if ($containerExternalId !== '') {
                 $containerLookupKeys[$containerExternalId] = true;
+            }
         }
         $res->free();
     }
@@ -723,7 +724,6 @@ function departures_update_container_compare_from_db(
             continue;
         }
 
-;
         $warehouseMetrics = departures_load_live_warehouse_metrics(
             $dbcnx,
             [
