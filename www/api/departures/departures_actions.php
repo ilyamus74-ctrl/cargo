@@ -184,6 +184,21 @@ function departures_format_datetime(?string $value): string
     return date('Y-m-d H:i', $timestamp);
 }
 
+function departures_json_encode_for_html(array $payload): string
+{
+    $flags = JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES;
+    if (defined('JSON_INVALID_UTF8_SUBSTITUTE')) {
+        $flags |= JSON_INVALID_UTF8_SUBSTITUTE;
+    }
+
+    $encoded = json_encode($payload, $flags);
+    if (!is_string($encoded) || $encoded === '') {
+        return '{}';
+    }
+
+    return $encoded;
+}
+
 function departures_decode_containers($rawContainers): array
 {
     $decoded = json_decode((string)$rawContainers, true);
@@ -672,7 +687,7 @@ function departures_load_containers_from_table(mysqli $dbcnx, string $flightTabl
         $dbcnx,
         $containersTableName,
         $connectorId,
-        array_map(static fn(array $item): string => trim((string)($item['container_external_id'] ?? '')), $rawRows)
+        array_map(static function (array $item): string { return trim((string)($item['container_external_id'] ?? '')); }, $rawRows)
     );
     $containers = [];
     foreach ($rawRows as $row) {
@@ -724,13 +739,13 @@ function departures_load_containers_from_table(mysqli $dbcnx, string $flightTabl
             'is_empty_placeholder' => $hasZeroPackages && $hasZeroWeight,
             'can_delete_placeholder' => $containerExternalId !== '' && $hasZeroPackages,
             'can_close_flight' => $containerExternalId !== '' && $hasPackages && $hasWeight,
-            'compare_modal_payload_json' => (string)json_encode([
+            'compare_modal_payload_json' => departures_json_encode_for_html([
                 'container' => $containerName !== '' ? $containerName : $containerExternalId,
                 'warehouse' => $warehousePackagesDetail,
                 'forwarder' => $forwarderPackagesDetail,
                 'compare_status' => $compareStatus,
                 'compare_error' => trim((string)($calculatedCompare['error'] ?? ($row['compare_error'] ?? ''))),
-            ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
+            ]),
         ];
     }
     return $containers;
@@ -1535,9 +1550,3 @@ switch ($normalizedAction) {
         break;
 }
 
-    $latestForwarderSnapshots = departures_load_latest_forwarder_packages_snapshots(
-        $dbcnx,
-        $containersTableName,
-        $connectorId,
-        array_map(static fn(array $row): string => trim((string)($row['container_external_id'] ?? '')), $rawRows)
-    );

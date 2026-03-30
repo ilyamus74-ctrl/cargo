@@ -3151,7 +3151,38 @@ const CoreAPI = {
             });
             return `<ul class="list-unstyled small mb-0">${rows.join('')}</ul>`;
         },
-        openCompareModal(button) {
+
+        async fetchComparePayload(button) {
+            const connectorId = Number(button?.getAttribute('data-connector-id') || 0);
+            const flightRecordId = Number(button?.getAttribute('data-flight-record-id') || 0);
+            const containerExternalId = String(button?.getAttribute('data-container-id') || '').trim();
+
+            if (connectorId <= 0 || (!flightRecordId && !containerExternalId)) {
+                return null;
+            }
+
+            const fd = new FormData();
+            fd.append('action', 'departures_compare_payload');
+            fd.append('connector_id', String(connectorId));
+            if (flightRecordId > 0) {
+                fd.append('flight_record_id', String(flightRecordId));
+            }
+            if (containerExternalId !== '') {
+                fd.append('container_external_id', containerExternalId);
+            }
+
+            try {
+                const data = await CoreAPI.client.call(fd);
+                if (data?.status === 'ok' && data?.payload && typeof data.payload === 'object') {
+                    return data.payload;
+                }
+            } catch (err) {
+                console.warn('core_api warning (departures_compare_payload):', err?.payload || err);
+            }
+
+            return null;
+        },
+        async openCompareModal(button) {
             const rawPayload = String(button?.getAttribute('data-compare-payload') || '{}').trim();
             let payload = {};
             try {
@@ -3160,6 +3191,14 @@ const CoreAPI = {
                 payload = {};
             }
 
+            const hasWarehouseRows = Array.isArray(payload?.warehouse) && payload.warehouse.length > 0;
+            const hasForwarderRows = Array.isArray(payload?.forwarder) && payload.forwarder.length > 0;
+            if (!hasWarehouseRows && !hasForwarderRows) {
+                const freshPayload = await this.fetchComparePayload(button);
+                if (freshPayload && typeof freshPayload === 'object') {
+                    payload = freshPayload;
+                }
+            }
             const container = String(payload?.container || '—');
             const compareStatus = String(payload?.compare_status || 'pending');
             const compareError = String(payload?.compare_error || '').trim();

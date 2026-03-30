@@ -195,7 +195,10 @@
                         {/if}
                         <button type="button"
                                 class="btn btn-link btn-sm p-0 mt-1 js-departure-compare-open"
-                                data-compare-payload="{$container.compare_modal_payload_json|default:'{}'|escape:'htmlattr'}">
+                                data-compare-payload="{$container.compare_modal_payload_json|default:'{}'|escape:'htmlattr'}"
+                                data-connector-id="{$flight.connector_id|default:0|escape:'htmlattr'}"
+                                data-flight-record-id="{$flight.flight_record_id|default:0|escape:'htmlattr'}"
+                                data-container-id="{$container.container_external_id|default:''|escape:'htmlattr'}">
                           Сверка позиций
                         </button>
                       </td>
