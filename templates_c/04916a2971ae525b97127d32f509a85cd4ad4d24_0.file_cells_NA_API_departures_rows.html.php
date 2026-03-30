@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-03-29 19:52:58
+/* Smarty version 5.3.1, created on 2026-03-29 20:14:01
   from 'file:cells_NA_API_departures_rows.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_69c9831a046426_78821942',
+  'unifunc' => 'content_69c9880991e482_90925885',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '04916a2971ae525b97127d32f509a85cd4ad4d24' => 
     array (
       0 => 'cells_NA_API_departures_rows.html',
-      1 => 1774813650,
+      1 => 1774815107,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_69c9831a046426_78821942 (\Smarty\Template $_smarty_tpl) {
+function content_69c9880991e482_90925885 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 if ($_smarty_tpl->getSmarty()->getModifierCallback('count')($_smarty_tpl->getValue('departure_rows')) > 0) {?>
   <?php
@@ -317,6 +317,40 @@ $foreach1DoElse = false;
                       </td>
 
                       <td class="text-end">
+                        <div class="d-inline-flex align-items-center gap-1 me-2">
+                          <button type="button"
+                                  class="btn btn-sm btn-outline-primary js-departure-container-action"
+                                  data-operation="sync_forwarder"
+                                  data-connector-id="<?php echo $_smarty_tpl->getSmarty()->getModifierCallback('escape')((($tmp = $_smarty_tpl->getValue('flight')['connector_id'] ?? null)===null||$tmp==='' ? 0 ?? null : $tmp), 'htmlattr');?>
+"
+                                  data-flight-id="<?php echo $_smarty_tpl->getSmarty()->getModifierCallback('escape')((($tmp = $_smarty_tpl->getValue('flight')['flight_id'] ?? null)===null||$tmp==='' ? '' ?? null : $tmp), 'htmlattr');?>
+"
+                                  data-flight-record-id="<?php echo $_smarty_tpl->getSmarty()->getModifierCallback('escape')((($tmp = $_smarty_tpl->getValue('flight')['flight_record_id'] ?? null)===null||$tmp==='' ? 0 ?? null : $tmp), 'htmlattr');?>
+"
+                                  data-container-id="<?php echo $_smarty_tpl->getSmarty()->getModifierCallback('escape')($_smarty_tpl->getValue('container')['container_external_id'], 'htmlattr');?>
+"
+                                  data-status-target="#<?php echo $_smarty_tpl->getSmarty()->getModifierCallback('escape')($_smarty_tpl->getValue('flight')['row_uid'], 'htmlattr');?>
+_status"
+                                  title="Запросить данные у форварда по контейнеру">
+                            <i class="bi bi-cloud-arrow-down"></i>
+                          </button>
+                          <button type="button"
+                                  class="btn btn-sm btn-outline-secondary js-departure-container-action"
+                                  data-operation="sync_local"
+                                  data-connector-id="<?php echo $_smarty_tpl->getSmarty()->getModifierCallback('escape')((($tmp = $_smarty_tpl->getValue('flight')['connector_id'] ?? null)===null||$tmp==='' ? 0 ?? null : $tmp), 'htmlattr');?>
+"
+                                  data-flight-id="<?php echo $_smarty_tpl->getSmarty()->getModifierCallback('escape')((($tmp = $_smarty_tpl->getValue('flight')['flight_id'] ?? null)===null||$tmp==='' ? '' ?? null : $tmp), 'htmlattr');?>
+"
+                                  data-flight-record-id="<?php echo $_smarty_tpl->getSmarty()->getModifierCallback('escape')((($tmp = $_smarty_tpl->getValue('flight')['flight_record_id'] ?? null)===null||$tmp==='' ? 0 ?? null : $tmp), 'htmlattr');?>
+"
+                                  data-container-id="<?php echo $_smarty_tpl->getSmarty()->getModifierCallback('escape')($_smarty_tpl->getValue('container')['container_external_id'], 'htmlattr');?>
+"
+                                  data-status-target="#<?php echo $_smarty_tpl->getSmarty()->getModifierCallback('escape')($_smarty_tpl->getValue('flight')['row_uid'], 'htmlattr');?>
+_status"
+                                  title="Запросить локальные данные из БД по контейнеру">
+                            <i class="bi bi-database-down"></i>
+                          </button>
+                        </div>
                         <?php if (mb_strtolower((string) $_smarty_tpl->getValue('flight')['status'], 'UTF-8') == 'open' && $_smarty_tpl->getValue('container')['can_delete_placeholder']) {?>
                           <button type="button"
                                   class="btn btn-sm btn-outline-danger js-departure-placeholder-action"

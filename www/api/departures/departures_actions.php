@@ -534,7 +534,7 @@ function departures_fetch_rows(mysqli $dbcnx, array $connector, string $statusFi
 
 function departures_fetch_connector(mysqli $dbcnx, int $connectorId): ?array
 {
-    $stmt = $dbcnx->prepare('SELECT id, name, countries, operations_json, is_active FROM connectors WHERE id = ? LIMIT 1');
+    $stmt = $dbcnx->prepare('SELECT id, name, countries, operations_json, is_active, base_url, auth_username, auth_password FROM connectors WHERE id = ? LIMIT 1');
     if (!$stmt) {
         error_log('departures connector fetch prepare error: ' . $dbcnx->error);
         return null;
@@ -557,6 +557,132 @@ function departures_fetch_connector(mysqli $dbcnx, int $connectorId): ?array
     return is_array($connector) ? $connector : null;
 }
 
+
+function departures_recalculate_compare_status(
+    ?int $warehousePackages,
+    ?float $warehouseWeight,
+    ?int $forwarderPackages,
+    ?float $forwarderWeight
+): array {
+    if ($warehousePackages === null || $warehouseWeight === null) {
+        return ['status' => 'pending', 'error' => 'warehouse metrics are not set'];
+    }
+    if ($forwarderPackages === null || $forwarderWeight === null) {
+        return ['status' => 'pending', 'error' => 'forwarder metrics are not set'];
+    }
+    if ($warehousePackages === $forwarderPackages && abs($warehouseWeight - $forwarderWeight) < 0.0005) {
+        return ['status' => 'matched', 'error' => null];
+    }
+
+    return [
+        'status' => 'mismatch',
+        'error' => 'warehouse=' . $warehousePackages . '/' . $warehouseWeight . '; forwarder=' . $forwarderPackages . '/' . $forwarderWeight,
+    ];
+}
+
+function departures_update_container_compare_from_db(
+    mysqli $dbcnx,
+    array $connector,
+    int $flightRecordId,
+    string $containerExternalId
+): array {
+    if ($flightRecordId <= 0 || $containerExternalId === '') {
+        throw new InvalidArgumentException('Не переданы flight_record_id/container_external_id');
+    }
+
+    $connectorId = (int)($connector['id'] ?? 0);
+    $updated = 0;
+    $tables = [];
+    foreach (departures_resolve_table_names($connector) as $flightTableName) {
+        $containersTableName = connectors_subrunner_resolve_flight_containers_table_name($flightTableName, []);
+        if (!departures_table_exists($dbcnx, $containersTableName)) {
+            continue;
+        }
+
+        $tables[] = $containersTableName;
+        $safeTable = '`' . str_replace('`', '``', $containersTableName) . '`';
+        $selectStmt = $dbcnx->prepare("SELECT id, warehouse_packages_count, warehouse_total_weight, packages_count, total_weight FROM {$safeTable} WHERE connector_id = ? AND flight_record_id = ? AND container_external_id = ? LIMIT 1");
+        if (!$selectStmt) {
+            continue;
+        }
+        $selectStmt->bind_param('iis', $connectorId, $flightRecordId, $containerExternalId);
+        if (!$selectStmt->execute()) {
+            $selectStmt->close();
+            continue;
+        }
+        $row = $selectStmt->get_result()?->fetch_assoc() ?: null;
+        $selectStmt->close();
+        if (!is_array($row)) {
+            continue;
+        }
+
+        $warehousePackages = isset($row['warehouse_packages_count']) ? (int)$row['warehouse_packages_count'] : null;
+        $warehouseWeight = isset($row['warehouse_total_weight']) ? (float)$row['warehouse_total_weight'] : null;
+        $forwarderPackages = isset($row['packages_count']) ? (int)$row['packages_count'] : null;
+        $forwarderWeight = isset($row['total_weight']) ? (float)$row['total_weight'] : null;
+        $compare = departures_recalculate_compare_status($warehousePackages, $warehouseWeight, $forwarderPackages, $forwarderWeight);
+
+        $compareStatus = (string)$compare['status'];
+        $compareError = $compare['error'];
+        $updateStmt = $dbcnx->prepare("UPDATE {$safeTable} SET compare_status = ?, compare_error = ?, compared_at = UTC_TIMESTAMP() WHERE id = ? LIMIT 1");
+        if (!$updateStmt) {
+            continue;
+        }
+        $containerRowId = (int)$row['id'];
+        $updateStmt->bind_param('ssi', $compareStatus, $compareError, $containerRowId);
+        if ($updateStmt->execute()) {
+            $updated += (int)$updateStmt->affected_rows;
+        }
+        $updateStmt->close();
+    }
+
+    return [
+        'updated' => $updated,
+        'tables_checked' => $tables,
+    ];
+}
+
+function departures_sync_flight_containers_from_forwarder(array $connector, string $flightId): array
+{
+    $connectorId = (int)($connector['id'] ?? 0);
+    $baseUrl = trim((string)($connector['base_url'] ?? ''));
+    $login = trim((string)($connector['auth_username'] ?? ''));
+    $password = trim((string)($connector['auth_password'] ?? ''));
+    if ($connectorId <= 0 || $flightId === '' || $baseUrl === '' || $login === '' || $password === '') {
+        throw new InvalidArgumentException('Недостаточно данных для sync с форвардом (connector/base_url/login/password/flight_id).');
+    }
+
+    $scriptPath = dirname(__DIR__, 2) . '/scripts/mvp/app/Forwarder/run_sync_flight_containers.php';
+    if (!is_file($scriptPath)) {
+        throw new RuntimeException('Не найден скрипт sync: ' . $scriptPath);
+    }
+
+    $cmdParts = [
+        'php',
+        $scriptPath,
+        '--base-url=' . $baseUrl,
+        '--login=' . $login,
+        '--password=' . $password,
+        '--connector-id=' . $connectorId,
+        '--flight-id=' . $flightId,
+    ];
+    $cmd = implode(' ', array_map('escapeshellarg', $cmdParts)) . ' 2>&1';
+    $lines = [];
+    $exitCode = 0;
+    @exec($cmd, $lines, $exitCode);
+    $output = trim((string)implode("\n", $lines));
+    $parsed = json_decode($output, true);
+    if (!is_array($parsed)) {
+        $parsed = ['raw_output' => $output, 'status' => $exitCode === 0 ? 'ok' : 'error'];
+    }
+
+    if ($exitCode !== 0 || strtolower((string)($parsed['status'] ?? '')) !== 'ok') {
+        $message = trim((string)($parsed['message'] ?? ''));
+        throw new RuntimeException($message !== '' ? $message : ('sync ошибка: exit=' . $exitCode . '; output=' . $output));
+    }
+
+    return $parsed;
+}
 
 function departures_delete_local_flight(mysqli $dbcnx, array $connector, int $flightRecordId, string $flightId = '', string $flightNo = ''): array
 {
@@ -824,6 +950,70 @@ switch ($normalizedAction) {
                 'stats' => $stats,
             ];
         } catch (InvalidArgumentException $e) {
+            $response = [
+                'status' => 'error',
+                'message' => $e->getMessage(),
+            ];
+        }
+        break;
+
+    case 'departures_container_action':
+        $operation = trim((string)($_POST['operation'] ?? ''));
+        $connectorId = (int)($_POST['connector_id'] ?? 0);
+        $flightId = trim((string)($_POST['flight_id'] ?? ''));
+        $flightRecordId = (int)($_POST['flight_record_id'] ?? 0);
+        $containerExternalId = trim((string)($_POST['container_external_id'] ?? ''));
+
+        $connector = departures_fetch_connector($dbcnx, $connectorId);
+        if (!is_array($connector)) {
+            $response = [
+                'status' => 'error',
+                'message' => 'Форвард не найден для операции контейнера',
+            ];
+            break;
+        }
+
+        try {
+            if ($operation === 'sync_forwarder') {
+                $syncResult = departures_sync_flight_containers_from_forwarder($connector, $flightId);
+                $compareRefresh = null;
+                if ($flightRecordId > 0 && $containerExternalId !== '') {
+                    $compareRefresh = departures_update_container_compare_from_db(
+                        $dbcnx,
+                        $connector,
+                        $flightRecordId,
+                        $containerExternalId
+                    );
+                }
+                $response = [
+                    'status' => 'ok',
+                    'message' => 'Данные по контейнерам запрошены у форварда, локальная сверка обновлена.',
+                    'result' => $syncResult,
+                    'compare_refresh' => $compareRefresh,
+                ];
+                break;
+            }
+
+            if ($operation === 'sync_local') {
+                $syncResult = departures_update_container_compare_from_db(
+                    $dbcnx,
+                    $connector,
+                    $flightRecordId,
+                    $containerExternalId
+                );
+                $response = [
+                    'status' => 'ok',
+                    'message' => 'Сверка контейнера с локальными полями выполнена.',
+                    'result' => $syncResult,
+                ];
+                break;
+            }
+
+            $response = [
+                'status' => 'error',
+                'message' => 'Неизвестная операция контейнера',
+            ];
+        } catch (Throwable $e) {
             $response = [
                 'status' => 'error',
                 'message' => $e->getMessage(),

@@ -59,6 +59,7 @@ $routes = [
     'view_departures'       => 'api/departures/departures_actions.php',
     'departures_flights'    => 'api/departures/departures_actions.php',
     'departures_delete_local_flight' => 'api/departures/departures_actions.php',
+    'departures_container_action' => 'api/departures/departures_actions.php',
     // ========== FORWARDER ==========
     'forwarder_scan_test'   => 'api/forwarder/forwarder_actions.php',
     'forwarder_scan'        => 'api/forwarder/forwarder_actions.php',

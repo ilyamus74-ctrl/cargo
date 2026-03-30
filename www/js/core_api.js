@@ -3054,6 +3054,12 @@ const CoreAPI = {
                     return;
                 }
 
+                const containerActionButton = event.target.closest('.js-departure-container-action');
+                if (containerActionButton) {
+                    this.triggerContainerAction(containerActionButton);
+                    return;
+                }
+
                 const editToggle = event.target.closest('.js-departure-edit-toggle');
                 if (editToggle) {
                     const targetId = editToggle.getAttribute('data-target') || '';
@@ -3199,6 +3205,78 @@ const CoreAPI = {
             return data;
         },
 
+        async runContainerAction(button) {
+            const connectorId = Number(button?.getAttribute('data-connector-id') || 0);
+            const operation = String(button?.getAttribute('data-operation') || '').trim();
+            const flightId = String(button?.getAttribute('data-flight-id') || '').trim();
+            const flightRecordId = String(button?.getAttribute('data-flight-record-id') || '').trim();
+            const containerExternalId = String(button?.getAttribute('data-container-id') || '').trim();
+            if (!connectorId || !operation || !containerExternalId) {
+                throw new Error('Недостаточно данных для операции контейнера.');
+            }
+
+            const fd = new FormData();
+            fd.append('action', 'departures_container_action');
+            fd.append('connector_id', String(connectorId));
+            fd.append('operation', operation);
+            fd.append('flight_id', flightId);
+            fd.append('flight_record_id', flightRecordId);
+            fd.append('container_external_id', containerExternalId);
+
+            const data = await CoreAPI.client.call(fd);
+            if (!data || data.status !== 'ok') {
+                throw new Error(data?.message || 'Операция контейнера завершилась ошибкой.');
+            }
+            return data;
+        },
+        async triggerContainerAction(button) {
+            const operation = String(button?.getAttribute('data-operation') || '').trim();
+            const containerId = String(button?.getAttribute('data-container-id') || '').trim();
+            const statusEl = this.resolveActionStatusElement(button);
+            const statusSelector = String(button?.getAttribute('data-status-target') || '').trim();
+            const rowId = statusSelector.startsWith('#') && statusSelector.endsWith('_status')
+                ? statusSelector.slice(1, -7)
+                : '';
+            this.setActionBusy(button, true);
+            this.setActionStatus(`Запрос ${operation} для контейнера ${containerId}...`, 'primary', statusEl);
+
+            try {
+                const result = await this.runContainerAction(button);
+                await this.load();
+                if (rowId) {
+                    const detailRow = document.getElementById(rowId);
+                    if (detailRow) {
+                        detailRow.classList.remove('d-none');
+                    }
+                    const toggleButton = this.root?.querySelector(`.js-departure-toggle[data-target="${CSS.escape(rowId)}"]`);
+                    if (toggleButton) {
+                        toggleButton.setAttribute('data-open', '1');
+                        const icon = toggleButton.querySelector('i');
+                        if (icon) {
+                            icon.classList.remove('bi-chevron-down');
+                            icon.classList.add('bi-chevron-up');
+                        }
+                    }
+                }
+                const finalStatusEl = statusEl && statusEl.isConnected ? statusEl : this.addFlightStatus;
+                const message = result?.message || 'Операция контейнера выполнена.';
+                this.setActionStatus(message, 'success', finalStatusEl);
+                if (statusSelector) {
+                    const refreshedStatusEl = this.root?.querySelector(statusSelector) || document.querySelector(statusSelector);
+                    if (refreshedStatusEl) {
+                        this.setActionStatus(message, 'success', refreshedStatusEl);
+                    }
+                }
+                showToast(message, 2500);
+            } catch (err) {
+                console.error(`core_api error (departures container ${operation}):`, err);
+                const errorMessage = err?.message || 'Не удалось выполнить операцию контейнера.';
+                this.setActionStatus(errorMessage, 'danger', statusEl);
+                alert(errorMessage);
+            } finally {
+                this.setActionBusy(button, false);
+            }
+        },
         buildFlightRuntimeVars(button) {
             const flight = String(button?.getAttribute('data-flight') || '').trim();
             const flightName = String(button?.getAttribute('data-flight-name') || flight).trim();
