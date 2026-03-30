@@ -278,7 +278,7 @@ function departures_load_live_warehouse_metrics(mysqli $dbcnx, array $containerN
 {
     $normalizedContainerNames = [];
     foreach ($containerNames as $name) {
-        $value = departures_normalize_container_key((string)$name);
+        $value = trim((string)$name);
         if ($value !== '') {
             $normalizedContainerNames[$value] = true;
         }
@@ -292,6 +292,11 @@ function departures_load_live_warehouse_metrics(mysqli $dbcnx, array $containerN
         return [];
     }
 
+    $containerValues = array_keys($normalizedContainerNames);
+    $containerPlaceholders = implode(',', array_fill(0, count($containerValues), '?'));
+    $types = str_repeat('s', count($containerValues));
+    $params = $containerValues;
+
     $sql = "SELECT
                 TRIM(wo.shipped_container_name) AS container_name,
                 COUNT(*) AS warehouse_packages_count,
@@ -300,6 +305,7 @@ function departures_load_live_warehouse_metrics(mysqli $dbcnx, array $containerN
             INNER JOIN warehouse_item_stock wi ON wi.id = wo.stock_item_id
             WHERE LOWER(TRIM(wo.status)) = 'sended'
               AND TRIM(wo.shipped_container_name) <> ''
+              AND TRIM(wo.shipped_container_name) IN ({$containerPlaceholders})
             GROUP BY TRIM(wo.shipped_container_name)";
 
     $stmt = $dbcnx->prepare($sql);
@@ -307,6 +313,7 @@ function departures_load_live_warehouse_metrics(mysqli $dbcnx, array $containerN
         return [];
     }
 
+    $stmt->bind_param($types, ...$params);
     if (!$stmt->execute()) {
         $stmt->close();
         return [];
@@ -320,18 +327,10 @@ function departures_load_live_warehouse_metrics(mysqli $dbcnx, array $containerN
             if ($containerName === '') {
                 continue;
             }
-            $normalizedKey = departures_normalize_container_key($containerName);
-            if ($normalizedKey === '' || !isset($normalizedContainerNames[$normalizedKey])) {
-                continue;
-            }
-            if (!isset($metrics[$normalizedKey])) {
-                $metrics[$normalizedKey] = [
-                    'warehouse_packages_count' => 0,
-                    'warehouse_total_weight' => 0.0,
-                ];
-            }
-            $metrics[$normalizedKey]['warehouse_packages_count'] += isset($row['warehouse_packages_count']) ? (int)$row['warehouse_packages_count'] : 0;
-            $metrics[$normalizedKey]['warehouse_total_weight'] += isset($row['warehouse_total_weight']) ? (float)$row['warehouse_total_weight'] : 0.0;
+            $metrics[$containerName] = [
+                'warehouse_packages_count' => isset($row['warehouse_packages_count']) ? (int)$row['warehouse_packages_count'] : 0,
+                'warehouse_total_weight' => isset($row['warehouse_total_weight']) ? (float)$row['warehouse_total_weight'] : 0.0,
+            ];
         }
         $res->free();
     }
@@ -341,17 +340,90 @@ function departures_load_live_warehouse_metrics(mysqli $dbcnx, array $containerN
     return $metrics;
 }
 
-function departures_normalize_container_key(string $value): string
+function departures_load_live_warehouse_metrics(mysqli $dbcnx, array $containerNames, array $flightNames = []): array
 {
-    $normalized = strtoupper(trim($value));
-    if ($normalized === '') {
-        return '';
+    $normalizedContainerNames = [];
+    foreach ($containerNames as $name) {
+        $value = trim((string)$name);
+        if ($value !== '') {
+            $normalizedContainerNames[$value] = true;
+        }
     }
 
-    $normalized = preg_replace('/^CONTAINER\s*/', '', $normalized);
-    $normalized = preg_replace('/[^A-Z0-9]/', '', $normalized);
+    if ($normalizedContainerNames === []) {
+        return [];
+    }
 
-    return trim((string)$normalized);
+    if (!departures_table_exists($dbcnx, 'warehouse_item_out') || !departures_table_exists($dbcnx, 'warehouse_item_stock')) {
+        return [];
+    }
+
+    $normalizedFlightNames = [];
+    foreach ($flightNames as $flightName) {
+        $value = trim((string)$flightName);
+        if ($value !== '') {
+            $normalizedFlightNames[$value] = true;
+        }
+    }
+
+    $containerValues = array_keys($normalizedContainerNames);
+    $containerPlaceholders = implode(',', array_fill(0, count($containerValues), '?'));
+    $types = str_repeat('s', count($containerValues));
+    $params = $containerValues;
+
+    $flightSql = '';
+    if ($normalizedFlightNames !== []) {
+        $flightValues = array_keys($normalizedFlightNames);
+        $flightPlaceholders = implode(',', array_fill(0, count($flightValues), '?'));
+        $flightSql = " AND COALESCE(NULLIF(TRIM(wo.shipped_flight_no), ''), '__EMPTY__') IN ({$flightPlaceholders})";
+        $types .= str_repeat('s', count($flightValues));
+        foreach ($flightValues as $flightValue) {
+            $params[] = $flightValue;
+        }
+    }
+
+    $sql = "SELECT
+                TRIM(wo.shipped_container_name) AS container_name,
+                COUNT(*) AS warehouse_packages_count,
+                SUM(COALESCE(wi.weight_kg, 0)) AS warehouse_total_weight
+            FROM warehouse_item_out wo
+            INNER JOIN warehouse_item_stock wi ON wi.id = wo.stock_item_id
+            WHERE LOWER(TRIM(wo.status)) = 'sended'
+              AND TRIM(wo.shipped_container_name) <> ''
+              AND TRIM(wo.shipped_container_name) IN ({$containerPlaceholders})
+              {$flightSql}
+            GROUP BY TRIM(wo.shipped_container_name)";
+
+    $stmt = $dbcnx->prepare($sql);
+    if (!$stmt) {
+        return [];
+    }
+
+    $stmt->bind_param($types, ...$params);
+    if (!$stmt->execute()) {
+        $stmt->close();
+        return [];
+    }
+
+    $metrics = [];
+    $res = $stmt->get_result();
+    if ($res instanceof mysqli_result) {
+        while ($row = $res->fetch_assoc()) {
+            $containerName = trim((string)($row['container_name'] ?? ''));
+            if ($containerName === '') {
+                continue;
+            }
+            $metrics[$containerName] = [
+                'warehouse_packages_count' => isset($row['warehouse_packages_count']) ? (int)$row['warehouse_packages_count'] : 0,
+                'warehouse_total_weight' => isset($row['warehouse_total_weight']) ? (float)$row['warehouse_total_weight'] : 0.0,
+            ];
+        }
+        $res->free();
+    }
+
+    $stmt->close();
+
+    return $metrics;
 }
 
 function departures_load_containers_from_table(mysqli $dbcnx, string $flightTableName, int $connectorId, int $flightRecordId, string $flightExternalId): array
@@ -414,6 +486,7 @@ function departures_load_containers_from_table(mysqli $dbcnx, string $flightTabl
         return [];
     }
 
+
     $rawRows = [];
     $containerLookupKeys = [];
 
@@ -439,9 +512,17 @@ function departures_load_containers_from_table(mysqli $dbcnx, string $flightTabl
 
     $stmt->close();
 
+    $flightNames = [];
+    foreach ($rawRows as $row) {
+        $flightName = trim((string)($row['flight'] ?? ''));
+        if ($flightName !== '') {
+            $flightNames[$flightName] = true;
+        }
+    }
     $warehouseMetrics = departures_load_live_warehouse_metrics(
         $dbcnx,
-        array_keys($containerLookupKeys)
+        array_keys($containerLookupKeys),
+        array_keys($flightNames)
     );
 
     $containers = [];
@@ -462,12 +543,12 @@ function departures_load_containers_from_table(mysqli $dbcnx, string $flightTabl
             $liveMetrics = $warehouseMetrics[$containerExternalId];
         }
 
-        $warehousePackagesRaw = $liveMetrics['warehouse_packages_count'] ?? ($row['warehouse_packages_count'] ?? null);
-        $warehouseWeightRaw = $liveMetrics['warehouse_total_weight'] ?? ($row['warehouse_total_weight'] ?? null);
+        $warehousePackagesRaw = $liveMetrics['warehouse_packages_count'] ?? 0;
+        $warehouseWeightRaw = $liveMetrics['warehouse_total_weight'] ?? 0.0;
         $compareStatus = trim((string)($row['compare_status'] ?? 'pending'));
         $calculatedCompare = departures_recalculate_compare_status(
-            is_numeric($warehousePackagesRaw) ? (int)$warehousePackagesRaw : null,
-            is_numeric($warehouseWeightRaw) ? (float)$warehouseWeightRaw : null,
+            (int)$warehousePackagesRaw,
+            (float)$warehouseWeightRaw,
             is_numeric($packagesCountRaw) ? (int)$packagesCountRaw : null,
             is_numeric($totalWeightRaw) ? (float)$totalWeightRaw : null
         );
@@ -484,7 +565,7 @@ function departures_load_containers_from_table(mysqli $dbcnx, string $flightTabl
             'awb' => trim((string)($row['awb'] ?? '')),
             'packages_count' => departures_format_value($packagesCountRaw, 0),
             'total_weight' => departures_format_value($totalWeightRaw),
-            'warehouse_packages_count' => departures_format_value($warehousePackagesRaw),
+            'warehouse_packages_count' => departures_format_value($warehousePackagesRaw, 0),
             'warehouse_total_weight' => departures_format_value($warehouseWeightRaw),
             'compare_status' => $compareStatus,
             'compared_at' => departures_format_datetime($row['compared_at'] ?? null),
@@ -494,7 +575,6 @@ function departures_load_containers_from_table(mysqli $dbcnx, string $flightTabl
             'can_close_flight' => $containerExternalId !== '' && $hasPackages && $hasWeight,
         ];
     }
-
     return $containers;
 }
 function departures_fetch_rows(mysqli $dbcnx, array $connector, string $statusFilter = 'ALL'): array
