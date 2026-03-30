@@ -1712,66 +1712,21 @@ if (!function_exists('warehouse_sync_update_forwarder_snapshot_for_container')) 
 
         foreach ($tablesChecked as $tableName) {
             $safeTable = '`' . str_replace('`', '``', $tableName) . '`';
-            $containerRow = warehouse_sync_load_container_row_for_compare(
-                $dbcnx,
-                $tableName,
-                $connectorId,
-                $flightRecordId,
-                $containerExternalId
-            );
-            if (!is_array($containerRow)) {
-                continue;
-            }
-            $columnSet = warehouse_sync_get_table_columns($dbcnx, $tableName);
-            if ($columnSet === []) {
-                continue;
-            }
-
-            $compare = warehouse_sync_recalculate_compare_status_for_container(
-                $dbcnx,
-                $containerRow,
-                $forwarderPackagesCount,
-                $forwarderTotalWeight
-            );
-
-            $setParts = [
-                'forwarder_packages_json = ?',
-                'forwarder_packages_synced_at = UTC_TIMESTAMP()',
-                'packages_count = ?',
-                'total_weight = ?',
-            ];
-            $types = 'sid';
-            $params = [$snapshotJson, $forwarderPackagesCount, $forwarderTotalWeight];
-
-            if (isset($columnSet['compare_status'])) {
-                $setParts[] = 'compare_status = ?';
-                $types .= 's';
-                $params[] = (string)($compare['status'] ?? 'pending');
-            }
-            if (isset($columnSet['compare_error'])) {
-                $setParts[] = 'compare_error = ?';
-                $types .= 's';
-                $params[] = (string)($compare['error'] ?? '');
-            }
-            if (isset($columnSet['compared_at'])) {
-                $setParts[] = 'compared_at = UTC_TIMESTAMP()';
-            }
-
-            $sql = "UPDATE {$safeTable}
-                       SET " . implode(",\n                       ", $setParts) . "
-                     WHERE id = ?
-                     LIMIT 1";
-            $stmt = $dbcnx->prepare($sql);
+            $stmt = $dbcnx->prepare("
+                UPDATE {$safeTable}
+                   SET forwarder_packages_json = ?,
+                       forwarder_packages_synced_at = UTC_TIMESTAMP(),
+                       packages_count = ?,
+                       total_weight = ?
+                 WHERE connector_id = ?
+                   AND flight_record_id = ?
+                   AND container_external_id = ?
+                 LIMIT 1
+            ");
             if (!$stmt) {
                 continue;
             }
-            $types .= 'i';
-            $params[] = (int)$containerRow['id'];
-            $bindArgs = [$types];
-            foreach ($params as $idx => $paramValue) {
-                $bindArgs[] = &$params[$idx];
-            }
-            call_user_func_array([$stmt, 'bind_param'], $bindArgs);
+            $stmt->bind_param('sidiis', $snapshotJson, $forwarderPackagesCount, $forwarderTotalWeight, $connectorId, $flightRecordId, $containerExternalId);
             if ($stmt->execute()) {
                 $updated += (int)$stmt->affected_rows;
             }
@@ -1782,169 +1737,6 @@ if (!function_exists('warehouse_sync_update_forwarder_snapshot_for_container')) 
     }
 }
 
-if (!function_exists('warehouse_sync_get_table_columns')) {
-    function warehouse_sync_get_table_columns(mysqli $dbcnx, string $tableName): array
-    {
-        static $cache = [];
-        if (isset($cache[$tableName])) {
-            return $cache[$tableName];
-        }
-
-        $safeTable = '`' . str_replace('`', '``', $tableName) . '`';
-        $columns = [];
-        if ($res = $dbcnx->query("SHOW COLUMNS FROM {$safeTable}")) {
-            while ($row = $res->fetch_assoc()) {
-                $field = strtolower(trim((string)($row['Field'] ?? '')));
-                if ($field !== '') {
-                    $columns[$field] = true;
-                }
-            }
-            $res->free();
-        }
-
-        $cache[$tableName] = $columns;
-        return $columns;
-    }
-}
-
-if (!function_exists('warehouse_sync_load_container_row_for_compare')) {
-    function warehouse_sync_load_container_row_for_compare(
-        mysqli $dbcnx,
-        string $tableName,
-        int $connectorId,
-        int $flightRecordId,
-        string $containerExternalId
-    ): ?array {
-        $safeTable = '`' . str_replace('`', '``', $tableName) . '`';
-        $stmt = $dbcnx->prepare("SELECT id, name, container_external_id FROM {$safeTable} WHERE connector_id = ? AND flight_record_id = ? AND container_external_id = ? LIMIT 1");
-        if (!$stmt) {
-            return null;
-        }
-        $stmt->bind_param('iis', $connectorId, $flightRecordId, $containerExternalId);
-        if (!$stmt->execute()) {
-            $stmt->close();
-            return null;
-        }
-        $row = $stmt->get_result()?->fetch_assoc();
-        $stmt->close();
-        return is_array($row) ? $row : null;
-    }
-}
-
-if (!function_exists('warehouse_sync_recalculate_compare_status_for_container')) {
-    function warehouse_sync_recalculate_compare_status_for_container(
-        mysqli $dbcnx,
-        array $containerRow,
-        ?int $forwarderPackages,
-        ?float $forwarderWeight
-    ): array {
-        $warehouseMetrics = warehouse_sync_load_live_warehouse_metrics(
-            $dbcnx,
-            [
-                (string)($containerRow['name'] ?? ''),
-                (string)($containerRow['container_external_id'] ?? ''),
-            ]
-        );
-
-        $normalizedName = warehouse_sync_normalize_container_key((string)($containerRow['name'] ?? ''));
-        $normalizedExternal = warehouse_sync_normalize_container_key((string)($containerRow['container_external_id'] ?? ''));
-        $warehouseData = null;
-        if ($normalizedName !== '' && isset($warehouseMetrics[$normalizedName])) {
-            $warehouseData = $warehouseMetrics[$normalizedName];
-        } elseif ($normalizedExternal !== '' && isset($warehouseMetrics[$normalizedExternal])) {
-            $warehouseData = $warehouseMetrics[$normalizedExternal];
-        }
-
-        $warehousePackages = isset($warehouseData['warehouse_packages_count']) ? (int)$warehouseData['warehouse_packages_count'] : null;
-        $warehouseWeight = isset($warehouseData['warehouse_total_weight']) ? (float)$warehouseData['warehouse_total_weight'] : null;
-
-        if ($warehousePackages === null || $warehouseWeight === null) {
-            return ['status' => 'pending', 'error' => 'warehouse metrics are not set'];
-        }
-        if ($forwarderPackages === null || $forwarderWeight === null) {
-            return ['status' => 'pending', 'error' => 'forwarder metrics are not set'];
-        }
-        if ($warehousePackages === $forwarderPackages && abs($warehouseWeight - $forwarderWeight) < 0.0005) {
-            return ['status' => 'matched', 'error' => ''];
-        }
-
-        return [
-            'status' => 'mismatch',
-            'error' => 'warehouse=' . $warehousePackages . '/' . $warehouseWeight . '; forwarder=' . $forwarderPackages . '/' . $forwarderWeight,
-        ];
-    }
-}
-
-if (!function_exists('warehouse_sync_load_live_warehouse_metrics')) {
-    function warehouse_sync_load_live_warehouse_metrics(mysqli $dbcnx, array $containerNames): array
-    {
-        $normalizedNames = [];
-        foreach ($containerNames as $containerName) {
-            $normalized = warehouse_sync_normalize_container_key((string)$containerName);
-            if ($normalized !== '') {
-                $normalizedNames[$normalized] = true;
-            }
-        }
-        if ($normalizedNames === []) {
-            return [];
-        }
-
-        $sql = "SELECT
-                    TRIM(wo.shipped_container_name) AS container_name,
-                    COUNT(*) AS warehouse_packages_count,
-                    SUM(COALESCE(wi.weight_kg, 0)) AS warehouse_total_weight
-                FROM warehouse_item_out wo
-                INNER JOIN warehouse_item_stock wi ON wi.id = wo.stock_item_id
-                WHERE LOWER(TRIM(wo.status)) = 'sended'
-                  AND TRIM(wo.shipped_container_name) <> ''
-                GROUP BY TRIM(wo.shipped_container_name)";
-        $stmt = $dbcnx->prepare($sql);
-        if (!$stmt) {
-            return [];
-        }
-        if (!$stmt->execute()) {
-            $stmt->close();
-            return [];
-        }
-
-        $metrics = [];
-        $res = $stmt->get_result();
-        if ($res instanceof mysqli_result) {
-            while ($row = $res->fetch_assoc()) {
-                $containerName = trim((string)($row['container_name'] ?? ''));
-                if ($containerName === '') {
-                    continue;
-                }
-                $normalized = warehouse_sync_normalize_container_key($containerName);
-                if ($normalized === '' || !isset($normalizedNames[$normalized])) {
-                    continue;
-                }
-                $metrics[$normalized] = [
-                    'warehouse_packages_count' => (int)($row['warehouse_packages_count'] ?? 0),
-                    'warehouse_total_weight' => (float)($row['warehouse_total_weight'] ?? 0.0),
-                ];
-            }
-            $res->free();
-        }
-        $stmt->close();
-
-        return $metrics;
-    }
-}
-
-if (!function_exists('warehouse_sync_normalize_container_key')) {
-    function warehouse_sync_normalize_container_key(string $value): string
-    {
-        $normalized = strtoupper(trim($value));
-        if ($normalized === '') {
-            return '';
-        }
-
-        $normalized = preg_replace('/^CONTAINER\s*/', '', $normalized);
-        $normalized = preg_replace('/[^A-Z0-9]/', '', $normalized);
-        return trim((string)$normalized);
-    }
-}
 if (!function_exists('warehouse_sync_extract_forwarder_metrics_from_snapshot')) {
     function warehouse_sync_extract_forwarder_metrics_from_snapshot(array $snapshot): array
     {
