@@ -1713,28 +1713,43 @@ if (!function_exists('warehouse_sync_build_registration_payload')) {
         }
 
         $category = trim((string)($addons['category'] ?? $addons['sub_category'] ?? 'general'));
-        $title = trim((string)($addons['title'] ?? $category));
-        $destination = trim((string)($addons['destination'] ?? $stockItem['receiver_country_code'] ?? ''));
+        $countryCode = strtoupper(trim((string)($stockItem['receiver_country_code'] ?? '')));
+        $destination = trim((string)($addons['forwarder_destination'] ?? $addons['destination_city'] ?? $addons['destination'] ?? ''));
+        if ($destination === '') {
+            $destination = $countryCode === 'AZ' ? 'Baku' : $countryCode;
+        }
+        $subCat = trim((string)($addons['sub_cat_text'] ?? $addons['tariff_type_text'] ?? $addons['tariff_type_name'] ?? $addons['sub_category'] ?? $addons['tariff_type'] ?? ''));
+        $title = trim((string)($addons['title_text'] ?? $addons['title_name'] ?? $addons['item_title'] ?? $addons['product_name'] ?? $addons['title'] ?? $category));
+        if ($subCat === '') {
+            $subCat = $category;
+        }
+        if ($title === '' || ctype_digit($title)) {
+            $title = $category;
+        }
         $tariffTypeId = trim((string)($addons['tariff_type_id'] ?? $addons['tariff_type'] ?? ''));
         $invoiceStatus = trim((string)($addons['invoice_status'] ?? '1'));
         $trackingInternalSame = trim((string)($addons['tracking_internal_same'] ?? '0'));
+        $position = 'PSB010';
+        $grossWeight = trim((string)($addons['gross_weight'] ?? '1'));
+        if ($grossWeight === '') {
+            $grossWeight = '1';
+        }
 
         return [
             'track' => $tracking,
             'destination' => $destination,
             'weight' => trim((string)($stockItem['weight_kg'] ?? '')),
+            'gross-weight' => $grossWeight,
             'currency' => trim((string)($addons['currency'] ?? 'USD')),
             'quantity' => trim((string)($addons['quantity'] ?? '1')),
             'client-name-surname' => trim((string)($stockItem['receiver_name'] ?? '')),
             'client-id' => (string)$clientId,
             'status-id' => (string)warehouse_sync_status_id_by_client_id($clientId),
-            'client-id' => (string)$clientId,
-            'status-id' => (string)warehouse_sync_status_id_by_client_id($clientId),
             'category' => $category,
-            'description' => trim((string)($stockItem['receiver_address'] ?? '')),
-            'sub-cat' => trim((string)($addons['tariff_type'] ?? '')),
+            'description' => '',
+            'sub-cat' => $subCat,
             'invoice' => trim((string)($addons['invoice'] ?? '0')),
-            'position' => trim((string)($addons['position'] ?? '')),
+            'position' => $position,
             'tracking-internal-same' => $trackingInternalSame,
             'tariff-type-id' => $tariffTypeId,
             'is-legal-entity' => trim((string)($addons['is_legal_entity'] ?? 'off')),
@@ -1806,46 +1821,6 @@ if (!function_exists('warehouse_sync_confirm_registration_by_track')) {
             'package_exist' => !empty($reportResult['package_exist']),
             'matched_track_found' => !empty($reportResult['matched_track_found']),
             'attempts' => $attempts,
-            'report' => $reportResult,
-        ];
-    }
-}
-
-if (!function_exists('warehouse_sync_confirm_registration_by_track')) {
-    function warehouse_sync_confirm_registration_by_track(array $connector, array $item): array
-    {
-        $baseUrl = trim((string)($connector['base_url'] ?? ''));
-        $login = trim((string)($connector['auth_username'] ?? ''));
-        $password = trim((string)($connector['auth_password'] ?? ''));
-        $track = trim((string)($item['tracking_no'] ?? ''));
-        if ($track === '') {
-            $track = trim((string)($item['tuid'] ?? ''));
-        }
-
-        if ($baseUrl === '' || $login === '' || $password === '' || $track === '') {
-            throw new RuntimeException('Недостаточно данных для проверки регистрации через run_report_single.php');
-        }
-
-        $connectorId = (int)($connector['id'] ?? 0);
-        $reportResult = warehouse_sync_exec_forwarder_cli_script('run_report_single.php', [
-            'base-url' => $baseUrl,
-            'login' => $login,
-            'password' => $password,
-            'track' => $track,
-            'connector-id' => $connectorId > 0 ? (string)$connectorId : '',
-        ]);
-
-        $reportStatus = strtoupper(trim((string)($reportResult['status'] ?? '')));
-        $packageExist = !empty($reportResult['package_exist']);
-        $matchedTrackFound = !empty($reportResult['matched_track_found']);
-        $confirmed = $reportStatus === 'ACCEPTED' && ($packageExist || $matchedTrackFound);
-
-        return [
-            'ok' => $confirmed,
-            'track' => $track,
-            'status' => $reportStatus,
-            'package_exist' => $packageExist,
-            'matched_track_found' => $matchedTrackFound,
             'report' => $reportResult,
         ];
     }
@@ -1942,6 +1917,23 @@ if (!function_exists('warehouse_sync_exec_forwarder_cli_script')) {
         @exec($cmd, $lines, $exitCode);
         $output = trim((string)implode("\n", $lines));
         $parsed = json_decode($output, true);
+        if (!is_array($parsed) && $output !== '') {
+            $outputLength = strlen($output);
+            for ($i = $outputLength - 1; $i >= 0; $i--) {
+                if ($output[$i] !== '{') {
+                    continue;
+                }
+                $candidateJson = trim(substr($output, $i));
+                if ($candidateJson === '') {
+                    continue;
+                }
+                $candidateParsed = json_decode($candidateJson, true);
+                if (is_array($candidateParsed)) {
+                    $parsed = $candidateParsed;
+                    break;
+                }
+            }
+        }
         if (!is_array($parsed)) {
             $parsed = [
                 'status' => $exitCode === 0 ? 'ok' : 'error',
@@ -3543,6 +3535,7 @@ if ($action === 'warehouse_sync_item') {
             'track' => (string)($payload['track'] ?? ''),
             'destination' => (string)($payload['destination'] ?? ''),
             'weight' => (string)($payload['weight'] ?? ''),
+            'gross-weight' => (string)($payload['gross-weight'] ?? ''),
             'currency' => (string)($payload['currency'] ?? ''),
             'quantity' => (string)($payload['quantity'] ?? ''),
             'client-name-surname' => (string)($payload['client-name-surname'] ?? ''),
@@ -3669,6 +3662,7 @@ if ($action === 'warehouse_sync_item') {
             'country_code' => $country,
             'message' => $statusMessage,
             'forwarder_response' => $result,
+            'report_single_check' => $registrationCheck,
             'script' => 'run_add_package.php',
         ];
     } catch (Throwable $e) {
