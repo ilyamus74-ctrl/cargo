@@ -3151,7 +3151,43 @@ const CoreAPI = {
             });
             return `<ul class="list-unstyled small mb-0">${rows.join('')}</ul>`;
         },
+        normalizeTracking(value) {
+            return String(value || '').trim().toUpperCase();
+        },
+        sortCompareEntries(entries, counterpartSet = new Set()) {
+            const normalizedEntries = Array.isArray(entries)
+                ? entries.map((entry) => {
+                    const tracking = String(entry?.tracking || '').trim();
+                    return {
+                        ...entry,
+                        tracking,
+                        _normalizedTracking: this.normalizeTracking(tracking),
+                    };
+                })
+                : [];
 
+            const matched = [];
+            const unmatched = [];
+
+            normalizedEntries.forEach((entry) => {
+                if (entry._normalizedTracking && counterpartSet.has(entry._normalizedTracking)) {
+                    matched.push(entry);
+                    return;
+                }
+                unmatched.push(entry);
+            });
+
+            const compareByTracking = (left, right) => {
+                const leftTracking = String(left?._normalizedTracking || '');
+                const rightTracking = String(right?._normalizedTracking || '');
+                return leftTracking.localeCompare(rightTracking, 'en', { numeric: true, sensitivity: 'base' });
+            };
+
+            matched.sort(compareByTracking);
+            unmatched.sort(compareByTracking);
+
+            return matched.concat(unmatched).map(({ _normalizedTracking, ...entry }) => entry);
+        },
         async fetchComparePayload(button) {
             const connectorId = Number(button?.getAttribute('data-connector-id') || 0);
             const flightRecordId = Number(button?.getAttribute('data-flight-record-id') || 0);
@@ -3204,8 +3240,10 @@ const CoreAPI = {
             const compareError = String(payload?.compare_error || '').trim();
             const warehouse = Array.isArray(payload?.warehouse) ? payload.warehouse : [];
             const forwarder = Array.isArray(payload?.forwarder) ? payload.forwarder : [];
-            const warehouseSet = new Set(warehouse.map((row) => String(row?.tracking || '').trim().toUpperCase()).filter(Boolean));
-            const forwarderSet = new Set(forwarder.map((row) => String(row?.tracking || '').trim().toUpperCase()).filter(Boolean));
+            const warehouseSet = new Set(warehouse.map((row) => this.normalizeTracking(row?.tracking)).filter(Boolean));
+            const forwarderSet = new Set(forwarder.map((row) => this.normalizeTracking(row?.tracking)).filter(Boolean));
+            const sortedWarehouse = this.sortCompareEntries(warehouse, forwarderSet);
+            const sortedForwarder = this.sortCompareEntries(forwarder, warehouseSet);
 
             if (this.compareModalStatus) {
                 this.compareModalStatus.textContent = `Контейнер: ${container}. Статус сверки: ${compareStatus}.`;
@@ -3215,10 +3253,10 @@ const CoreAPI = {
                 this.compareModalError.textContent = compareError;
             }
             if (this.compareModalWarehouse) {
-                this.compareModalWarehouse.innerHTML = this.renderCompareList(warehouse, forwarderSet);
+                this.compareModalWarehouse.innerHTML = this.renderCompareList(sortedWarehouse, forwarderSet);
             }
             if (this.compareModalForwarder) {
-                this.compareModalForwarder.innerHTML = this.renderCompareList(forwarder, warehouseSet);
+                this.compareModalForwarder.innerHTML = this.renderCompareList(sortedForwarder, warehouseSet);
             }
             this.compareModalInstance?.show();
         },

@@ -464,7 +464,7 @@ function departures_extract_forwarder_packages($rawJson): array
         }
 
         $tracking = '';
-        foreach (['Tracking', 'tracking', 'tracking_no', 'tn', 'Number', 'number', 'Code', 'code'] as $trackingKey) {
+        foreach (['Track', 'track', 'Tracking', 'tracking', 'tracking_no', 'tn', 'Number', 'number', 'Code', 'code'] as $trackingKey) {
             $candidate = trim((string)($row[$trackingKey] ?? ''));
             if ($candidate !== '') {
                 $tracking = $candidate;
@@ -478,6 +478,9 @@ function departures_extract_forwarder_packages($rawJson): array
                 $normalizedKey = preg_replace('/\s+/', ' ', (string)$normalizedKey);
                 if (
                     str_contains($normalizedKey, 'tracking')
+                    || $normalizedKey === 'track'
+                    || str_contains($normalizedKey, 'track ')
+                    || str_contains($normalizedKey, ' track')
                     || str_contains($normalizedKey, 'track number')
                     || str_contains($normalizedKey, 'track no')
                     || str_contains($normalizedKey, 'трек')
@@ -1497,6 +1500,66 @@ switch ($normalizedAction) {
             'total' => count($departureRows),
         ];
         break;
+
+    case 'departures_compare_payload':
+        $connectorId = (int)($_POST['connector_id'] ?? 0);
+        $flightRecordId = (int)($_POST['flight_record_id'] ?? 0);
+        $containerExternalId = trim((string)($_POST['container_external_id'] ?? ''));
+
+        if ($connectorId <= 0 || ($flightRecordId <= 0 && $containerExternalId === '')) {
+            $response = [
+                'status' => 'error',
+                'message' => 'Недостаточно параметров для загрузки payload сверки',
+            ];
+            break;
+        }
+
+        $connector = departures_fetch_connector($dbcnx, $connectorId);
+        if (!is_array($connector)) {
+            $response = [
+                'status' => 'error',
+                'message' => 'Форвард не найден для загрузки payload сверки',
+            ];
+            break;
+        }
+
+        $payload = null;
+        foreach (departures_resolve_table_names($connector) as $flightTableName) {
+            $containers = departures_load_containers_from_table($dbcnx, $flightTableName, $connectorId, $flightRecordId, '');
+            foreach ($containers as $container) {
+                if (!is_array($container)) {
+                    continue;
+                }
+
+                $currentExternalId = trim((string)($container['container_external_id'] ?? ''));
+                if ($containerExternalId !== '' && strcasecmp($currentExternalId, $containerExternalId) !== 0) {
+                    continue;
+                }
+
+                $rawPayload = trim((string)($container['compare_modal_payload_json'] ?? '{}'));
+                $decodedPayload = json_decode($rawPayload, true);
+                if (is_array($decodedPayload)) {
+                    $payload = $decodedPayload;
+                    break 2;
+                }
+            }
+        }
+
+        if (!is_array($payload)) {
+            $response = [
+                'status' => 'error',
+                'message' => 'Payload сверки не найден',
+            ];
+            break;
+        }
+
+        $response = [
+            'status' => 'ok',
+            'payload' => $payload,
+        ];
+        break;
+
+
 
     case 'departures_delete_local_flight':
         $connectorId = (int)($_POST['connector_id'] ?? 0);
