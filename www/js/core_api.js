@@ -3164,6 +3164,9 @@ const CoreAPI = {
         normalizeTracking(value) {
             return String(value || '').trim().toUpperCase();
         },
+        isClosedFlightStatus(status) {
+            return String(status || '').trim().toLowerCase() === 'closed';
+        },
         sortCompareEntries(entries, counterpartSet = new Set()) {
             const normalizedEntries = Array.isArray(entries)
                 ? entries.map((entry) => {
@@ -3233,6 +3236,7 @@ const CoreAPI = {
             const flightId = String(button?.getAttribute('data-flight-id') || '').trim();
             const flightRecordId = String(button?.getAttribute('data-flight-record-id') || '').trim();
             const containerExternalId = String(button?.getAttribute('data-container-id') || '').trim();
+            const flightStatus = String(button?.getAttribute('data-flight-status') || '').trim();
             const rawPayload = String(button?.getAttribute('data-compare-payload') || '{}').trim();
             let payload = {};
             try {
@@ -3273,12 +3277,16 @@ const CoreAPI = {
                 this.compareModalForwarder.innerHTML = this.renderCompareList(sortedForwarder, warehouseSet);
             }
             if (this.compareModalForceSyncButton) {
+                const isClosedFlight = this.isClosedFlightStatus(flightStatus);
                 this.compareModalForceSyncButton.setAttribute('data-connector-id', connectorId);
                 this.compareModalForceSyncButton.setAttribute('data-flight-id', flightId);
                 this.compareModalForceSyncButton.setAttribute('data-flight-record-id', flightRecordId);
                 this.compareModalForceSyncButton.setAttribute('data-container-id', containerExternalId);
+                this.compareModalForceSyncButton.setAttribute('data-flight-status', flightStatus.toLowerCase());
                 this.compareModalForceSyncButton.setAttribute('data-status-target', '#departures-compare-modal-error');
                 this.compareModalForceSyncButton.setAttribute('data-busy-label', 'Синхронизация...');
+                this.compareModalForceSyncButton.classList.toggle('d-none', isClosedFlight);
+                this.compareModalForceSyncButton.disabled = isClosedFlight;
             }
             this.compareModalInstance?.show();
         },
@@ -3411,7 +3419,12 @@ const CoreAPI = {
         async triggerContainerAction(button) {
             const operation = String(button?.getAttribute('data-operation') || '').trim();
             const containerId = String(button?.getAttribute('data-container-id') || '').trim();
+            const flightStatus = String(button?.getAttribute('data-flight-status') || '').trim().toLowerCase();
             const statusEl = this.resolveActionStatusElement(button);
+            if (this.isClosedFlightStatus(flightStatus) && operation !== 'compare') {
+                this.setActionStatus('Синхронизация недоступна: рейс закрыт.', 'danger', statusEl);
+                return;
+            }
             const statusSelector = String(button?.getAttribute('data-status-target') || '').trim();
             const rowId = statusSelector.startsWith('#') && statusSelector.endsWith('_status')
                 ? statusSelector.slice(1, -7)
