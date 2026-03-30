@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-03-30 11:07:05
+/* Smarty version 5.3.1, created on 2026-03-30 11:49:52
   from 'file:cells_NA_API_departures_rows.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_69ca5959e48c15_48585377',
+  'unifunc' => 'content_69ca6360e53aa3_79585610',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '04916a2971ae525b97127d32f509a85cd4ad4d24' => 
     array (
       0 => 'cells_NA_API_departures_rows.html',
-      1 => 1774868765,
+      1 => 1774871192,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_69ca5959e48c15_48585377 (\Smarty\Template $_smarty_tpl) {
+function content_69ca6360e53aa3_79585610 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 if ($_smarty_tpl->getSmarty()->getModifierCallback('count')($_smarty_tpl->getValue('departure_rows')) > 0) {?>
   <?php
@@ -289,6 +289,12 @@ $foreach1DoElse = false;
                           <div class="small text-muted">ID: <?php echo htmlspecialchars((string)$_smarty_tpl->getValue('container')['container_external_id'], ENT_QUOTES, 'UTF-8', true);?>
 </div>
                         <?php }?>
+                        <button type="button"
+                                class="btn btn-link btn-sm p-0 mt-1 js-departure-compare-open"
+                                data-compare-payload="<?php echo $_smarty_tpl->getSmarty()->getModifierCallback('escape')((($tmp = $_smarty_tpl->getValue('container')['compare_modal_payload_json'] ?? null)===null||$tmp==='' ? '{}' ?? null : $tmp), 'htmlattr');?>
+">
+                          Сверка позиций
+                        </button>
                       </td>
                       <td><?php echo htmlspecialchars((string)(($tmp = $_smarty_tpl->getValue('container')['flight'] ?? null)===null||$tmp==='' ? '—' ?? null : $tmp), ENT_QUOTES, 'UTF-8', true);?>
 </td>

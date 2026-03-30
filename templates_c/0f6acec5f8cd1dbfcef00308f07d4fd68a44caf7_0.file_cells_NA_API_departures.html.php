@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-03-28 10:36:09
+/* Smarty version 5.3.1, created on 2026-03-30 11:49:52
   from 'file:cells_NA_API_departures.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_69c7af19cbb478_90087065',
+  'unifunc' => 'content_69ca6360c239c0_63254404',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '0f6acec5f8cd1dbfcef00308f07d4fd68a44caf7' => 
     array (
       0 => 'cells_NA_API_departures.html',
-      1 => 1774693940,
+      1 => 1774871164,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_69c7af19cbb478_90087065 (\Smarty\Template $_smarty_tpl) {
+function content_69ca6360c239c0_63254404 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?><div class="pagetitle">
   <h1>Отправления</h1>
@@ -154,5 +154,33 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
     </div>
   </div>
 </section>
-<?php }
+
+
+<div class="modal fade" id="departures-compare-modal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Сверка позиций контейнера</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div id="departures-compare-modal-status" class="small text-muted mb-2">—</div>
+        <div id="departures-compare-modal-error" class="small text-warning-emphasis mb-3 d-none"></div>
+        <div class="row g-3">
+          <div class="col-12 col-lg-6">
+            <div class="fw-semibold mb-2">Склад</div>
+            <div id="departures-compare-modal-warehouse" class="small text-muted">Нет данных.</div>
+          </div>
+          <div class="col-12 col-lg-6">
+            <div class="fw-semibold mb-2">Форвард</div>
+            <div id="departures-compare-modal-forwarder" class="small text-muted">Нет данных.</div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Закрыть</button>
+      </div>
+    </div>
+  </div>
+</div><?php }
 }

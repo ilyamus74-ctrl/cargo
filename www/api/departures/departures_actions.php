@@ -342,6 +342,119 @@ function departures_load_live_warehouse_metrics(mysqli $dbcnx, array $containerN
     return $metrics;
 }
 
+function departures_load_live_warehouse_packages(mysqli $dbcnx, array $containerNames): array
+{
+    $normalizedContainerNames = [];
+    foreach ($containerNames as $name) {
+        $value = departures_normalize_container_key((string)$name);
+        if ($value !== '') {
+            $normalizedContainerNames[$value] = true;
+        }
+    }
+
+    if ($normalizedContainerNames === []) {
+        return [];
+    }
+
+    if (!departures_table_exists($dbcnx, 'warehouse_item_out') || !departures_table_exists($dbcnx, 'warehouse_item_stock')) {
+        return [];
+    }
+
+    $sql = "SELECT
+                TRIM(wo.shipped_container_name) AS container_name,
+                TRIM(COALESCE(wo.tracking_no, '')) AS tracking_no,
+                COALESCE(wi.weight_kg, 0) AS weight_kg
+            FROM warehouse_item_out wo
+            INNER JOIN warehouse_item_stock wi ON wi.id = wo.stock_item_id
+            WHERE LOWER(TRIM(wo.status)) = 'sended'
+              AND TRIM(wo.shipped_container_name) <> ''
+            ORDER BY wo.updated_at DESC, wo.id DESC";
+
+    $stmt = $dbcnx->prepare($sql);
+    if (!$stmt) {
+        return [];
+    }
+    if (!$stmt->execute()) {
+        $stmt->close();
+        return [];
+    }
+
+    $packages = [];
+    $res = $stmt->get_result();
+    if ($res instanceof mysqli_result) {
+        while ($row = $res->fetch_assoc()) {
+            $containerName = trim((string)($row['container_name'] ?? ''));
+            $normalizedKey = departures_normalize_container_key($containerName);
+            if ($normalizedKey === '' || !isset($normalizedContainerNames[$normalizedKey])) {
+                continue;
+            }
+            if (!isset($packages[$normalizedKey])) {
+                $packages[$normalizedKey] = [];
+            }
+            $packages[$normalizedKey][] = [
+                'tracking' => trim((string)($row['tracking_no'] ?? '')),
+                'weight' => departures_format_value($row['weight_kg'] ?? null),
+            ];
+        }
+        $res->free();
+    }
+    $stmt->close();
+
+    return $packages;
+}
+
+function departures_extract_forwarder_packages($rawJson): array
+{
+    if (!is_string($rawJson) || trim($rawJson) === '') {
+        return [];
+    }
+
+    $decoded = json_decode($rawJson, true);
+    if (!is_array($decoded)) {
+        return [];
+    }
+
+    $sourcePackages = isset($decoded['packages']) && is_array($decoded['packages'])
+        ? $decoded['packages']
+        : [];
+
+    $packages = [];
+    foreach ($sourcePackages as $row) {
+        if (!is_array($row)) {
+            continue;
+        }
+
+        $tracking = '';
+        foreach (['Tracking', 'tracking', 'tracking_no', 'tn', 'Number', 'number', 'Code', 'code'] as $trackingKey) {
+            $candidate = trim((string)($row[$trackingKey] ?? ''));
+            if ($candidate !== '') {
+                $tracking = $candidate;
+                break;
+            }
+        }
+
+        $weight = '';
+        foreach (['Weight', 'weight', 'weight_kg', 'total_weight'] as $weightKey) {
+            if (!array_key_exists($weightKey, $row)) {
+                continue;
+            }
+            $rawWeight = str_replace(',', '.', trim((string)$row[$weightKey]));
+            $rawWeight = preg_replace('/[^0-9.\-]/', '', $rawWeight);
+            if ($rawWeight !== '' && is_numeric($rawWeight)) {
+                $weight = departures_format_value((float)$rawWeight);
+                break;
+            }
+        }
+
+        $packages[] = [
+            'tracking' => $tracking,
+            'weight' => $weight,
+        ];
+    }
+
+    return $packages;
+}
+
 function departures_normalize_container_key(string $value): string
 {
     $normalized = strtoupper(trim($value));
@@ -380,7 +493,7 @@ function departures_load_containers_from_table(mysqli $dbcnx, string $flightTabl
         'packages_count',
         'total_weight',
     ];
-    foreach (['warehouse_packages_count', 'warehouse_total_weight', 'compare_status', 'compared_at', 'compare_error', 'forwarder_packages_synced_at'] as $optionalColumn) {
+    foreach (['warehouse_packages_count', 'warehouse_total_weight', 'compare_status', 'compared_at', 'compare_error', 'forwarder_packages_synced_at', 'forwarder_packages_json'] as $optionalColumn) {
         if (in_array(strtolower($optionalColumn), $availableColumns, true)) {
             $selectColumns[] = $optionalColumn;
         }
@@ -445,6 +558,11 @@ function departures_load_containers_from_table(mysqli $dbcnx, string $flightTabl
         array_keys($containerLookupKeys)
     );
 
+    $warehousePackages = departures_load_live_warehouse_packages(
+        $dbcnx,
+        array_keys($containerLookupKeys)
+    );
+
     $containers = [];
     foreach ($rawRows as $row) {
         $packagesCountRaw = $row['packages_count'] ?? null;
@@ -478,6 +596,14 @@ function departures_load_containers_from_table(mysqli $dbcnx, string $flightTabl
             $compareStatus = (string)$calculatedCompare['status'];
         }
 
+        $warehousePackagesDetail = [];
+        if ($normalizedName !== '' && isset($warehousePackages[$normalizedName])) {
+            $warehousePackagesDetail = $warehousePackages[$normalizedName];
+        } elseif ($normalizedExternalId !== '' && isset($warehousePackages[$normalizedExternalId])) {
+            $warehousePackagesDetail = $warehousePackages[$normalizedExternalId];
+        }
+        $forwarderPackagesDetail = departures_extract_forwarder_packages((string)($row['forwarder_packages_json'] ?? ''));
+
         $containers[] = [
             'container_external_id' => $containerExternalId,
             'name' => $containerName,
@@ -496,6 +622,13 @@ function departures_load_containers_from_table(mysqli $dbcnx, string $flightTabl
             'is_empty_placeholder' => $hasZeroPackages && $hasZeroWeight,
             'can_delete_placeholder' => $containerExternalId !== '' && $hasZeroPackages,
             'can_close_flight' => $containerExternalId !== '' && $hasPackages && $hasWeight,
+            'compare_modal_payload_json' => (string)json_encode([
+                'container' => $containerName !== '' ? $containerName : $containerExternalId,
+                'warehouse' => $warehousePackagesDetail,
+                'forwarder' => $forwarderPackagesDetail,
+                'compare_status' => $compareStatus,
+                'compare_error' => trim((string)($calculatedCompare['error'] ?? ($row['compare_error'] ?? ''))),
+            ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
         ];
     }
     return $containers;

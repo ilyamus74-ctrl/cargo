@@ -193,6 +193,11 @@
                         {if $container.container_external_id}
                           <div class="small text-muted">ID: {$container.container_external_id|escape}</div>
                         {/if}
+                        <button type="button"
+                                class="btn btn-link btn-sm p-0 mt-1 js-departure-compare-open"
+                                data-compare-payload="{$container.compare_modal_payload_json|default:'{}'|escape:'htmlattr'}">
+                          Сверка позиций
+                        </button>
                       </td>
                       <td>{$container.flight|default:'—'|escape}</td>
                       <td>{$container.departure|default:'—'|escape} → {$container.destination|default:'—'|escape}</td>

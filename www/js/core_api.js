@@ -2968,6 +2968,12 @@ const CoreAPI = {
         addFlightDateInput: null,
         addFlightAwbInput: null,
         addFlightStatus: null,
+        compareModalEl: null,
+        compareModalInstance: null,
+        compareModalStatus: null,
+        compareModalError: null,
+        compareModalWarehouse: null,
+        compareModalForwarder: null,
         activeActionButton: null,
         initialized: false,
         init() {
@@ -2983,7 +2989,14 @@ const CoreAPI = {
             this.addFlightDateInput = root.querySelector('#departures-add-flight-date');
             this.addFlightAwbInput = root.querySelector('#departures-add-flight-awb');
             this.addFlightStatus = root.querySelector('#departures-add-flight-status');
-
+            this.compareModalEl = document.getElementById('departures-compare-modal');
+            this.compareModalStatus = document.getElementById('departures-compare-modal-status');
+            this.compareModalError = document.getElementById('departures-compare-modal-error');
+            this.compareModalWarehouse = document.getElementById('departures-compare-modal-warehouse');
+            this.compareModalForwarder = document.getElementById('departures-compare-modal-forwarder');
+            if (this.compareModalEl && window.bootstrap?.Modal) {
+                this.compareModalInstance = bootstrap.Modal.getOrCreateInstance(this.compareModalEl);
+            }
             if (!this.tbody || !this.total || !this.forwarderFilter || !this.statusFilter) {
                 return;
             }
@@ -3039,6 +3052,12 @@ const CoreAPI = {
                     actionToggle.setAttribute('data-open', isOpen ? '0' : '1');
                     actionToggle.setAttribute('aria-expanded', isOpen ? 'false' : 'true');
                     target.classList.toggle('d-none', isOpen);
+                    return;
+                }
+
+                const compareOpenButton = event.target.closest('.js-departure-compare-open');
+                if (compareOpenButton) {
+                    this.openCompareModal(compareOpenButton);
                     return;
                 }
 
@@ -3103,6 +3122,66 @@ const CoreAPI = {
 
         normalizeAwb(value) {
             return String(value || '').replace(/\D+/g, '');
+        },
+
+        escapeHtml(value) {
+            return String(value ?? '')
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        },
+        renderCompareList(entries, counterpartSet = new Set()) {
+            if (!Array.isArray(entries) || entries.length === 0) {
+                return '<div class="text-muted">Нет позиций.</div>';
+            }
+            const rows = entries.map((entry) => {
+                const tracking = String(entry?.tracking || '').trim();
+                const weight = String(entry?.weight || '').trim();
+                const normalizedTracking = tracking.toUpperCase();
+                const mismatchClass = normalizedTracking && !counterpartSet.has(normalizedTracking)
+                    ? 'text-danger fw-semibold'
+                    : '';
+                const trackingHtml = tracking
+                    ? `<span class="${mismatchClass}">${this.escapeHtml(tracking)}</span>`
+                    : '<span class="text-muted">без трека</span>';
+                const weightHtml = weight ? this.escapeHtml(weight) : '—';
+                return `<li class="d-flex justify-content-between gap-2"><span>${trackingHtml}</span><span class="text-muted">${weightHtml}</span></li>`;
+            });
+            return `<ul class="list-unstyled small mb-0">${rows.join('')}</ul>`;
+        },
+        openCompareModal(button) {
+            const rawPayload = String(button?.getAttribute('data-compare-payload') || '{}').trim();
+            let payload = {};
+            try {
+                payload = JSON.parse(rawPayload);
+            } catch (err) {
+                payload = {};
+            }
+
+            const container = String(payload?.container || '—');
+            const compareStatus = String(payload?.compare_status || 'pending');
+            const compareError = String(payload?.compare_error || '').trim();
+            const warehouse = Array.isArray(payload?.warehouse) ? payload.warehouse : [];
+            const forwarder = Array.isArray(payload?.forwarder) ? payload.forwarder : [];
+            const warehouseSet = new Set(warehouse.map((row) => String(row?.tracking || '').trim().toUpperCase()).filter(Boolean));
+            const forwarderSet = new Set(forwarder.map((row) => String(row?.tracking || '').trim().toUpperCase()).filter(Boolean));
+
+            if (this.compareModalStatus) {
+                this.compareModalStatus.textContent = `Контейнер: ${container}. Статус сверки: ${compareStatus}.`;
+            }
+            if (this.compareModalError) {
+                this.compareModalError.classList.toggle('d-none', compareError === '');
+                this.compareModalError.textContent = compareError;
+            }
+            if (this.compareModalWarehouse) {
+                this.compareModalWarehouse.innerHTML = this.renderCompareList(warehouse, forwarderSet);
+            }
+            if (this.compareModalForwarder) {
+                this.compareModalForwarder.innerHTML = this.renderCompareList(forwarder, warehouseSet);
+            }
+            this.compareModalInstance?.show();
         },
 
         resolveActionStatusElement(button) {

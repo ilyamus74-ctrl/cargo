@@ -120,3 +120,32 @@
     </div>
   </div>
 </section>
+
+
+<div class="modal fade" id="departures-compare-modal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Сверка позиций контейнера</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div id="departures-compare-modal-status" class="small text-muted mb-2">—</div>
+        <div id="departures-compare-modal-error" class="small text-warning-emphasis mb-3 d-none"></div>
+        <div class="row g-3">
+          <div class="col-12 col-lg-6">
+            <div class="fw-semibold mb-2">Склад</div>
+            <div id="departures-compare-modal-warehouse" class="small text-muted">Нет данных.</div>
+          </div>
+          <div class="col-12 col-lg-6">
+            <div class="fw-semibold mb-2">Форвард</div>
+            <div id="departures-compare-modal-forwarder" class="small text-muted">Нет данных.</div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Закрыть</button>
+      </div>
+    </div>
+  </div>
+</div>
