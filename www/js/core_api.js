@@ -1049,7 +1049,31 @@ const CoreAPI = {
             }
         },
         'commit_item_in_batch': (data) => {
-            alert(data.message || 'Партия завершена');
+            const summary = data.registration_summary || {};
+            const moved = Number(data.moved_to_stock || 0);
+            const registered = Number(summary.registered || 0);
+            const skipped = Number(summary.validation_skipped || 0);
+            const errors = Number(summary.integration_errors || 0);
+            let alertMessage = data.message || 'Партия завершена';
+            if (moved > 0 || registered > 0 || skipped > 0 || errors > 0) {
+                alertMessage += '\n\n'
+                    + 'На склад перенесено: ' + moved + '\n'
+                    + 'Зарегистрировано у форварда: ' + registered + '\n'
+                    + 'Пропущено (неполные данные): ' + skipped + '\n'
+                    + 'Ошибки интеграции: ' + errors;
+            }
+            const details = Array.isArray(summary.details) ? summary.details : [];
+            if (details.length > 0) {
+                const problematic = details
+                    .filter((row) => row && row.status && row.status !== 'ok')
+                    .slice(0, 10)
+                    .map((row) => '- ' + (row.track || '—') + ': ' + (row.message || row.status))
+                    .join('\n');
+                if (problematic) {
+                    alertMessage += '\n\nПроблемные треки:\n' + problematic;
+                }
+            }
+            alert(alertMessage);
             CoreAPI.ui.closeModal();
             CoreAPI.ui.reloadList('warehouse_item_in');
         },

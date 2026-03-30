@@ -104,242 +104,6 @@ function warehouse_item_in_load_addons_map(mysqli $dbcnx): array
     return [$addonsMap, $addonsRawMap];
 }
 
-
-function warehouse_item_in_normalize_key(string $value): string
-{
-    $value = strtoupper(trim($value));
-    $value = preg_replace('/[^A-Z0-9_]+/', '_', $value) ?? '';
-    return trim($value, '_');
-}
-
-function warehouse_item_in_ensure_forwarder_registration_columns(mysqli $dbcnx): void
-{
-    $columns = [
-        'forwarder_registered_at' => "ALTER TABLE warehouse_item_stock ADD COLUMN forwarder_registered_at DATETIME NULL AFTER addons_json",
-        'forwarder_registration_status' => "ALTER TABLE warehouse_item_stock ADD COLUMN forwarder_registration_status VARCHAR(32) NULL AFTER forwarder_registered_at",
-        'forwarder_registration_message' => "ALTER TABLE warehouse_item_stock ADD COLUMN forwarder_registration_message VARCHAR(255) NULL AFTER forwarder_registration_status",
-        'forwarder_registration_response_json' => "ALTER TABLE warehouse_item_stock ADD COLUMN forwarder_registration_response_json LONGTEXT NULL AFTER forwarder_registration_message",
-    ];
-
-    foreach ($columns as $columnName => $alterSql) {
-        $res = $dbcnx->query("SHOW COLUMNS FROM warehouse_item_stock LIKE '" . $dbcnx->real_escape_string($columnName) . "'");
-        if ($res instanceof mysqli_result) {
-            $exists = $res->num_rows > 0;
-            $res->free();
-            if (!$exists) {
-                $dbcnx->query($alterSql);
-            }
-        }
-    }
-}
-
-function warehouse_item_in_exec_forwarder_cli_script(string $scriptName, array $args): array
-{
-    $scriptPath = dirname(__DIR__, 2) . '/scripts/mvp/app/Forwarder/' . ltrim($scriptName, '/');
-    if (!is_file($scriptPath)) {
-        throw new RuntimeException('Не найден скрипт форвардера: ' . $scriptPath);
-    }
-
-    $cmdParts = ['php', $scriptPath];
-    foreach ($args as $key => $value) {
-        $normalizedKey = trim((string)$key);
-        if ($normalizedKey === '') {
-            continue;
-        }
-        $cmdParts[] = '--' . $normalizedKey . '=' . (string)$value;
-    }
-
-    $cmd = implode(' ', array_map('escapeshellarg', $cmdParts)) . ' 2>&1';
-    $lines = [];
-    $exitCode = 0;
-    @exec($cmd, $lines, $exitCode);
-    $output = trim((string)implode("\n", $lines));
-    $parsed = json_decode($output, true);
-    if (!is_array($parsed)) {
-        $parsed = [
-            'status' => $exitCode === 0 ? 'ok' : 'error',
-            'message' => $output !== '' ? $output : 'Unknown CLI response',
-        ];
-    }
-    $parsed['_meta'] = [
-        'script' => $scriptName,
-        'exit_code' => $exitCode,
-        'raw_output' => $output,
-    ];
-
-    return $parsed;
-}
-
-function warehouse_item_in_resolve_forwarder_connector(mysqli $dbcnx, string $forwarder, string $country): ?array
-{
-    $forwarderNorm = warehouse_item_in_normalize_key($forwarder);
-    if ($forwarderNorm === '') {
-        return null;
-    }
-
-    $countryNorm = strtoupper(trim($country));
-    $rows = [];
-    if ($resAll = $dbcnx->query("SELECT id, name, countries, auth_username, auth_password, base_url, is_active FROM connectors WHERE is_active = 1 ORDER BY id DESC")) {
-        while ($row = $resAll->fetch_assoc()) {
-            $nameNorm = warehouse_item_in_normalize_key((string)($row['name'] ?? ''));
-            if ($nameNorm === '') {
-                continue;
-            }
-            if ($nameNorm === $forwarderNorm || $nameNorm === ('DEV_' . $forwarderNorm) || ('DEV_' . $nameNorm) === $forwarderNorm) {
-                $rows[] = $row;
-            }
-        }
-        $resAll->free();
-    }
-
-    if (empty($rows)) {
-        return null;
-    }
-
-    if ($countryNorm !== '') {
-        foreach ($rows as $row) {
-            $countries = strtoupper(trim((string)($row['countries'] ?? '')));
-            if ($countries === '') {
-                continue;
-            }
-            $parts = array_map('trim', explode(',', $countries));
-            if (in_array($countryNorm, $parts, true)) {
-                return $row;
-            }
-        }
-    }
-
-    return $rows[0];
-}
-
-function warehouse_item_in_decode_json_array($raw): array
-{
-    if (!is_string($raw) || trim($raw) === '') {
-        return [];
-    }
-    $decoded = json_decode($raw, true);
-    return is_array($decoded) ? $decoded : [];
-}
-
-function warehouse_item_in_required_registration_fields(mysqli $dbcnx, string $forwarder): array
-{
-    $default = [
-        'tracking_no',
-        'receiver_country_code',
-        'receiver_company',
-        'weight_kg',
-        'receiver_name',
-        'receiver_address',
-        'addons_json',
-        'tariff_type',
-        'category',
-        'cell_id',
-    ];
-
-    $forwarderNorm = warehouse_item_in_normalize_key($forwarder);
-    if ($forwarderNorm === '') {
-        return $default;
-    }
-
-    $required = [];
-    if ($res = $dbcnx->query("SELECT connector_name, addons_json FROM connectors_addons WHERE addons_json IS NOT NULL AND TRIM(addons_json) <> ''")) {
-        while ($row = $res->fetch_assoc()) {
-            $connectorNorm = warehouse_item_in_normalize_key((string)($row['connector_name'] ?? ''));
-            if ($connectorNorm !== $forwarderNorm && $connectorNorm !== 'DEV_' . $forwarderNorm && ('DEV_' . $connectorNorm) !== $forwarderNorm) {
-                continue;
-            }
-            $decoded = warehouse_item_in_decode_json_array($row['addons_json'] ?? '');
-            $rawFields = $decoded['required_registration_fields'] ?? [];
-            if (is_array($rawFields)) {
-                foreach ($rawFields as $field) {
-                    $field = trim((string)$field);
-                    if ($field !== '') {
-                        $required[] = $field;
-                    }
-                }
-            }
-        }
-        $res->free();
-    }
-
-    if (empty($required)) {
-        return $default;
-    }
-
-    return array_values(array_unique($required));
-}
-
-function warehouse_item_in_validate_registration_payload(array $stockItem, array $requiredFields): array
-{
-    $addons = warehouse_item_in_decode_json_array((string)($stockItem['addons_json'] ?? ''));
-    $missing = [];
-    foreach ($requiredFields as $field) {
-        $field = trim((string)$field);
-        if ($field === '') {
-            continue;
-        }
-        $value = '';
-        if (array_key_exists($field, $stockItem)) {
-            $value = trim((string)$stockItem[$field]);
-        } elseif (array_key_exists($field, $addons)) {
-            $value = trim((string)$addons[$field]);
-        }
-
-        if ($field === 'addons_json') {
-            if (empty($addons)) {
-                $missing[] = $field;
-            }
-            continue;
-        }
-        if ($value === '') {
-            $missing[] = $field;
-        }
-    }
-
-    return array_values(array_unique($missing));
-}
-
-function warehouse_item_in_build_registration_payload(array $stockItem): array
-{
-    $addons = warehouse_item_in_decode_json_array((string)($stockItem['addons_json'] ?? ''));
-    $tracking = trim((string)($stockItem['tracking_no'] ?? ''));
-    if ($tracking === '') {
-        $tracking = trim((string)($stockItem['tuid'] ?? ''));
-    }
-
-    return [
-        'track' => $tracking,
-        'destination' => trim((string)($stockItem['receiver_country_code'] ?? '')),
-        'weight' => trim((string)($stockItem['weight_kg'] ?? '')),
-        'currency' => trim((string)($addons['currency'] ?? 'USD')),
-        'quantity' => trim((string)($addons['quantity'] ?? '1')),
-        'client-name-surname' => trim((string)($stockItem['receiver_name'] ?? '')),
-        'category' => trim((string)($addons['category'] ?? $addons['sub_category'] ?? 'general')),
-        'description' => trim((string)($stockItem['receiver_address'] ?? '')),
-        'sub-cat' => trim((string)($addons['tariff_type'] ?? '')),
-    ];
-}
-
-function warehouse_item_in_update_registration_state(mysqli $dbcnx, int $stockItemId, string $status, string $message, array $rawResponse): void
-{
-    $responseJson = json_encode($rawResponse, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-    $registeredAt = strtolower($status) === 'ok' ? date('Y-m-d H:i:s') : null;
-    $stmt = $dbcnx->prepare(
-        "UPDATE warehouse_item_stock
-            SET forwarder_registered_at = ?,
-                forwarder_registration_status = ?,
-                forwarder_registration_message = ?,
-                forwarder_registration_response_json = ?
-          WHERE id = ?
-          LIMIT 1"
-    );
-    if ($stmt) {
-        $stmt->bind_param('ssssi', $registeredAt, $status, $message, $responseJson, $stockItemId);
-        $stmt->execute();
-        $stmt->close();
-    }
-}
-
 function warehouse_item_in_normalize_image_json(string $raw): ?string
 {
     $raw = trim($raw);
@@ -634,7 +398,6 @@ switch ($action) {
         auth_require_login();
         warehouse_item_in_ensure_addons_columns($dbcnx);
         warehouse_item_in_ensure_cell_columns($dbcnx);
-        warehouse_item_in_ensure_forwarder_registration_columns($dbcnx);
         $current = $user;
         $userId  = (int)$current['id'];
         $batchUid = isset($_POST['batch_uid']) ? (int)$_POST['batch_uid'] : 0;
@@ -1507,24 +1270,6 @@ switch ($action) {
             ];
             break;
         }
-
-        $pendingRows = [];
-        $stmtRows = $dbcnx->prepare(
-            "SELECT id, uid_created, tuid, tracking_no, receiver_company, receiver_country_code, receiver_name, receiver_address, weight_kg, addons_json, cell_id
-               FROM warehouse_item_in
-              WHERE batch_uid = ?
-                AND committed = 0
-              ORDER BY id ASC"
-        );
-        if ($stmtRows) {
-            $stmtRows->bind_param("i", $batchUid);
-            $stmtRows->execute();
-            $resRows = $stmtRows->get_result();
-            while ($resRows && ($row = $resRows->fetch_assoc())) {
-                $pendingRows[] = $row;
-            }
-            $stmtRows->close();
-        }
         // 2) копируем в stock
         $sqlCopy = "INSERT INTO warehouse_item_stock (
                         batch_uid, uid_created, user_id, device_id, created_at,
@@ -1557,7 +1302,6 @@ switch ($action) {
         $stmt->bind_param("i", $batchUid);
         $stmt->execute();
         $stmt->close();
-
         // 3) помечаем как committed
         $stmt = $dbcnx->prepare(
             "UPDATE warehouse_item_in
@@ -1575,155 +1319,6 @@ switch ($action) {
         $stmt->bind_param("i", $batchUid);
         $stmt->execute();
         $stmt->close();
-
-        $registrationSummary = [
-            'registered' => 0,
-            'validation_skipped' => 0,
-            'integration_errors' => 0,
-            'details' => [],
-        ];
-
-        foreach ($pendingRows as $row) {
-            $stockItemId = 0;
-            $stmtStock = $dbcnx->prepare(
-                "SELECT id, tuid, tracking_no, receiver_company, receiver_country_code, receiver_name, receiver_address, weight_kg, addons_json, cell_id, forwarder_registration_status
-                   FROM warehouse_item_stock
-                  WHERE batch_uid = ?
-                    AND uid_created = ?
-                  ORDER BY id DESC
-                  LIMIT 1"
-            );
-            if ($stmtStock) {
-                $uidCreated = (int)($row['uid_created'] ?? 0);
-                $stmtStock->bind_param('ii', $batchUid, $uidCreated);
-                $stmtStock->execute();
-                $resStock = $stmtStock->get_result();
-                $stockItem = $resStock ? $resStock->fetch_assoc() : null;
-                $stmtStock->close();
-                if (!$stockItem) {
-                    $registrationSummary['integration_errors']++;
-                    $registrationSummary['details'][] = [
-                        'track' => (string)($row['tracking_no'] ?? $row['tuid'] ?? ''),
-                        'status' => 'integration_error',
-                        'message' => 'Не найдена запись в warehouse_item_stock после commit',
-                    ];
-                    continue;
-                }
-                $stockItemId = (int)($stockItem['id'] ?? 0);
-            } else {
-                continue;
-            }
-
-            $track = trim((string)($stockItem['tracking_no'] ?? $stockItem['tuid'] ?? ''));
-            $alreadyStatus = strtolower(trim((string)($stockItem['forwarder_registration_status'] ?? '')));
-            if ($alreadyStatus === 'ok') {
-                $registrationSummary['registered']++;
-                $registrationSummary['details'][] = [
-                    'track' => $track,
-                    'status' => 'ok',
-                    'message' => 'Предрегистрация уже была выполнена ранее',
-                ];
-                continue;
-            }
-
-            $requiredFields = warehouse_item_in_required_registration_fields($dbcnx, (string)($stockItem['receiver_company'] ?? ''));
-            $missingFields = warehouse_item_in_validate_registration_payload($stockItem, $requiredFields);
-            if (!empty($missingFields)) {
-                $message = 'Пропущено: не заполнены поля [' . implode(', ', $missingFields) . ']';
-                warehouse_item_in_update_registration_state($dbcnx, $stockItemId, 'validation_error', $message, [
-                    'missing_fields' => $missingFields,
-                    'required_fields' => $requiredFields,
-                ]);
-                $registrationSummary['validation_skipped']++;
-                $registrationSummary['details'][] = [
-                    'track' => $track,
-                    'status' => 'validation_error',
-                    'message' => $message,
-                ];
-                continue;
-            }
-
-            $connector = warehouse_item_in_resolve_forwarder_connector(
-                $dbcnx,
-                (string)($stockItem['receiver_company'] ?? ''),
-                (string)($stockItem['receiver_country_code'] ?? '')
-            );
-            if (!$connector) {
-                $message = 'Не найден активный коннектор форвардера';
-                warehouse_item_in_update_registration_state($dbcnx, $stockItemId, 'connector_error', $message, []);
-                $registrationSummary['integration_errors']++;
-                $registrationSummary['details'][] = [
-                    'track' => $track,
-                    'status' => 'connector_error',
-                    'message' => $message,
-                ];
-                continue;
-            }
-
-            $baseUrl = trim((string)($connector['base_url'] ?? ''));
-            $login = trim((string)($connector['auth_username'] ?? ''));
-            $password = trim((string)($connector['auth_password'] ?? ''));
-            if ($baseUrl === '' || $login === '' || $password === '') {
-                $message = 'В коннекторе не заполнены base_url/login/password';
-                warehouse_item_in_update_registration_state($dbcnx, $stockItemId, 'connector_error', $message, $connector);
-                $registrationSummary['integration_errors']++;
-                $registrationSummary['details'][] = [
-                    'track' => $track,
-                    'status' => 'connector_error',
-                    'message' => $message,
-                ];
-                continue;
-            }
-
-            $payload = warehouse_item_in_build_registration_payload($stockItem);
-            try {
-                $result = warehouse_item_in_exec_forwarder_cli_script('run_add_package.php', [
-                    'base-url' => $baseUrl,
-                    'login' => $login,
-                    'password' => $password,
-                    'track' => $payload['track'],
-                    'destination' => $payload['destination'],
-                    'weight' => $payload['weight'],
-                    'currency' => $payload['currency'],
-                    'quantity' => $payload['quantity'],
-                    'client-name-surname' => $payload['client-name-surname'],
-                    'category' => $payload['category'],
-                    'description' => $payload['description'],
-                    'sub-cat' => $payload['sub-cat'],
-                ]);
-                $resultStatus = strtolower(trim((string)($result['status'] ?? '')));
-                $rawText = strtolower((string)(($result['_meta']['raw_output'] ?? '') . ' ' . ($result['message'] ?? '') . ' ' . ($result['error'] ?? '')));
-                $alreadyExists = strpos($rawText, 'already') !== false || strpos($rawText, 'exists') !== false || strpos($rawText, 'уже') !== false;
-                if ($resultStatus === 'ok' || $alreadyExists) {
-                    $okMessage = $alreadyExists ? 'Уже зарегистрировано у форварда (идемпотентный успех)' : 'Успешно зарегистрировано у форварда';
-                    warehouse_item_in_update_registration_state($dbcnx, $stockItemId, 'ok', $okMessage, $result);
-                    $registrationSummary['registered']++;
-                    $registrationSummary['details'][] = [
-                        'track' => $track,
-                        'status' => 'ok',
-                        'message' => $okMessage,
-                    ];
-                } else {
-                    $err = trim((string)($result['message'] ?? $result['error'] ?? 'Ошибка предрегистрации'));
-                    warehouse_item_in_update_registration_state($dbcnx, $stockItemId, 'forwarder_error', $err, $result);
-                    $registrationSummary['integration_errors']++;
-                    $registrationSummary['details'][] = [
-                        'track' => $track,
-                        'status' => 'forwarder_error',
-                        'message' => $err,
-                    ];
-                }
-            } catch (Throwable $e) {
-                $err = $e->getMessage();
-                warehouse_item_in_update_registration_state($dbcnx, $stockItemId, 'forwarder_error', $err, ['exception' => $err]);
-                $registrationSummary['integration_errors']++;
-                $registrationSummary['details'][] = [
-                    'track' => $track,
-                    'status' => 'forwarder_error',
-                    'message' => $err,
-                ];
-            }
-        }
         // 4) аудит
         audit_log(
             $userId,
@@ -1736,14 +1331,11 @@ switch ($action) {
                 'committed_by' => $userId,
                 'is_admin'     => $isAdmin,
                 'items_count'  => $cnt,
-                'registration_summary' => $registrationSummary,
             ]
         );
         $response = [
             'status'  => 'ok',
             'message' => 'Партия прихода завершена и перенесена на склад',
-            'moved_to_stock' => $cnt,
-            'registration_summary' => $registrationSummary,
         ];
         break;
 }
