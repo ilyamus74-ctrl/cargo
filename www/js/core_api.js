@@ -2168,15 +2168,6 @@ const CoreAPI = {
                 btn.textContent = 'sync...';
                 try {
 
-                    const controlPlan = await this.fetchSyncControlPlan(itemId, connectorId);
-                    const canExecute = !!controlPlan?.execution_plan?.can_execute;
-                    if (!canExecute) {
-                        btn.disabled = false;
-                        btn.textContent = prev;
-                        alert(this.formatSyncHelperMessage(controlPlan, 'sync остановлен preflight-проверкой'));
-                        return;
-                    }
-
                     const fd = new FormData();
                     fd.append('action', 'warehouse_sync_item');
                     fd.append('item_id', itemId);
@@ -2185,14 +2176,24 @@ const CoreAPI = {
                     }
                     const data = await CoreAPI.client.call(fd);
                     if (!data || data.status !== 'ok') {
-                        console.log('[warehouse_sync_item][single][node_payload]', data?.node_payload || null);
+                        console.log('[warehouse_sync_item][single][payload]', data?.payload || null);
                         throw new Error(data?.message || 'sync error');
                     }
-                    console.log('[warehouse_sync_item][single][node_payload]', data?.node_payload || null);
+                    const forwarderResponse = (data && typeof data === 'object' && data.forwarder_response && typeof data.forwarder_response === 'object')
+                        ? data.forwarder_response
+                        : {};
+                    console.log('[warehouse_sync_item][single][forwarder_response]', forwarderResponse);
                     btn.classList.remove('btn-outline-primary');
                     btn.classList.add('btn-outline-success');
                     btn.textContent = 'synced';
-                    alert(data.message || 'sync выполнен');
+                    const details = [
+                        `status: ${forwarderResponse.status || 'n/a'}`,
+                        `http_status: ${forwarderResponse.http_status || 'n/a'}`,
+                        `submit_case: ${forwarderResponse.submit_case || 'n/a'}`,
+                        `internal_id: ${forwarderResponse.internal_id || 'n/a'}`,
+                        `status_id_effective: ${forwarderResponse.status_id_effective || 'n/a'}`,
+                    ];
+                    alert(`${data.message || 'sync выполнен'}\n\n${details.join('\n')}`);
                     await this.resetAndLoad();
                     CoreAPI.warehouseSyncHistory.load();
                 } catch (err) {

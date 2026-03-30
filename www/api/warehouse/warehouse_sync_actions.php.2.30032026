@@ -1574,118 +1574,6 @@ if (!function_exists('warehouse_sync_resolve_permitted_connector')) {
 }
 
 
-
-if (!function_exists('warehouse_sync_decode_json_array')) {
-    function warehouse_sync_decode_json_array($raw): array
-    {
-        if (!is_string($raw) || trim($raw) === '') {
-            return [];
-        }
-        $decoded = json_decode($raw, true);
-        return is_array($decoded) ? $decoded : [];
-    }
-}
-
-if (!function_exists('warehouse_sync_required_registration_fields')) {
-    function warehouse_sync_required_registration_fields(mysqli $dbcnx, string $forwarder): array
-    {
-        $default = [
-            'tracking_no',
-            'receiver_country_code',
-            'weight_kg',
-            'receiver_name',
-        ];
-
-        $forwarderNorm = warehouse_sync_normalize_key($forwarder);
-        if ($forwarderNorm === '') {
-            return $default;
-        }
-
-        $required = [];
-        if ($res = $dbcnx->query("SELECT connector_name, addons_json FROM connectors_addons WHERE addons_json IS NOT NULL AND TRIM(addons_json) <> ''")) {
-            while ($row = $res->fetch_assoc()) {
-                $connectorNorm = warehouse_sync_normalize_key((string)($row['connector_name'] ?? ''));
-                if ($connectorNorm !== $forwarderNorm && $connectorNorm !== 'DEV_' . $forwarderNorm && ('DEV_' . $connectorNorm) !== $forwarderNorm) {
-                    continue;
-                }
-                $decoded = warehouse_sync_decode_json_array($row['addons_json'] ?? '');
-                $rawFields = $decoded['required_registration_fields'] ?? [];
-                if (is_array($rawFields)) {
-                    foreach ($rawFields as $field) {
-                        $field = trim((string)$field);
-                        if ($field !== '') {
-                            $required[] = $field;
-                        }
-                    }
-                }
-            }
-            $res->free();
-        }
-
-        if (empty($required)) {
-            return $default;
-        }
-
-        return array_values(array_unique($required));
-    }
-}
-
-if (!function_exists('warehouse_sync_validate_registration_payload')) {
-    function warehouse_sync_validate_registration_payload(array $stockItem, array $requiredFields): array
-    {
-        $addons = warehouse_sync_decode_json_array((string)($stockItem['addons_json'] ?? ''));
-        $missing = [];
-        foreach ($requiredFields as $field) {
-            $field = trim((string)$field);
-            if ($field === '') {
-                continue;
-            }
-            $value = '';
-            if (array_key_exists($field, $stockItem)) {
-                $value = trim((string)$stockItem[$field]);
-            } elseif (array_key_exists($field, $addons)) {
-                $value = trim((string)$addons[$field]);
-            }
-
-            if ($field === 'addons_json') {
-                if (empty($addons)) {
-                    $missing[] = $field;
-                }
-                continue;
-            }
-            if ($value === '') {
-                $missing[] = $field;
-            }
-        }
-
-        return array_values(array_unique($missing));
-    }
-}
-
-if (!function_exists('warehouse_sync_build_registration_payload')) {
-    function warehouse_sync_build_registration_payload(array $stockItem): array
-    {
-        $addons = warehouse_sync_decode_json_array((string)($stockItem['addons_json'] ?? ''));
-        $tracking = trim((string)($stockItem['tracking_no'] ?? ''));
-        if ($tracking === '') {
-            $tracking = trim((string)($stockItem['tuid'] ?? ''));
-        }
-
-        return [
-            'track' => $tracking,
-            'destination' => trim((string)($stockItem['receiver_country_code'] ?? '')),
-            'weight' => trim((string)($stockItem['weight_kg'] ?? '')),
-            'currency' => trim((string)($addons['currency'] ?? 'USD')),
-            'quantity' => trim((string)($addons['quantity'] ?? '1')),
-            'client-name-surname' => trim((string)($stockItem['receiver_name'] ?? '')),
-            'category' => trim((string)($addons['category'] ?? $addons['sub_category'] ?? 'general')),
-            'description' => trim((string)($stockItem['receiver_address'] ?? '')),
-            'sub-cat' => trim((string)($addons['tariff_type'] ?? '')),
-        ];
-    }
-}
-
-
 if (!function_exists('warehouse_sync_submission_steps')) {
     function warehouse_sync_submission_steps(array $connector): array
     {
@@ -3339,100 +3227,73 @@ if ($action === 'warehouse_sync_item') {
 
     try {
         $connector = warehouse_sync_resolve_permitted_connector($dbcnx, $item, $connectorId);
-        $baseUrl = trim((string)($connector['base_url'] ?? ''));
-        $login = trim((string)($connector['auth_username'] ?? ''));
-        $password = trim((string)($connector['auth_password'] ?? ''));
-        if ($baseUrl === '' || $login === '' || $password === '') {
-            throw new RuntimeException('В активном коннекторе не заполнены base_url/login/password');
-        }
+        $executionPlan = warehouse_sync_build_execution_control_map($dbcnx, $item, $connector);
+        warehouse_sync_assert_execution_control_map($executionPlan);
 
-        $requiredFields = warehouse_sync_required_registration_fields($dbcnx, (string)($item['receiver_company'] ?? ''));
-        $missingFields = warehouse_sync_validate_registration_payload($item, $requiredFields);
-        if (!empty($missingFields)) {
-            throw new RuntimeException('Не заполнены обязательные поля: ' . implode(', ', $missingFields));
-        }
-
-        $payload = warehouse_sync_build_registration_payload($item);
+        $debugNodePayload = [
+            'steps' => warehouse_sync_submission_steps($connector),
+            'vars' => warehouse_sync_build_vars($connector, $item),
+            'ssl_ignore' => !empty($connector['ssl_ignore']),
+            'cookies' => (string)($connector['auth_cookies'] ?? ''),
+            'auth_token' => (string)($connector['auth_token'] ?? ''),
+            'temp_dir' => realpath(__DIR__ . '/../../scripts/_tmp') ?: (__DIR__ . '/../../scripts/_tmp'),
+            'expect_download' => false,
+            'error_selector' => warehouse_sync_submission_error_selector($connector),
+            'error_wait_ms' => 1800,
+        ];
 
         $submissionStartSnapshot = json_encode([
             'item_id' => $itemId,
             'connector_id' => (int)($connector['id'] ?? 0),
-            'script' => 'run_add_package.php',
-            'track' => (string)($payload['track'] ?? ''),
+            'step_count' => count((array)($debugNodePayload['steps'] ?? [])),
+            'vars_keys' => array_keys((array)($debugNodePayload['vars'] ?? [])),
         ], JSON_UNESCAPED_UNICODE);
         warehouse_sync_trace_log($dbcnx, [
             'item_id' => $itemId,
             'connector_id' => (int)($connector['id'] ?? 0),
             'job_id' => max(0, (int)($_POST['job_id'] ?? 0)),
-            'stage' => 'registration_started',
+            'stage' => 'submission_started',
             'decision' => 'started',
-            'reason' => 'forwarder add_package started',
+            'reason' => 'submission pipeline started',
             'snapshot_json' => $submissionStartSnapshot === false ? '' : $submissionStartSnapshot,
         ]);
 
-
-        $result = warehouse_sync_exec_forwarder_cli_script('run_add_package.php', [
-            'base-url' => $baseUrl,
-            'login' => $login,
-            'password' => $password,
-            'track' => (string)($payload['track'] ?? ''),
-            'destination' => (string)($payload['destination'] ?? ''),
-            'weight' => (string)($payload['weight'] ?? ''),
-            'currency' => (string)($payload['currency'] ?? ''),
-            'quantity' => (string)($payload['quantity'] ?? ''),
-            'client-name-surname' => (string)($payload['client-name-surname'] ?? ''),
-            'category' => (string)($payload['category'] ?? ''),
-            'description' => (string)($payload['description'] ?? ''),
-            'sub-cat' => (string)($payload['sub-cat'] ?? ''),
-        ]);
-
-        $resultStatus = strtolower(trim((string)($result['status'] ?? '')));
-        $rawText = strtolower((string)(($result['_meta']['raw_output'] ?? '') . ' ' . ($result['message'] ?? '') . ' ' . ($result['error'] ?? '')));
-        $alreadyExists = strpos($rawText, 'already') !== false || strpos($rawText, 'exists') !== false || strpos($rawText, 'уже') !== false;
-        $isOk = ($resultStatus === 'ok') || $alreadyExists;
-        if (!$isOk) {
-            throw new RuntimeException(trim((string)($result['message'] ?? $result['error'] ?? 'Ошибка предрегистрации у форварда')));
-        }
-
-        $statusMessage = $alreadyExists
-            ? 'Посылка уже существует у форварда (идемпотентный успех)'
-            : 'Посылка повторно отправлена в run_add_package.php';
-        $httpStatus = (int)($result['http_status'] ?? 0);
-        $submitCase = trim((string)($result['submit_case'] ?? ''));
-        $internalId = trim((string)($result['internal_id'] ?? ''));
-        if ($submitCase !== '' || $httpStatus > 0 || $internalId !== '') {
-            $statusMessage .= sprintf(
-                ' [case=%s, http=%s%s]',
-                $submitCase !== '' ? $submitCase : 'n/a',
-                $httpStatus > 0 ? (string)$httpStatus : 'n/a',
-                $internalId !== '' ? ', internal_id=' . $internalId : ''
-            );
-        }
+        $result = warehouse_sync_run_submission($connector, $item, $debugNodePayload);
 
         $submissionFinishSnapshot = json_encode([
-            'message' => $statusMessage,
-            'result_status' => (string)($result['status'] ?? ''),
-            'script' => 'run_add_package.php',
-
+            'message' => (string)($result['message'] ?? ''),
+            'out_status' => (string)($result['out_status'] ?? ''),
+            'captured_error_text' => (string)($result['captured_error_text'] ?? ''),
+            'step_log_count' => count((array)($result['step_log'] ?? [])),
         ], JSON_UNESCAPED_UNICODE);
         warehouse_sync_trace_log($dbcnx, [
             'item_id' => $itemId,
             'connector_id' => isset($connector) && is_array($connector) ? (int)($connector['id'] ?? 0) : $connectorId,
             'job_id' => max(0, (int)($_POST['job_id'] ?? 0)),
-            'stage' => 'registration_finished',
+            'stage' => 'submission_finished',
             'decision' => 'success',
-            'reason' => $statusMessage,
+            'reason' => trim((string)($result['message'] ?? 'submission completed')),
             'snapshot_json' => $submissionFinishSnapshot === false ? '' : $submissionFinishSnapshot,
         ]);
         $responsePayload = [
-            'message' => $statusMessage,
+            'message' => $result['message'],
             'connector_id' => (int)($connector['id'] ?? 0),
-            'forwarder_response' => $result,
-            'payload' => $payload,
-            'script' => 'run_add_package.php',
+            'execution_plan' => $executionPlan,
+            'step_log' => $result['step_log'],
+            'artifacts_dir' => $result['artifacts_dir'],
+            'vars' => $result['vars'],
+            'node_payload' => isset($result['node_payload']) && is_array($result['node_payload']) ? $result['node_payload'] : $debugNodePayload,
         ];
         $responseJson = json_encode($responsePayload, JSON_UNESCAPED_UNICODE);
-        $outStatus = 'success';
+        $outStatus = strtolower(trim((string)($result['out_status'] ?? 'half_sync')));
+        if ($outStatus === '') {
+            $outStatus = 'half_sync';
+        }
+        $capturedErrorText = trim((string)($result['captured_error_text'] ?? ''));
+        $statusMessage = 'sync отправлен, ожидаем подтверждение форварда';
+        if ($outStatus === 'half_sync' && $capturedErrorText !== '') {
+            $statusMessage = 'sync отправлен, форвард ответил: ' . $capturedErrorText;
+        }
 
         warehouse_sync_audit_log($dbcnx, [
             'item_id' => $itemId,
@@ -3467,7 +3328,6 @@ if ($action === 'warehouse_sync_item') {
             'forwarder' => $forwarder,
             'country_code' => $country,
             'connector_id' => (int)($connector['id'] ?? 0),
-            'script' => 'run_add_package.php',
         ]);
 
         $response = [
@@ -3476,9 +3336,11 @@ if ($action === 'warehouse_sync_item') {
             'tracking_no' => $tracking,
             'forwarder' => $forwarder,
             'country_code' => $country,
-            'message' => $statusMessage,
-            'forwarder_response' => $result,
-            'script' => 'run_add_package.php',
+            'message' => 'sync выполнен успешно',
+            'execution_plan' => $executionPlan,
+            'step_log' => $result['step_log'],
+            'artifacts_dir' => $result['artifacts_dir'],
+            'node_payload' => isset($result['node_payload']) && is_array($result['node_payload']) ? $result['node_payload'] : $debugNodePayload,
         ];
     } catch (Throwable $e) {
 
@@ -3491,15 +3353,15 @@ if ($action === 'warehouse_sync_item') {
             'item_id' => $itemId,
             'connector_id' => isset($connector) && is_array($connector) ? (int)($connector['id'] ?? 0) : $connectorId,
             'job_id' => max(0, (int)($_POST['job_id'] ?? 0)),
-            'stage' => 'registration_finished',
+            'stage' => 'submission_finished',
             'decision' => 'error',
             'reason' => $e->getMessage(),
             'snapshot_json' => $submissionErrorSnapshot === false ? '' : $submissionErrorSnapshot,
         ]);
 
         $errorPayload = ['error' => $e->getMessage()];
-        if (isset($payload) && is_array($payload)) {
-            $errorPayload['payload'] = $payload;
+        if (isset($debugNodePayload) && is_array($debugNodePayload)) {
+            $errorPayload['node_payload'] = $debugNodePayload;
         }
         $errorJson = json_encode($errorPayload, JSON_UNESCAPED_UNICODE);
         warehouse_sync_audit_log($dbcnx, [
@@ -3541,7 +3403,7 @@ if ($action === 'warehouse_sync_item') {
             'item_id' => $itemId,
             'tracking_no' => $tracking,
             'message' => 'sync ошибка: ' . $e->getMessage(),
-            'payload' => isset($payload) && is_array($payload) ? $payload : null,
+            'node_payload' => isset($debugNodePayload) && is_array($debugNodePayload) ? $debugNodePayload : null,
         ];
     }
 }
