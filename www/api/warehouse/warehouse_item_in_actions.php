@@ -1845,6 +1845,19 @@ switch ($action) {
                     continue;
                 }
                 $stockItemId = (int)($stockItem['id'] ?? 0);
+                warehouse_item_in_sync_audit_log($dbcnx, [
+                    'item_id' => $stockItemId,
+                    'tracking_no' => (string)(($stockItem['tracking_no'] ?? '') !== '' ? $stockItem['tracking_no'] : ($rowTrackingNo !== '' ? $rowTrackingNo : $rowTuid)),
+                    'forwarder' => (string)($stockItem['receiver_company'] ?? $row['receiver_company'] ?? ''),
+                    'country_code' => (string)($stockItem['receiver_country_code'] ?? $row['receiver_country_code'] ?? ''),
+                    'status' => 'success',
+                    'message' => 'commit_item_in_batch: Запись перенесена в warehouse_item_stock',
+                    'response_json' => json_encode([
+                        'batch_uid' => $batchUid,
+                        'warehouse_item_stock_id' => $stockItemId,
+                    ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: '',
+                    'created_by' => $userId,
+                ]);
             } else {
                 continue;
             }
@@ -1871,6 +1884,19 @@ switch ($action) {
             }
             $alreadyStatus = strtolower(trim((string)($stockItem['forwarder_registration_status'] ?? '')));
             if ($alreadyStatus === 'ok') {
+                warehouse_item_in_sync_audit_log($dbcnx, [
+                    'item_id' => $stockItemId,
+                    'tracking_no' => $track,
+                    'forwarder' => (string)($stockItem['receiver_company'] ?? ''),
+                    'country_code' => (string)($stockItem['receiver_country_code'] ?? ''),
+                    'status' => 'success',
+                    'message' => 'commit_item_in_batch: Предрегистрация уже была выполнена ранее',
+                    'response_json' => json_encode([
+                        'registration_status' => 'ok',
+                        'source' => 'warehouse_item_stock.forwarder_registration_status',
+                    ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: '',
+                    'created_by' => $userId,
+                ]);
                 $registrationSummary['registered']++;
                 $registrationSummary['details'][] = [
                     'track' => $track,
@@ -2046,6 +2072,16 @@ switch ($action) {
                     $result['submitted_args'] = $forwarderArgs;
                     $result['payload'] = $payload;
                     warehouse_item_in_update_registration_state($dbcnx, $stockItemId, 'ok', $okMessage, $result);
+                    warehouse_item_in_sync_audit_log($dbcnx, [
+                        'item_id' => $stockItemId,
+                        'tracking_no' => $track,
+                        'forwarder' => (string)($stockItem['receiver_company'] ?? ''),
+                        'country_code' => (string)($stockItem['receiver_country_code'] ?? ''),
+                        'status' => 'success',
+                        'message' => 'commit_item_in_batch: ' . $okMessage,
+                        'response_json' => json_encode($result, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: '',
+                        'created_by' => $userId,
+                    ]);
                     $registrationSummary['registered']++;
                     $registrationSummary['details'][] = [
                         'track' => $track,
