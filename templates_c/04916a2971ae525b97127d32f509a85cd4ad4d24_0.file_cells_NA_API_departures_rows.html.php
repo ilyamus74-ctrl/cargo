@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-03-30 13:57:50
+/* Smarty version 5.3.1, created on 2026-03-31 12:04:55
   from 'file:cells_NA_API_departures_rows.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_69ca815e13e298_90364057',
+  'unifunc' => 'content_69cbb867948862_10595147',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '04916a2971ae525b97127d32f509a85cd4ad4d24' => 
     array (
       0 => 'cells_NA_API_departures_rows.html',
-      1 => 1774878942,
+      1 => 1774958630,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_69ca815e13e298_90364057 (\Smarty\Template $_smarty_tpl) {
+function content_69cbb867948862_10595147 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 if ($_smarty_tpl->getSmarty()->getModifierCallback('count')($_smarty_tpl->getValue('departure_rows')) > 0) {?>
   <?php
@@ -148,8 +148,9 @@ _edit"
                 </button>
                 <button type="button"
                         class="btn btn-sm btn-outline-warning js-departure-placeholder-action"
-                        data-operation="close_flight"
-                        data-refresh-operation="flight_list"
+                        data-operation="close_flight_php"
+                        data-entrypoint-mode="php"
+                        data-refresh-operation="flight_list_php"
                         data-connector-id="<?php echo $_smarty_tpl->getSmarty()->getModifierCallback('escape')((($tmp = $_smarty_tpl->getValue('flight')['connector_id'] ?? null)===null||$tmp==='' ? 0 ?? null : $tmp), 'htmlattr');?>
 "
                         data-flight="<?php echo $_smarty_tpl->getSmarty()->getModifierCallback('escape')((($tmp = $_smarty_tpl->getValue('flight')['flight_no'] ?? null)===null||$tmp==='' ? '' ?? null : $tmp), 'htmlattr');?>

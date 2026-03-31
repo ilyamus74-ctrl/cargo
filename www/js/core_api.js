@@ -3648,10 +3648,11 @@ const CoreAPI = {
             return runtimeVars;
         },
         async triggerPlaceholderOperation(button) {
-            const operationId = String(button?.getAttribute('data-operation') || '').trim();
-            if (!operationId) {
+            const operationIdRaw = String(button?.getAttribute('data-operation') || '').trim();
+            if (!operationIdRaw) {
                 return;
             }
+            const operationId = operationIdRaw === 'close_flight' ? 'close_flight_php' : operationIdRaw;
 
             const connectorId = Number(button?.getAttribute('data-connector-id') || this.forwarderFilter?.value || 0);
             if (!connectorId) {
@@ -3662,7 +3663,10 @@ const CoreAPI = {
             const statusEl = this.resolveActionStatusElement(button);
             const refreshOperation = String(button?.getAttribute('data-refresh-operation') || '').trim();
             const successMessage = String(button?.getAttribute('data-success-message') || '').trim();
-            const entrypointModeRaw = String(button?.getAttribute('data-entrypoint-mode') || '').trim();
+            const entrypointModeRawFromButton = String(button?.getAttribute('data-entrypoint-mode') || '').trim();
+            const entrypointModeRaw = entrypointModeRawFromButton !== ''
+                ? entrypointModeRawFromButton
+                : (operationId === 'close_flight_php' ? 'php' : '');
             const isPhpOperationId = /_php$/i.test(operationId);
             const entrypointMode = entrypointModeRaw !== '' ? entrypointModeRaw : (isPhpOperationId ? 'php' : '');
             const entrypointModeNormalized = entrypointMode.toLowerCase();
