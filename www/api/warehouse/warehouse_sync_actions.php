@@ -4179,6 +4179,110 @@ if ($action === 'warehouse_sync_history') {
             }
         }
     }
+    $canAppendOutStatuses = ($statusFilter === 'all' || in_array($statusFilter, ['to_send', 'sended', 'success', 'error', 'half_sync', 'confirmed_sync'], true));
+    if ($canAppendOutStatuses) {
+        warehouse_sync_ensure_out_table($dbcnx);
+
+        $outRows = [];
+        $outConditions = [
+            "TRIM(COALESCE(wo.status, '')) <> ''",
+        ];
+        $outTypes = '';
+        $outParams = [];
+
+        if ($statusFilter !== 'all' && in_array($statusFilter, $allowedStatuses, true)) {
+            $outConditions[] = 'LOWER(TRIM(wo.status)) = ?';
+            $outTypes .= 's';
+            $outParams[] = $statusFilter;
+        } else {
+            $outConditions[] = "LOWER(TRIM(wo.status)) <> 'for_sync'";
+        }
+
+        if ($trackingFilter !== '') {
+            $outConditions[] = "UPPER(COALESCE(NULLIF(wo.tracking_no, ''), NULLIF(wi.tracking_no, ''), wi.tuid, '')) LIKE ?";
+            $outTypes .= 's';
+            $outParams[] = '%' . $trackingFilter . '%';
+        }
+
+        $outWhereSql = 'WHERE ' . implode(' AND ', $outConditions);
+        $outSql = "SELECT
+                0 AS id,
+                wi.id AS item_id,
+                COALESCE(NULLIF(wo.tracking_no, ''), NULLIF(wi.tracking_no, ''), wi.tuid, '') AS tracking_no,
+                COALESCE(NULLIF(wi.receiver_company, ''), wo.receiver_company, '') AS forwarder,
+                COALESCE(NULLIF(wi.receiver_country_code, ''), wo.receiver_country_code, '') AS country_code,
+                LOWER(TRIM(wo.status)) AS status,
+                COALESCE(NULLIF(wo.status_message, ''), '') AS message,
+                COALESCE(wo.status_updated_at, wo.updated_at, wo.created_at) AS created_at,
+                '' AS user_name
+            FROM warehouse_item_out wo
+            LEFT JOIN warehouse_item_stock wi ON wi.id = wo.stock_item_id
+            {$outWhereSql}
+            ORDER BY COALESCE(wo.status_updated_at, wo.updated_at, wo.created_at) DESC, wo.id DESC
+            LIMIT {$limitSql}";
+
+        if ($outTypes === '') {
+            if ($res = $dbcnx->query($outSql)) {
+                while ($row = $res->fetch_assoc()) {
+                    $outRows[] = $row;
+                }
+                $res->free();
+            }
+        } else {
+            $stmt = $dbcnx->prepare($outSql);
+            if ($stmt) {
+                $stmt->bind_param($outTypes, ...$outParams);
+                $stmt->execute();
+                $res = $stmt->get_result();
+                while ($row = $res->fetch_assoc()) {
+                    $outRows[] = $row;
+                }
+                $stmt->close();
+            }
+        }
+
+        if (!empty($outRows)) {
+            $latestByTracking = [];
+            foreach ($rows as $index => $row) {
+                $trackingKey = strtoupper(trim((string)($row['tracking_no'] ?? '')));
+                if ($trackingKey === '') {
+                    continue;
+                }
+                $ts = strtotime((string)($row['created_at'] ?? '')) ?: 0;
+                if (!isset($latestByTracking[$trackingKey]) || $ts > $latestByTracking[$trackingKey]['ts']) {
+                    $latestByTracking[$trackingKey] = ['ts' => $ts, 'index' => $index];
+                }
+            }
+
+            foreach ($outRows as $outRow) {
+                $trackingKey = strtoupper(trim((string)($outRow['tracking_no'] ?? '')));
+                $rowTs = strtotime((string)($outRow['created_at'] ?? '')) ?: 0;
+                if ($trackingKey !== '' && isset($latestByTracking[$trackingKey])) {
+                    $existingMeta = $latestByTracking[$trackingKey];
+                    if ($rowTs >= (int)$existingMeta['ts']) {
+                        $rows[(int)$existingMeta['index']] = $outRow;
+                        $latestByTracking[$trackingKey] = ['ts' => $rowTs, 'index' => (int)$existingMeta['index']];
+                    }
+                    continue;
+                }
+
+                $rows[] = $outRow;
+                if ($trackingKey !== '') {
+                    $latestByTracking[$trackingKey] = ['ts' => $rowTs, 'index' => count($rows) - 1];
+                }
+            }
+        }
+    }
+    usort($rows, static function (array $a, array $b): int {
+        $at = strtotime((string)($a['created_at'] ?? '')) ?: 0;
+        $bt = strtotime((string)($b['created_at'] ?? '')) ?: 0;
+        return $bt <=> $at;
+    });
+
+    if (count($rows) > $limitSql) {
+        $rows = array_slice($rows, 0, $limitSql);
+    }
+
     $response = [
         'status' => 'ok',
         'rows' => $rows,
