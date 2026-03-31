@@ -380,6 +380,16 @@ function warehouse_item_in_extract_client_id(array $stockItem): int
         }
     }
 
+    $receiverAddress = trim((string)($stockItem['receiver_address'] ?? ''));
+    if ($receiverAddress !== '') {
+        $normalized = strtoupper($receiverAddress);
+        if (preg_match('/^C([0-9]+)$/', $normalized, $m) === 1) {
+            return (int)$m[1];
+        }
+        if (ctype_digit($normalized)) {
+            return (int)$normalized;
+        }
+    }
     return 0;
 }
 
@@ -436,8 +446,14 @@ function warehouse_item_in_build_registration_payload(array $stockItem): array
     $invoiceStatus = trim((string)($addons['invoice_status'] ?? '1'));
     $trackingInternalSame = trim((string)($addons['tracking_internal_same'] ?? '0'));
     $position = 'PSB010';
-    $grossWeight = trim((string)($addons['gross_weight'] ?? '1'));
+    $grossWeight = trim((string)($addons['gross_weight'] ?? ''));
     if ($grossWeight === '') {
+        $weightRaw = str_replace(',', '.', trim((string)($stockItem['weight_kg'] ?? '')));
+        if ($weightRaw !== '' && is_numeric($weightRaw)) {
+            $grossWeight = number_format((float)$weightRaw, 3, '.', '');
+        }
+    }
+    if ($grossWeight === '' || !is_numeric($grossWeight) || (float)$grossWeight <= 0) {
         $grossWeight = '1';
     }
     return [
