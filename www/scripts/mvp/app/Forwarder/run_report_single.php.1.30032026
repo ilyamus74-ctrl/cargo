@@ -33,26 +33,6 @@ function forwarder_single_read_arg(string $name, array $argv): ?string
     return null;
 }
 
-function forwarder_single_normalize_base_url(string $rawBaseUrl): string
-{
-    $value = trim($rawBaseUrl);
-    if ($value === '') {
-        return '';
-    }
-
-    $parts = @parse_url($value);
-    if (!is_array($parts) || empty($parts['scheme']) || empty($parts['host'])) {
-        return rtrim($value, '/');
-    }
-
-    $base = strtolower((string)$parts['scheme']) . '://' . (string)$parts['host'];
-    if (isset($parts['port']) && (int)$parts['port'] > 0) {
-        $base .= ':' . (int)$parts['port'];
-    }
-
-    return rtrim($base, '/');
-}
-
 /** @return array<string, string> */
 function forwarder_single_cli_overrides(array $argv): array
 {
@@ -70,11 +50,7 @@ function forwarder_single_cli_overrides(array $argv): array
         if ($value === null) {
             continue;
         }
-        $normalized = trim($value);
-        if ($argName === 'base-url') {
-            $normalized = forwarder_single_normalize_base_url($normalized);
-        }
-        $overrides[$envName] = $normalized;
+        $overrides[$envName] = trim($value);
     }
 
     return $overrides;
@@ -138,19 +114,6 @@ foreach ($overrides as $envName => $value) {
     putenv($envName . '=' . $value);
     $_ENV[$envName] = $value;
     $_SERVER[$envName] = $value;
-    if ($envName === 'FORWARDER_BASE_URL') {
-        putenv('DEV_COLIBRI_BASE_URL=' . $value);
-        $_ENV['DEV_COLIBRI_BASE_URL'] = $value;
-        $_SERVER['DEV_COLIBRI_BASE_URL'] = $value;
-    } elseif ($envName === 'FORWARDER_LOGIN') {
-        putenv('DEV_COLIBRI_LOGIN=' . $value);
-        $_ENV['DEV_COLIBRI_LOGIN'] = $value;
-        $_SERVER['DEV_COLIBRI_LOGIN'] = $value;
-    } elseif ($envName === 'FORWARDER_PASSWORD') {
-        putenv('DEV_COLIBRI_PASSWORD=' . $value);
-        $_ENV['DEV_COLIBRI_PASSWORD'] = $value;
-        $_SERVER['DEV_COLIBRI_PASSWORD'] = $value;
-    }
 }
 
 $track = forwarder_single_read_arg('track', $argv) ?? ($argv[1] ?? null) ?? getenv('FORWARDER_TRACK') ?: null;

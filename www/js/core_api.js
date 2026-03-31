@@ -2157,6 +2157,56 @@ const CoreAPI = {
                     await this.showSyncProcessHelperAlert(itemId, connectorId, 'Подсказка по sync');
                     return;
                 }
+
+                const checkBtn = event.target.closest('.warehouse-sync-check-btn');
+                if (checkBtn) {
+                    const itemId = checkBtn.dataset.itemId || '';
+                    const connectorId = checkBtn.dataset.connectorId || '';
+                    const parcel = checkBtn.dataset.parcel || '';
+                    if (!itemId) return;
+
+                    checkBtn.disabled = true;
+                    const prevCheckText = checkBtn.textContent;
+                    checkBtn.textContent = 'check...';
+                    try {
+                        const fd = new FormData();
+                        fd.append('action', 'warehouse_sync_single_check');
+                        fd.append('item_id', itemId);
+                        if (connectorId) {
+                            fd.append('connector_id', connectorId);
+                        }
+                        const data = await CoreAPI.client.call(fd);
+                        if (!data || data.status !== 'ok') {
+                            throw new Error(data?.message || 'check error');
+                        }
+
+                        const checkStatus = String(data?.check_status || 'n/a');
+                        const checkMode = String(data?.check_mode || 'n/a');
+                        const packageExist = Boolean(data?.check_result?.package_exist);
+                        const matchedTrackFound = Boolean(data?.check_result?.matched_track_found);
+                        console.log('[warehouse_sync_single_check][result]', data);
+                        const rawCliOutput = String(data?.check_result?._meta?.raw_output || data?.check_result?.raw_output || '');
+                        if (rawCliOutput !== '') {
+                            console.log('[warehouse_sync_single_check][raw_cli_output]', rawCliOutput);
+                        }
+                        alert(
+                            `check: ${parcel || data?.tracking_no || itemId}\n`
+                            + `status: ${checkStatus}\n`
+                            + `mode: ${checkMode}\n`
+                            + `package_exist: ${packageExist ? 'yes' : 'no'}\n`
+                            + `matched_track_found: ${matchedTrackFound ? 'yes' : 'no'}\n`
+                            + `correlation_id: ${data?.check_result?.correlation_id || 'n/a'}`
+                        );
+                    } catch (err) {
+                        console.error('warehouse_sync_single_check error:', err);
+                        alert(`check ошибка: ${err?.message || err}`);
+                    } finally {
+                        checkBtn.disabled = false;
+                        checkBtn.textContent = prevCheckText;
+                    }
+                    return;
+                }
+
                 const btn = event.target.closest('.warehouse-sync-row-btn');
                 if (!btn) return;
                 const itemId = btn.dataset.itemId || '';
@@ -2193,15 +2243,11 @@ const CoreAPI = {
                         `internal_id: ${forwarderResponse.internal_id || 'n/a'}`,
                         `status_id_effective: ${forwarderResponse.status_id_effective || 'n/a'}`,
                     ];
-                    alert(`${data.message || 'sync выполнен'}\n\n${details.join('\n')}`);
-                    await this.resetAndLoad();
                     CoreAPI.warehouseSyncHistory.load();
                 } catch (err) {
                     console.error('warehouse_sync_item error:', err);
                     btn.disabled = false;
                     btn.textContent = prev;
-                    alert(`sync ошибка: ${err?.message || err}`);
-                    await this.showSyncProcessHelperAlert(itemId, connectorId, 'Подсказка после ошибки sync');
                     CoreAPI.warehouseSyncHistory.load();
                 }
             });

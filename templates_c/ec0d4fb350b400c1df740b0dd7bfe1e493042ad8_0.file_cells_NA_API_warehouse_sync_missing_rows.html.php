@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-03-19 07:25:33
+/* Smarty version 5.3.1, created on 2026-03-30 19:43:16
   from 'file:cells_NA_API_warehouse_sync_missing_rows.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_69bba4edc22a16_37103480',
+  'unifunc' => 'content_69cad254dbeb41_28908118',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     'ec0d4fb350b400c1df740b0dd7bfe1e493042ad8' => 
     array (
       0 => 'cells_NA_API_warehouse_sync_missing_rows.html',
-      1 => 1773314782,
+      1 => 1774899684,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_69bba4edc22a16_37103480 (\Smarty\Template $_smarty_tpl) {
+function content_69cad254dbeb41_28908118 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 $_from = $_smarty_tpl->getSmarty()->getRuntime('Foreach')->init($_smarty_tpl, $_smarty_tpl->getValue('sync_missing_items'), 'item');
 $foreach0DoElse = true;
@@ -53,6 +53,20 @@ $foreach0DoElse = false;
       <?php if ((($tmp = $_smarty_tpl->getValue('item')['can_sync'] ?? null)===null||$tmp==='' ? 0 ?? null : $tmp)) {?>
 
         <div class="btn-group btn-group-sm" role="group" aria-label="sync actions">
+
+          <button
+            type="button"
+            class="btn btn-sm btn-outline-info warehouse-sync-check-btn"
+            data-item-id="<?php echo htmlspecialchars((string)(($tmp = $_smarty_tpl->getValue('item')['id'] ?? null)===null||$tmp==='' ? '' ?? null : $tmp), ENT_QUOTES, 'UTF-8', true);?>
+"
+            data-connector-id="<?php echo htmlspecialchars((string)(($tmp = $_smarty_tpl->getValue('item')['connector_id'] ?? null)===null||$tmp==='' ? '' ?? null : $tmp), ENT_QUOTES, 'UTF-8', true);?>
+"
+            data-parcel="<?php echo htmlspecialchars((string)(($tmp = $_smarty_tpl->getValue('item')['parcel_uid'] ?? null)===null||$tmp==='' ? '' ?? null : $tmp), ENT_QUOTES, 'UTF-8', true);?>
+"
+            title="Проверка у форварда через run_report_single.php"
+          >
+            check
+          </button>
           <button
             type="button"
             class="btn btn-sm btn-outline-primary warehouse-sync-row-btn"

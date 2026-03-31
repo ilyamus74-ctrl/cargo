@@ -17,6 +17,17 @@
       {if $item.can_sync|default:0}
 
         <div class="btn-group btn-group-sm" role="group" aria-label="sync actions">
+
+          <button
+            type="button"
+            class="btn btn-sm btn-outline-info warehouse-sync-check-btn"
+            data-item-id="{$item.id|default:''|escape}"
+            data-connector-id="{$item.connector_id|default:''|escape}"
+            data-parcel="{$item.parcel_uid|default:''|escape}"
+            title="Проверка у форварда через run_report_single.php"
+          >
+            check
+          </button>
           <button
             type="button"
             class="btn btn-sm btn-outline-primary warehouse-sync-row-btn"

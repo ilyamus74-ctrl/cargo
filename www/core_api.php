@@ -129,6 +129,7 @@ $routes = [
     'warehouse_sync_missing'    => 'api/warehouse/warehouse_sync_actions.php',
     'warehouse_sync_reports'    => 'api/warehouse/warehouse_sync_actions.php',
     'warehouse_sync_item'       => 'api/warehouse/warehouse_sync_actions.php',
+    'warehouse_sync_single_check' => 'api/warehouse/warehouse_sync_actions.php',
     'warehouse_sync_control_plan' => 'api/warehouse/warehouse_sync_actions.php',
     'warehouse_sync_process_helper' => 'api/warehouse/warehouse_sync_actions.php',
     'warehouse_sync_history'    => 'api/warehouse/warehouse_sync_actions.php',

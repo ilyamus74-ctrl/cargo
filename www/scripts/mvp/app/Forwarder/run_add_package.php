@@ -62,6 +62,7 @@ function forwarder_add_package_set_env(string $name, string $value): void
 
     putenv($name . '=' . $value);
     $_ENV[$name] = $value;
+    $_SERVER[$name] = $value;
 }
 
 function forwarder_add_package_normalize_base_url(string $rawBaseUrl): string
