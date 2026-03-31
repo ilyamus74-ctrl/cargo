@@ -50,6 +50,18 @@
                   Добавить рейс
                 </button>
               </div>
+              <div class="col-12 col-md-auto">
+                <button type="button"
+                        class="btn btn-sm btn-outline-primary js-departure-refresh-flights d-inline-flex align-items-center gap-2"
+                        data-operation="flight_list_php"
+                        data-entrypoint-mode="php"
+                        data-busy-label="Обновляю рейсы..."
+                        data-success-message="Список рейсов обновлён из форварда."
+                        data-status-target="#departures-add-flight-status">
+                  <i class="bi bi-arrow-clockwise" aria-hidden="true"></i>
+                  <span class="js-departure-placeholder-label">Обновить рейсы</span>
+                </button>
+              </div>
             </div>
 
             <div id="departures-add-flight-panel" class="card border border-dashed bg-light d-none mb-3">

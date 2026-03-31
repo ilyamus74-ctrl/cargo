@@ -767,6 +767,41 @@ function connectors_operation_config_templates(): array
                 ],
             ],
         ],
+
+        'close_flight_php' => [
+            'description' => 'Закрытие рейса через PHP runtime (session client, submit close endpoint).',
+            'operation' => [
+                'operation_id' => 'close_flight_php',
+                'display_name' => 'Close flight (PHP)',
+                'module' => 'connectors',
+                'kind' => 'script',
+                'enabled' => 1,
+                'entrypoint' => 0,
+                'on_dependency_fail' => 'stop',
+                'run_after' => [],
+                'run_with' => [],
+                'run_finally' => [],
+                'config' => [
+                    'interpreter' => 'php',
+                    'script_path' => 'www/scripts/mvp/app/Forwarder/run_close_flight.php',
+                    'timeout_sec' => 180,
+                    'flight_id' => '{{flight_id}}',
+                    'args' => [
+                        '--base-url={{base_url}}',
+                        '--login={{auth_username}}',
+                        '--password={{auth_password}}',
+                        '--page-path=/collector/flights',
+                        '--close-path=/collector/flights/close',
+                        '--flight-id={{flight_id}}',
+                        '--connector-id={{connector_id}}',
+                        '--flight-name={{flight_name}}',
+                        '--flight-record-id={{flight_record_id}}',
+                        '--operation={{operation_id}}',
+                        '--refresh-operation=flight_list_php',
+                    ],
+                ],
+            ],
+        ],
         'delete_flight_php' => [
             'description' => 'Удаление рейса через PHP runtime (session client, search + delete URL).',
             'operation' => [

@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-03-30 13:57:49
+/* Smarty version 5.3.1, created on 2026-03-31 12:17:50
   from 'file:cells_NA_API_departures.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_69ca815ddc8200_57054536',
+  'unifunc' => 'content_69cbbb6edf8204_73604258',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '0f6acec5f8cd1dbfcef00308f07d4fd68a44caf7' => 
     array (
       0 => 'cells_NA_API_departures.html',
-      1 => 1774878895,
+      1 => 1774959395,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_69ca815ddc8200_57054536 (\Smarty\Template $_smarty_tpl) {
+function content_69cbbb6edf8204_73604258 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?><div class="pagetitle">
   <h1>Отправления</h1>
@@ -82,6 +82,18 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
                         data-open="0"
                         aria-expanded="false">
                   Добавить рейс
+                </button>
+              </div>
+              <div class="col-12 col-md-auto">
+                <button type="button"
+                        class="btn btn-sm btn-outline-primary js-departure-refresh-flights d-inline-flex align-items-center gap-2"
+                        data-operation="flight_list_php"
+                        data-entrypoint-mode="php"
+                        data-busy-label="Обновляю рейсы..."
+                        data-success-message="Список рейсов обновлён из форварда."
+                        data-status-target="#departures-add-flight-status">
+                  <i class="bi bi-arrow-clockwise" aria-hidden="true"></i>
+                  <span class="js-departure-placeholder-label">Обновить рейсы</span>
                 </button>
               </div>
             </div>

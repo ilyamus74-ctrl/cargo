@@ -3177,6 +3177,13 @@ const CoreAPI = {
                     return;
                 }
 
+
+                const refreshFlightsButton = event.target.closest('.js-departure-refresh-flights');
+                if (refreshFlightsButton) {
+                    this.triggerRefreshFlights(refreshFlightsButton);
+                    return;
+                }
+
                 const containerActionButton = event.target.closest('.js-departure-container-action');
                 if (containerActionButton) {
                     this.triggerContainerAction(containerActionButton);
@@ -3392,6 +3399,39 @@ const CoreAPI = {
             this.compareModalInstance?.show();
         },
 
+        async triggerRefreshFlights(button) {
+            const connectorId = Number(this.forwarderFilter?.value || button?.getAttribute('data-connector-id') || 0);
+            if (!connectorId) {
+                alert('Сначала выберите конкретного форварда вместо "Все форварды".');
+                return;
+            }
+
+            const operationId = String(button?.getAttribute('data-operation') || 'flight_list_php').trim() || 'flight_list_php';
+            const entrypointMode = String(button?.getAttribute('data-entrypoint-mode') || 'php').trim() || 'php';
+            const statusEl = this.resolveActionStatusElement(button);
+            const successMessage = String(button?.getAttribute('data-success-message') || '').trim();
+
+            this.setActionBusy(button, true);
+            this.setActionStatus('Обновляю список рейсов из форварда...', 'primary', statusEl);
+
+            try {
+                const result = await this.runConnectorOperation(connectorId, operationId, {}, {
+                    entrypointMode
+                });
+                await this.load();
+                const finalStatusEl = statusEl && statusEl.isConnected ? statusEl : this.addFlightStatus;
+                const message = successMessage || result?.message || 'Список рейсов обновлён.';
+                this.setActionStatus(message, 'success', finalStatusEl);
+                showToast(message, 2500);
+            } catch (err) {
+                console.error(`core_api error (departures ${operationId}):`, err?.payload || err);
+                const errorMessage = err?.message || 'Не удалось обновить список рейсов.';
+                this.setActionStatus(errorMessage, 'danger', statusEl);
+                alert(errorMessage);
+            } finally {
+                this.setActionBusy(button, false);
+            }
+        },
         resolveActionStatusElement(button) {
             const selector = String(button?.getAttribute('data-status-target') || '').trim();
             if (selector) {
