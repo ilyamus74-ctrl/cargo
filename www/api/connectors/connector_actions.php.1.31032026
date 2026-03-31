@@ -1932,6 +1932,10 @@ function connectors_fetch_last_run_status_by_operation(mysqli $dbcnx, int $conne
 
 function connectors_resolve_report_operation_id(array $runtimeOperations): ?string
 {
+    if (isset($runtimeOperations['report']) && is_array($runtimeOperations['report'])) {
+        return 'report';
+    }
+
     foreach ($runtimeOperations as $operationId => $operation) {
         if (!is_array($operation) || empty($operation['enabled']) || empty($operation['entrypoint'])) {
             continue;
@@ -1939,13 +1943,6 @@ function connectors_resolve_report_operation_id(array $runtimeOperations): ?stri
         return trim((string)$operationId) ?: null;
     }
 
-    if (
-        isset($runtimeOperations['report'])
-        && is_array($runtimeOperations['report'])
-        && !empty($runtimeOperations['report']['enabled'])
-    ) {
-        return 'report';
-    }
     foreach ($runtimeOperations as $operationId => $operation) {
         if (!is_array($operation) || empty($operation['enabled'])) {
             continue;
@@ -3148,37 +3145,6 @@ function connectors_is_node_runtime_available(): bool
     return $cached;
 }
 
-function connectors_is_node_execution_enabled(): bool
-{
-    static $cached = null;
-    if ($cached !== null) {
-        return $cached;
-    }
-
-    $raw = getenv('CONNECTORS_ALLOW_NODE');
-    if ($raw === false || trim((string)$raw) === '') {
-        $cached = true;
-        return $cached;
-    }
-
-    $normalized = strtolower(trim((string)$raw));
-    $cached = !in_array($normalized, ['0', 'false', 'off', 'no'], true);
-    return $cached;
-}
-
-function connectors_assert_node_execution_allowed(string $context = ''): void
-{
-    if (!connectors_is_node_execution_enabled()) {
-        $suffix = $context !== '' ? (' (' . $context . ')') : '';
-        throw new RuntimeException('Node execution отключен через CONNECTORS_ALLOW_NODE=0' . $suffix . '. Используйте PHP-операцию (kind=php_report или kind=script + interpreter=php).');
-    }
-
-    if (!connectors_is_node_runtime_available()) {
-        $suffix = $context !== '' ? (' (' . $context . ')') : '';
-        throw new RuntimeException('Node runtime недоступен' . $suffix . '. Используйте PHP-операцию (kind=php_report или kind=script + interpreter=php).');
-    }
-}
-
 function connectors_generate_run_id(int $connectorId): string
 {
     $random = bin2hex(random_bytes(4));
@@ -3630,7 +3596,7 @@ function connectors_download_report_file(array $connector, array $reportCfg, ?st
             'auth_token' => (string)($connector['auth_token'] ?? ''),
             'temp_dir' => realpath($tempDir) ?: $tempDir,
         ];
-        connectors_assert_node_execution_allowed('download_mode=browser');
+
         $cmd = 'node ' . escapeshellarg($scriptPath) . ' ' . escapeshellarg((string)json_encode($payload, JSON_UNESCAPED_UNICODE));
         $output = connectors_run_shell_command_with_timeout($cmd . ' 2>&1', 90);
         $decoded = json_decode(trim((string)$output), true);
@@ -4866,7 +4832,7 @@ function connectors_run_submission_test(array $connector, array $submissionCfg):
         'error_selector' => trim((string)($submissionCfg['error_selector'] ?? '')),
         'error_wait_ms' => 1800,
     ];
-    connectors_assert_node_execution_allowed('submission_test');
+
     $cmd = 'node ' . escapeshellarg($scriptPath) . ' ' . escapeshellarg((string)json_encode($payload, JSON_UNESCAPED_UNICODE));
     $output = connectors_run_shell_command_with_timeout($cmd . ' 2>&1', 90);
     $decoded = json_decode(trim((string)$output), true);
@@ -5054,7 +5020,7 @@ function connectors_execute_browser_steps_operation(array $connector, array $ope
         'error_selector' => trim((string)($config['error_selector'] ?? '')),
         'error_wait_ms' => max(0, (int)($config['error_wait_ms'] ?? 1800)),
     ];
-    connectors_assert_node_execution_allowed('submission_test');
+
     $cmd = 'node ' . escapeshellarg($scriptPath) . ' ' . escapeshellarg((string)json_encode($payload, JSON_UNESCAPED_UNICODE));
     $output = connectors_run_shell_command_with_timeout($cmd . ' 2>&1', 90);
     $decoded = json_decode(trim((string)$output), true);
@@ -5339,9 +5305,7 @@ function connectors_execute_script_operation(array $operation, array $connector 
     if (!in_array($interpreter, ['bash', 'sh', 'node', 'php', 'python3'], true)) {
         throw new InvalidArgumentException('kind=script: недопустимый interpreter (bash|sh|node|php|python3)');
     }
-    if ($interpreter === 'node') {
-        connectors_assert_node_execution_allowed('kind=script');
-    }
+
 
 
     $runtimeVars = connectors_decode_runtime_vars_from_post();
@@ -6413,7 +6377,7 @@ switch ($dispatchAction) {
         $operations = connectors_decode_operations($connector);
         $operationsV3Payload = connectors_decode_operations_payload($connector);
         $lastRunStatusByOperation = connectors_fetch_last_run_status_by_operation($dbcnx, $connectorId, $operationsV3Payload);
-        $nodeRuntimeAvailable = connectors_is_node_runtime_available() && connectors_is_node_execution_enabled();
+        $nodeRuntimeAvailable = connectors_is_node_runtime_available();
         if (!$nodeRuntimeAvailable && (($operations['report']['download_mode'] ?? 'browser') === 'curl')) {
             $operations['report']['download_mode'] = 'browser';
         }

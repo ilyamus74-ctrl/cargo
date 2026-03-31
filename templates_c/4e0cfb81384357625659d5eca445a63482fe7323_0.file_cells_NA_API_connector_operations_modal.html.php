@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-03-31 08:38:10
+/* Smarty version 5.3.1, created on 2026-03-31 09:04:34
   from 'file:cells_NA_API_connector_operations_modal.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_69cb87f22bc248_12725199',
+  'unifunc' => 'content_69cb8e226dc699_03827582',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '4e0cfb81384357625659d5eca445a63482fe7323' => 
     array (
       0 => 'cells_NA_API_connector_operations_modal.html',
-      1 => 1774509952,
+      1 => 1774947860,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_69cb87f22bc248_12725199 (\Smarty\Template $_smarty_tpl) {
+function content_69cb8e226dc699_03827582 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?><section class="section">
   <style>
@@ -55,8 +55,13 @@ $_smarty_current_dir = '/home/cells/web/templates';
             </div>
           </details>
 
+          <?php if (!$_smarty_tpl->getValue('node_runtime_available')) {?>
+          <div class="alert alert-warning py-2 small mb-3">
+            Node-пути отключены/недоступны. Для новых операций используйте PHP-варианты (`php_report` или `script` + `interpreter=php`).
+          </div>
+          <?php }?>
 
-          <form id="connector-operations-form" autocomplete="off">
+          <form id="connector-operations-form" autocomplete="off" data-node-enabled="<?php if ($_smarty_tpl->getValue('node_runtime_available')) {?>1<?php } else { ?>0<?php }?>">
             <input type="hidden" name="connector_id" value="<?php echo (($tmp = $_smarty_tpl->getValue('connector')['id'] ?? null)===null||$tmp==='' ? 0 ?? null : $tmp);?>
 ">
             <input type="hidden" id="operations_v3_json" name="operations_v3_json" value="<?php echo htmlspecialchars((string)(($tmp = $_smarty_tpl->getValue('operations_v3_json') ?? null)===null||$tmp==='' ? '{"schema_version":3,"operations":[]}' ?? null : $tmp), ENT_QUOTES, 'UTF-8', true);?>
@@ -94,10 +99,11 @@ $_smarty_current_dir = '/home/cells/web/templates';
             </div>
 
             <div class="row mb-3">
-              <label for="addon_node_mapping_json" class="col-md-4 col-lg-3 col-form-label">Node mapping</label>
+              <label for="addon_node_mapping_json" class="col-md-4 col-lg-3 col-form-label">Legacy mapping (optional)</label>
               <div class="col-md-8 col-lg-9">
                 <textarea class="form-control" id="addon_node_mapping_json" name="addon_node_mapping_json" rows="6"><?php echo htmlspecialchars((string)$_smarty_tpl->getValue('addons')['node_mapping_json'], ENT_QUOTES, 'UTF-8', true);?>
 </textarea>
+                <div class="form-text">Историческое поле совместимости для старых node-сценариев.</div>
               </div>
             </div>
 
@@ -137,6 +143,8 @@ $_smarty_current_dir = '/home/cells/web/templates';
   var content = root ? root.querySelector('#connector-operations-tab-content') : document.getElementById('connector-operations-tab-content');
   var summary = root ? root.querySelector('#operations-existing-summary') : document.getElementById('operations-existing-summary');
   var statusJsonEl = root ? root.querySelector('#operations_last_status_json') : document.getElementById('operations_last_status_json');
+  var formEl = root ? root.querySelector('#connector-operations-form') : document.getElementById('connector-operations-form');
+  var nodeEnabled = formEl && formEl.dataset ? String(formEl.dataset.nodeEnabled || '1') === '1' : true;
   if (!textarea || !tabs || !content) return;
 
   function toArray(v) { return Array.isArray(v) ? v : []; }
@@ -484,11 +492,34 @@ $_smarty_current_dir = '/home/cells/web/templates';
     var html = '<option value="">Выберите шаблон…</option>';
     keys.forEach(function(templateKey) {
       var template = operationTemplates[templateKey];
+      if (!nodeEnabled && templateRequiresNode(template)) return;
       html += '<option value="' + esc(templateKey) + '">' + esc(buildTemplateLabel(templateKey, template)) + '</option>';
     });
     templateSelect.innerHTML = html;
   }
 
+
+  function operationRequiresNode(op) {
+    if (!op || typeof op !== 'object') return false;
+    var kind = String(op.kind || '').toLowerCase().trim();
+    if (kind === 'browser_steps') return true;
+    if (kind !== 'script') return false;
+    var config = op.config && typeof op.config === 'object' ? op.config : {};
+    var interpreter = String(config.interpreter || '').toLowerCase().trim();
+    if (!interpreter) {
+      var scriptPath = String(config.script_path || '').toLowerCase().trim();
+      if (/\.js$/i.test(scriptPath)) interpreter = 'node';
+    }
+    return interpreter === 'node';
+  }
+
+  function templateRequiresNode(template) {
+    if (!template || typeof template !== 'object') return false;
+    return operationRequiresNode({
+      kind: template.kind || '',
+      config: template.config && typeof template.config === 'object' ? template.config : {}
+    });
+  }
   var actionRegistry = { generic: [] };
 
   function statusMeta(status) {
@@ -813,12 +844,18 @@ $_smarty_current_dir = '/home/cells/web/templates';
       pane.id = paneId;
       pane.setAttribute('role', 'tabpanel');
       pane.setAttribute('aria-labelledby', tabId);
+      var nodeWarningHtml = '';
+      if (!nodeEnabled && operationRequiresNode(op)) {
+        nodeWarningHtml = '<div class="alert alert-warning py-2 small">Для этой операции нужен Node (kind=' + esc(op.kind || '') + '). Node сейчас отключен: переключите на PHP-вариант и выставьте entrypoint.</div>';
+      }
+
       pane.innerHTML = '\
         <div class="js-operation-card border rounded p-3 mt-2">\
           <div class="d-flex justify-content-between align-items-center mb-3">\
             <h6 class="mb-0">Основные</h6>\
             <button type="button" class="btn btn-sm btn-outline-danger js-remove-operation" data-op-index="' + idx + '">Удалить операцию</button>\
           </div>\
+          ' + nodeWarningHtml + '\
           <div class="row mb-3">\
             <div class="col-md-6">\
               <label class="form-label">display_name</label>\

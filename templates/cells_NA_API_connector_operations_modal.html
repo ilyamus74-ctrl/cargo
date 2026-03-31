@@ -30,8 +30,13 @@
             </div>
           </details>
 
+          {if !$node_runtime_available}
+          <div class="alert alert-warning py-2 small mb-3">
+            Node-пути отключены/недоступны. Для новых операций используйте PHP-варианты (`php_report` или `script` + `interpreter=php`).
+          </div>
+          {/if}
 
-          <form id="connector-operations-form" autocomplete="off">
+          <form id="connector-operations-form" autocomplete="off" data-node-enabled="{if $node_runtime_available}1{else}0{/if}">
             <input type="hidden" name="connector_id" value="{$connector.id|default:0}">
             <input type="hidden" id="operations_v3_json" name="operations_v3_json" value="{$operations_v3_json|default:'{"schema_version":3,"operations":[]}'|escape}">
             <input type="hidden" id="operations_last_status_json" value="{$operations_last_status_json|default:'{}'|escape}">
@@ -65,9 +70,10 @@
             </div>
 
             <div class="row mb-3">
-              <label for="addon_node_mapping_json" class="col-md-4 col-lg-3 col-form-label">Node mapping</label>
+              <label for="addon_node_mapping_json" class="col-md-4 col-lg-3 col-form-label">Legacy mapping (optional)</label>
               <div class="col-md-8 col-lg-9">
                 <textarea class="form-control" id="addon_node_mapping_json" name="addon_node_mapping_json" rows="6">{$addons.node_mapping_json|escape}</textarea>
+                <div class="form-text">Историческое поле совместимости для старых node-сценариев.</div>
               </div>
             </div>
 
@@ -104,6 +110,8 @@
   var content = root ? root.querySelector('#connector-operations-tab-content') : document.getElementById('connector-operations-tab-content');
   var summary = root ? root.querySelector('#operations-existing-summary') : document.getElementById('operations-existing-summary');
   var statusJsonEl = root ? root.querySelector('#operations_last_status_json') : document.getElementById('operations_last_status_json');
+  var formEl = root ? root.querySelector('#connector-operations-form') : document.getElementById('connector-operations-form');
+  var nodeEnabled = formEl && formEl.dataset ? String(formEl.dataset.nodeEnabled || '1') === '1' : true;
   if (!textarea || !tabs || !content) return;
 
   function toArray(v) { return Array.isArray(v) ? v : []; }
@@ -448,11 +456,34 @@
     var html = '<option value="">Выберите шаблон…</option>';
     keys.forEach(function(templateKey) {
       var template = operationTemplates[templateKey];
+      if (!nodeEnabled && templateRequiresNode(template)) return;
       html += '<option value="' + esc(templateKey) + '">' + esc(buildTemplateLabel(templateKey, template)) + '</option>';
     });
     templateSelect.innerHTML = html;
   }
 
+
+  function operationRequiresNode(op) {
+    if (!op || typeof op !== 'object') return false;
+    var kind = String(op.kind || '').toLowerCase().trim();
+    if (kind === 'browser_steps') return true;
+    if (kind !== 'script') return false;
+    var config = op.config && typeof op.config === 'object' ? op.config : {};
+    var interpreter = String(config.interpreter || '').toLowerCase().trim();
+    if (!interpreter) {
+      var scriptPath = String(config.script_path || '').toLowerCase().trim();
+      if (/\.js$/i.test(scriptPath)) interpreter = 'node';
+    }
+    return interpreter === 'node';
+  }
+
+  function templateRequiresNode(template) {
+    if (!template || typeof template !== 'object') return false;
+    return operationRequiresNode({
+      kind: template.kind || '',
+      config: template.config && typeof template.config === 'object' ? template.config : {}
+    });
+  }
   var actionRegistry = { generic: [] };
 
   function statusMeta(status) {
@@ -777,12 +808,18 @@
       pane.id = paneId;
       pane.setAttribute('role', 'tabpanel');
       pane.setAttribute('aria-labelledby', tabId);
+      var nodeWarningHtml = '';
+      if (!nodeEnabled && operationRequiresNode(op)) {
+        nodeWarningHtml = '<div class="alert alert-warning py-2 small">Для этой операции нужен Node (kind=' + esc(op.kind || '') + '). Node сейчас отключен: переключите на PHP-вариант и выставьте entrypoint.</div>';
+      }
+
       pane.innerHTML = '\
         <div class="js-operation-card border rounded p-3 mt-2">\
           <div class="d-flex justify-content-between align-items-center mb-3">\
             <h6 class="mb-0">Основные</h6>\
             <button type="button" class="btn btn-sm btn-outline-danger js-remove-operation" data-op-index="' + idx + '">Удалить операцию</button>\
           </div>\
+          ' + nodeWarningHtml + '\
           <div class="row mb-3">\
             <div class="col-md-6">\
               <label class="form-label">display_name</label>\
