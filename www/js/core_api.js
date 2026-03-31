@@ -2243,6 +2243,7 @@ const CoreAPI = {
                         `internal_id: ${forwarderResponse.internal_id || 'n/a'}`,
                         `status_id_effective: ${forwarderResponse.status_id_effective || 'n/a'}`,
                     ];
+                    await this.resetAndLoad();
                     CoreAPI.warehouseSyncHistory.load();
                 } catch (err) {
                     console.error('warehouse_sync_item error:', err);

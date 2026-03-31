@@ -4090,6 +4090,95 @@ if ($action === 'warehouse_sync_history') {
         }
     }
 
+
+    $canAppendRegistrationErrors = ($statusFilter === 'all' || $statusFilter === 'error');
+    if ($canAppendRegistrationErrors) {
+        $regRows = [];
+        $regWhere = [
+            "wi.forwarder_registration_status IN ('validation_error', 'connector_error', 'forwarder_error')",
+            "TRIM(COALESCE(wi.forwarder_registration_message, '')) <> ''",
+        ];
+        $regTypes = '';
+        $regParams = [];
+        if ($trackingFilter !== '') {
+            $regWhere[] = "UPPER(COALESCE(NULLIF(wi.tracking_no, ''), wi.tuid, '')) LIKE ?";
+            $regTypes .= 's';
+            $regParams[] = '%' . $trackingFilter . '%';
+        }
+        $regWhereSql = 'WHERE ' . implode(' AND ', $regWhere);
+        $regSql = "SELECT
+                0 AS id,
+                wi.id AS item_id,
+                COALESCE(NULLIF(wi.tracking_no, ''), wi.tuid, '') AS tracking_no,
+                COALESCE(wi.receiver_company, '') AS forwarder,
+                COALESCE(wi.receiver_country_code, '') AS country_code,
+                'error' AS status,
+                CONCAT('commit_item_in_batch: ', wi.forwarder_registration_message) AS message,
+                COALESCE(wi.created_at, NOW()) AS created_at,
+                u.full_name AS user_name
+            FROM warehouse_item_stock wi
+            LEFT JOIN users u ON u.id = wi.user_id
+            {$regWhereSql}
+            ORDER BY wi.id DESC
+            LIMIT {$limitSql}";
+
+        if ($regTypes === '') {
+            if ($res = $dbcnx->query($regSql)) {
+                while ($row = $res->fetch_assoc()) {
+                    $regRows[] = $row;
+                }
+                $res->free();
+            }
+        } else {
+            $stmt = $dbcnx->prepare($regSql);
+            if ($stmt) {
+                $stmt->bind_param($regTypes, ...$regParams);
+                $stmt->execute();
+                $res = $stmt->get_result();
+                while ($row = $res->fetch_assoc()) {
+                    $regRows[] = $row;
+                }
+                $stmt->close();
+            }
+        }
+
+        if (!empty($regRows)) {
+            $existingKeys = [];
+            foreach ($rows as $row) {
+                $existingKeys[] = implode('|', [
+                    (string)($row['item_id'] ?? ''),
+                    (string)($row['tracking_no'] ?? ''),
+                    (string)($row['status'] ?? ''),
+                    trim((string)($row['message'] ?? '')),
+                ]);
+            }
+            $existingKeys = array_flip($existingKeys);
+
+            foreach ($regRows as $regRow) {
+                $rowKey = implode('|', [
+                    (string)($regRow['item_id'] ?? ''),
+                    (string)($regRow['tracking_no'] ?? ''),
+                    (string)($regRow['status'] ?? ''),
+                    trim((string)($regRow['message'] ?? '')),
+                ]);
+                if (isset($existingKeys[$rowKey])) {
+                    continue;
+                }
+                $rows[] = $regRow;
+                $existingKeys[$rowKey] = true;
+            }
+
+            usort($rows, static function (array $a, array $b): int {
+                $at = strtotime((string)($a['created_at'] ?? '')) ?: 0;
+                $bt = strtotime((string)($b['created_at'] ?? '')) ?: 0;
+                return $bt <=> $at;
+            });
+
+            if (count($rows) > $limitSql) {
+                $rows = array_slice($rows, 0, $limitSql);
+            }
+        }
+    }
     $response = [
         'status' => 'ok',
         'rows' => $rows,

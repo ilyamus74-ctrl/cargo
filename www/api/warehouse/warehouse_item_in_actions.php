@@ -340,6 +340,64 @@ function warehouse_item_in_update_registration_state(mysqli $dbcnx, int $stockIt
     }
 }
 
+function warehouse_item_in_ensure_sync_audit_table(mysqli $dbcnx): void
+{
+    $sql = "CREATE TABLE IF NOT EXISTS warehouse_sync_audit (
+"
+        . " id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
+"
+        . " item_id BIGINT UNSIGNED NOT NULL,
+"
+        . " tracking_no VARCHAR(255) NOT NULL DEFAULT '',
+"
+        . " forwarder VARCHAR(120) NOT NULL DEFAULT '',
+"
+        . " country_code VARCHAR(16) NOT NULL DEFAULT '',
+"
+        . " status VARCHAR(20) NOT NULL DEFAULT 'error',
+"
+        . " message TEXT NULL,
+"
+        . " response_json LONGTEXT NULL,
+"
+        . " created_by BIGINT UNSIGNED NOT NULL DEFAULT 0,
+"
+        . " created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+"
+        . " PRIMARY KEY (id),
+"
+        . " KEY idx_item_created (item_id, created_at),
+"
+        . " KEY idx_status_created (status, created_at)
+"
+        . ") ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci";
+    $dbcnx->query($sql);
+}
+
+function warehouse_item_in_sync_audit_log(mysqli $dbcnx, array $entry): void
+{
+    warehouse_item_in_ensure_sync_audit_table($dbcnx);
+
+    $sql = 'INSERT INTO warehouse_sync_audit (item_id, tracking_no, forwarder, country_code, status, message, response_json, created_by) VALUES (?, ?, ?, ?, ?, ?, ?, ?)';
+    $stmt = $dbcnx->prepare($sql);
+    if (!$stmt) {
+        return;
+    }
+
+    $itemId = (int)($entry['item_id'] ?? 0);
+    $tracking = trim((string)($entry['tracking_no'] ?? ''));
+    $forwarder = trim((string)($entry['forwarder'] ?? ''));
+    $country = trim((string)($entry['country_code'] ?? ''));
+    $status = trim((string)($entry['status'] ?? 'error'));
+    $message = trim((string)($entry['message'] ?? ''));
+    $responseJson = trim((string)($entry['response_json'] ?? ''));
+    $createdBy = (int)($entry['created_by'] ?? 0);
+
+    $stmt->bind_param('issssssi', $itemId, $tracking, $forwarder, $country, $status, $message, $responseJson, $createdBy);
+    $stmt->execute();
+    $stmt->close();
+}
+
 function warehouse_item_in_normalize_image_json(string $raw): ?string
 {
     $raw = trim($raw);
@@ -1601,6 +1659,16 @@ switch ($action) {
                 $stockItem = $resStock ? $resStock->fetch_assoc() : null;
                 $stmtStock->close();
                 if (!$stockItem) {
+                    warehouse_item_in_sync_audit_log($dbcnx, [
+                        'item_id' => 0,
+                        'tracking_no' => (string)($row['tracking_no'] ?? $row['tuid'] ?? ''),
+                        'forwarder' => (string)($row['receiver_company'] ?? ''),
+                        'country_code' => (string)($row['receiver_country_code'] ?? ''),
+                        'status' => 'error',
+                        'message' => 'commit_item_in_batch: Не найдена запись в warehouse_item_stock после commit',
+                        'response_json' => json_encode(['batch_uid' => $batchUid, 'uid_created' => $uidCreated], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: '',
+                        'created_by' => $userId,
+                    ]);
                     $registrationSummary['integration_errors']++;
                     $registrationSummary['details'][] = [
                         'track' => (string)($row['tracking_no'] ?? $row['tuid'] ?? ''),
@@ -1634,6 +1702,20 @@ switch ($action) {
                     'missing_fields' => $missingFields,
                     'required_fields' => $requiredFields,
                 ]);
+                warehouse_item_in_sync_audit_log($dbcnx, [
+                    'item_id' => $stockItemId,
+                    'tracking_no' => $track,
+                    'forwarder' => (string)($stockItem['receiver_company'] ?? ''),
+                    'country_code' => (string)($stockItem['receiver_country_code'] ?? ''),
+                    'status' => 'error',
+                    'message' => 'commit_item_in_batch: ' . $message,
+                    'response_json' => json_encode([
+                        'registration_status' => 'validation_error',
+                        'missing_fields' => $missingFields,
+                        'required_fields' => $requiredFields,
+                    ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: '',
+                    'created_by' => $userId,
+                ]);
                 $registrationSummary['validation_skipped']++;
                 $registrationSummary['details'][] = [
                     'track' => $track,
@@ -1651,6 +1733,19 @@ switch ($action) {
             if (!$connector) {
                 $message = 'Не найден активный коннектор форвардера';
                 warehouse_item_in_update_registration_state($dbcnx, $stockItemId, 'connector_error', $message, []);
+                warehouse_item_in_sync_audit_log($dbcnx, [
+                    'item_id' => $stockItemId,
+                    'tracking_no' => $track,
+                    'forwarder' => (string)($stockItem['receiver_company'] ?? ''),
+                    'country_code' => (string)($stockItem['receiver_country_code'] ?? ''),
+                    'status' => 'error',
+                    'message' => 'commit_item_in_batch: ' . $message,
+                    'response_json' => json_encode([
+                        'registration_status' => 'connector_error',
+                        'receiver_company' => (string)($stockItem['receiver_company'] ?? ''),
+                    ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: '',
+                    'created_by' => $userId,
+                ]);
                 $registrationSummary['integration_errors']++;
                 $registrationSummary['details'][] = [
                     'track' => $track,
@@ -1666,6 +1761,19 @@ switch ($action) {
             if ($baseUrl === '' || $login === '' || $password === '') {
                 $message = 'В коннекторе не заполнены base_url/login/password';
                 warehouse_item_in_update_registration_state($dbcnx, $stockItemId, 'connector_error', $message, $connector);
+                warehouse_item_in_sync_audit_log($dbcnx, [
+                    'item_id' => $stockItemId,
+                    'tracking_no' => $track,
+                    'forwarder' => (string)($stockItem['receiver_company'] ?? ''),
+                    'country_code' => (string)($stockItem['receiver_country_code'] ?? ''),
+                    'status' => 'error',
+                    'message' => 'commit_item_in_batch: ' . $message,
+                    'response_json' => json_encode([
+                        'registration_status' => 'connector_error',
+                        'connector_id' => (int)($connector['id'] ?? 0),
+                    ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: '',
+                    'created_by' => $userId,
+                ]);
                 $registrationSummary['integration_errors']++;
                 $registrationSummary['details'][] = [
                     'track' => $track,
@@ -1706,6 +1814,16 @@ switch ($action) {
                 } else {
                     $err = trim((string)($result['message'] ?? $result['error'] ?? 'Ошибка предрегистрации'));
                     warehouse_item_in_update_registration_state($dbcnx, $stockItemId, 'forwarder_error', $err, $result);
+                    warehouse_item_in_sync_audit_log($dbcnx, [
+                        'item_id' => $stockItemId,
+                        'tracking_no' => $track,
+                        'forwarder' => (string)($stockItem['receiver_company'] ?? ''),
+                        'country_code' => (string)($stockItem['receiver_country_code'] ?? ''),
+                        'status' => 'error',
+                        'message' => 'commit_item_in_batch: ' . $err,
+                        'response_json' => json_encode($result, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: '',
+                        'created_by' => $userId,
+                    ]);
                     $registrationSummary['integration_errors']++;
                     $registrationSummary['details'][] = [
                         'track' => $track,
@@ -1716,7 +1834,16 @@ switch ($action) {
             } catch (Throwable $e) {
                 $err = $e->getMessage();
                 warehouse_item_in_update_registration_state($dbcnx, $stockItemId, 'forwarder_error', $err, ['exception' => $err]);
-                $registrationSummary['integration_errors']++;
+                warehouse_item_in_sync_audit_log($dbcnx, [
+                    'item_id' => $stockItemId,
+                    'tracking_no' => $track,
+                    'forwarder' => (string)($stockItem['receiver_company'] ?? ''),
+                    'country_code' => (string)($stockItem['receiver_country_code'] ?? ''),
+                    'status' => 'error',
+                    'message' => 'commit_item_in_batch: ' . $err,
+                    'response_json' => json_encode(['exception' => $err], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: '',
+                    'created_by' => $userId,
+                ]);                $registrationSummary['integration_errors']++;
                 $registrationSummary['details'][] = [
                     'track' => $track,
                     'status' => 'forwarder_error',
