@@ -285,14 +285,8 @@ function warehouse_item_in_required_registration_fields(mysqli $dbcnx, string $f
     $default = [
         'tracking_no',
         'receiver_country_code',
-        'receiver_company',
         'weight_kg',
         'receiver_name',
-        'receiver_address',
-        'addons_json',
-        'tariff_type',
-        'category',
-        'cell_id',
     ];
 
     $forwarderNorm = warehouse_item_in_normalize_key($forwarder);
@@ -331,6 +325,7 @@ function warehouse_item_in_required_registration_fields(mysqli $dbcnx, string $f
 function warehouse_item_in_validate_registration_payload(array $stockItem, array $requiredFields): array
 {
     $addons = warehouse_item_in_decode_json_array((string)($stockItem['addons_json'] ?? ''));
+    $clientId = warehouse_item_in_extract_client_id($stockItem);
     $missing = [];
     foreach ($requiredFields as $field) {
         $field = trim((string)$field);
@@ -348,6 +343,9 @@ function warehouse_item_in_validate_registration_payload(array $stockItem, array
             if (empty($addons)) {
                 $missing[] = $field;
             }
+            continue;
+        }
+        if ($field === 'receiver_name' && $clientId > 0) {
             continue;
         }
         if ($value === '') {
@@ -420,38 +418,55 @@ function warehouse_item_in_build_registration_payload(array $stockItem): array
     if ($tracking === '') {
         $tracking = trim((string)($stockItem['tuid'] ?? ''));
     }
-    $cellId = trim((string)($stockItem['cell_id'] ?? ''));
+    $category = trim((string)($addons['category'] ?? $addons['sub_category'] ?? 'general'));
+    $countryCode = strtoupper(trim((string)($stockItem['receiver_country_code'] ?? '')));
     $destination = trim((string)($addons['forwarder_destination'] ?? $addons['destination_city'] ?? $addons['destination'] ?? ''));
     if ($destination === '') {
-        $destination = trim((string)($stockItem['receiver_country_code'] ?? ''));
+        $destination = $countryCode === 'AZ' ? 'Baku' : $countryCode;
     }
-    $position = $cellId !== '' ? $cellId : trim((string)($addons['position'] ?? ''));
+    $subCat = trim((string)($addons['sub_cat_text'] ?? $addons['tariff_type_text'] ?? $addons['tariff_type_name'] ?? $addons['sub_category'] ?? $addons['tariff_type'] ?? ''));
+    $title = trim((string)($addons['title_text'] ?? $addons['title_name'] ?? $addons['item_title'] ?? $addons['product_name'] ?? $addons['title'] ?? $category));
+    if ($subCat === '') {
+        $subCat = $category;
+    }
+    if ($title === '' || ctype_digit($title)) {
+        $title = $category;
+    }
+    $tariffTypeId = trim((string)($addons['tariff_type_id'] ?? $addons['tariff_type'] ?? ''));
+    $invoiceStatus = trim((string)($addons['invoice_status'] ?? '1'));
+    $trackingInternalSame = trim((string)($addons['tracking_internal_same'] ?? '0'));
+    $position = 'PSB010';
+    $grossWeight = trim((string)($addons['gross_weight'] ?? '1'));
+    if ($grossWeight === '') {
+        $grossWeight = '1';
+    }
     return [
         'track' => $tracking,
         'destination' => $destination,
         'weight' => trim((string)($stockItem['weight_kg'] ?? '')),
-        'gross-weight' => trim((string)($addons['gross_weight'] ?? '1')),
+        'gross-weight' => $grossWeight,
         'currency' => trim((string)($addons['currency'] ?? 'USD')),
         'quantity' => trim((string)($addons['quantity'] ?? '1')),
         'client-name-surname' => trim((string)($stockItem['receiver_name'] ?? '')),
         'client-id' => (string)$clientId,
         'status-id' => (string)warehouse_item_in_status_id_by_client_id($clientId),
-        'category' => trim((string)($addons['category'] ?? $addons['sub_category'] ?? 'general')),
+        'category' => $category,
+        'description' => '',
+        'sub-cat' => $subCat,
         'invoice' => trim((string)($addons['invoice'] ?? '0')),
         'position' => $position,
-        'tracking-internal-same' => trim((string)($addons['tracking_internal_same'] ?? '0')),
-        'tariff-type-id' => trim((string)($addons['tariff_type_id'] ?? $addons['tariff_type'] ?? '')),
+        'tracking-internal-same' => $trackingInternalSame,
+        'tariff-type-id' => $tariffTypeId,
         'is-legal-entity' => trim((string)($addons['is_legal_entity'] ?? 'off')),
-        'invoice-status' => trim((string)($addons['invoice_status'] ?? '1')),
-        'title' => trim((string)($addons['title_text'] ?? $addons['title_name'] ?? $addons['item_title'] ?? $addons['product_name'] ?? $addons['title'] ?? '')),
+        'invoice-status' => $invoiceStatus,
+        'title' => $title,
         'seller' => trim((string)($addons['seller'] ?? '')),
         'container-id' => trim((string)($addons['container_id'] ?? '')),
         'total-images' => trim((string)($addons['total_images'] ?? '0')),
         'length' => trim((string)($addons['length'] ?? '')),
         'height' => trim((string)($addons['height'] ?? '')),
         'width' => trim((string)($addons['width'] ?? '')),
-        'description' => trim((string)($stockItem['receiver_address'] ?? '')),
-        'sub-cat' => trim((string)($addons['tariff_type'] ?? '')),
+
     ];
 }
 
@@ -1854,10 +1869,39 @@ switch ($action) {
             if (!empty($missingFields)) {
                 $message = 'Пропущено: не заполнены поля [' . implode(', ', $missingFields) . ']';
                 $requiredFieldValues = warehouse_item_in_required_fields_value_map($stockItem, $requiredFields);
+                $payloadPreview = warehouse_item_in_build_registration_payload($stockItem);
+                $forwarderArgsPreview = [
+                    'track' => $payloadPreview['track'] ?? '',
+                    'destination' => $payloadPreview['destination'] ?? '',
+                    'weight' => $payloadPreview['weight'] ?? '',
+                    'gross-weight' => $payloadPreview['gross-weight'] ?? '',
+                    'currency' => $payloadPreview['currency'] ?? '',
+                    'quantity' => $payloadPreview['quantity'] ?? '',
+                    'client-name-surname' => $payloadPreview['client-name-surname'] ?? '',
+                    'client-id' => $payloadPreview['client-id'] ?? '',
+                    'status-id' => $payloadPreview['status-id'] ?? '',
+                    'category' => $payloadPreview['category'] ?? '',
+                    'invoice' => $payloadPreview['invoice'] ?? '',
+                    'position' => $payloadPreview['position'] ?? '',
+                    'tracking-internal-same' => $payloadPreview['tracking-internal-same'] ?? '',
+                    'tariff-type-id' => $payloadPreview['tariff-type-id'] ?? '',
+                    'is-legal-entity' => $payloadPreview['is-legal-entity'] ?? '',
+                    'invoice-status' => $payloadPreview['invoice-status'] ?? '',
+                    'title' => $payloadPreview['title'] ?? '',
+                    'seller' => $payloadPreview['seller'] ?? '',
+                    'container-id' => $payloadPreview['container-id'] ?? '',
+                    'total-images' => $payloadPreview['total-images'] ?? '',
+                    'length' => $payloadPreview['length'] ?? '',
+                    'height' => $payloadPreview['height'] ?? '',
+                    'width' => $payloadPreview['width'] ?? '',
+                    'description' => $payloadPreview['description'] ?? '',
+                    'sub-cat' => $payloadPreview['sub-cat'] ?? '',
+                ];
                 warehouse_item_in_update_registration_state($dbcnx, $stockItemId, 'validation_error', $message, [
                     'missing_fields' => $missingFields,
                     'required_fields' => $requiredFields,
                     'required_field_values' => $requiredFieldValues,
+                    'forwarder_args_preview' => $forwarderArgsPreview,
                 ]);
                 warehouse_item_in_sync_audit_log($dbcnx, [
                     'item_id' => $stockItemId,
@@ -1871,6 +1915,7 @@ switch ($action) {
                         'missing_fields' => $missingFields,
                         'required_fields' => $requiredFields,
                         'required_field_values' => $requiredFieldValues,
+                        'forwarder_args_preview' => $forwarderArgsPreview,
                     ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: '',
                     'created_by' => $userId,
                 ]);
@@ -1879,6 +1924,9 @@ switch ($action) {
                     'track' => $track,
                     'status' => 'validation_error',
                     'message' => $message,
+                    'required_fields' => $requiredFields,
+                    'required_field_values' => $requiredFieldValues,
+                    'forwarder_args_preview' => $forwarderArgsPreview,
                 ];
                 continue;
             }

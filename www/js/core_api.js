@@ -1072,6 +1072,35 @@ const CoreAPI = {
                 if (problematic) {
                     alertMessage += '\n\nПроблемные треки:\n' + problematic;
                 }
+
+
+                const validationRows = details.filter((row) => row && row.status === 'validation_error');
+                if (validationRows.length > 0) {
+                    const fieldsPreview = validationRows
+                        .slice(0, 3)
+                        .map((row) => {
+                            const values = row.required_field_values && typeof row.required_field_values === 'object'
+                                ? Object.entries(row.required_field_values)
+                                    .map(([key, value]) => key + '=' + (value === null || typeof value === 'undefined' || value === '' ? '∅' : String(value)))
+                                    .join(', ')
+                                : '';
+                            return '- ' + (row.track || '—') + ': ' + (values || 'нет данных');
+                        })
+                        .join('\n');
+                    if (fieldsPreview) {
+                        alertMessage += '\n\nПоля для run_add_package.php (предпросмотр):\n' + fieldsPreview;
+                    }
+
+                    console.group('commit_item_in_batch: поля для run_add_package.php');
+                    validationRows.forEach((row) => {
+                        console.log('Трек:', row.track || '—');
+                        console.table(row.required_field_values || {});
+                        if (Array.isArray(row.required_fields)) {
+                            console.log('Обязательные поля:', row.required_fields.join(', '));
+                        }
+                    });
+                    console.groupEnd();
+                }
             }
             alert(alertMessage);
             CoreAPI.ui.closeModal();
