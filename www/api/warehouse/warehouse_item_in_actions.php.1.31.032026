@@ -66,66 +66,6 @@ function warehouse_item_in_load_cells(mysqli $dbcnx): array
     return $cells;
 }
 
-
-function warehouse_item_in_resolve_cell_id(mysqli $dbcnx, string $rawCellId, string $fallbackCellCode = ''): ?int
-{
-    $cellExistsById = static function (int $cellId) use ($dbcnx): bool {
-        if ($cellId <= 0) {
-            return false;
-        }
-        $stmt = $dbcnx->prepare("SELECT id FROM cells WHERE id = ? LIMIT 1");
-        if (!$stmt) {
-            return false;
-        }
-        $stmt->bind_param('i', $cellId);
-        $stmt->execute();
-        $res = $stmt->get_result();
-        $row = $res ? $res->fetch_assoc() : null;
-        $stmt->close();
-        return isset($row['id']);
-    };
-
-    $rawCellId = trim($rawCellId);
-    if ($rawCellId !== '') {
-        $numeric = (int)$rawCellId;
-        if ($numeric > 0) {
-            return $numeric;
-        }
-    }
-
-    $candidateCode = strtoupper(trim($fallbackCellCode));
-    if ($candidateCode === '' && $rawCellId !== '') {
-        $candidateCode = strtoupper($rawCellId);
-    }
-    if ($candidateCode === '') {
-        return null;
-    }
-
-    if (preg_match('/^[0-9]+$/', $candidateCode) === 1) {
-        $parsedId = (int)$candidateCode;
-        return $cellExistsById($parsedId) ? $parsedId : null;
-    }
-    if (preg_match('/^C([0-9]+)$/', $candidateCode, $m) === 1) {
-        $fromCode = (int)$m[1];
-        if ($fromCode > 0 && $cellExistsById($fromCode)) {
-            return $fromCode;
-        }
-    }
-
-    $stmt = $dbcnx->prepare("SELECT id FROM cells WHERE UPPER(code) = ? LIMIT 1");
-    if (!$stmt) {
-        return null;
-    }
-    $stmt->bind_param('s', $candidateCode);
-    $stmt->execute();
-    $res = $stmt->get_result();
-    $row = $res ? $res->fetch_assoc() : null;
-    $stmt->close();
-
-    $cellId = (int)($row['id'] ?? 0);
-    return $cellId > 0 ? $cellId : null;
-}
-
 function warehouse_item_in_resolve_cell_id(mysqli $dbcnx, string $rawCellId, string $fallbackCellCode = ''): ?int
 {
     $cellExistsById = static function (int $cellId) use ($dbcnx): bool {
