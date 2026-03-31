@@ -1001,8 +1001,8 @@ switch ($action) {
         // 2) поля из формы
         $tuid        = trim($_POST['tuid']        ?? '');
         $tracking    = trim($_POST['tracking_no'] ?? '');
-        $carrierCode = trim($_POST['carrier_code'] ?? '');
         $carrierName = trim($_POST['carrier_name'] ?? '');
+        $carrierCode = $carrierName !== '' ? $carrierName : trim((string)($_POST['carrier_code'] ?? ''));
         $rcCountryCode = trim($_POST['receiver_country_code'] ?? '');
         // имя страны сейчас не приходит, можно оставить пустым
         $rcCountryName = '';
@@ -1051,6 +1051,7 @@ switch ($action) {
         $deviceId   = 0; // для веба 0, для мобилки можно класть реальный device_id
 
         $itemId = (int)($_POST['item_id'] ?? 0);
+        $cellIdForDb = $cellId ?? 0;
         if ($itemId > 0) {
             $stmt = $dbcnx->prepare(
                 "UPDATE warehouse_item_in
@@ -1063,7 +1064,7 @@ switch ($action) {
                         receiver_name = ?,
                         receiver_company = ?,
                         receiver_address = ?,
-                        cell_id = ?,
+                        cell_id = NULLIF(?, 0),
                         sender_name = ?,
                         sender_company = ?,
                         weight_kg = ?,
@@ -1086,7 +1087,7 @@ switch ($action) {
                 break;
             }
             $stmt->bind_param(
-                'sssssssssssisddddsssii',
+                'sssssssssissddddsssii',
                 $tuid,
                 $tracking,
                 $carrierCode,
@@ -1096,7 +1097,7 @@ switch ($action) {
                 $rcName,
                 $rcCompany,
                 $rcAddress,
-                $cellId,
+                $cellIdForDb,
                 $sndName,
                 $sndCompany,
                 $weightKg,
@@ -1132,7 +1133,7 @@ switch ($action) {
                         ?, ?, ?, ?, 0,
                         ?, ?, ?, ?,
                         ?, ?,
-                        ?, ?, ?, ?,
+                        ?, ?, ?, NULLIF(?, 0),
                         ?, ?,
                         ?, ?, ?, ?,
                         ?, ?, ?
@@ -1146,7 +1147,7 @@ switch ($action) {
                 break;
             }
             $stmt->bind_param(
-                "iiiissssssssssssddddsss",
+                "iiiisssssssssissddddsss",
                 $batchUid,
                 $uidCreated,
                 $ownerUserId,
@@ -1160,7 +1161,7 @@ switch ($action) {
                 $rcName,
                 $rcCompany,
                 $rcAddress,
-                $cellId,
+                $cellIdForDb,
                 $sndName,
                 $sndCompany,
                 $weightKg,
@@ -1231,8 +1232,8 @@ switch ($action) {
 
         $tuid        = trim($_POST['tuid'] ?? '');
         $tracking    = trim($_POST['tracking_no'] ?? '');
-        $carrierCode = trim($_POST['carrier_code'] ?? '');
         $carrierName = trim($_POST['carrier_name'] ?? '');
+        $carrierCode = $carrierName !== '' ? $carrierName : trim((string)($_POST['carrier_code'] ?? ''));
         $rcCountryCode = trim($_POST['receiver_country_code'] ?? '');
         $rcCountryName = '';
         $rcName        = trim($_POST['receiver_name'] ?? '');
