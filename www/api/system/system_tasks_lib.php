@@ -114,6 +114,20 @@ function system_tasks_is_known_endpoint_action(string $action): bool
 
 function system_tasks_seed_defaults(mysqli $dbcnx): void
 {
+
+    $hasRows = false;
+    $countRes = $dbcnx->query("SELECT COUNT(*) AS cnt FROM system_tasks");
+    if ($countRes) {
+        $countRow = $countRes->fetch_assoc();
+        $hasRows = ((int)($countRow['cnt'] ?? 0)) > 0;
+        $countRes->free();
+    }
+    if ($hasRows) {
+        return;
+    }
+
+
+
     $defaults = [
         [
             'code' => 'operation_1_hourly',
@@ -396,6 +410,7 @@ function system_tasks_run_connectors_report_operation_1(mysqli $dbcnx, array $ta
         'connectors_download_report_file',
         'connectors_import_csv_into_report_table',
         'connectors_import_xlsx_into_report_table',
+        'connectors_execute_operation_by_kind_for_manual_test',
         'connectors_generate_run_id',
         'connectors_append_trace_event',
         'connectors_append_operation_executed_event',
@@ -534,36 +549,19 @@ function system_tasks_run_connectors_report_operation_1(mysqli $dbcnx, array $ta
                 $executionPlan = connectors_build_legacy_execution_plan($reportOperationId);
             }
 
-            $targetTable = connectors_normalize_report_table_name((string)($reportCfg['target_table'] ?? ''));
-            connectors_ensure_report_table($dbcnx, $targetTable);
-
-            $downloadInfo = connectors_download_report_file($connector, $reportCfg, null, null);
-            $fieldMapping = isset($reportCfg['field_mapping']) && is_array($reportCfg['field_mapping']) ? $reportCfg['field_mapping'] : [];
+            $operationResult = connectors_execute_operation_by_kind_for_manual_test(
+                $connector,
+                $reportCfg,
+                $connectorId,
+                null,
+                null
+            );
+            $targetTable = connectors_normalize_report_table_name((string)($operationResult['target_table'] ?? ($reportCfg['target_table'] ?? '')));
+            $importedRows = (int)($operationResult['imported_rows'] ?? 0);
+            $downloadInfo = isset($operationResult['download']) && is_array($operationResult['download']) ? $operationResult['download'] : [];
             $fileExt = strtolower(trim((string)($downloadInfo['file_extension'] ?? '')));
 
-            $importedRows = 0;
-            if ($fileExt === 'csv') {
-                $importedRows = connectors_import_csv_into_report_table(
-                    $dbcnx,
-                    $targetTable,
-                    (string)$downloadInfo['file_path'],
-                    $connectorId,
-                    null,
-                    null,
-                    $fieldMapping
-                );
-            } elseif ($fileExt === 'xlsx') {
-                $importedRows = connectors_import_xlsx_into_report_table(
-                    $dbcnx,
-                    $targetTable,
-                    (string)$downloadInfo['file_path'],
-                    $connectorId,
-                    null,
-                    null,
-                    $fieldMapping
-                );
-            }
-
+            $traceMeta = isset($operationResult['trace_meta']) && is_array($operationResult['trace_meta']) ? $operationResult['trace_meta'] : [];
             $ok += 1;
 
             if (function_exists('connectors_append_trace_event')) {
@@ -571,6 +569,7 @@ function system_tasks_run_connectors_report_operation_1(mysqli $dbcnx, array $ta
                     'target_table' => $targetTable,
                     'file_extension' => $fileExt,
                     'imported_rows' => $importedRows,
+                    'trace_meta' => $traceMeta,
                 ]);
             }
 

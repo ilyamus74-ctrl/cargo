@@ -5607,6 +5607,8 @@ function connectors_execute_operation_by_kind_for_manual_test(array $connector, 
             'import_status' => trim((string)($scriptResult['import_status'] ?? ($scriptParsed['import_status'] ?? ''))),
             'trace_meta' => [
                 'kind' => 'script',
+                'script_path' => trim((string)($scriptMeta['script_path'] ?? '')),
+                'interpreter' => trim((string)($scriptMeta['interpreter'] ?? '')),
                 'target_table' => trim((string)($scriptResult['target_table'] ?? ($scriptParsed['target_table'] ?? ''))),
                 'imported_rows' => (int)($scriptResult['imported_rows'] ?? ($scriptParsed['imported_rows'] ?? 0)),
                 'rows_detected' => (int)($scriptResult['rows_detected'] ?? ($scriptParsed['rows_detected'] ?? 0)),
