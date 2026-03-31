@@ -418,22 +418,98 @@ function warehouse_item_in_validate_registration_payload(array $stockItem, array
     return array_values(array_unique($missing));
 }
 
+function warehouse_item_in_extract_client_id(array $stockItem): int
+{
+    $candidateKeys = ['client_id', 'client-id', 'receiver_client_id', 'customer_id'];
+    foreach ($candidateKeys as $key) {
+        if (!array_key_exists($key, $stockItem)) {
+            continue;
+        }
+        $raw = trim((string)$stockItem[$key]);
+        if ($raw !== '' && ctype_digit($raw)) {
+            return (int)$raw;
+        }
+    }
+
+    $addons = warehouse_item_in_decode_json_array((string)($stockItem['addons_json'] ?? ''));
+    foreach ($candidateKeys as $key) {
+        if (!array_key_exists($key, $addons)) {
+            continue;
+        }
+        $raw = trim((string)$addons[$key]);
+        if ($raw !== '' && ctype_digit($raw)) {
+            return (int)$raw;
+        }
+    }
+
+    return 0;
+}
+
+function warehouse_item_in_status_id_by_client_id(int $clientId): int
+{
+    return $clientId > 0 ? 37 : 36;
+}
+
+function warehouse_item_in_required_fields_value_map(array $stockItem, array $requiredFields): array
+{
+    $addons = warehouse_item_in_decode_json_array((string)($stockItem['addons_json'] ?? ''));
+    $map = [];
+    foreach ($requiredFields as $field) {
+        $field = trim((string)$field);
+        if ($field === '') {
+            continue;
+        }
+        if (array_key_exists($field, $stockItem)) {
+            $map[$field] = (string)$stockItem[$field];
+            continue;
+        }
+        if (array_key_exists($field, $addons)) {
+            $map[$field] = (string)$addons[$field];
+            continue;
+        }
+        $map[$field] = '';
+    }
+    return $map;
+}
+
 function warehouse_item_in_build_registration_payload(array $stockItem): array
 {
     $addons = warehouse_item_in_decode_json_array((string)($stockItem['addons_json'] ?? ''));
+    $clientId = warehouse_item_in_extract_client_id($stockItem);
     $tracking = trim((string)($stockItem['tracking_no'] ?? ''));
     if ($tracking === '') {
         $tracking = trim((string)($stockItem['tuid'] ?? ''));
     }
-
+    $cellId = trim((string)($stockItem['cell_id'] ?? ''));
+    $destination = trim((string)($addons['forwarder_destination'] ?? $addons['destination_city'] ?? $addons['destination'] ?? ''));
+    if ($destination === '') {
+        $destination = trim((string)($stockItem['receiver_country_code'] ?? ''));
+    }
+    $position = $cellId !== '' ? $cellId : trim((string)($addons['position'] ?? ''));
     return [
         'track' => $tracking,
-        'destination' => trim((string)($stockItem['receiver_country_code'] ?? '')),
+        'destination' => $destination,
         'weight' => trim((string)($stockItem['weight_kg'] ?? '')),
+        'gross-weight' => trim((string)($addons['gross_weight'] ?? '1')),
         'currency' => trim((string)($addons['currency'] ?? 'USD')),
         'quantity' => trim((string)($addons['quantity'] ?? '1')),
         'client-name-surname' => trim((string)($stockItem['receiver_name'] ?? '')),
+        'client-id' => (string)$clientId,
+        'status-id' => (string)warehouse_item_in_status_id_by_client_id($clientId),
         'category' => trim((string)($addons['category'] ?? $addons['sub_category'] ?? 'general')),
+        'invoice' => trim((string)($addons['invoice'] ?? '0')),
+        'position' => $position,
+        'tracking-internal-same' => trim((string)($addons['tracking_internal_same'] ?? '0')),
+        'tariff-type-id' => trim((string)($addons['tariff_type_id'] ?? $addons['tariff_type'] ?? '')),
+        'is-legal-entity' => trim((string)($addons['is_legal_entity'] ?? 'off')),
+        'invoice-status' => trim((string)($addons['invoice_status'] ?? '1')),
+        'title' => trim((string)($addons['title_text'] ?? $addons['title_name'] ?? $addons['item_title'] ?? $addons['product_name'] ?? $addons['title'] ?? '')),
+        'seller' => trim((string)($addons['seller'] ?? '')),
+        'container-id' => trim((string)($addons['container_id'] ?? '')),
+        'total-images' => trim((string)($addons['total_images'] ?? '0')),
+        'length' => trim((string)($addons['length'] ?? '')),
+        'height' => trim((string)($addons['height'] ?? '')),
+        'width' => trim((string)($addons['width'] ?? '')),
         'description' => trim((string)($stockItem['receiver_address'] ?? '')),
         'sub-cat' => trim((string)($addons['tariff_type'] ?? '')),
     ];
@@ -1837,9 +1913,11 @@ switch ($action) {
             $missingFields = warehouse_item_in_validate_registration_payload($stockItem, $requiredFields);
             if (!empty($missingFields)) {
                 $message = 'Пропущено: не заполнены поля [' . implode(', ', $missingFields) . ']';
+                $requiredFieldValues = warehouse_item_in_required_fields_value_map($stockItem, $requiredFields);
                 warehouse_item_in_update_registration_state($dbcnx, $stockItemId, 'validation_error', $message, [
                     'missing_fields' => $missingFields,
                     'required_fields' => $requiredFields,
+                    'required_field_values' => $requiredFieldValues,
                 ]);
                 warehouse_item_in_sync_audit_log($dbcnx, [
                     'item_id' => $stockItemId,
@@ -1852,6 +1930,7 @@ switch ($action) {
                         'registration_status' => 'validation_error',
                         'missing_fields' => $missingFields,
                         'required_fields' => $requiredFields,
+                        'required_field_values' => $requiredFieldValues,
                     ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: '',
                     'created_by' => $userId,
                 ]);
@@ -1924,25 +2003,44 @@ switch ($action) {
 
             $payload = warehouse_item_in_build_registration_payload($stockItem);
             try {
-                $result = warehouse_item_in_exec_forwarder_cli_script('run_add_package.php', [
+                $forwarderArgs = [
                     'base-url' => $baseUrl,
                     'login' => $login,
                     'password' => $password,
                     'track' => $payload['track'],
                     'destination' => $payload['destination'],
                     'weight' => $payload['weight'],
+                    'gross-weight' => $payload['gross-weight'],
                     'currency' => $payload['currency'],
                     'quantity' => $payload['quantity'],
                     'client-name-surname' => $payload['client-name-surname'],
+                    'client-id' => $payload['client-id'],
+                    'status-id' => $payload['status-id'],
                     'category' => $payload['category'],
+                    'invoice' => $payload['invoice'],
+                    'position' => $payload['position'],
+                    'tracking-internal-same' => $payload['tracking-internal-same'],
+                    'tariff-type-id' => $payload['tariff-type-id'],
+                    'is-legal-entity' => $payload['is-legal-entity'],
+                    'invoice-status' => $payload['invoice-status'],
+                    'title' => $payload['title'],
+                    'seller' => $payload['seller'],
+                    'container-id' => $payload['container-id'],
+                    'total-images' => $payload['total-images'],
+                    'length' => $payload['length'],
+                    'height' => $payload['height'],
+                    'width' => $payload['width'],
                     'description' => $payload['description'],
                     'sub-cat' => $payload['sub-cat'],
-                ]);
+                ];
+                $result = warehouse_item_in_exec_forwarder_cli_script('run_add_package.php', $forwarderArgs);
                 $resultStatus = strtolower(trim((string)($result['status'] ?? '')));
                 $rawText = strtolower((string)(($result['_meta']['raw_output'] ?? '') . ' ' . ($result['message'] ?? '') . ' ' . ($result['error'] ?? '')));
                 $alreadyExists = strpos($rawText, 'already') !== false || strpos($rawText, 'exists') !== false || strpos($rawText, 'уже') !== false;
                 if ($resultStatus === 'ok' || $alreadyExists) {
                     $okMessage = $alreadyExists ? 'Уже зарегистрировано у форварда (идемпотентный успех)' : 'Успешно зарегистрировано у форварда';
+                    $result['submitted_args'] = $forwarderArgs;
+                    $result['payload'] = $payload;
                     warehouse_item_in_update_registration_state($dbcnx, $stockItemId, 'ok', $okMessage, $result);
                     $registrationSummary['registered']++;
                     $registrationSummary['details'][] = [
@@ -1952,6 +2050,8 @@ switch ($action) {
                     ];
                 } else {
                     $err = trim((string)($result['message'] ?? $result['error'] ?? 'Ошибка предрегистрации'));
+                    $result['submitted_args'] = $forwarderArgs;
+                    $result['payload'] = $payload;
                     warehouse_item_in_update_registration_state($dbcnx, $stockItemId, 'forwarder_error', $err, $result);
                     warehouse_item_in_sync_audit_log($dbcnx, [
                         'item_id' => $stockItemId,
