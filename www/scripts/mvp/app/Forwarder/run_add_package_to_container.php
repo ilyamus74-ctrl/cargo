@@ -501,27 +501,84 @@ function forwarder_add_package_to_container_build_html_label_from_verify(?array 
         ? 'https://api.qrserver.com/v1/create-qr-code/?size=150x75&data=' . rawurlencode($invoiceUrl)
         : '';
 
-    $client = htmlspecialchars((string)($package['client_name'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-    $internalId = htmlspecialchars((string)($package['internal_id'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-    $weight = htmlspecialchars((string)($package['gross_weight'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-    $seller = htmlspecialchars((string)($package['seller'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-    $destination = htmlspecialchars((string)($package['destination'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-    $amount = htmlspecialchars((string)($package['amount'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+
+    $clientNameRaw = trim((string)($package['client_name'] ?? ''));
+    $clientCodeRaw = trim((string)($package['client'] ?? ''));
+    $clientIdRaw = trim((string)($package['client_id'] ?? ''));
+    $internalIdRaw = trim((string)($package['internal_id'] ?? ''));
+    $weightRaw = trim((string)($package['gross_weight'] ?? ''));
+    $volumeWeightRaw = trim((string)($package['volume_weight'] ?? ''));
+    $amountRaw = trim((string)($package['amount'] ?? ''));
+    $amountCurrencyRaw = trim((string)($package['amount_currency'] ?? 'USD'));
+    $categoryRaw = trim((string)($package['category'] ?? $package['title'] ?? ''));
+    $invoiceUsdRaw = trim((string)($package['invoice_usd'] ?? '0.00'));
+    $flightDepartureRaw = trim((string)($package['flight_departure'] ?? ''));
+    $flightDestinationRaw = trim((string)($package['flight_destination'] ?? ''));
+    $flightNameRaw = trim((string)($package['flight_name'] ?? ''));
+    $clientPhoneRaw = trim((string)($package['client_phone'] ?? ''));
+    $clientAddressRaw = trim((string)($package['client_address'] ?? ''));
+    $descriptionRaw = trim((string)($package['description'] ?? ''));
+
+    $client = htmlspecialchars($clientNameRaw, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    $clientCode = htmlspecialchars($clientCodeRaw, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    $clientId = htmlspecialchars($clientIdRaw, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    $internalId = htmlspecialchars($internalIdRaw, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    $weight = htmlspecialchars($weightRaw !== '' ? $weightRaw : '0.000', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    $volumeWeight = htmlspecialchars($volumeWeightRaw !== '' ? $volumeWeightRaw : '0.000', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    $amount = htmlspecialchars($amountRaw !== '' ? $amountRaw : ('0.00 ' . $amountCurrencyRaw), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    $category = htmlspecialchars($categoryRaw, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    $invoiceUsd = htmlspecialchars($invoiceUsdRaw !== '' ? $invoiceUsdRaw : '0.00', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    $flightDeparture = htmlspecialchars($flightDepartureRaw, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    $flightDestination = htmlspecialchars($flightDestinationRaw, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    $flightName = htmlspecialchars($flightNameRaw, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    $clientPhone = htmlspecialchars($clientPhoneRaw, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    $clientAddress = htmlspecialchars($clientAddressRaw, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    $description = htmlspecialchars($descriptionRaw, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
     $trackSafe = htmlspecialchars($track, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
     $qrImg = $qrUrl !== '' ? '<img src="' . htmlspecialchars($qrUrl, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '" alt="qr" style="width:150px;height:75px">' : '';
+    $barcodeUrl = 'https://barcode.tec-it.com/barcode.ashx?data=' . rawurlencode($internalIdRaw !== '' ? $internalIdRaw : $track) . '&code=Code128&dpi=96';
 
-    $html = '<!doctype html><html><head><meta charset="utf-8"><title>Waybill ' . $trackSafe . '</title></head>'
-        . '<body style="font-family:Arial,sans-serif;font-size:13px;padding:12px">'
-        . '<h3 style="margin:0 0 10px">WAYBILL</h3>'
-        . '<div><b>Track:</b> ' . $trackSafe . '</div>'
-        . '<div><b>Internal ID:</b> ' . $internalId . '</div>'
-        . '<div><b>Client:</b> ' . $client . '</div>'
-        . '<div><b>Seller:</b> ' . $seller . '</div>'
-        . '<div><b>Destination:</b> ' . $destination . '</div>'
-        . '<div><b>Weight:</b> ' . $weight . '</div>'
-        . '<div><b>Amount:</b> ' . $amount . '</div>'
-        . '<div style="margin-top:12px">' . $qrImg . '</div>'
-        . '</body></html>';
+
+    $consigneePhone = $clientPhoneRaw !== '' ? '(' . $clientPhone . ')' : '';
+    $amountNumeric = '0.00';
+    if (preg_match('/([0-9]+(?:\.[0-9]+)?)/', $amountRaw, $amountMatch) === 1) {
+        $amountNumeric = (string)$amountMatch[1];
+    }
+    $totalWaybillInvoicePrice = htmlspecialchars($amountNumeric . ' USD', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+
+    $html = '<!doctype html><html><head><meta charset="utf-8"><title>Waybill ' . $trackSafe . '</title>'
+        . '<style>'
+        . 'body{font-family:Arial,sans-serif;font-size:14px;margin:0;padding:10px;}'
+        . 'table{width:100%;border-collapse:collapse;}td{border:1px solid #000;padding:4px;vertical-align:top;}'
+        . '.nob{border:none !important;}'
+        . '.center{text-align:center;}'
+        . '.title{font-size:38px;font-weight:bold;line-height:1;}'
+        . '.small{font-size:12px;}'
+        . '.h80{height:80px;}.h70{height:70px;}'
+        . '</style></head><body><div style="border:2px solid #000;">'
+        . '<table><tr><td style="width:44%;padding:0;">'
+        . '<table><caption class="title center">WAYBILL</caption><tr><td style="width:10%;">1</td><td style="width:10%;"></td><td colspan="3">Payer account number</td></tr></table>'
+        . '<table><tr><td rowspan="2" class="center" style="width:70%;font-size:22px;">' . $clientId . '</td><td style="width:10%;"></td><td style="width:20%;">Charge Collect</td></tr><tr><td></td><td>Prepaid</td></tr></table>'
+        . '<table><tr><td style="width:10%;">2</td><td style="width:10%;"></td><td style="width:20%;">From</td><td>Shipper</td></tr></table>'
+        . '<table><tr><td id="waybill_seller" class="center" style="width:40%;"></td><td class="center" style="width:60%;">' . $client . ' ' . $clientCode . '</td></tr></table>'
+        . '<table class="h70"><tr><td class="center">Deutschland/Pheinland Pfalz/Sohren Routbuchenweg 3, 55487</td></tr></table>'
+        . '<table class="h80"><tr><td style="width:40%;">Postcode / ZIP Code</td><td>Phone, Fax or Email (required)</td></tr><tr><td></td><td></td></tr></table>'
+        . '<table><tr><td style="width:10%;">3</td><td style="width:10%;"></td><td colspan="3">To (Consignee)</td></tr></table>'
+        . '<table><tr><td>Name</td><td class="center">Personal ID No</td></tr></table>'
+        . '<table><tr><td class="center">' . $client . ' ' . $clientCode . '</td></tr><tr><td class="center">' . $consigneePhone . '</td></tr></table>'
+        . '<table class="h70"><tr><td>Delivery Address</td></tr><tr><td>(' . $clientAddress . ')</td></tr></table>'
+        . '<table><tr><td class="center"><img src="' . htmlspecialchars($barcodeUrl, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '" alt="barcode" style="width:96%;height:100px;"></td></tr><tr><td class="center" style="font-weight:bold;">' . $internalId . '</td></tr></table>'
+        . '<table><tr><td>Postcode/ZIP Code</td><td>Country Azerbaijan</td></tr><tr><td colspan="2">Contact Person</td></tr></table>'
+        . '</td><td style="width:56%;padding:0;">'
+        . '<table><tr><td rowspan="3" class="center" style="width:58%;font-size:34px;font-weight:bold;color:#f26522;">colibri</td><td class="center" style="width:20%;">CDN</td><td style="width:22%;"></td></tr><tr><td></td><td class="center">' . $qrImg . '</td></tr><tr><td class="center">' . $flightDeparture . '</td><td class="center">' . $flightDestination . '</td></tr><tr><td colspan="3" class="center small"></td></tr></table>'
+        . '<table><tr><td style="width:10%;">4</td><td style="width:10%;"></td><td colspan="3">Shipment details</td></tr></table>'
+        . '<table><tr><td class="center">Total number of packages</td><td class="center">Total Gross weight (kg)</td><td class="center">Chargeable Volume Weight (kg)</td><td class="center">Shipping Price</td></tr><tr><td class="center">1</td><td class="center">' . $weight . '</td><td class="center">' . $volumeWeight . '</td><td class="center">' . $amount . '</td></tr><tr><td>Transportation mode</td><td colspan="3" class="center">By Air</td></tr></table>'
+        . '<table class="h70"><tr><td class="center">MAWB</td><td class="center">Colibri express FLIGHT #</td></tr><tr><td class="center"></td><td class="center">' . $flightName . '</td></tr></table>'
+        . '<table><tr><td style="width:10%;">5</td><td style="width:10%;"></td><td colspan="3">Full Description of contents & remarks</td></tr></table>'
+        . '<table><tr><td style="height:60px;">' . $description . '</td></tr></table>'
+        . '<table><tr><td class="center">Category</td><td class="center">Declared Value for Customs</td><td class="center">Total Price</td></tr><tr><td class="center">' . $category . '</td><td class="center">' . $invoiceUsd . ' USD</td><td class="center">' . $totalWaybillInvoicePrice . '</td></tr></table>'
+        . '<table><tr><td class="small">Information on goods filled in by Consignee or by Colibri express on behalf of Shipper</td></tr></table>'
+        . '</td></tr></table></div></body></html>';
 
 
 
