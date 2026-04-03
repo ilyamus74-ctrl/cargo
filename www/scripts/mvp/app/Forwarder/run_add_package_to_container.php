@@ -177,6 +177,113 @@ function forwarder_add_package_to_container_parse_json_object(string $raw): arra
     return is_array($decoded) ? $decoded : [];
 }
 
+
+function forwarder_add_package_to_container_escape_pdf_text(string $text): string
+{
+    $normalized = preg_replace('/\s+/u', ' ', trim($text)) ?? trim($text);
+    $encoded = @iconv('UTF-8', 'Windows-1252//TRANSLIT//IGNORE', $normalized);
+    if (!is_string($encoded) || $encoded === '') {
+        $encoded = preg_replace('/[^\x20-\x7E]/', '?', $normalized) ?? $normalized;
+    }
+
+    return str_replace(['\\', '(', ')'], ['\\\\', '\(', '\)'], $encoded);
+}
+
+/** @param array<int,string> $lines */
+function forwarder_add_package_to_container_build_simple_pdf(array $lines): string
+{
+    $contentRows = [
+        'BT',
+        '/F1 12 Tf',
+        '50 790 Td',
+    ];
+
+    $first = true;
+    foreach ($lines as $line) {
+        $escaped = forwarder_add_package_to_container_escape_pdf_text((string)$line);
+        if ($escaped === '') {
+            $escaped = '-';
+        }
+
+        if ($first) {
+            $contentRows[] = '(' . $escaped . ') Tj';
+            $first = false;
+            continue;
+        }
+
+        $contentRows[] = '0 -18 Td';
+        $contentRows[] = '(' . $escaped . ') Tj';
+    }
+
+    $contentRows[] = 'ET';
+    $stream = implode("\n", $contentRows) . "\n";
+
+    $objects = [];
+    $objects[] = "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n";
+    $objects[] = "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n";
+    $objects[] = "3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>\nendobj\n";
+    $objects[] = "4 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n";
+    $objects[] = "5 0 obj\n<< /Length " . strlen($stream) . " >>\nstream\n" . $stream . "endstream\nendobj\n";
+
+    $pdf = "%PDF-1.4\n";
+    $offsets = [0];
+    foreach ($objects as $obj) {
+        $offsets[] = strlen($pdf);
+        $pdf .= $obj;
+    }
+
+    $xrefPos = strlen($pdf);
+    $pdf .= "xref\n0 " . (count($objects) + 1) . "\n";
+    $pdf .= "0000000000 65535 f \n";
+    for ($i = 1; $i <= count($objects); $i++) {
+        $pdf .= sprintf("%010d 00000 n \n", $offsets[$i]);
+    }
+
+    $pdf .= "trailer\n<< /Size " . (count($objects) + 1) . " /Root 1 0 R >>\n";
+    $pdf .= "startxref\n" . $xrefPos . "\n%%EOF\n";
+
+    return $pdf;
+}
+
+function forwarder_add_package_to_container_convert_html_to_pdf(string $html): array
+{
+    $wkhtmltopdf = trim((string)shell_exec('command -v wkhtmltopdf 2>/dev/null'));
+    if ($wkhtmltopdf === '') {
+        return ['ok' => false, 'error' => 'wkhtmltopdf is not installed', 'pdf_base64' => ''];
+    }
+
+    $tmpDir = sys_get_temp_dir();
+    $tmpHtml = tempnam($tmpDir, 'fwd_html_');
+    $tmpPdf = tempnam($tmpDir, 'fwd_pdf_');
+    if (!is_string($tmpHtml) || !is_string($tmpPdf)) {
+        return ['ok' => false, 'error' => 'failed to create temp files', 'pdf_base64' => ''];
+    }
+
+    $tmpHtmlFile = $tmpHtml . '.html';
+    $tmpPdfFile = $tmpPdf . '.pdf';
+    @rename($tmpHtml, $tmpHtmlFile);
+    @rename($tmpPdf, $tmpPdfFile);
+
+    if (file_put_contents($tmpHtmlFile, $html) === false) {
+        @unlink($tmpHtmlFile);
+        @unlink($tmpPdfFile);
+        return ['ok' => false, 'error' => 'failed to write temp html', 'pdf_base64' => ''];
+    }
+
+    $cmd = escapeshellarg($wkhtmltopdf) . ' --quiet ' . escapeshellarg($tmpHtmlFile) . ' ' . escapeshellarg($tmpPdfFile) . ' 2>&1';
+    $output = shell_exec($cmd);
+
+    $pdfBinary = @file_get_contents($tmpPdfFile);
+    @unlink($tmpHtmlFile);
+    @unlink($tmpPdfFile);
+
+    if (!is_string($pdfBinary) || $pdfBinary === '') {
+        return ['ok' => false, 'error' => 'wkhtmltopdf failed: ' . trim((string)$output), 'pdf_base64' => ''];
+    }
+
+    return ['ok' => true, 'error' => '', 'pdf_base64' => base64_encode($pdfBinary)];
+}
+
 /** @param mixed $value @param array<int,string> $accumulator */
 function forwarder_add_package_to_container_collect_data_url_images($value, array &$accumulator): void
 {
@@ -415,13 +522,38 @@ function forwarder_add_package_to_container_build_html_label_from_verify(?array 
         . '<div style="margin-top:12px">' . $qrImg . '</div>'
         . '</body></html>';
 
+    $pdfRender = forwarder_add_package_to_container_convert_html_to_pdf($html);
+    if (!empty($pdfRender['ok']) && trim((string)($pdfRender['pdf_base64'] ?? '')) !== '') {
+        return [
+            'ok' => true,
+            'error' => '',
+            'label_base64' => (string)$pdfRender['pdf_base64'],
+            'file_name' => 'waybill_' . preg_replace('/[^a-zA-Z0-9_-]+/', '_', $track) . '.pdf',
+            'invoice_url' => $invoiceUrl,
+            'qr_url' => $qrUrl,
+            'render_engine' => 'wkhtmltopdf',
+        ];
+    }
+
+    $fallbackPdf = forwarder_add_package_to_container_build_simple_pdf([
+        'WAYBILL',
+        'Track: ' . $track,
+        'Internal ID: ' . (string)($package['internal_id'] ?? ''),
+        'Client: ' . (string)($package['client_name'] ?? ''),
+        'Seller: ' . (string)($package['seller'] ?? ''),
+        'Destination: ' . (string)($package['destination'] ?? ''),
+        'Weight: ' . (string)($package['gross_weight'] ?? ''),
+        'Amount: ' . (string)($package['amount'] ?? ''),
+        'Invoice URL: ' . $invoiceUrl,
+    ]);
     return [
         'ok' => true,
-        'error' => '',
-        'label_base64' => base64_encode($html),
-        'file_name' => 'waybill_' . preg_replace('/[^a-zA-Z0-9_-]+/', '_', $track) . '.html',
+        'error' => 'html->pdf fallback used: ' . (string)($pdfRender['error'] ?? ''),
+        'label_base64' => base64_encode($fallbackPdf),
+        'file_name' => 'waybill_' . preg_replace('/[^a-zA-Z0-9_-]+/', '_', $track) . '.pdf',
         'invoice_url' => $invoiceUrl,
         'qr_url' => $qrUrl,
+        'render_engine' => 'simple-pdf-fallback',
     ];
 }
 
@@ -630,7 +762,9 @@ $printLabelRetryDelayMs = max(0, forwarder_add_package_to_container_as_int(
 ));
 $labelUrlArg = forwarder_add_package_to_container_arg($args, 'label-url', 'label_url');
 $labelUrlBaseArg = forwarder_add_package_to_container_arg($args, 'label-url-base', 'label_url_base');
-
+$allowLabelUrl = forwarder_add_package_to_container_as_bool(
+    forwarder_add_package_to_container_arg($args, 'allow-label-url', 'allow_label_url')
+);
 $checkPath = $checkPath !== '' ? $checkPath : '/collect/check-position';
 $changePath = $changePath !== '' ? $changePath : '/collect/change-position';
 $verifyPath = $verifyPath !== '' ? $verifyPath : '/collector/check-package';
@@ -781,23 +915,26 @@ if ($printRequested) {
             $printFileName = $labelName;
         }
     }
-    $labelUrlStorage = $labelUrl !== ''
-        ? forwarder_add_package_to_container_save_label_from_url($track, $labelUrl)
-        : ['ok' => false, 'error' => 'label url is empty', 'saved_file' => null];
-    $generatedWaybill = ['ok' => false, 'error' => '', 'label_base64' => '', 'file_name' => '', 'invoice_url' => '', 'qr_url' => ''];
-    if ($labelBase64 === '' && $labelUrl === '') {
-        $generatedWaybill = forwarder_add_package_to_container_build_html_label_from_verify($verifyJson, $track, $publicBaseUrl);
-        if (!empty($generatedWaybill['ok']) && trim((string)($generatedWaybill['label_base64'] ?? '')) !== '') {
-            $labelBase64 = (string)$generatedWaybill['label_base64'];
-            $generatedFileName = trim((string)($generatedWaybill['file_name'] ?? ''));
-            if ($generatedFileName !== '') {
-                $printFileName = $generatedFileName;
-            }
+    $labelUrlStorage = [
+        'ok' => false,
+        'error' => $allowLabelUrl ? 'label url is empty' : 'label url flow disabled by default',
+        'saved_file' => null,
+    ];
+    if ($allowLabelUrl && $labelUrl !== '') {
+        $labelUrlStorage = forwarder_add_package_to_container_save_label_from_url($track, $labelUrl);
+    }
+
+    $generatedWaybill = forwarder_add_package_to_container_build_html_label_from_verify($verifyJson, $track, $publicBaseUrl);
+    if ($labelBase64 === '' && !empty($generatedWaybill['ok']) && trim((string)($generatedWaybill['label_base64'] ?? '')) !== '') {
+        $labelBase64 = (string)$generatedWaybill['label_base64'];
+        $generatedFileName = trim((string)($generatedWaybill['file_name'] ?? ''));
+        if ($generatedFileName !== '') {
+            $printFileName = $generatedFileName;
         }
     }
     $labelProbeAttempts = [];
 
-    if ($labelBase64 === '' && $labelUrl === '' && $overallOk && $printLabelRetries > 0) {
+    if ($labelBase64 === '' && (!$allowLabelUrl || $labelUrl === '') && $overallOk && $printLabelRetries > 0) {
         for ($attempt = 1; $attempt <= $printLabelRetries; $attempt++) {
             if ($printLabelRetryDelayMs > 0) {
                 usleep($printLabelRetryDelayMs * 1000);
@@ -853,7 +990,7 @@ if ($printRequested) {
         $overallOk
         && $printToken !== ''
         && $selectedDeviceUid !== ''
-        && ($labelBase64 !== '' || $labelUrl !== '')
+        && ($labelBase64 !== '' || ($allowLabelUrl && $labelUrl !== ''))
     ) {
         $printPayload = [
             'device_uid' => $selectedDeviceUid,
@@ -862,7 +999,7 @@ if ($printRequested) {
         if ($labelBase64 !== '') {
             $printPayload['label_base64'] = $labelBase64;
         }
-        if ($labelUrl !== '') {
+        if ($allowLabelUrl && $labelUrl !== '') {
             $printPayload['label_url'] = $labelUrl;
         }
         $printResponsePayload = forwarder_add_package_to_container_send_print_job($printUrl, $printToken, $printPayload);
@@ -880,7 +1017,7 @@ if ($printRequested) {
         $printResponsePayload = [
             'ok' => false,
             'http_status' => 0,
-            'error' => 'print skipped: require successful add-flow, print-token, selected device and label_base64 or label_url',
+            'error' => 'print skipped: require successful add-flow, print-token, selected device and html/base64 label (url-label only with --allow-label-url=1)',
             'response' => null,
             'selected_device' => $selectedDevice,
             'label_storage' => $savedLabel,
@@ -932,6 +1069,7 @@ $result = [
     ],
     'verification' => $verifyResponsePayload,
     'print' => $printResponsePayload,
+    'print_allow_label_url' => $allowLabelUrl,
 ];
 
 echo json_encode($result, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT) . PHP_EOL;
