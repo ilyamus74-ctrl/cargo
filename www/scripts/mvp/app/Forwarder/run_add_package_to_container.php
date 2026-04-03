@@ -90,6 +90,288 @@ function forwarder_add_package_to_container_as_bool(string $value): bool
     return in_array($value, ['1', 'true', 'yes', 'y', 'on'], true);
 }
 
+
+function forwarder_add_package_to_container_pick_first_non_empty(array $values): string
+{
+    foreach ($values as $value) {
+        $candidate = trim((string)$value);
+        if ($candidate !== '') {
+            return $candidate;
+        }
+    }
+
+    return '';
+}
+
+function forwarder_add_package_to_container_parse_json_object(string $raw): array
+{
+    $decoded = json_decode($raw, true);
+    return is_array($decoded) ? $decoded : [];
+}
+
+/** @param mixed $value @param array<int,string> $accumulator */
+function forwarder_add_package_to_container_collect_data_url_images($value, array &$accumulator): void
+{
+    if (is_string($value)) {
+        $trimmed = trim($value);
+        if (preg_match('/^data:image\/[a-zA-Z0-9.+-]+;base64,[A-Za-z0-9+\/=\r\n]+$/', $trimmed) === 1) {
+            $accumulator[] = preg_replace('/\s+/u', '', $trimmed) ?? $trimmed;
+        }
+        return;
+    }
+
+    if (!is_array($value)) {
+        return;
+    }
+
+    foreach ($value as $nested) {
+        forwarder_add_package_to_container_collect_data_url_images($nested, $accumulator);
+    }
+}
+
+function forwarder_add_package_to_container_extension_from_mime(string $mime): string
+{
+    $map = [
+        'image/png' => 'png',
+        'image/jpeg' => 'jpg',
+        'image/jpg' => 'jpg',
+        'image/gif' => 'gif',
+        'image/webp' => 'webp',
+        'image/bmp' => 'bmp',
+        'image/svg+xml' => 'svg',
+    ];
+
+    return $map[mb_strtolower(trim($mime))] ?? 'bin';
+}
+
+/** @param array<int,string> $dataUrls */
+function forwarder_add_package_to_container_save_label_images(string $track, array $dataUrls): array
+{
+    $baseDir = __DIR__ . '/lable';
+    if (!is_dir($baseDir) && !mkdir($baseDir, 0775, true) && !is_dir($baseDir)) {
+        return [
+            'ok' => false,
+            'error' => 'failed to create label directory: ' . $baseDir,
+            'dir' => $baseDir,
+            'saved_files' => [],
+            'print_file_name' => '',
+            'print_label_base64' => '',
+        ];
+    }
+
+    $safeTrack = preg_replace('/[^a-zA-Z0-9_-]+/', '_', $track) ?? 'track';
+    $stamp = date('Ymd_His');
+    $prefix = $safeTrack . '_' . $stamp;
+    $savedFiles = [];
+    $htmlRows = [];
+
+    foreach ($dataUrls as $index => $dataUrl) {
+        if (preg_match('/^data:(image\/[a-zA-Z0-9.+-]+);base64,([A-Za-z0-9+\/=\r\n]+)$/', $dataUrl, $matches) !== 1) {
+            continue;
+        }
+
+        $mime = (string)$matches[1];
+        $binary = base64_decode((string)$matches[2], true);
+        if ($binary === false) {
+            continue;
+        }
+
+        $ext = forwarder_add_package_to_container_extension_from_mime($mime);
+        $fileName = sprintf('%s_%02d.%s', $prefix, $index + 1, $ext);
+        $fullPath = $baseDir . '/' . $fileName;
+        if (file_put_contents($fullPath, $binary) === false) {
+            continue;
+        }
+
+        $savedFiles[] = [
+            'name' => $fileName,
+            'path' => $fullPath,
+            'mime' => $mime,
+            'bytes' => strlen($binary),
+        ];
+
+        $htmlRows[] = '<div style="margin:0 0 12px 0;page-break-inside:avoid"><img style="max-width:100%;height:auto" src="data:'
+            . htmlspecialchars($mime, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')
+            . ';base64,' . base64_encode($binary) . '" alt="label-image-' . ($index + 1) . '"></div>';
+    }
+
+    if ($savedFiles === []) {
+        return [
+            'ok' => false,
+            'error' => 'no valid image data-url found to save',
+            'dir' => $baseDir,
+            'saved_files' => [],
+            'print_file_name' => '',
+            'print_label_base64' => '',
+        ];
+    }
+
+    $html = '<!doctype html><html><head><meta charset="utf-8"><title>Label ' . htmlspecialchars($track, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')
+        . '</title></head><body style="margin:0;padding:0;">' . implode('', $htmlRows) . '</body></html>';
+    $htmlFileName = $prefix . '.html';
+    $htmlFullPath = $baseDir . '/' . $htmlFileName;
+    file_put_contents($htmlFullPath, $html);
+
+    return [
+        'ok' => true,
+        'error' => '',
+        'dir' => $baseDir,
+        'saved_files' => $savedFiles,
+        'html_path' => $htmlFullPath,
+        'print_file_name' => $htmlFileName,
+        'print_label_base64' => base64_encode($html),
+    ];
+}
+
+function forwarder_add_package_to_container_select_device_uid(string $directDeviceUid, string $devicesJson, string $deviceKey): array
+{
+    if ($directDeviceUid !== '') {
+        return [
+            'device_uid' => $directDeviceUid,
+            'error' => '',
+            'devices_count' => 1,
+            'selected_by' => 'print-device-uid',
+        ];
+    }
+
+    $parsed = forwarder_add_package_to_container_parse_json_object($devicesJson);
+    $devices = $parsed['devices'] ?? $parsed;
+    if (!is_array($devices)) {
+        return [
+            'device_uid' => '',
+            'error' => 'print devices list is invalid or empty',
+            'devices_count' => 0,
+            'selected_by' => '',
+        ];
+    }
+
+    $normalizedKey = mb_strtolower(trim($deviceKey));
+    $firstUid = '';
+    $defaultUid = '';
+    $matchedUid = '';
+
+    foreach ($devices as $device) {
+        if (!is_array($device)) {
+            continue;
+        }
+
+        $uid = trim((string)($device['device_uid'] ?? $device['uid'] ?? $device['id'] ?? ''));
+        if ($uid === '') {
+            continue;
+        }
+
+        if ($firstUid === '') {
+            $firstUid = $uid;
+        }
+
+        $isDefault = !empty($device['default']) || !empty($device['is_default']);
+        if ($isDefault && $defaultUid === '') {
+            $defaultUid = $uid;
+        }
+
+        if ($normalizedKey !== '') {
+            $candidates = [
+                mb_strtolower(trim((string)($device['key'] ?? ''))),
+                mb_strtolower(trim((string)($device['code'] ?? ''))),
+                mb_strtolower(trim((string)($device['name'] ?? ''))),
+                mb_strtolower(trim($uid)),
+            ];
+            if (in_array($normalizedKey, $candidates, true)) {
+                $matchedUid = $uid;
+                break;
+            }
+        }
+    }
+
+    $chosen = $matchedUid !== '' ? $matchedUid : ($defaultUid !== '' ? $defaultUid : $firstUid);
+    if ($chosen === '') {
+        return [
+            'device_uid' => '',
+            'error' => 'no usable devices in print list',
+            'devices_count' => count($devices),
+            'selected_by' => '',
+        ];
+    }
+
+    return [
+        'device_uid' => $chosen,
+        'error' => '',
+        'devices_count' => count($devices),
+        'selected_by' => $matchedUid !== '' ? 'print-device-key' : ($defaultUid !== '' ? 'default-device' : 'first-device'),
+    ];
+}
+
+/** @param array<string,mixed> $payload */
+function forwarder_add_package_to_container_send_print_job(string $printUrl, string $printToken, array $payload): array
+{
+    if (!function_exists('curl_init')) {
+        return [
+            'ok' => false,
+            'http_status' => 0,
+            'error' => 'curl extension is not available',
+            'response' => null,
+        ];
+    }
+
+    $ch = curl_init($printUrl);
+    if ($ch === false) {
+        return [
+            'ok' => false,
+            'http_status' => 0,
+            'error' => 'curl_init failed',
+            'response' => null,
+        ];
+    }
+
+    $rawPayload = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    if ($rawPayload === false) {
+        return [
+            'ok' => false,
+            'http_status' => 0,
+            'error' => 'failed to encode print payload',
+            'response' => null,
+        ];
+    }
+
+    curl_setopt_array($ch, [
+        CURLOPT_POST => true,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_CONNECTTIMEOUT => 8,
+        CURLOPT_TIMEOUT => 20,
+        CURLOPT_HTTPHEADER => [
+            'Authorization: Bearer ' . $printToken,
+            'Content-Type: application/json',
+            'Accept: application/json',
+        ],
+        CURLOPT_POSTFIELDS => $rawPayload,
+    ]);
+
+    $rawResponse = curl_exec($ch);
+    $error = $rawResponse === false ? (string)curl_error($ch) : '';
+    $httpStatus = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    if ($rawResponse === false) {
+        return [
+            'ok' => false,
+            'http_status' => $httpStatus,
+            'error' => $error !== '' ? $error : 'curl_exec failed',
+            'response' => null,
+        ];
+    }
+
+    $json = forwarder_add_package_to_container_parse_json_object((string)$rawResponse);
+    $status = mb_strtolower(trim((string)($json['status'] ?? '')));
+    $ok = $httpStatus >= 200 && $httpStatus < 300 && in_array($status, ['ok', 'success'], true);
+
+    return [
+        'ok' => $ok,
+        'http_status' => $httpStatus,
+        'error' => '',
+        'response' => $json !== [] ? $json : (string)$rawResponse,
+    ];
+}
+
 $argv = $_SERVER['argv'] ?? [];
 $args = forwarder_add_package_to_container_cli_kv($argv);
 
@@ -114,6 +396,17 @@ $verifyPath = forwarder_add_package_to_container_arg($args, 'verify-path', 'veri
 $verifyRequested = forwarder_add_package_to_container_as_bool(
     forwarder_add_package_to_container_arg($args, 'verify-check-package', 'verify_check_package')
 );
+
+$printRequested = forwarder_add_package_to_container_as_bool(
+    forwarder_add_package_to_container_arg($args, 'print-label', 'print_label')
+);
+$printUrl = forwarder_add_package_to_container_arg($args, 'print-url', 'print_url');
+$printToken = forwarder_add_package_to_container_arg($args, 'print-token', 'print_token');
+$printDeviceUid = forwarder_add_package_to_container_arg($args, 'print-device-uid', 'print_device_uid');
+$printDevicesJson = forwarder_add_package_to_container_arg($args, 'print-devices-json', 'print_devices_json');
+$printDeviceKey = forwarder_add_package_to_container_arg($args, 'print-device-key', 'print_device_key');
+$printFileName = forwarder_add_package_to_container_arg($args, 'print-file-name', 'print_file_name');
+$labelBase64Arg = forwarder_add_package_to_container_arg($args, 'label-base64', 'label_base64');
 
 $checkPath = $checkPath !== '' ? $checkPath : '/collect/check-position';
 $changePath = $changePath !== '' ? $changePath : '/collect/change-position';
@@ -173,6 +466,7 @@ $changeBusinessOk = is_array($changeJson) && in_array($changeCase, ['success', '
 $changeOk = !empty($changeResponse['ok']) && $changeStatusCode >= 200 && $changeStatusCode < 400 && $changeBusinessOk;
 
 $verifyResponsePayload = null;
+$verifyJson = null;
 if ($verifyRequested) {
     $verifyNumber = forwarder_add_package_to_container_arg($args, 'verify-number', 'verify_number', 'check-number', 'check_number');
     if ($verifyNumber === '') {
@@ -189,9 +483,65 @@ if ($verifyRequested) {
             : json_decode((string)($verifyResponse['body'] ?? ''), true),
         'raw_body' => (string)($verifyResponse['body'] ?? ''),
     ];
+    $verifyJson = is_array($verifyResponsePayload['json'] ?? null) ? $verifyResponsePayload['json'] : null;
 }
 
 $overallOk = $checkOk && $changeOk;
+
+
+$printResponsePayload = null;
+if ($printRequested) {
+    $printUrl = $printUrl !== '' ? $printUrl : 'https://tls.cargocells.com/api/print/submit.php';
+    $printFileName = $printFileName !== '' ? $printFileName : sprintf('label_%s.html', $track);
+
+    $selectedDevice = forwarder_add_package_to_container_select_device_uid($printDeviceUid, $printDevicesJson, $printDeviceKey);
+    $selectedDeviceUid = trim((string)($selectedDevice['device_uid'] ?? ''));
+
+    $dataUrlImages = [];
+    forwarder_add_package_to_container_collect_data_url_images($verifyJson, $dataUrlImages);
+    forwarder_add_package_to_container_collect_data_url_images($changeJson, $dataUrlImages);
+    forwarder_add_package_to_container_collect_data_url_images($checkJson, $dataUrlImages);
+    $dataUrlImages = array_values(array_unique($dataUrlImages));
+
+    $savedLabel = forwarder_add_package_to_container_save_label_images($track, $dataUrlImages);
+    $resolvedPrintFileName = trim((string)($savedLabel['print_file_name'] ?? ''));
+    if ($resolvedPrintFileName !== '') {
+        $printFileName = $resolvedPrintFileName;
+    }
+
+    $labelBase64 = forwarder_add_package_to_container_pick_first_non_empty([
+        (string)($savedLabel['print_label_base64'] ?? ''),
+        is_array($verifyJson) ? (string)($verifyJson['label_base64'] ?? '') : '',
+        is_array($changeJson) ? (string)($changeJson['label_base64'] ?? '') : '',
+        is_array($checkJson) ? (string)($checkJson['label_base64'] ?? '') : '',
+        $labelBase64Arg,
+    ]);
+
+    if (
+        $overallOk
+        && $printToken !== ''
+        && $selectedDeviceUid !== ''
+        && $labelBase64 !== ''
+        && !empty($savedLabel['ok'])
+    ) {
+        $printResponsePayload = forwarder_add_package_to_container_send_print_job($printUrl, $printToken, [
+            'device_uid' => $selectedDeviceUid,
+            'file_name' => $printFileName,
+            'label_base64' => $labelBase64,
+        ]);
+        $printResponsePayload['selected_device'] = $selectedDevice;
+        $printResponsePayload['label_storage'] = $savedLabel;
+    } else {
+        $printResponsePayload = [
+            'ok' => false,
+            'http_status' => 0,
+            'error' => 'print skipped: require success add, print-token, selected device, saved label and label_base64',
+            'response' => null,
+            'selected_device' => $selectedDevice,
+            'label_storage' => $savedLabel,
+        ];
+    }
+}
 
 $result = [
     'status' => $overallOk ? 'ok' : 'error',
@@ -228,6 +578,7 @@ $result = [
         'raw_body' => (string)($changeResponse['body'] ?? ''),
     ],
     'verification' => $verifyResponsePayload,
+    'print' => $printResponsePayload,
 ];
 
 echo json_encode($result, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT) . PHP_EOL;
