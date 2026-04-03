@@ -262,5 +262,140 @@
                 "at": "2026-04-03T11:10:07+00:00"
             }
         ]
+    },
+    {
+        "job_id": "job-20260403165713-fb0f8fd4",
+        "status": "failed",
+        "created_at": "2026-04-03T16:57:13+00:00",
+        "file_name": "label_H1025022509733301044.html",
+        "label_url": "https:\/\/dev-backend.colibri.az\/uploads\/files\/packages\/invoices\/_invoice_a9PP_1760621326.jpeg",
+        "delivered_at": "2026-04-03T16:57:13+00:00",
+        "updated_at": "2026-04-03T16:57:16+00:00",
+        "last_message": "404 Client Error: Not Found for url: https:\/\/dev-backend.colibri.az\/uploads\/files\/packages\/invoices\/_invoice_a9PP_1760621326.jpeg",
+        "history": [
+            {
+                "status": "received",
+                "message": "job accepted by device",
+                "at": "2026-04-03T16:57:13+00:00"
+            },
+            {
+                "status": "failed",
+                "message": "404 Client Error: Not Found for url: https:\/\/dev-backend.colibri.az\/uploads\/files\/packages\/invoices\/_invoice_a9PP_1760621326.jpeg",
+                "at": "2026-04-03T16:57:16+00:00"
+            }
+        ]
+    },
+    {
+        "job_id": "job-20260403165817-79c6f79c",
+        "status": "failed",
+        "created_at": "2026-04-03T16:58:17+00:00",
+        "file_name": "label_H1025022509733301044.html",
+        "label_url": "https:\/\/dev-backend.colibri.az\/uploads\/files\/packages\/invoices\/_invoice_a9PP_1760621326.jpeg",
+        "delivered_at": "2026-04-03T16:58:17+00:00",
+        "updated_at": "2026-04-03T16:58:18+00:00",
+        "last_message": "404 Client Error: Not Found for url: https:\/\/dev-backend.colibri.az\/uploads\/files\/packages\/invoices\/_invoice_a9PP_1760621326.jpeg",
+        "history": [
+            {
+                "status": "received",
+                "message": "job accepted by device",
+                "at": "2026-04-03T16:58:17+00:00"
+            },
+            {
+                "status": "failed",
+                "message": "404 Client Error: Not Found for url: https:\/\/dev-backend.colibri.az\/uploads\/files\/packages\/invoices\/_invoice_a9PP_1760621326.jpeg",
+                "at": "2026-04-03T16:58:18+00:00"
+            }
+        ]
+    },
+    {
+        "job_id": "job-20260403170703-c2165dc4",
+        "status": "failed",
+        "created_at": "2026-04-03T17:07:03+00:00",
+        "file_name": "label_H1025022509733301044.html",
+        "label_url": "https:\/\/dev-backend.colibri.az\/uploads\/files\/packages\/invoices\/_invoice_a9PP_1760621326.jpeg",
+        "delivered_at": "2026-04-03T17:07:04+00:00",
+        "updated_at": "2026-04-03T17:07:05+00:00",
+        "last_message": "404 Client Error: Not Found for url: https:\/\/dev-backend.colibri.az\/uploads\/files\/packages\/invoices\/_invoice_a9PP_1760621326.jpeg",
+        "history": [
+            {
+                "status": "received",
+                "message": "job accepted by device",
+                "at": "2026-04-03T17:07:04+00:00"
+            },
+            {
+                "status": "failed",
+                "message": "404 Client Error: Not Found for url: https:\/\/dev-backend.colibri.az\/uploads\/files\/packages\/invoices\/_invoice_a9PP_1760621326.jpeg",
+                "at": "2026-04-03T17:07:05+00:00"
+            }
+        ]
+    },
+    {
+        "job_id": "job-20260403173245-bdc1a380",
+        "status": "printed",
+        "created_at": "2026-04-03T17:32:45+00:00",
+        "file_name": "waybill_H1025022509733301044.html",
+        "label_url": "https:\/\/colibri.az\/uploads\/files\/packages\/invoices\/_invoice_a9PP_1760621326.jpeg",
+        "label_base64": "PCFkb2N0eXBlIGh0bWw+PGh0bWw+PGhlYWQ+PG1ldGEgY2hhcnNldD0idXRmLTgiPjx0aXRsZT5XYXliaWxsIEgxMDI1MDIyNTA5NzMzMzAxMDQ0PC90aXRsZT48L2hlYWQ+PGJvZHkgc3R5bGU9ImZvbnQtZmFtaWx5OkFyaWFsLHNhbnMtc2VyaWY7Zm9udC1zaXplOjEzcHg7cGFkZGluZzoxMnB4Ij48aDMgc3R5bGU9Im1hcmdpbjowIDAgMTBweCI+V0FZQklMTDwvaDM+PGRpdj48Yj5UcmFjazo8L2I+IEgxMDI1MDIyNTA5NzMzMzAxMDQ0PC9kaXY+PGRpdj48Yj5JbnRlcm5hbCBJRDo8L2I+IENCUjg1MjEzNTwvZGl2PjxkaXY+PGI+Q2xpZW50OjwvYj4gU2FoaWIgSHVzZXlub3Y8L2Rpdj48ZGl2PjxiPlNlbGxlcjo8L2I+IGZsYWNvbmlkZTwvZGl2PjxkaXY+PGI+RGVzdGluYXRpb246PC9iPiBCYWt1PC9kaXY+PGRpdj48Yj5XZWlnaHQ6PC9iPiAwLjkwMDwvZGl2PjxkaXY+PGI+QW1vdW50OjwvYj4gMTEuNDUgRVVSPC9kaXY+PGRpdiBzdHlsZT0ibWFyZ2luLXRvcDoxMnB4Ij48aW1nIHNyYz0iaHR0cHM6Ly9hcGkucXJzZXJ2ZXIuY29tL3YxL2NyZWF0ZS1xci1jb2RlLz9zaXplPTE1MHg3NSZhbXA7ZGF0YT1odHRwcyUzQSUyRiUyRmNvbGlicmkuYXolMkZ1cGxvYWRzJTJGZmlsZXMlMkZwYWNrYWdlcyUyRmludm9pY2VzJTJGX2ludm9pY2VfYTlQUF8xNzYwNjIxMzI2LmpwZWclM0ZyZWFkX29ubHklM0QxIiBhbHQ9InFyIiBzdHlsZT0id2lkdGg6MTUwcHg7aGVpZ2h0Ojc1cHgiPjwvZGl2PjwvYm9keT48L2h0bWw+",
+        "delivered_at": "2026-04-03T17:32:45+00:00",
+        "updated_at": "2026-04-03T17:32:47+00:00",
+        "last_message": "request id is HP_Officejet_4500_G510n-z-10 (1 file(s))",
+        "history": [
+            {
+                "status": "received",
+                "message": "job accepted by device",
+                "at": "2026-04-03T17:32:45+00:00"
+            },
+            {
+                "status": "printed",
+                "message": "request id is HP_Officejet_4500_G510n-z-10 (1 file(s))",
+                "at": "2026-04-03T17:32:47+00:00"
+            }
+        ]
+    },
+    {
+        "job_id": "job-20260403173337-db3bd536",
+        "status": "printed",
+        "created_at": "2026-04-03T17:33:37+00:00",
+        "file_name": "waybill_H1025022509733301044.html",
+        "label_url": "https:\/\/colibri.az\/uploads\/files\/packages\/invoices\/_invoice_a9PP_1760621326.jpeg",
+        "label_base64": "PCFkb2N0eXBlIGh0bWw+PGh0bWw+PGhlYWQ+PG1ldGEgY2hhcnNldD0idXRmLTgiPjx0aXRsZT5XYXliaWxsIEgxMDI1MDIyNTA5NzMzMzAxMDQ0PC90aXRsZT48L2hlYWQ+PGJvZHkgc3R5bGU9ImZvbnQtZmFtaWx5OkFyaWFsLHNhbnMtc2VyaWY7Zm9udC1zaXplOjEzcHg7cGFkZGluZzoxMnB4Ij48aDMgc3R5bGU9Im1hcmdpbjowIDAgMTBweCI+V0FZQklMTDwvaDM+PGRpdj48Yj5UcmFjazo8L2I+IEgxMDI1MDIyNTA5NzMzMzAxMDQ0PC9kaXY+PGRpdj48Yj5JbnRlcm5hbCBJRDo8L2I+IENCUjg1MjEzNTwvZGl2PjxkaXY+PGI+Q2xpZW50OjwvYj4gU2FoaWIgSHVzZXlub3Y8L2Rpdj48ZGl2PjxiPlNlbGxlcjo8L2I+IGZsYWNvbmlkZTwvZGl2PjxkaXY+PGI+RGVzdGluYXRpb246PC9iPiBCYWt1PC9kaXY+PGRpdj48Yj5XZWlnaHQ6PC9iPiAwLjkwMDwvZGl2PjxkaXY+PGI+QW1vdW50OjwvYj4gMTEuNDUgRVVSPC9kaXY+PGRpdiBzdHlsZT0ibWFyZ2luLXRvcDoxMnB4Ij48aW1nIHNyYz0iaHR0cHM6Ly9hcGkucXJzZXJ2ZXIuY29tL3YxL2NyZWF0ZS1xci1jb2RlLz9zaXplPTE1MHg3NSZhbXA7ZGF0YT1odHRwcyUzQSUyRiUyRmNvbGlicmkuYXolMkZ1cGxvYWRzJTJGZmlsZXMlMkZwYWNrYWdlcyUyRmludm9pY2VzJTJGX2ludm9pY2VfYTlQUF8xNzYwNjIxMzI2LmpwZWclM0ZyZWFkX29ubHklM0QxIiBhbHQ9InFyIiBzdHlsZT0id2lkdGg6MTUwcHg7aGVpZ2h0Ojc1cHgiPjwvZGl2PjwvYm9keT48L2h0bWw+",
+        "delivered_at": "2026-04-03T17:33:37+00:00",
+        "updated_at": "2026-04-03T17:33:38+00:00",
+        "last_message": "request id is HP_Officejet_4500_G510n-z-11 (1 file(s))",
+        "history": [
+            {
+                "status": "received",
+                "message": "job accepted by device",
+                "at": "2026-04-03T17:33:37+00:00"
+            },
+            {
+                "status": "printed",
+                "message": "request id is HP_Officejet_4500_G510n-z-11 (1 file(s))",
+                "at": "2026-04-03T17:33:38+00:00"
+            }
+        ]
+    },
+    {
+        "job_id": "job-20260403173517-c92cdc2c",
+        "status": "printed",
+        "created_at": "2026-04-03T17:35:17+00:00",
+        "file_name": "waybill_H1025022509733301044.html",
+        "label_url": "https:\/\/colibri.az\/uploads\/files\/packages\/invoices\/_invoice_a9PP_1760621326.jpeg",
+        "label_base64": "PCFkb2N0eXBlIGh0bWw+PGh0bWw+PGhlYWQ+PG1ldGEgY2hhcnNldD0idXRmLTgiPjx0aXRsZT5XYXliaWxsIEgxMDI1MDIyNTA5NzMzMzAxMDQ0PC90aXRsZT48L2hlYWQ+PGJvZHkgc3R5bGU9ImZvbnQtZmFtaWx5OkFyaWFsLHNhbnMtc2VyaWY7Zm9udC1zaXplOjEzcHg7cGFkZGluZzoxMnB4Ij48aDMgc3R5bGU9Im1hcmdpbjowIDAgMTBweCI+V0FZQklMTDwvaDM+PGRpdj48Yj5UcmFjazo8L2I+IEgxMDI1MDIyNTA5NzMzMzAxMDQ0PC9kaXY+PGRpdj48Yj5JbnRlcm5hbCBJRDo8L2I+IENCUjg1MjEzNTwvZGl2PjxkaXY+PGI+Q2xpZW50OjwvYj4gU2FoaWIgSHVzZXlub3Y8L2Rpdj48ZGl2PjxiPlNlbGxlcjo8L2I+IGZsYWNvbmlkZTwvZGl2PjxkaXY+PGI+RGVzdGluYXRpb246PC9iPiBCYWt1PC9kaXY+PGRpdj48Yj5XZWlnaHQ6PC9iPiAwLjkwMDwvZGl2PjxkaXY+PGI+QW1vdW50OjwvYj4gMTEuNDUgRVVSPC9kaXY+PGRpdiBzdHlsZT0ibWFyZ2luLXRvcDoxMnB4Ij48aW1nIHNyYz0iaHR0cHM6Ly9hcGkucXJzZXJ2ZXIuY29tL3YxL2NyZWF0ZS1xci1jb2RlLz9zaXplPTE1MHg3NSZhbXA7ZGF0YT1odHRwcyUzQSUyRiUyRmNvbGlicmkuYXolMkZ1cGxvYWRzJTJGZmlsZXMlMkZwYWNrYWdlcyUyRmludm9pY2VzJTJGX2ludm9pY2VfYTlQUF8xNzYwNjIxMzI2LmpwZWclM0ZyZWFkX29ubHklM0QxIiBhbHQ9InFyIiBzdHlsZT0id2lkdGg6MTUwcHg7aGVpZ2h0Ojc1cHgiPjwvZGl2PjwvYm9keT48L2h0bWw+",
+        "delivered_at": "2026-04-03T17:35:18+00:00",
+        "updated_at": "2026-04-03T17:35:19+00:00",
+        "last_message": "request id is HP_Officejet_4500_G510n-z-12 (1 file(s))",
+        "history": [
+            {
+                "status": "received",
+                "message": "job accepted by device",
+                "at": "2026-04-03T17:35:18+00:00"
+            },
+            {
+                "status": "printed",
+                "message": "request id is HP_Officejet_4500_G510n-z-12 (1 file(s))",
+                "at": "2026-04-03T17:35:19+00:00"
+            }
+        ]
     }
 ]

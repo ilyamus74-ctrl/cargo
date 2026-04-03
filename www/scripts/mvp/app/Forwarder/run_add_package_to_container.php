@@ -90,6 +90,16 @@ function forwarder_add_package_to_container_as_bool(string $value): bool
     return in_array($value, ['1', 'true', 'yes', 'y', 'on'], true);
 }
 
+function forwarder_add_package_to_container_as_int(string $value, int $default): int
+{
+    $trimmed = trim($value);
+    if ($trimmed === '' || !preg_match('/^-?\d+$/', $trimmed)) {
+        return $default;
+    }
+
+    return (int)$trimmed;
+}
+
 
 function forwarder_add_package_to_container_pick_first_non_empty(array $values): string
 {
@@ -102,6 +112,64 @@ function forwarder_add_package_to_container_pick_first_non_empty(array $values):
 
     return '';
 }
+
+
+
+function forwarder_add_package_to_container_normalize_label_base64(string $raw): string
+{
+    $value = trim($raw);
+    if ($value === '') {
+        return '';
+    }
+
+    if (preg_match('/^data:image\/[a-zA-Z0-9.+-]+;base64,[A-Za-z0-9+\/=\r\n]+$/', $value) === 1) {
+        return (string)(preg_replace('/\s+/u', '', $value) ?? $value);
+    }
+
+    $clean = (string)(preg_replace('/\s+/u', '', $value) ?? $value);
+    if ($clean === '') {
+        return '';
+    }
+
+    if (base64_decode($clean, true) === false) {
+        return '';
+    }
+
+    return 'data:image/png;base64,' . $clean;
+}
+
+function forwarder_add_package_to_container_resolve_public_base_url(string $baseUrl): string
+{
+    $normalized = forwarder_add_package_to_container_normalize_base_url($baseUrl);
+    if ($normalized !== '') {
+        $host = (string)(parse_url($normalized, PHP_URL_HOST) ?? '');
+        if ($host !== '' && str_contains($host, 'dev-backend.colibri.az')) {
+            return 'https://colibri.az';
+        }
+        return $normalized;
+    }
+
+    return 'https://colibri.az';
+}
+
+function forwarder_add_package_to_container_normalize_label_url(string $raw, string $publicBaseUrl): string
+{
+    $value = trim($raw);
+    if ($value === '') {
+        return '';
+    }
+
+    if (preg_match('#^https?://#i', $value) === 1) {
+        return $value;
+    }
+
+    if (str_starts_with($value, '/')) {
+        return rtrim($publicBaseUrl, '/') . $value;
+    }
+
+    return '';
+}
+
 
 function forwarder_add_package_to_container_parse_json_object(string $raw): array
 {
@@ -223,6 +291,139 @@ function forwarder_add_package_to_container_save_label_images(string $track, arr
     ];
 }
 
+function forwarder_add_package_to_container_save_label_from_url(string $track, string $labelUrl): array
+{
+    $url = trim($labelUrl);
+    if ($url === '') {
+        return [
+            'ok' => false,
+            'error' => 'empty label url',
+            'saved_file' => null,
+        ];
+    }
+
+    $baseDir = __DIR__ . '/lable';
+    if (!is_dir($baseDir) && !mkdir($baseDir, 0775, true) && !is_dir($baseDir)) {
+        return [
+            'ok' => false,
+            'error' => 'failed to create label directory: ' . $baseDir,
+            'saved_file' => null,
+        ];
+    }
+
+    $downloadCandidates = [$url];
+    $parsedUrl = parse_url($url);
+    $host = (string)($parsedUrl['host'] ?? '');
+    $path = (string)($parsedUrl['path'] ?? '');
+    $query = (string)($parsedUrl['query'] ?? '');
+    if ($host !== '' && str_contains($host, 'dev-backend.colibri.az') && str_starts_with($path, '/uploads/')) {
+        $fallback = 'https://colibri.az' . $path;
+        if ($query !== '') {
+            $fallback .= '?' . $query;
+        } else {
+            $fallback .= '?read_only=1';
+        }
+        $downloadCandidates[] = $fallback;
+    }
+
+    $binary = false;
+    foreach ($downloadCandidates as $candidateUrl) {
+        $context = stream_context_create([
+            'http' => [
+                'method' => 'GET',
+                'timeout' => 20,
+            ],
+        ]);
+        $binary = @file_get_contents($candidateUrl, false, $context);
+        if ($binary !== false && $binary !== '') {
+            $url = $candidateUrl;
+            break;
+        }
+    }
+    if ($binary === false || $binary === '') {
+        return [
+            'ok' => false,
+            'error' => 'failed to download label url (including fallback candidates)',
+            'saved_file' => null,
+        ];
+    }
+
+    $path = (string)parse_url($url, PHP_URL_PATH);
+    $ext = pathinfo((string)$path, PATHINFO_EXTENSION);
+    $ext = $ext !== '' ? mb_strtolower($ext) : 'bin';
+    $safeTrack = preg_replace('/[^a-zA-Z0-9_-]+/', '_', $track) ?? 'track';
+    $stamp = date('Ymd_His');
+    $fileName = sprintf('%s_%s_url.%s', $safeTrack, $stamp, $ext);
+    $fullPath = $baseDir . '/' . $fileName;
+    if (file_put_contents($fullPath, $binary) === false) {
+        return [
+            'ok' => false,
+            'error' => 'failed to save downloaded label file',
+            'saved_file' => null,
+        ];
+    }
+
+    return [
+        'ok' => true,
+        'error' => '',
+        'saved_file' => [
+            'name' => $fileName,
+            'path' => $fullPath,
+            'bytes' => strlen($binary),
+            'source_url' => $url,
+        ],
+    ];
+}
+
+/** @param array<string,mixed>|null $verifyJson */
+function forwarder_add_package_to_container_build_html_label_from_verify(?array $verifyJson, string $track, string $publicBaseUrl): array
+{
+    if (!is_array($verifyJson)) {
+        return ['ok' => false, 'error' => 'verify json is empty', 'label_base64' => '', 'file_name' => ''];
+    }
+
+    $package = is_array($verifyJson['package'] ?? null) ? $verifyJson['package'] : [];
+    $invoiceDoc = trim((string)($package['invoice_doc'] ?? $verifyJson['invoice_doc'] ?? ''));
+    $invoiceUrl = forwarder_add_package_to_container_normalize_label_url($invoiceDoc, $publicBaseUrl);
+    if ($invoiceUrl !== '' && !str_contains($invoiceUrl, 'read_only=')) {
+        $invoiceUrl .= (str_contains($invoiceUrl, '?') ? '&' : '?') . 'read_only=1';
+    }
+    $qrUrl = $invoiceUrl !== ''
+        ? 'https://api.qrserver.com/v1/create-qr-code/?size=150x75&data=' . rawurlencode($invoiceUrl)
+        : '';
+
+    $client = htmlspecialchars((string)($package['client_name'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    $internalId = htmlspecialchars((string)($package['internal_id'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    $weight = htmlspecialchars((string)($package['gross_weight'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    $seller = htmlspecialchars((string)($package['seller'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    $destination = htmlspecialchars((string)($package['destination'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    $amount = htmlspecialchars((string)($package['amount'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    $trackSafe = htmlspecialchars($track, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    $qrImg = $qrUrl !== '' ? '<img src="' . htmlspecialchars($qrUrl, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '" alt="qr" style="width:150px;height:75px">' : '';
+
+    $html = '<!doctype html><html><head><meta charset="utf-8"><title>Waybill ' . $trackSafe . '</title></head>'
+        . '<body style="font-family:Arial,sans-serif;font-size:13px;padding:12px">'
+        . '<h3 style="margin:0 0 10px">WAYBILL</h3>'
+        . '<div><b>Track:</b> ' . $trackSafe . '</div>'
+        . '<div><b>Internal ID:</b> ' . $internalId . '</div>'
+        . '<div><b>Client:</b> ' . $client . '</div>'
+        . '<div><b>Seller:</b> ' . $seller . '</div>'
+        . '<div><b>Destination:</b> ' . $destination . '</div>'
+        . '<div><b>Weight:</b> ' . $weight . '</div>'
+        . '<div><b>Amount:</b> ' . $amount . '</div>'
+        . '<div style="margin-top:12px">' . $qrImg . '</div>'
+        . '</body></html>';
+
+    return [
+        'ok' => true,
+        'error' => '',
+        'label_base64' => base64_encode($html),
+        'file_name' => 'waybill_' . preg_replace('/[^a-zA-Z0-9_-]+/', '_', $track) . '.html',
+        'invoice_url' => $invoiceUrl,
+        'qr_url' => $qrUrl,
+    ];
+}
+
 function forwarder_add_package_to_container_select_device_uid(string $directDeviceUid, string $devicesJson, string $deviceKey): array
 {
     if ($directDeviceUid !== '') {
@@ -231,6 +432,16 @@ function forwarder_add_package_to_container_select_device_uid(string $directDevi
             'error' => '',
             'devices_count' => 1,
             'selected_by' => 'print-device-uid',
+        ];
+    }
+
+    $normalizedKey = trim($deviceKey);
+    if ($normalizedKey !== '' && trim($devicesJson) === '') {
+        return [
+            'device_uid' => $normalizedKey,
+            'error' => '',
+            'devices_count' => 1,
+            'selected_by' => 'print-device-key-as-uid',
         ];
     }
 
@@ -407,6 +618,16 @@ $printDevicesJson = forwarder_add_package_to_container_arg($args, 'print-devices
 $printDeviceKey = forwarder_add_package_to_container_arg($args, 'print-device-key', 'print_device_key');
 $printFileName = forwarder_add_package_to_container_arg($args, 'print-file-name', 'print_file_name');
 $labelBase64Arg = forwarder_add_package_to_container_arg($args, 'label-base64', 'label_base64');
+$printLabelRetries = max(0, forwarder_add_package_to_container_as_int(
+    forwarder_add_package_to_container_arg($args, 'print-label-retries', 'print_label_retries'),
+    2
+));
+$printLabelRetryDelayMs = max(0, forwarder_add_package_to_container_as_int(
+    forwarder_add_package_to_container_arg($args, 'print-label-retry-delay-ms', 'print_label_retry_delay_ms'),
+    700
+));
+$labelUrlArg = forwarder_add_package_to_container_arg($args, 'label-url', 'label_url');
+$labelUrlBaseArg = forwarder_add_package_to_container_arg($args, 'label-url-base', 'label_url_base');
 
 $checkPath = $checkPath !== '' ? $checkPath : '/collect/check-position';
 $changePath = $changePath !== '' ? $changePath : '/collect/change-position';
@@ -498,6 +719,11 @@ if ($printRequested) {
     $selectedDeviceUid = trim((string)($selectedDevice['device_uid'] ?? ''));
 
     $dataUrlImages = [];
+    forwarder_add_package_to_container_collect_data_url_images($labelBase64Arg, $dataUrlImages);
+    forwarder_add_package_to_container_collect_data_url_images(is_array($verifyJson) ? ($verifyJson['label_base64'] ?? '') : '', $dataUrlImages);
+    forwarder_add_package_to_container_collect_data_url_images(is_array($changeJson) ? ($changeJson['label_base64'] ?? '') : '', $dataUrlImages);
+    forwarder_add_package_to_container_collect_data_url_images(is_array($checkJson) ? ($checkJson['label_base64'] ?? '') : '', $dataUrlImages);
+    forwarder_add_package_to_container_collect_data_url_images($verifyJson, $dataUrlImages);
     forwarder_add_package_to_container_collect_data_url_images($verifyJson, $dataUrlImages);
     forwarder_add_package_to_container_collect_data_url_images($changeJson, $dataUrlImages);
     forwarder_add_package_to_container_collect_data_url_images($checkJson, $dataUrlImages);
@@ -511,34 +737,151 @@ if ($printRequested) {
 
     $labelBase64 = forwarder_add_package_to_container_pick_first_non_empty([
         (string)($savedLabel['print_label_base64'] ?? ''),
-        is_array($verifyJson) ? (string)($verifyJson['label_base64'] ?? '') : '',
-        is_array($changeJson) ? (string)($changeJson['label_base64'] ?? '') : '',
-        is_array($checkJson) ? (string)($checkJson['label_base64'] ?? '') : '',
-        $labelBase64Arg,
+        forwarder_add_package_to_container_normalize_label_base64(
+            is_array($verifyJson) ? (string)($verifyJson['label_base64'] ?? '') : ''
+        ),
+        forwarder_add_package_to_container_normalize_label_base64(
+            is_array($changeJson) ? (string)($changeJson['label_base64'] ?? '') : ''
+        ),
+        forwarder_add_package_to_container_normalize_label_base64(
+            is_array($checkJson) ? (string)($checkJson['label_base64'] ?? '') : ''
+        ),
+        forwarder_add_package_to_container_normalize_label_base64($labelBase64Arg),
     ]);
+    $publicBaseUrl = forwarder_add_package_to_container_resolve_public_base_url(
+        $labelUrlBaseArg !== '' ? $labelUrlBaseArg : $config->baseUrl()
+    );
+    $labelUrl = forwarder_add_package_to_container_pick_first_non_empty([
+        forwarder_add_package_to_container_normalize_label_url($labelUrlArg, $publicBaseUrl),
+        forwarder_add_package_to_container_normalize_label_url(is_array($verifyJson) ? (string)($verifyJson['label_url'] ?? '') : '', $publicBaseUrl),
+        forwarder_add_package_to_container_normalize_label_url(is_array($verifyJson) ? (string)($verifyJson['invoice_doc'] ?? '') : '', $publicBaseUrl),
+        forwarder_add_package_to_container_normalize_label_url(is_array($verifyJson) ? (string)($verifyJson['return_label_doc'] ?? '') : '', $publicBaseUrl),
+        forwarder_add_package_to_container_normalize_label_url(
+            is_array($verifyJson) && is_array($verifyJson['package'] ?? null)
+                ? (string)($verifyJson['package']['invoice_doc'] ?? '')
+                : '',
+            $publicBaseUrl
+        ),
+        forwarder_add_package_to_container_normalize_label_url(
+            is_array($verifyJson) && is_array($verifyJson['package'] ?? null)
+                ? (string)($verifyJson['package']['return_label_doc'] ?? '')
+                : '',
+            $publicBaseUrl
+        ),
+        forwarder_add_package_to_container_normalize_label_url(is_array($changeJson) ? (string)($changeJson['label_url'] ?? '') : '', $publicBaseUrl),
+        forwarder_add_package_to_container_normalize_label_url(is_array($checkJson) ? (string)($checkJson['label_url'] ?? '') : '', $publicBaseUrl),
+    ]);
+    $labelUrlStorage = $labelUrl !== ''
+        ? forwarder_add_package_to_container_save_label_from_url($track, $labelUrl)
+        : ['ok' => false, 'error' => 'label url is empty', 'saved_file' => null];
+    $generatedWaybill = ['ok' => false, 'error' => '', 'label_base64' => '', 'file_name' => '', 'invoice_url' => '', 'qr_url' => ''];
+    if ($labelBase64 === '') {
+        $generatedWaybill = forwarder_add_package_to_container_build_html_label_from_verify($verifyJson, $track, $publicBaseUrl);
+        if (!empty($generatedWaybill['ok']) && trim((string)($generatedWaybill['label_base64'] ?? '')) !== '') {
+            $labelBase64 = (string)$generatedWaybill['label_base64'];
+            $generatedFileName = trim((string)($generatedWaybill['file_name'] ?? ''));
+            if ($generatedFileName !== '') {
+                $printFileName = $generatedFileName;
+            }
+        }
+    }
+    $labelProbeAttempts = [];
+
+    if ($labelBase64 === '' && $labelUrl === '' && $overallOk && $printLabelRetries > 0) {
+        for ($attempt = 1; $attempt <= $printLabelRetries; $attempt++) {
+            if ($printLabelRetryDelayMs > 0) {
+                usleep($printLabelRetryDelayMs * 1000);
+            }
+
+            $retryVerifyResponse = $sessionClient->requestWithSession('POST', $verifyPath, ['number' => $track], true);
+            $retryVerifyJson = is_array($retryVerifyResponse['json'] ?? null)
+                ? $retryVerifyResponse['json']
+                : json_decode((string)($retryVerifyResponse['body'] ?? ''), true);
+
+            $candidate = forwarder_add_package_to_container_pick_first_non_empty([
+                forwarder_add_package_to_container_normalize_label_base64(
+                    is_array($retryVerifyJson) ? (string)($retryVerifyJson['label_base64'] ?? '') : ''
+                ),
+                forwarder_add_package_to_container_normalize_label_base64($labelBase64Arg),
+            ]);
+            $candidateUrl = forwarder_add_package_to_container_pick_first_non_empty([
+                forwarder_add_package_to_container_normalize_label_url(
+                    is_array($retryVerifyJson) ? (string)($retryVerifyJson['label_url'] ?? '') : '',
+                    $publicBaseUrl
+                ),
+                forwarder_add_package_to_container_normalize_label_url(
+                    is_array($retryVerifyJson) ? (string)($retryVerifyJson['invoice_doc'] ?? '') : '',
+                    $publicBaseUrl
+                ),
+                forwarder_add_package_to_container_normalize_label_url(
+                    is_array($retryVerifyJson) && is_array($retryVerifyJson['package'] ?? null)
+                        ? (string)($retryVerifyJson['package']['invoice_doc'] ?? '')
+                        : '',
+                    $publicBaseUrl
+                ),
+                forwarder_add_package_to_container_normalize_label_url($labelUrlArg, $publicBaseUrl),
+            ]);
+
+            $labelProbeAttempts[] = [
+                'attempt' => $attempt,
+                'http_ok' => !empty($retryVerifyResponse['ok']),
+                'http_status' => (int)($retryVerifyResponse['status_code'] ?? 0),
+                'label_found' => $candidate !== '',
+                'label_url_found' => $candidateUrl !== '',
+            ];
+
+            if ($candidate !== '' || $candidateUrl !== '') {
+                $labelBase64 = $candidate;
+                $labelUrl = $candidateUrl;
+                $verifyJson = is_array($retryVerifyJson) ? $retryVerifyJson : $verifyJson;
+                break;
+            }
+        }
+    }
 
     if (
         $overallOk
         && $printToken !== ''
         && $selectedDeviceUid !== ''
-        && $labelBase64 !== ''
-        && !empty($savedLabel['ok'])
+        && ($labelBase64 !== '' || $labelUrl !== '')
     ) {
-        $printResponsePayload = forwarder_add_package_to_container_send_print_job($printUrl, $printToken, [
+        $printPayload = [
             'device_uid' => $selectedDeviceUid,
             'file_name' => $printFileName,
-            'label_base64' => $labelBase64,
-        ]);
+        ];
+        if ($labelBase64 !== '') {
+            $printPayload['label_base64'] = $labelBase64;
+        }
+        if ($labelUrl !== '') {
+            $printPayload['label_url'] = $labelUrl;
+        }
+        $printResponsePayload = forwarder_add_package_to_container_send_print_job($printUrl, $printToken, $printPayload);
         $printResponsePayload['selected_device'] = $selectedDevice;
         $printResponsePayload['label_storage'] = $savedLabel;
+        $printResponsePayload['label_url_storage'] = $labelUrlStorage;
+        $printResponsePayload['label_url'] = $labelUrl;
+        $printResponsePayload['generated_waybill'] = $generatedWaybill;
+        $printResponsePayload['label_probe'] = [
+            'retries' => $printLabelRetries,
+            'delay_ms' => $printLabelRetryDelayMs,
+            'attempts' => $labelProbeAttempts,
+        ];
     } else {
         $printResponsePayload = [
             'ok' => false,
             'http_status' => 0,
-            'error' => 'print skipped: require success add, print-token, selected device, saved label and label_base64',
+            'error' => 'print skipped: require successful add-flow, print-token, selected device and label_base64 or label_url',
             'response' => null,
             'selected_device' => $selectedDevice,
             'label_storage' => $savedLabel,
+            'label_url_storage' => $labelUrlStorage,
+            'label_url' => $labelUrl,
+            'generated_waybill' => $generatedWaybill,
+            'label_probe' => [
+                'retries' => $printLabelRetries,
+                'delay_ms' => $printLabelRetryDelayMs,
+                'attempts' => $labelProbeAttempts,
+            ],
         ];
     }
 }
