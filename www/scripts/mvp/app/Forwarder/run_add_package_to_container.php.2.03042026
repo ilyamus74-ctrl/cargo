@@ -248,6 +248,10 @@ function forwarder_add_package_to_container_build_simple_pdf(array $lines): stri
 
 function forwarder_add_package_to_container_convert_html_to_pdf(string $html): array
 {
+    $wkhtmltopdf = trim((string)shell_exec('command -v wkhtmltopdf 2>/dev/null'));
+    if ($wkhtmltopdf === '') {
+        return ['ok' => false, 'error' => 'wkhtmltopdf is not installed', 'pdf_base64' => ''];
+    }
 
     $tmpDir = sys_get_temp_dir();
     $tmpHtml = tempnam($tmpDir, 'fwd_html_');
@@ -267,64 +271,19 @@ function forwarder_add_package_to_container_convert_html_to_pdf(string $html): a
         return ['ok' => false, 'error' => 'failed to write temp html', 'pdf_base64' => ''];
     }
 
-    $errors = [];
+    $cmd = escapeshellarg($wkhtmltopdf) . ' --quiet ' . escapeshellarg($tmpHtmlFile) . ' ' . escapeshellarg($tmpPdfFile) . ' 2>&1';
+    $output = shell_exec($cmd);
 
-    $wkhtmltopdf = trim((string)shell_exec('command -v wkhtmltopdf 2>/dev/null'));
-    if ($wkhtmltopdf !== '') {
-        $cmd = escapeshellarg($wkhtmltopdf) . ' --quiet ' . escapeshellarg($tmpHtmlFile) . ' ' . escapeshellarg($tmpPdfFile) . ' 2>&1';
-        $output = shell_exec($cmd);
-        $pdfBinary = @file_get_contents($tmpPdfFile);
-        if (is_string($pdfBinary) && $pdfBinary !== '') {
-            @unlink($tmpHtmlFile);
-            @unlink($tmpPdfFile);
-            return ['ok' => true, 'error' => '', 'pdf_base64' => base64_encode($pdfBinary)];
-        }
-        $errors[] = 'wkhtmltopdf failed: ' . trim((string)$output);
-        @unlink($tmpPdfFile);
-        $tmpPdf = tempnam($tmpDir, 'fwd_pdf_');
-        if (!is_string($tmpPdf)) {
-            @unlink($tmpHtmlFile);
-            return ['ok' => false, 'error' => implode('; ', $errors), 'pdf_base64' => ''];
-        }
-        $tmpPdfFile = $tmpPdf . '.pdf';
-        @rename($tmpPdf, $tmpPdfFile);
-    } else {
-        $errors[] = 'wkhtmltopdf is not installed';
-    }
-
-
-    $chromeCandidates = ['chromium', 'chromium-browser', 'google-chrome', 'google-chrome-stable'];
-    $chromeBinary = '';
-    foreach ($chromeCandidates as $candidate) {
-        $resolved = trim((string)shell_exec('command -v ' . escapeshellarg($candidate) . ' 2>/dev/null'));
-        if ($resolved !== '') {
-            $chromeBinary = $resolved;
-            break;
-        }
-    }
-
-    if ($chromeBinary !== '') {
-        $fileUrl = 'file://' . $tmpHtmlFile;
-        $cmd = escapeshellarg($chromeBinary)
-            . ' --headless --disable-gpu --no-sandbox --allow-file-access-from-files'
-            . ' --print-to-pdf=' . escapeshellarg($tmpPdfFile)
-            . ' ' . escapeshellarg($fileUrl) . ' 2>&1';
-        $output = shell_exec($cmd);
-        $pdfBinary = @file_get_contents($tmpPdfFile);
-        if (is_string($pdfBinary) && $pdfBinary !== '') {
-            @unlink($tmpHtmlFile);
-            @unlink($tmpPdfFile);
-            return ['ok' => true, 'error' => '', 'pdf_base64' => base64_encode($pdfBinary)];
-        }
-        $errors[] = 'headless chrome failed: ' . trim((string)$output);
-    } else {
-        $errors[] = 'chromium/google-chrome is not installed';
-    }
-
-
+    $pdfBinary = @file_get_contents($tmpPdfFile);
     @unlink($tmpHtmlFile);
     @unlink($tmpPdfFile);
-    return ['ok' => false, 'error' => implode('; ', $errors), 'pdf_base64' => ''];}
+
+    if (!is_string($pdfBinary) || $pdfBinary === '') {
+        return ['ok' => false, 'error' => 'wkhtmltopdf failed: ' . trim((string)$output), 'pdf_base64' => ''];
+    }
+
+    return ['ok' => true, 'error' => '', 'pdf_base64' => base64_encode($pdfBinary)];
+}
 
 /** @param mixed $value @param array<int,string> $accumulator */
 function forwarder_add_package_to_container_collect_data_url_images($value, array &$accumulator): void
@@ -576,9 +535,10 @@ function forwarder_add_package_to_container_build_html_label_from_verify(?array 
     $clientAddress = htmlspecialchars($clientAddressRaw, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
     $description = htmlspecialchars($descriptionRaw, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
     $trackSafe = htmlspecialchars($track, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-
-    $qrImg = $qrUrl !== '' ? '<img src="' . htmlspecialchars($qrUrl, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '" alt="QR Code" style="width:90px;height:90px;">' : '';
+    $qrImg = $qrUrl !== '' ? '<img src="' . htmlspecialchars($qrUrl, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '" alt="qr" style="width:150px;height:75px">' : '';
     $barcodeUrl = 'https://barcode.tec-it.com/barcode.ashx?data=' . rawurlencode($internalIdRaw !== '' ? $internalIdRaw : $track) . '&code=Code128&dpi=96';
+
+
     $consigneePhone = $clientPhoneRaw !== '' ? '(' . $clientPhone . ')' : '';
     $amountNumeric = '0.00';
     if (preg_match('/([0-9]+(?:\.[0-9]+)?)/', $amountRaw, $amountMatch) === 1) {
@@ -635,15 +595,26 @@ function forwarder_add_package_to_container_build_html_label_from_verify(?array 
         ];
     }
 
+    $fallbackPdf = forwarder_add_package_to_container_build_simple_pdf([
+        'WAYBILL',
+        'Track: ' . $track,
+        'Internal ID: ' . (string)($package['internal_id'] ?? ''),
+        'Client: ' . (string)($package['client_name'] ?? ''),
+        'Seller: ' . (string)($package['seller'] ?? ''),
+        'Destination: ' . (string)($package['destination'] ?? ''),
+        'Weight: ' . (string)($package['gross_weight'] ?? ''),
+        'Amount: ' . (string)($package['amount'] ?? ''),
+        'Invoice URL: ' . $invoiceUrl,
+    ]);
+
     return [
         'ok' => true,
-
-        'error' => 'html->pdf render unavailable, html label used: ' . (string)($pdfRender['error'] ?? ''),
-        'label_base64' => base64_encode($html),
-        'file_name' => 'waybill_' . preg_replace('/[^a-zA-Z0-9_-]+/', '_', $track) . '.html',
+        'error' => 'html->pdf fallback used: ' . (string)($pdfRender['error'] ?? ''),
+        'label_base64' => base64_encode($fallbackPdf),
+        'file_name' => 'waybill_' . preg_replace('/[^a-zA-Z0-9_-]+/', '_', $track) . '.pdf',
         'invoice_url' => $invoiceUrl,
         'qr_url' => $qrUrl,
-        'render_engine' => 'html-fallback',
+        'render_engine' => 'simple-pdf-fallback',
     ];
 }
 
