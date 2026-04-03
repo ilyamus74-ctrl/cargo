@@ -178,6 +178,7 @@ function forwarder_add_package_to_container_parse_json_object(string $raw): arra
 }
 
 
+
 function forwarder_add_package_to_container_escape_pdf_text(string $text): string
 {
     $normalized = preg_replace('/\s+/u', ' ', trim($text)) ?? trim($text);
@@ -522,6 +523,8 @@ function forwarder_add_package_to_container_build_html_label_from_verify(?array 
         . '<div style="margin-top:12px">' . $qrImg . '</div>'
         . '</body></html>';
 
+
+
     $pdfRender = forwarder_add_package_to_container_convert_html_to_pdf($html);
     if (!empty($pdfRender['ok']) && trim((string)($pdfRender['pdf_base64'] ?? '')) !== '') {
         return [
@@ -546,6 +549,7 @@ function forwarder_add_package_to_container_build_html_label_from_verify(?array 
         'Amount: ' . (string)($package['amount'] ?? ''),
         'Invoice URL: ' . $invoiceUrl,
     ]);
+
     return [
         'ok' => true,
         'error' => 'html->pdf fallback used: ' . (string)($pdfRender['error'] ?? ''),

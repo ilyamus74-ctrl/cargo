@@ -2550,6 +2550,7 @@ const CoreAPI = {
         limitSelect: null,
         forwarderSelect: null,
         containerSelect: null,
+        printerSelect: null,
         modalEl: null,
         modalInstance: null,
         modalState: null,
@@ -2595,10 +2596,11 @@ const CoreAPI = {
             this.limitSelect = root.querySelector('#warehouse-item-out-limit');
             this.forwarderSelect = root.querySelector('#warehouse-item-out-forwarder');
             this.containerSelect = root.querySelector('#warehouse-item-out-container');
+            this.printerSelect = root.querySelector('#warehouse-item-out-printer');
             this.sentinel = root.querySelector('#warehouse-item-out-sentinel');
             this.initModal();
 
-            if (!this.tbody || !this.total || !this.searchInput || !this.limitSelect || !this.forwarderSelect || !this.containerSelect || !this.sentinel || !this.modalEl) {
+            if (!this.tbody || !this.total || !this.searchInput || !this.limitSelect || !this.forwarderSelect || !this.containerSelect || !this.printerSelect || !this.sentinel || !this.modalEl) {
                 return;
             }
 
@@ -2936,6 +2938,14 @@ const CoreAPI = {
             fd.append('container_name', containerMeta.containerName || containerMeta.containerDisplay);
             fd.append('container_label', containerMeta.label);
             fd.append('shipment_cell', containerMeta.shipmentCell);
+            const selectedPrinterOption = this.printerSelect?.selectedOptions?.[0] || null;
+            const selectedDeviceUid = String(selectedPrinterOption?.value || '').trim();
+            const selectedDeviceToken = String(selectedPrinterOption?.dataset?.deviceToken || '').trim();
+            if (selectedDeviceUid !== '' && selectedDeviceToken !== '') {
+                fd.append('print_label', '1');
+                fd.append('print_token', selectedDeviceToken);
+                fd.append('print_device_key', selectedDeviceUid);
+            }
 
             try {
                 const data = await CoreAPI.client.call(fd);

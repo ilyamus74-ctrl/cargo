@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-03-19 16:59:05
+/* Smarty version 5.3.1, created on 2026-04-03 19:20:36
   from 'file:cells_NA_API_warehouse_item_out.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_69bc2b592e73b8_84186994',
+  'unifunc' => 'content_69d01304015f30_89431090',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '1e9799e9c3e87d128e25a93d4c0cb584ee55eee0' => 
     array (
       0 => 'cells_NA_API_warehouse_item_out.html',
-      1 => 1773938974,
+      1 => 1775243841,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_69bc2b592e73b8_84186994 (\Smarty\Template $_smarty_tpl) {
+function content_69d01304015f30_89431090 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?><div class="pagetitle">
   <h1>Отгрузка</h1>
@@ -111,6 +111,31 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
                   <option value="50" selected>50</option>
                   <option value="100">100</option>
                   <option value="all">Все</option>
+                </select>
+              </div>
+
+              <div class="col-12 col-md-4">
+                <label class="form-label small mb-1" for="warehouse-item-out-printer">Принтер для лейбла</label>
+                <select id="warehouse-item-out-printer" class="form-select form-select-sm">
+                  <option value="">Не использовать принтер</option>
+                  <?php
+$_from = $_smarty_tpl->getSmarty()->getRuntime('Foreach')->init($_smarty_tpl, $_smarty_tpl->getValue('item_out_print_devices'), 'device');
+$foreach2DoElse = true;
+foreach ($_from ?? [] as $_smarty_tpl->getVariable('device')->value) {
+$foreach2DoElse = false;
+?>
+                    <option value="<?php echo $_smarty_tpl->getSmarty()->getModifierCallback('escape')($_smarty_tpl->getValue('device')['device_uid'], 'htmlattr');?>
+"
+                            data-device-token="<?php echo $_smarty_tpl->getSmarty()->getModifierCallback('escape')($_smarty_tpl->getValue('device')['device_token'], 'htmlattr');?>
+"
+                            <?php if ($_smarty_tpl->getValue('item_out_print_devices_count') === 1) {?>selected<?php }?>>
+                      <?php echo htmlspecialchars((string)(($tmp = $_smarty_tpl->getValue('device')['name'] ?? null)===null||$tmp==='' ? 'Printer' ?? null : $tmp), ENT_QUOTES, 'UTF-8', true);?>
+ (<?php echo htmlspecialchars((string)$_smarty_tpl->getValue('device')['device_uid'], ENT_QUOTES, 'UTF-8', true);?>
+)
+                    </option>
+                  <?php
+}
+$_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
                 </select>
               </div>
               <div class="col-12">
