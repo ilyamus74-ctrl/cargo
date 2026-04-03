@@ -291,6 +291,7 @@ function forwarder_add_package_to_container_save_label_images(string $track, arr
     ];
 }
 
+
 function forwarder_add_package_to_container_save_label_from_url(string $track, string $labelUrl): array
 {
     $url = trim($labelUrl);
@@ -618,6 +619,7 @@ $printDevicesJson = forwarder_add_package_to_container_arg($args, 'print-devices
 $printDeviceKey = forwarder_add_package_to_container_arg($args, 'print-device-key', 'print_device_key');
 $printFileName = forwarder_add_package_to_container_arg($args, 'print-file-name', 'print_file_name');
 $labelBase64Arg = forwarder_add_package_to_container_arg($args, 'label-base64', 'label_base64');
+
 $printLabelRetries = max(0, forwarder_add_package_to_container_as_int(
     forwarder_add_package_to_container_arg($args, 'print-label-retries', 'print_label_retries'),
     2
@@ -771,11 +773,19 @@ if ($printRequested) {
         forwarder_add_package_to_container_normalize_label_url(is_array($changeJson) ? (string)($changeJson['label_url'] ?? '') : '', $publicBaseUrl),
         forwarder_add_package_to_container_normalize_label_url(is_array($checkJson) ? (string)($checkJson['label_url'] ?? '') : '', $publicBaseUrl),
     ]);
+
+    if ($labelUrl !== '') {
+        $labelPath = (string)(parse_url($labelUrl, PHP_URL_PATH) ?? '');
+        $labelName = basename($labelPath);
+        if ($labelName !== '' && preg_match('/\.(pdf|png|jpe?g|txt|zpl|epl|lbl)$/i', $labelName) === 1) {
+            $printFileName = $labelName;
+        }
+    }
     $labelUrlStorage = $labelUrl !== ''
         ? forwarder_add_package_to_container_save_label_from_url($track, $labelUrl)
         : ['ok' => false, 'error' => 'label url is empty', 'saved_file' => null];
     $generatedWaybill = ['ok' => false, 'error' => '', 'label_base64' => '', 'file_name' => '', 'invoice_url' => '', 'qr_url' => ''];
-    if ($labelBase64 === '') {
+    if ($labelBase64 === '' && $labelUrl === '') {
         $generatedWaybill = forwarder_add_package_to_container_build_html_label_from_verify($verifyJson, $track, $publicBaseUrl);
         if (!empty($generatedWaybill['ok']) && trim((string)($generatedWaybill['label_base64'] ?? '')) !== '') {
             $labelBase64 = (string)$generatedWaybill['label_base64'];

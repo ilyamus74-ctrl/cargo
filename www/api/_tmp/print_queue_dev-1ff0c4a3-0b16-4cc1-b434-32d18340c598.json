@@ -397,5 +397,49 @@
                 "at": "2026-04-03T17:35:19+00:00"
             }
         ]
+    },
+    {
+        "job_id": "job-20260403175442-5899efe7",
+        "status": "printed",
+        "created_at": "2026-04-03T17:54:42+00:00",
+        "file_name": "_invoice_a9PP_1760621326.jpeg",
+        "label_url": "https:\/\/colibri.az\/uploads\/files\/packages\/invoices\/_invoice_a9PP_1760621326.jpeg",
+        "delivered_at": "2026-04-03T17:54:43+00:00",
+        "updated_at": "2026-04-03T17:54:44+00:00",
+        "last_message": "request id is HP_Officejet_4500_G510n-z-13 (1 file(s))",
+        "history": [
+            {
+                "status": "received",
+                "message": "job accepted by device",
+                "at": "2026-04-03T17:54:43+00:00"
+            },
+            {
+                "status": "printed",
+                "message": "request id is HP_Officejet_4500_G510n-z-13 (1 file(s))",
+                "at": "2026-04-03T17:54:44+00:00"
+            }
+        ]
+    },
+    {
+        "job_id": "job-20260403175458-3cf51ad7",
+        "status": "printed",
+        "created_at": "2026-04-03T17:54:58+00:00",
+        "file_name": "_invoice_a9PP_1760621326.jpeg",
+        "label_url": "https:\/\/colibri.az\/uploads\/files\/packages\/invoices\/_invoice_a9PP_1760621326.jpeg",
+        "delivered_at": "2026-04-03T17:54:58+00:00",
+        "updated_at": "2026-04-03T17:54:59+00:00",
+        "last_message": "request id is HP_Officejet_4500_G510n-z-14 (1 file(s))",
+        "history": [
+            {
+                "status": "received",
+                "message": "job accepted by device",
+                "at": "2026-04-03T17:54:59+00:00"
+            },
+            {
+                "status": "printed",
+                "message": "request id is HP_Officejet_4500_G510n-z-14 (1 file(s))",
+                "at": "2026-04-03T17:54:59+00:00"
+            }
+        ]
     }
 ]
