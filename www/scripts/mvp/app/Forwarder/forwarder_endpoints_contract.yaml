@@ -951,6 +951,32 @@ entrypoints:
             json:
               case: "warning"
               type: "validation"
+      - step: optional_send_label_to_print_server
+        when: "{print_label in [1,true,yes,on]}"
+        note: "Перед отправкой на print-server data:image/* base64 сохраняются в /app/Forwarder/lable и объединяются в одну HTML-форму."
+        method: POST
+        path: "{print_url|https://tls.cargocells.com/api/print/submit.php}"
+        json:
+          device_uid: "{print_device_uid|selected(print_devices_json, print_device_key)}"
+          file_name: "{print_file_name|label_{track}.html}"
+          label_base64: "{label_base64|verify.label_base64|change.label_base64|check.label_base64}"
+        headers:
+          Authorization: "Bearer {print_token}"
+          Content-Type: "application/json"
+        response:
+          content_type: application/json
+          parse:
+            status:
+              source: "$.status"
+              required: false
+            job_id:
+              source: "$.job_id"
+              required: false
+          example:
+            status: 200
+            json:
+              status: "ok"
+              job_id: "job-20260403111007-3aadf11b"
       verified_cli_example:
         captured_at_utc: "2026-03-29T19:02:08Z"
         command: "php run_add_package_to_container.php --base-url='https://dev-backend.colibri.az' --login='w' --password='S' --track='H1025022509733301044' --position='24458' --verify-check-package=1"
