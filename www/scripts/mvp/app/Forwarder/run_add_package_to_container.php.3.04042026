@@ -371,22 +371,11 @@ function forwarder_add_package_to_container_convert_html_to_pdf(string $html): a
 
     if ($chromeBinary !== '') {
         $fileUrl = 'file://' . $tmpHtmlFile;
-        $chromeHome = '/tmp/forwarder-chrome-home';
-        $chromeUserDataDir = '/tmp/forwarder-chrome-profile';
-        $chromeCrashDir = '/tmp/forwarder-chrome-crash';
-        @mkdir($chromeHome, 0777, true);
-        @mkdir($chromeUserDataDir, 0777, true);
-        @mkdir($chromeCrashDir, 0777, true);
         $cmd = escapeshellarg($chromeBinary)
-            . ' --headless --disable-gpu --no-sandbox --disable-dev-shm-usage --allow-file-access-from-files'
-            . ' --disable-crash-reporter --user-data-dir=' . escapeshellarg($chromeUserDataDir)
-            . ' --crash-dumps-dir=' . escapeshellarg($chromeCrashDir)
+            . ' --headless --disable-gpu --no-sandbox --allow-file-access-from-files'
             . ' --print-to-pdf=' . escapeshellarg($tmpPdfFile)
             . ' ' . escapeshellarg($fileUrl) . ' 2>&1';
-        $envPrefix = 'HOME=' . escapeshellarg($chromeHome)
-            . ' XDG_CONFIG_HOME=' . escapeshellarg($chromeHome . '/.config')
-            . ' XDG_CACHE_HOME=' . escapeshellarg($chromeHome . '/.cache');
-        $output = shell_exec($envPrefix . ' ' . $cmd);
+        $output = shell_exec($cmd);
         $pdfBinary = @file_get_contents($tmpPdfFile);
         if (is_string($pdfBinary) && $pdfBinary !== '') {
             @unlink($tmpHtmlFile);
@@ -602,30 +591,11 @@ function forwarder_add_package_to_container_save_label_from_url(string $track, s
     ];
 }
 
-
-/** @param array<string,string> $vars */
-function forwarder_add_package_to_container_render_template_html(string $template, array $vars): string
-{
-    $replace = [];
-    foreach ($vars as $key => $value) {
-        $replace['{{' . $key . '}}'] = $value;
-    }
-
-    return strtr($template, $replace);
-}
-
 /** @param array<string,mixed>|null $verifyJson */
-function forwarder_add_package_to_container_build_html_label_from_verify(
-    ?array $verifyJson,
-    string $track,
-    string $publicBaseUrl,
-    string $labelTemplateCode = 'default',
-    string $labelTemplateBody = ''
-): array
+function forwarder_add_package_to_container_build_html_label_from_verify(?array $verifyJson, string $track, string $publicBaseUrl): array
 {
-    $templateCode = trim($labelTemplateCode) !== '' ? trim($labelTemplateCode) : 'default';
     if (!is_array($verifyJson)) {
-        return ['ok' => false, 'error' => 'verify json is empty', 'label_base64' => '', 'file_name' => '', 'template_code' => $templateCode];
+        return ['ok' => false, 'error' => 'verify json is empty', 'label_base64' => '', 'file_name' => ''];
     }
 
     $package = is_array($verifyJson['package'] ?? null) ? $verifyJson['package'] : [];
@@ -682,7 +652,7 @@ function forwarder_add_package_to_container_build_html_label_from_verify(
     }
     $totalWaybillInvoicePrice = htmlspecialchars($amountNumeric . ' USD', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 
-    $defaultTemplate = '<!doctype html><html><head><meta charset="utf-8"><title>Waybill {{track}}</title>'
+    $html = '<!doctype html><html><head><meta charset="utf-8"><title>Waybill ' . $trackSafe . '</title>'
         . '<style>'
         . 'body{font-family:Arial,sans-serif;font-size:14px;margin:0;padding:10px;}'
         . 'table{width:100%;border-collapse:collapse;}td{border:1px solid #000;padding:4px;vertical-align:top;}'
@@ -717,29 +687,6 @@ function forwarder_add_package_to_container_build_html_label_from_verify(
         . '</td></tr></table></div></body></html>';
 
 
-    $templateBody = trim($labelTemplateBody) !== '' ? $labelTemplateBody : $defaultTemplate;
-    $html = forwarder_add_package_to_container_render_template_html($templateBody, [
-        'track' => $trackSafe,
-        'client' => $client,
-        'client_code' => $clientCode,
-        'client_id' => $clientId,
-        'internal_id' => $internalId,
-        'weight' => $weight,
-        'volume_weight' => $volumeWeight,
-        'amount' => $amount,
-        'category' => $category,
-        'invoice_usd' => $invoiceUsd,
-        'flight_departure' => $flightDeparture,
-        'flight_destination' => $flightDestination,
-        'flight_name' => $flightName,
-        'client_phone' => $clientPhone,
-        'client_address' => $clientAddress,
-        'description' => $description,
-        'barcode_url' => htmlspecialchars($barcodeUrl, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'),
-        'qr_img_html' => $qrImg,
-        'consignee_phone' => $consigneePhone,
-        'total_invoice_price' => $totalWaybillInvoicePrice,
-    ]);
 
     $pdfRender = forwarder_add_package_to_container_convert_html_to_pdf($html);
     if (!empty($pdfRender['ok']) && trim((string)($pdfRender['pdf_base64'] ?? '')) !== '') {
@@ -751,7 +698,6 @@ function forwarder_add_package_to_container_build_html_label_from_verify(
             'invoice_url' => $invoiceUrl,
             'qr_url' => $qrUrl,
             'render_engine' => 'wkhtmltopdf',
-            'template_code' => $templateCode,
         ];
     }
     $fallbackLines = [
@@ -783,7 +729,6 @@ function forwarder_add_package_to_container_build_html_label_from_verify(
         'invoice_url' => $invoiceUrl,
         'qr_url' => $qrUrl,
         'render_engine' => 'html-fallback',
-        'template_code' => $templateCode,
 //        'render_engine' => 'simple-pdf-fallback',
 //        'render_engine' =>'wkhtmltopdf',
     ];
@@ -995,15 +940,6 @@ $printLabelRetryDelayMs = max(0, forwarder_add_package_to_container_as_int(
 ));
 $labelUrlArg = forwarder_add_package_to_container_arg($args, 'label-url', 'label_url');
 $labelUrlBaseArg = forwarder_add_package_to_container_arg($args, 'label-url-base', 'label_url_base');
-$labelTemplateCode = trim(forwarder_add_package_to_container_arg($args, 'label-template-code', 'label_template_code'));
-$labelTemplateBodyBase64 = trim(forwarder_add_package_to_container_arg($args, 'label-template-body-base64', 'label_template_body_base64'));
-$labelTemplateBody = '';
-if ($labelTemplateBodyBase64 !== '') {
-    $decodedTemplateBody = base64_decode($labelTemplateBodyBase64, true);
-    if (is_string($decodedTemplateBody) && trim($decodedTemplateBody) !== '') {
-        $labelTemplateBody = $decodedTemplateBody;
-    }
-}
 $allowLabelUrl = forwarder_add_package_to_container_as_bool(
     forwarder_add_package_to_container_arg($args, 'allow-label-url', 'allow_label_url')
 );
@@ -1163,15 +1099,7 @@ if ($printRequested) {
         $labelUrlStorage = forwarder_add_package_to_container_save_label_from_url($track, $labelUrl);
     }
 
-);
-    $generatedWaybill = forwarder_add_package_to_container_build_html_label_from_verify(
-        $verifyJson,
-        $track,
-        $publicBaseUrl,
-        $labelTemplateCode,
-        $labelTemplateBody
-    );
-
+    $generatedWaybill = forwarder_add_package_to_container_build_html_label_from_verify($verifyJson, $track, $publicBaseUrl);
     if ($labelBase64 === '' && !empty($generatedWaybill['ok']) && trim((string)($generatedWaybill['label_base64'] ?? '')) !== '') {
         $labelBase64 = (string)$generatedWaybill['label_base64'];
         $generatedFileName = trim((string)($generatedWaybill['file_name'] ?? ''));

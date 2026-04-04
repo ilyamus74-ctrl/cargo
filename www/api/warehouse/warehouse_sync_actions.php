@@ -1951,6 +1951,54 @@ if (!function_exists('warehouse_sync_exec_forwarder_cli_script')) {
     }
 }
 
+if (!function_exists('warehouse_sync_resolve_label_template_code')) {
+    function warehouse_sync_resolve_label_template_code(mysqli $dbcnx, array $connector): array
+    {
+        $connectorId = max(0, (int)($connector['id'] ?? 0));
+        if ($connectorId <= 0) {
+            return ['template_code' => 'default', 'template_body' => ''];
+        }
+
+        $tableExists = false;
+        if ($res = $dbcnx->query("SHOW TABLES LIKE 'forwarder_label_templates'")) {
+            $tableExists = (bool)$res->num_rows;
+            $res->free();
+        }
+        if (!$tableExists) {
+            return ['template_code' => 'default', 'template_body' => ''];
+        }
+
+        $sql = "
+            SELECT template_code, template_body
+            FROM forwarder_label_templates
+            WHERE connector_id = ?
+              AND is_active = 1
+            ORDER BY priority DESC, id DESC
+            LIMIT 1
+        ";
+        $stmt = $dbcnx->prepare($sql);
+        if (!$stmt) {
+            return ['template_code' => 'default', 'template_body' => ''];
+        }
+        $stmt->bind_param('i', $connectorId);
+        $stmt->execute();
+        $row = null;
+        $result = $stmt->get_result();
+        if ($result instanceof mysqli_result) {
+            $row = $result->fetch_assoc() ?: null;
+            $result->free();
+        }
+        $stmt->close();
+
+        $templateCode = trim((string)($row['template_code'] ?? ''));
+        $templateBody = trim((string)($row['template_body'] ?? ''));
+        return [
+            'template_code' => $templateCode !== '' ? $templateCode : 'default',
+            'template_body' => $templateBody,
+        ];
+    }
+}
+
 if (!function_exists('warehouse_sync_update_forwarder_snapshot_for_container')) {
     function warehouse_sync_update_forwarder_snapshot_for_container(
         mysqli $dbcnx,
@@ -3277,6 +3325,9 @@ if ($action === 'warehouse_item_out_confirm_send') {
             $password = trim((string)($connector['auth_password'] ?? ''));
 
             if ($baseUrl !== '' && $login !== '' && $password !== '') {
+                $labelTemplate = warehouse_sync_resolve_label_template_code($dbcnx, $connector);
+                $labelTemplateCode = trim((string)($labelTemplate['template_code'] ?? 'default'));
+                $labelTemplateBody = trim((string)($labelTemplate['template_body'] ?? ''));
                 $addResult = warehouse_sync_exec_forwarder_cli_script('run_add_package_to_container.php', [
                     'base-url' => $baseUrl,
                     'login' => $login,
@@ -3289,7 +3340,9 @@ if ($action === 'warehouse_item_out_confirm_send') {
                     'print-token' => $printToken,
                     'print-device-key' => $printDeviceKey,
                     'print-file-name' => 'label_' . (string)(preg_replace('/[^A-Za-z0-9._-]+/', '_', $trackingForForwarder) ?? 'track') . '.html',
-                    'allow-label-url' => '1',
+                    'label-template-code' => $labelTemplateCode,
+                    'label-template-body-base64' => $labelTemplateBody !== '' ? base64_encode($labelTemplateBody) : '',
+                    'allow-label-url' => '0',
                     'print-label-retries' => '5',
                     'print-label-retry-delay-ms' => '1200',
                 ]);
