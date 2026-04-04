@@ -2868,6 +2868,26 @@ if ($action === 'item_out') {
     auth_require_login();
     $current = $user;
 
+    $printDevices = [];
+    $sql = "
+        SELECT device_uid, name, device_token
+        FROM devices
+        WHERE is_active = 1
+          AND TRIM(app_version) LIKE 'print-agent-%'
+          AND TRIM(device_uid) <> ''
+        ORDER BY name ASC, device_uid ASC
+    ";
+    if ($resDevices = $dbcnx->query($sql)) {
+        while ($row = $resDevices->fetch_assoc()) {
+            $printDevices[] = [
+                'device_uid' => trim((string)($row['device_uid'] ?? '')),
+                'name' => trim((string)($row['name'] ?? '')),
+                'device_token' => trim((string)($row['device_token'] ?? '')),
+            ];
+        }
+        $resDevices->free();
+    }
+
     $forwarders = [];
     $sql = "
         SELECT DISTINCT UPPER(TRIM(receiver_company)) AS forwarder
@@ -2891,6 +2911,8 @@ if ($action === 'item_out') {
     $smarty->assign('current_user', $current);
     $smarty->assign('item_out_forwarders', $forwarders);
     $smarty->assign('item_out_open_containers', $openContainers);
+    $smarty->assign('item_out_print_devices', $printDevices);
+    $smarty->assign('item_out_print_devices_count', count($printDevices));
 
     ob_start();
     $smarty->display('cells_NA_API_warehouse_item_out.html');
