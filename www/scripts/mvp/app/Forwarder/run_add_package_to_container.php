@@ -178,6 +178,72 @@ function forwarder_add_package_to_container_parse_json_object(string $raw): arra
 }
 
 
+function forwarder_add_package_to_container_is_cli(): bool
+{
+    return PHP_SAPI === 'cli' || PHP_SAPI === 'phpdbg';
+}
+
+/** @return array<string,string> */
+function forwarder_add_package_to_container_request_kv(): array
+{
+    $result = [];
+
+    $sources = [$_GET ?? [], $_POST ?? []];
+    foreach ($sources as $source) {
+        if (!is_array($source)) {
+            continue;
+        }
+
+        foreach ($source as $key => $value) {
+            $normalizedKey = trim((string)$key);
+            if ($normalizedKey === '') {
+                continue;
+            }
+
+            if (is_scalar($value) || $value === null) {
+                $result[$normalizedKey] = trim((string)$value);
+            }
+        }
+    }
+
+    $rawInput = file_get_contents('php://input');
+    if (is_string($rawInput) && trim($rawInput) !== '') {
+        $json = json_decode($rawInput, true);
+        if (is_array($json)) {
+            foreach ($json as $key => $value) {
+                $normalizedKey = trim((string)$key);
+                if ($normalizedKey === '') {
+                    continue;
+                }
+                if (is_scalar($value) || $value === null) {
+                    $result[$normalizedKey] = trim((string)$value);
+                }
+            }
+        }
+    }
+
+    return $result;
+}
+
+function forwarder_add_package_to_container_emit_error_and_exit(string $message, int $exitCode): void
+{
+    if (forwarder_add_package_to_container_is_cli()) {
+        fwrite(STDERR, 'run_add_package_to_container: ' . $message . PHP_EOL);
+        exit($exitCode);
+    }
+
+    if (!headers_sent()) {
+        http_response_code($exitCode >= 400 ? $exitCode : 400);
+        header('Content-Type: application/json; charset=utf-8');
+    }
+
+    echo json_encode([
+        'status' => 'error',
+        'message' => $message,
+        'exit_code' => $exitCode,
+    ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT) . PHP_EOL;
+    exit;
+}
 
 function forwarder_add_package_to_container_escape_pdf_text(string $text): string
 {
@@ -806,8 +872,9 @@ function forwarder_add_package_to_container_send_print_job(string $printUrl, str
     ];
 }
 
-$argv = $_SERVER['argv'] ?? [];
-$args = forwarder_add_package_to_container_cli_kv($argv);
+$args = forwarder_add_package_to_container_is_cli()
+    ? forwarder_add_package_to_container_cli_kv($_SERVER['argv'] ?? [])
+    : forwarder_add_package_to_container_request_kv();
 
 $normalizedBaseUrl = forwarder_add_package_to_container_normalize_base_url(
     forwarder_add_package_to_container_arg($args, 'base-url', 'base_url')
@@ -861,19 +928,16 @@ $verifyPath = $verifyPath !== '' ? $verifyPath : '/collector/check-package';
 $collectorPagePath = '/collector/packages';
 
 if ($track === '') {
-    fwrite(STDERR, "run_add_package_to_container: missing required --track\n");
-    exit(2);
+    forwarder_add_package_to_container_emit_error_and_exit('missing required track', 2);
 }
 
 if ($position === '') {
-    fwrite(STDERR, "run_add_package_to_container: missing required --position\n");
-    exit(2);
+    forwarder_add_package_to_container_emit_error_and_exit('missing required position', 2);
 }
 
 $config = new ForwarderConfig();
 if (!$config->isConfigured()) {
-    fwrite(STDERR, "run_add_package_to_container: missing config (base-url/login/password)\n");
-    exit(3);
+    forwarder_add_package_to_container_emit_error_and_exit('missing config (base-url/login/password)', 3);
 }
 
 $correlationId = 'run-add-package-to-container-' . date('YmdHis') . '-' . bin2hex(random_bytes(4));
@@ -1161,6 +1225,13 @@ $result = [
     'print' => $printResponsePayload,
     'print_allow_label_url' => $allowLabelUrl,
 ];
+
+
+if (!forwarder_add_package_to_container_is_cli() && !headers_sent()) {
+    http_response_code($overallOk ? 200 : 422);
+    header('Content-Type: application/json; charset=utf-8');
+}
+
 
 echo json_encode($result, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT) . PHP_EOL;
 
