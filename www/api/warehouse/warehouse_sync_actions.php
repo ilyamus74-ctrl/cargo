@@ -3295,6 +3295,9 @@ if ($action === 'warehouse_item_out_confirm_send') {
                     'print-label' => $printLabelRequested ? '1' : '0',
                     'print-token' => $printToken,
                     'print-device-key' => $printDeviceKey,
+                    'allow-label-url' => $printLabelRequested ? '1' : '0',
+                    'print-label-retries' => $printLabelRequested ? '5' : '0',
+                    'print-label-retry-delay-ms' => $printLabelRequested ? '1200' : '0',
                 ]);
                 $addStatus = strtolower(trim((string)($addResult['status'] ?? '')));
                 if ($addStatus !== 'ok') {
