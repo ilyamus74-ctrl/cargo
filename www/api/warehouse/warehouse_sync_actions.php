@@ -3140,6 +3140,10 @@ if ($action === 'warehouse_item_out_confirm_send') {
     $containerId = trim((string)($_POST['container_id'] ?? ''));
     $containerName = trim((string)($_POST['container_name'] ?? ''));
     $shipmentCell = trim((string)($_POST['shipment_cell'] ?? ''));
+    $printLabelRequested = (string)($_POST['print_label'] ?? '') === '1';
+    $printToken = trim((string)($_POST['print_token'] ?? ''));
+    $printDeviceKey = trim((string)($_POST['print_device_key'] ?? ''));
+
 
     if ($stockItemId <= 0) {
         $response = [
@@ -3262,7 +3266,8 @@ if ($action === 'warehouse_item_out_confirm_send') {
         'message' => 'snapshot форварда не обновлялся',
     ];
     try {
-        $trackingForForwarder = trim((string)($item['tracking_no'] ?? $item['tuid'] ?? $trackingNo));
+//        $trackingForForwarder = trim((string)($item['tracking_no'] ?? $item['tuid'] ?? $trackingNo));
+        $trackingForForwarder = trim($trackingNo !== '' ? $trackingNo : (string)($item['tracking_no'] ?? $item['tuid'] ?? ''));
         $containerPosition = trim($containerId !== '' ? $containerId : $containerDisplay);
         $flightRecordId = max(0, (int)($_POST['flight_record_id'] ?? 0));
         if ($trackingForForwarder !== '' && $containerPosition !== '' && $flightRecordId > 0) {
@@ -3277,7 +3282,16 @@ if ($action === 'warehouse_item_out_confirm_send') {
                     'login' => $login,
                     'password' => $password,
                     'track' => $trackingForForwarder,
+                    'verify-number' => $trackingForForwarder,
                     'position' => $containerPosition,
+                    'verify-check-package' => '1',
+                    'print-label' => $printLabelRequested ? '1' : '0',
+                    'print-token' => $printToken,
+                    'print-device-key' => $printDeviceKey,
+                    'print-file-name' => 'label_' . (string)(preg_replace('/[^A-Za-z0-9._-]+/', '_', $trackingForForwarder) ?? 'track') . '.html',
+                    'allow-label-url' => '1',
+                    'print-label-retries' => '5',
+                    'print-label-retry-delay-ms' => '1200',
                 ]);
                 $addStatus = strtolower(trim((string)($addResult['status'] ?? '')));
                 if ($addStatus !== 'ok') {

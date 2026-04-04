@@ -2962,6 +2962,23 @@ const CoreAPI = {
                     await CoreAPI.warehouseInStorage.resetAndLoad();
                 }
                 CoreAPI.showToast?.('Посылка перемещена в контейнер.', 'success');
+                const printStatus = String(data?.forwarder_sync?.add_result?.print?.status || '').trim().toLowerCase();
+                if (printStatus === 'ok') {
+                    CoreAPI.showToast?.('Лейбл отправлен на печать.', 'success');
+                    const renderEngine = String(data?.forwarder_sync?.add_result?.print?.generated_waybill?.render_engine || '').trim();
+                    if (renderEngine === 'simple-pdf-fallback') {
+                        CoreAPI.showToast?.(
+                            'Расширенный PDF-лейбл недоступен в этом окружении, использован упрощённый fallback.',
+                            'warning'
+                        );
+                    }
+                } else if (printStatus !== '' && printStatus !== 'skipped') {
+                    const printMessage = String(data?.forwarder_sync?.add_result?.print?.message || data?.forwarder_sync?.add_result?.print?.error || '').trim();
+                    CoreAPI.showToast?.(
+                        printMessage !== '' ? `Печать лейбла: ${printMessage}` : 'Печать лейбла завершилась с ошибкой.',
+                        'warning'
+                    );
+                }
             } catch (err) {
                 console.error('core_api fetch error (warehouse_item_out_confirm_send):', err);
                 this.setModalMessage('danger', 'Не удалось подтвердить перемещение в контейнер. Попробуйте ещё раз.');

@@ -700,37 +700,16 @@ function forwarder_add_package_to_container_build_html_label_from_verify(?array 
             'render_engine' => 'wkhtmltopdf',
         ];
     }
-    $fallbackLines = [
-        'WAYBILL',
-        'TRACK: ' . $track,
-        'CLIENT: ' . $clientNameRaw . ' ' . $clientCodeRaw,
-        'CLIENT ID: ' . $clientIdRaw,
-        'INTERNAL ID: ' . $internalIdRaw,
-        'WEIGHT: ' . ($weightRaw !== '' ? $weightRaw : '0.000'),
-        'VOLUME WEIGHT: ' . ($volumeWeightRaw !== '' ? $volumeWeightRaw : '0.000'),
-        'AMOUNT: ' . ($amountRaw !== '' ? $amountRaw : ('0.00 ' . $amountCurrencyRaw)),
-        'FLIGHT: ' . $flightNameRaw,
-        'FROM/TO: ' . $flightDepartureRaw . ' / ' . $flightDestinationRaw,
-        'PHONE: ' . $clientPhoneRaw,
-        'ADDRESS: ' . $clientAddressRaw,
-        'INVOICE URL: ' . $invoiceUrl,
-    ];
-    $fallbackPdf = forwarder_add_package_to_container_build_simple_pdf($fallbackLines);
 
     return [
         'ok' => true,
 
-//        'error' => 'html->pdf render unavailable, html label used: ' . (string)($pdfRender['error'] ?? ''),
-//        'label_base64' => base64_encode($html),
-//        'file_name' => 'waybill_' . preg_replace('/[^a-zA-Z0-9_-]+/', '_', $track) . '.html',
-        'error' => 'html->pdf render unavailable, simple pdf fallback used: ' . (string)($pdfRender['error'] ?? ''),
-        'label_base64' => base64_encode($fallbackPdf),
-        'file_name' => 'waybill_' . preg_replace('/[^a-zA-Z0-9_-]+/', '_', $track) . '.pdf',
+        'error' => 'html->pdf render unavailable, html label used: ' . (string)($pdfRender['error'] ?? ''),
+        'label_base64' => base64_encode($html),
+        'file_name' => 'waybill_' . preg_replace('/[^a-zA-Z0-9_-]+/', '_', $track) . '.html',
         'invoice_url' => $invoiceUrl,
         'qr_url' => $qrUrl,
         'render_engine' => 'html-fallback',
-//        'render_engine' => 'simple-pdf-fallback',
-//        'render_engine' =>'wkhtmltopdf',
     ];
 }
 
