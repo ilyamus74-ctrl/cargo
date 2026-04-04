@@ -2869,7 +2869,6 @@ if ($action === 'item_out') {
     $current = $user;
 
     $forwarders = [];
-    $printDevices = [];
     $sql = "
         SELECT DISTINCT UPPER(TRIM(receiver_company)) AS forwarder
         FROM warehouse_item_out
@@ -2889,34 +2888,9 @@ if ($action === 'item_out') {
     }
     $openContainers = warehouse_sync_fetch_open_departure_containers($dbcnx);
 
-    $sqlDevices = "
-        SELECT device_uid, name, device_token, app_version
-        FROM devices
-        WHERE app_version LIKE '%print-agent-1.0%'
-          AND is_active = 1
-        ORDER BY name ASC, device_uid ASC
-    ";
-    if ($res = $dbcnx->query($sqlDevices)) {
-        while ($row = $res->fetch_assoc()) {
-            $deviceUid = trim((string)($row['device_uid'] ?? ''));
-            $deviceToken = trim((string)($row['device_token'] ?? ''));
-            if ($deviceUid === '' || $deviceToken === '') {
-                continue;
-            }
-            $printDevices[] = [
-                'device_uid' => $deviceUid,
-                'name' => trim((string)($row['name'] ?? '')),
-                'device_token' => $deviceToken,
-                'app_version' => trim((string)($row['app_version'] ?? '')),
-            ];
-        }
-        $res->free();
-    }
     $smarty->assign('current_user', $current);
     $smarty->assign('item_out_forwarders', $forwarders);
     $smarty->assign('item_out_open_containers', $openContainers);
-    $smarty->assign('item_out_print_devices', $printDevices);
-    $smarty->assign('item_out_print_devices_count', count($printDevices));
 
     ob_start();
     $smarty->display('cells_NA_API_warehouse_item_out.html');
@@ -3144,9 +3118,6 @@ if ($action === 'warehouse_item_out_confirm_send') {
     $containerId = trim((string)($_POST['container_id'] ?? ''));
     $containerName = trim((string)($_POST['container_name'] ?? ''));
     $shipmentCell = trim((string)($_POST['shipment_cell'] ?? ''));
-    $printLabelRequested = in_array(strtolower(trim((string)($_POST['print_label'] ?? ''))), ['1', 'true', 'yes', 'on'], true);
-    $printToken = trim((string)($_POST['print_token'] ?? ''));
-    $printDeviceKey = trim((string)($_POST['print_device_key'] ?? ''));
 
     if ($stockItemId <= 0) {
         $response = [
@@ -3167,13 +3138,7 @@ if ($action === 'warehouse_item_out_confirm_send') {
     if ($shipmentCell === '') {
         $shipmentCell = trim(($flightNo !== '' ? $flightNo : $flightName) . ' / ' . ($containerName !== '' ? $containerName : $containerId));
     }
-    if ($printLabelRequested && ($printToken === '' || $printDeviceKey === '')) {
-        $response = [
-            'status' => 'error',
-            'message' => 'Для печати укажите print token и print device key',
-        ];
-        return;
-    }
+
     $sqlSelect = "
         SELECT
             wo.id,
@@ -3291,13 +3256,6 @@ if ($action === 'warehouse_item_out_confirm_send') {
                     'password' => $password,
                     'track' => $trackingForForwarder,
                     'position' => $containerPosition,
-                    'verify-check-package' => $printLabelRequested ? '1' : '0',
-                    'print-label' => $printLabelRequested ? '1' : '0',
-                    'print-token' => $printToken,
-                    'print-device-key' => $printDeviceKey,
-                    'allow-label-url' => $printLabelRequested ? '1' : '0',
-                    'print-label-retries' => $printLabelRequested ? '5' : '0',
-                    'print-label-retry-delay-ms' => $printLabelRequested ? '1200' : '0',
                 ]);
                 $addStatus = strtolower(trim((string)($addResult['status'] ?? '')));
                 if ($addStatus !== 'ok') {

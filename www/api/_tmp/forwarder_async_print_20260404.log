@@ -1,0 +1,885 @@
+{
+    "status": "ok",
+    "message": "Package was added to container position",
+    "correlation_id": "run-add-package-to-container-20260404094033-6f2c22a2",
+    "base_url": "https://dev-backend.colibri.az",
+    "check_path": "/collect/check-position",
+    "change_path": "/collect/change-position",
+    "track": "006454602685007385562136209",
+    "position": "24464",
+    "check": {
+        "http_ok": true,
+        "http_status": 200,
+        "case": "success",
+        "change": null,
+        "content": "",
+        "sum": null,
+        "error": "",
+        "json": {
+            "case": "success"
+        },
+        "raw_body": ""
+    },
+    "change": {
+        "http_ok": true,
+        "http_status": 200,
+        "case": "success",
+        "change": null,
+        "content": "",
+        "track": "",
+        "weight": "",
+        "error": "",
+        "json": {
+            "case": "success"
+        },
+        "raw_body": ""
+    },
+    "verification": {
+        "http_ok": true,
+        "http_status": 200,
+        "error": "",
+        "json": {
+            "case": "success",
+            "package_exist": true,
+            "package": {
+                "category": "audio accessories",
+                "quantity": 1,
+                "invoice": "0.00",
+                "invoice_usd": "0.00",
+                "currency": "USD",
+                "invoice_doc": null,
+                "invoice_confirmed": 0,
+                "invoice_status": 1,
+                "title": "audio accessories",
+                "subCat": "audio accessories",
+                "container_id": 24464,
+                "position": null,
+                "client_id": 128518,
+                "client": "C128518",
+                "client_name": "Peri Muradova",
+                "client_phone": "0508533944",
+                "client_address": "Zardabi41",
+                "client_legality": 0,
+                "amount_currency": "EUR",
+                "id": 795057,
+                "description": null,
+                "client_comment": null,
+                "customer_type_id": 1,
+                "internal_id": "CBR859579",
+                "carrier_status_id": 2,
+                "carrier_registration_number": null,
+                "track": "006454602685007385562136209",
+                "send_legality": null,
+                "status_id": 5,
+                "tariff_type_id": 1,
+                "length": null,
+                "width": null,
+                "height": null,
+                "gross_weight": "9.250",
+                "volume_weight": "0.000",
+                "seller": "",
+                "seller_id": null,
+                "seller_only_collector": null,
+                "other_seller": null,
+                "departure": null,
+                "destination": "Baku",
+                "paid_status": 0,
+                "seller_title": null,
+                "flight_departure": "HHN",
+                "flight_destination": "GYD",
+                "flight_date": null,
+                "flight_name": "HHN05042026",
+                "amount": "78.16 EUR",
+                "return_label_doc": null
+            },
+            "client_exist": true,
+            "client_packages": [
+                {
+                    "number": "006454602685007385562136209",
+                    "internal_id": "CBR859579",
+                    "volume_weight": "0.000",
+                    "gross_weight": "9.250",
+                    "chargeable_weight": 1,
+                    "amount": "78.16",
+                    "currency": "EUR",
+                    "seller": null,
+                    "destination": "Baku",
+                    "status": "Ready for carriage",
+                    "status_color": "green"
+                },
+                {
+                    "number": "006454602685007385562136278",
+                    "internal_id": "CBR859578",
+                    "volume_weight": "0.000",
+                    "gross_weight": "9.250",
+                    "chargeable_weight": 1,
+                    "amount": "78.16",
+                    "currency": "EUR",
+                    "seller": null,
+                    "destination": "Baku",
+                    "status": "Ready for carriage",
+                    "status_color": "green"
+                }
+            ]
+        },
+        "raw_body": "{\"case\":\"success\",\"package_exist\":true,\"package\":{\"category\":\"audio accessories\",\"quantity\":1,\"invoice\":\"0.00\",\"invoice_usd\":\"0.00\",\"currency\":\"USD\",\"invoice_doc\":null,\"invoice_confirmed\":0,\"invoice_status\":1,\"title\":\"audio accessories\",\"subCat\":\"audio accessories\",\"container_id\":24464,\"position\":null,\"client_id\":128518,\"client\":\"C128518\",\"client_name\":\"Peri Muradova\",\"client_phone\":\"0508533944\",\"client_address\":\"Zardabi41\",\"client_legality\":0,\"amount_currency\":\"EUR\",\"id\":795057,\"description\":null,\"client_comment\":null,\"customer_type_id\":1,\"internal_id\":\"CBR859579\",\"carrier_status_id\":2,\"carrier_registration_number\":null,\"track\":\"006454602685007385562136209\",\"send_legality\":null,\"status_id\":5,\"tariff_type_id\":1,\"length\":null,\"width\":null,\"height\":null,\"gross_weight\":\"9.250\",\"volume_weight\":\"0.000\",\"seller\":\"\",\"seller_id\":null,\"seller_only_collector\":null,\"other_seller\":null,\"departure\":null,\"destination\":\"Baku\",\"paid_status\":0,\"seller_title\":null,\"flight_departure\":\"HHN\",\"flight_destination\":\"GYD\",\"flight_date\":null,\"flight_name\":\"HHN05042026\",\"amount\":\"78.16 EUR\",\"return_label_doc\":null},\"client_exist\":true,\"client_packages\":[{\"number\":\"006454602685007385562136209\",\"internal_id\":\"CBR859579\",\"volume_weight\":\"0.000\",\"gross_weight\":\"9.250\",\"chargeable_weight\":1,\"amount\":\"78.16\",\"currency\":\"EUR\",\"seller\":null,\"destination\":\"Baku\",\"status\":\"Ready for carriage\",\"status_color\":\"green\"},{\"number\":\"006454602685007385562136278\",\"internal_id\":\"CBR859578\",\"volume_weight\":\"0.000\",\"gross_weight\":\"9.250\",\"chargeable_weight\":1,\"amount\":\"78.16\",\"currency\":\"EUR\",\"seller\":null,\"destination\":\"Baku\",\"status\":\"Ready for carriage\",\"status_color\":\"green\"}]}"
+    },
+    "print": {
+        "ok": false,
+        "http_status": 0,
+        "error": "print skipped: require successful add-flow, print-token, selected device and html/base64 label (url-label only with --allow-label-url=1)",
+        "response": null,
+        "selected_device": {
+            "device_uid": "dev-1ff0c4a3-0b16-4cc1-b434-32d18340c598",
+            "error": "",
+            "devices_count": 1,
+            "selected_by": "print-device-key-as-uid"
+        },
+        "label_storage": {
+            "ok": false,
+            "error": "no valid image data-url found to save",
+            "dir": "/home/cells/web/www/scripts/mvp/app/Forwarder/lable",
+            "saved_files": [],
+            "print_file_name": "",
+            "print_label_base64": ""
+        },
+        "label_url_storage": {
+            "ok": false,
+            "error": "label url is empty",
+            "saved_file": null
+        },
+        "label_url": "",
+        "generated_waybill": {
+            "ok": false,
+            "error": "html->pdf render unavailable, pretty waybill is required: wkhtmltopdf is not installed; headless chrome failed: chrome_crashpad_handler: --database is required\nTry 'chrome_crashpad_handler --help' for more information.",
+            "label_base64": "",
+            "file_name": "",
+            "invoice_url": "",
+            "qr_url": "",
+            "render_engine": "render-unavailable"
+        },
+        "label_probe": {
+            "retries": 40,
+            "delay_ms": 1500,
+            "attempts": [
+                {
+                    "attempt": 1,
+                    "http_ok": true,
+                    "http_status": 200,
+                    "label_found": false,
+                    "label_url_found": false
+                },
+                {
+                    "attempt": 2,
+                    "http_ok": true,
+                    "http_status": 200,
+                    "label_found": false,
+                    "label_url_found": false
+                },
+                {
+                    "attempt": 3,
+                    "http_ok": true,
+                    "http_status": 200,
+                    "label_found": false,
+                    "label_url_found": false
+                },
+                {
+                    "attempt": 4,
+                    "http_ok": true,
+                    "http_status": 200,
+                    "label_found": false,
+                    "label_url_found": false
+                },
+                {
+                    "attempt": 5,
+                    "http_ok": true,
+                    "http_status": 200,
+                    "label_found": false,
+                    "label_url_found": false
+                },
+                {
+                    "attempt": 6,
+                    "http_ok": true,
+                    "http_status": 200,
+                    "label_found": false,
+                    "label_url_found": false
+                },
+                {
+                    "attempt": 7,
+                    "http_ok": true,
+                    "http_status": 200,
+                    "label_found": false,
+                    "label_url_found": false
+                },
+                {
+                    "attempt": 8,
+                    "http_ok": true,
+                    "http_status": 200,
+                    "label_found": false,
+                    "label_url_found": false
+                },
+                {
+                    "attempt": 9,
+                    "http_ok": true,
+                    "http_status": 200,
+                    "label_found": false,
+                    "label_url_found": false
+                },
+                {
+                    "attempt": 10,
+                    "http_ok": true,
+                    "http_status": 200,
+                    "label_found": false,
+                    "label_url_found": false
+                },
+                {
+                    "attempt": 11,
+                    "http_ok": true,
+                    "http_status": 200,
+                    "label_found": false,
+                    "label_url_found": false
+                },
+                {
+                    "attempt": 12,
+                    "http_ok": true,
+                    "http_status": 200,
+                    "label_found": false,
+                    "label_url_found": false
+                },
+                {
+                    "attempt": 13,
+                    "http_ok": true,
+                    "http_status": 200,
+                    "label_found": false,
+                    "label_url_found": false
+                },
+                {
+                    "attempt": 14,
+                    "http_ok": true,
+                    "http_status": 200,
+                    "label_found": false,
+                    "label_url_found": false
+                },
+                {
+                    "attempt": 15,
+                    "http_ok": true,
+                    "http_status": 200,
+                    "label_found": false,
+                    "label_url_found": false
+                },
+                {
+                    "attempt": 16,
+                    "http_ok": true,
+                    "http_status": 200,
+                    "label_found": false,
+                    "label_url_found": false
+                },
+                {
+                    "attempt": 17,
+                    "http_ok": true,
+                    "http_status": 200,
+                    "label_found": false,
+                    "label_url_found": false
+                },
+                {
+                    "attempt": 18,
+                    "http_ok": true,
+                    "http_status": 200,
+                    "label_found": false,
+                    "label_url_found": false
+                },
+                {
+                    "attempt": 19,
+                    "http_ok": true,
+                    "http_status": 200,
+                    "label_found": false,
+                    "label_url_found": false
+                },
+                {
+                    "attempt": 20,
+                    "http_ok": true,
+                    "http_status": 200,
+                    "label_found": false,
+                    "label_url_found": false
+                },
+                {
+                    "attempt": 21,
+                    "http_ok": true,
+                    "http_status": 200,
+                    "label_found": false,
+                    "label_url_found": false
+                },
+                {
+                    "attempt": 22,
+                    "http_ok": true,
+                    "http_status": 200,
+                    "label_found": false,
+                    "label_url_found": false
+                },
+                {
+                    "attempt": 23,
+                    "http_ok": true,
+                    "http_status": 200,
+                    "label_found": false,
+                    "label_url_found": false
+                },
+                {
+                    "attempt": 24,
+                    "http_ok": true,
+                    "http_status": 200,
+                    "label_found": false,
+                    "label_url_found": false
+                },
+                {
+                    "attempt": 25,
+                    "http_ok": true,
+                    "http_status": 200,
+                    "label_found": false,
+                    "label_url_found": false
+                },
+                {
+                    "attempt": 26,
+                    "http_ok": true,
+                    "http_status": 200,
+                    "label_found": false,
+                    "label_url_found": false
+                },
+                {
+                    "attempt": 27,
+                    "http_ok": true,
+                    "http_status": 200,
+                    "label_found": false,
+                    "label_url_found": false
+                },
+                {
+                    "attempt": 28,
+                    "http_ok": true,
+                    "http_status": 200,
+                    "label_found": false,
+                    "label_url_found": false
+                },
+                {
+                    "attempt": 29,
+                    "http_ok": true,
+                    "http_status": 200,
+                    "label_found": false,
+                    "label_url_found": false
+                },
+                {
+                    "attempt": 30,
+                    "http_ok": true,
+                    "http_status": 200,
+                    "label_found": false,
+                    "label_url_found": false
+                },
+                {
+                    "attempt": 31,
+                    "http_ok": true,
+                    "http_status": 200,
+                    "label_found": false,
+                    "label_url_found": false
+                },
+                {
+                    "attempt": 32,
+                    "http_ok": true,
+                    "http_status": 200,
+                    "label_found": false,
+                    "label_url_found": false
+                },
+                {
+                    "attempt": 33,
+                    "http_ok": true,
+                    "http_status": 200,
+                    "label_found": false,
+                    "label_url_found": false
+                },
+                {
+                    "attempt": 34,
+                    "http_ok": true,
+                    "http_status": 200,
+                    "label_found": false,
+                    "label_url_found": false
+                },
+                {
+                    "attempt": 35,
+                    "http_ok": true,
+                    "http_status": 200,
+                    "label_found": false,
+                    "label_url_found": false
+                },
+                {
+                    "attempt": 36,
+                    "http_ok": true,
+                    "http_status": 200,
+                    "label_found": false,
+                    "label_url_found": false
+                },
+                {
+                    "attempt": 37,
+                    "http_ok": true,
+                    "http_status": 200,
+                    "label_found": false,
+                    "label_url_found": false
+                },
+                {
+                    "attempt": 38,
+                    "http_ok": true,
+                    "http_status": 200,
+                    "label_found": false,
+                    "label_url_found": false
+                },
+                {
+                    "attempt": 39,
+                    "http_ok": true,
+                    "http_status": 200,
+                    "label_found": false,
+                    "label_url_found": false
+                },
+                {
+                    "attempt": 40,
+                    "http_ok": true,
+                    "http_status": 200,
+                    "label_found": false,
+                    "label_url_found": false
+                }
+            ]
+        }
+    },
+    "print_allow_label_url": true
+}
+{
+    "status": "ok",
+    "message": "Package was added to container position",
+    "correlation_id": "run-add-package-to-container-20260404094139-06e3fedd",
+    "base_url": "https://dev-backend.colibri.az",
+    "check_path": "/collect/check-position",
+    "change_path": "/collect/change-position",
+    "track": "006454602685007385562136277",
+    "position": "24464",
+    "check": {
+        "http_ok": true,
+        "http_status": 200,
+        "case": "success",
+        "change": null,
+        "content": "",
+        "sum": null,
+        "error": "",
+        "json": {
+            "case": "success"
+        },
+        "raw_body": ""
+    },
+    "change": {
+        "http_ok": true,
+        "http_status": 200,
+        "case": "success",
+        "change": null,
+        "content": "",
+        "track": "",
+        "weight": "",
+        "error": "",
+        "json": {
+            "case": "success"
+        },
+        "raw_body": ""
+    },
+    "verification": {
+        "http_ok": true,
+        "http_status": 200,
+        "error": "",
+        "json": {
+            "case": "success",
+            "package_exist": true,
+            "package": {
+                "category": "auto parts",
+                "quantity": 1,
+                "invoice": "0.00",
+                "invoice_usd": "0.00",
+                "currency": "USD",
+                "invoice_doc": null,
+                "invoice_confirmed": 0,
+                "invoice_status": 1,
+                "title": "Auto parts",
+                "subCat": "auto parts",
+                "container_id": 24464,
+                "position": null,
+                "client_id": 128517,
+                "client": "C128517",
+                "client_name": "Vafa Zeynalova",
+                "client_phone": "0504051655",
+                "client_address": "Baki AAgayev 1",
+                "client_legality": 0,
+                "amount_currency": "EUR",
+                "id": 795048,
+                "description": null,
+                "client_comment": null,
+                "customer_type_id": 1,
+                "internal_id": "CBR859570",
+                "carrier_status_id": 2,
+                "carrier_registration_number": null,
+                "track": "006454602685007385562136277",
+                "send_legality": null,
+                "status_id": 5,
+                "tariff_type_id": 1,
+                "length": null,
+                "width": null,
+                "height": null,
+                "gross_weight": "9.250",
+                "volume_weight": "0.000",
+                "seller": "",
+                "seller_id": null,
+                "seller_only_collector": null,
+                "other_seller": null,
+                "departure": null,
+                "destination": "Baku",
+                "paid_status": 0,
+                "seller_title": null,
+                "flight_departure": "HHN",
+                "flight_destination": "GYD",
+                "flight_date": null,
+                "flight_name": "HHN05042026",
+                "amount": "78.16 EUR",
+                "return_label_doc": null
+            },
+            "client_exist": true,
+            "client_packages": [
+                {
+                    "number": "006454602685007385562136277",
+                    "internal_id": "CBR859570",
+                    "volume_weight": "0.000",
+                    "gross_weight": "9.250",
+                    "chargeable_weight": 1,
+                    "amount": "78.16",
+                    "currency": "EUR",
+                    "seller": null,
+                    "destination": "Baku",
+                    "status": "Ready for carriage",
+                    "status_color": "green"
+                }
+            ]
+        },
+        "raw_body": "{\"case\":\"success\",\"package_exist\":true,\"package\":{\"category\":\"auto parts\",\"quantity\":1,\"invoice\":\"0.00\",\"invoice_usd\":\"0.00\",\"currency\":\"USD\",\"invoice_doc\":null,\"invoice_confirmed\":0,\"invoice_status\":1,\"title\":\"Auto parts\",\"subCat\":\"auto parts\",\"container_id\":24464,\"position\":null,\"client_id\":128517,\"client\":\"C128517\",\"client_name\":\"Vafa Zeynalova\",\"client_phone\":\"0504051655\",\"client_address\":\"Baki AAgayev 1\",\"client_legality\":0,\"amount_currency\":\"EUR\",\"id\":795048,\"description\":null,\"client_comment\":null,\"customer_type_id\":1,\"internal_id\":\"CBR859570\",\"carrier_status_id\":2,\"carrier_registration_number\":null,\"track\":\"006454602685007385562136277\",\"send_legality\":null,\"status_id\":5,\"tariff_type_id\":1,\"length\":null,\"width\":null,\"height\":null,\"gross_weight\":\"9.250\",\"volume_weight\":\"0.000\",\"seller\":\"\",\"seller_id\":null,\"seller_only_collector\":null,\"other_seller\":null,\"departure\":null,\"destination\":\"Baku\",\"paid_status\":0,\"seller_title\":null,\"flight_departure\":\"HHN\",\"flight_destination\":\"GYD\",\"flight_date\":null,\"flight_name\":\"HHN05042026\",\"amount\":\"78.16 EUR\",\"return_label_doc\":null},\"client_exist\":true,\"client_packages\":[{\"number\":\"006454602685007385562136277\",\"internal_id\":\"CBR859570\",\"volume_weight\":\"0.000\",\"gross_weight\":\"9.250\",\"chargeable_weight\":1,\"amount\":\"78.16\",\"currency\":\"EUR\",\"seller\":null,\"destination\":\"Baku\",\"status\":\"Ready for carriage\",\"status_color\":\"green\"}]}"
+    },
+    "print": {
+        "ok": false,
+        "http_status": 0,
+        "error": "print skipped: require successful add-flow, print-token, selected device and html/base64 label (url-label only with --allow-label-url=1)",
+        "response": null,
+        "selected_device": {
+            "device_uid": "dev-1ff0c4a3-0b16-4cc1-b434-32d18340c598",
+            "error": "",
+            "devices_count": 1,
+            "selected_by": "print-device-key-as-uid"
+        },
+        "label_storage": {
+            "ok": false,
+            "error": "no valid image data-url found to save",
+            "dir": "/home/cells/web/www/scripts/mvp/app/Forwarder/lable",
+            "saved_files": [],
+            "print_file_name": "",
+            "print_label_base64": ""
+        },
+        "label_url_storage": {
+            "ok": false,
+            "error": "label url is empty",
+            "saved_file": null
+        },
+        "label_url": "",
+        "generated_waybill": {
+            "ok": false,
+            "error": "html->pdf render unavailable, pretty waybill is required: wkhtmltopdf is not installed; headless chrome failed: chrome_crashpad_handler: --database is required\nTry 'chrome_crashpad_handler --help' for more information.",
+            "label_base64": "",
+            "file_name": "",
+            "invoice_url": "",
+            "qr_url": "",
+            "render_engine": "render-unavailable"
+        },
+        "label_probe": {
+            "retries": 40,
+            "delay_ms": 1500,
+            "attempts": [
+                {
+                    "attempt": 1,
+                    "http_ok": true,
+                    "http_status": 200,
+                    "label_found": false,
+                    "label_url_found": false
+                },
+                {
+                    "attempt": 2,
+                    "http_ok": true,
+                    "http_status": 200,
+                    "label_found": false,
+                    "label_url_found": false
+                },
+                {
+                    "attempt": 3,
+                    "http_ok": true,
+                    "http_status": 200,
+                    "label_found": false,
+                    "label_url_found": false
+                },
+                {
+                    "attempt": 4,
+                    "http_ok": true,
+                    "http_status": 200,
+                    "label_found": false,
+                    "label_url_found": false
+                },
+                {
+                    "attempt": 5,
+                    "http_ok": true,
+                    "http_status": 200,
+                    "label_found": false,
+                    "label_url_found": false
+                },
+                {
+                    "attempt": 6,
+                    "http_ok": true,
+                    "http_status": 200,
+                    "label_found": false,
+                    "label_url_found": false
+                },
+                {
+                    "attempt": 7,
+                    "http_ok": true,
+                    "http_status": 200,
+                    "label_found": false,
+                    "label_url_found": false
+                },
+                {
+                    "attempt": 8,
+                    "http_ok": true,
+                    "http_status": 200,
+                    "label_found": false,
+                    "label_url_found": false
+                },
+                {
+                    "attempt": 9,
+                    "http_ok": true,
+                    "http_status": 200,
+                    "label_found": false,
+                    "label_url_found": false
+                },
+                {
+                    "attempt": 10,
+                    "http_ok": true,
+                    "http_status": 200,
+                    "label_found": false,
+                    "label_url_found": false
+                },
+                {
+                    "attempt": 11,
+                    "http_ok": true,
+                    "http_status": 200,
+                    "label_found": false,
+                    "label_url_found": false
+                },
+                {
+                    "attempt": 12,
+                    "http_ok": true,
+                    "http_status": 200,
+                    "label_found": false,
+                    "label_url_found": false
+                },
+                {
+                    "attempt": 13,
+                    "http_ok": true,
+                    "http_status": 200,
+                    "label_found": false,
+                    "label_url_found": false
+                },
+                {
+                    "attempt": 14,
+                    "http_ok": true,
+                    "http_status": 200,
+                    "label_found": false,
+                    "label_url_found": false
+                },
+                {
+                    "attempt": 15,
+                    "http_ok": true,
+                    "http_status": 200,
+                    "label_found": false,
+                    "label_url_found": false
+                },
+                {
+                    "attempt": 16,
+                    "http_ok": true,
+                    "http_status": 200,
+                    "label_found": false,
+                    "label_url_found": false
+                },
+                {
+                    "attempt": 17,
+                    "http_ok": true,
+                    "http_status": 200,
+                    "label_found": false,
+                    "label_url_found": false
+                },
+                {
+                    "attempt": 18,
+                    "http_ok": true,
+                    "http_status": 200,
+                    "label_found": false,
+                    "label_url_found": false
+                },
+                {
+                    "attempt": 19,
+                    "http_ok": true,
+                    "http_status": 200,
+                    "label_found": false,
+                    "label_url_found": false
+                },
+                {
+                    "attempt": 20,
+                    "http_ok": true,
+                    "http_status": 200,
+                    "label_found": false,
+                    "label_url_found": false
+                },
+                {
+                    "attempt": 21,
+                    "http_ok": true,
+                    "http_status": 200,
+                    "label_found": false,
+                    "label_url_found": false
+                },
+                {
+                    "attempt": 22,
+                    "http_ok": true,
+                    "http_status": 200,
+                    "label_found": false,
+                    "label_url_found": false
+                },
+                {
+                    "attempt": 23,
+                    "http_ok": true,
+                    "http_status": 200,
+                    "label_found": false,
+                    "label_url_found": false
+                },
+                {
+                    "attempt": 24,
+                    "http_ok": true,
+                    "http_status": 200,
+                    "label_found": false,
+                    "label_url_found": false
+                },
+                {
+                    "attempt": 25,
+                    "http_ok": true,
+                    "http_status": 200,
+                    "label_found": false,
+                    "label_url_found": false
+                },
+                {
+                    "attempt": 26,
+                    "http_ok": true,
+                    "http_status": 200,
+                    "label_found": false,
+                    "label_url_found": false
+                },
+                {
+                    "attempt": 27,
+                    "http_ok": true,
+                    "http_status": 200,
+                    "label_found": false,
+                    "label_url_found": false
+                },
+                {
+                    "attempt": 28,
+                    "http_ok": true,
+                    "http_status": 200,
+                    "label_found": false,
+                    "label_url_found": false
+                },
+                {
+                    "attempt": 29,
+                    "http_ok": true,
+                    "http_status": 200,
+                    "label_found": false,
+                    "label_url_found": false
+                },
+                {
+                    "attempt": 30,
+                    "http_ok": true,
+                    "http_status": 200,
+                    "label_found": false,
+                    "label_url_found": false
+                },
+                {
+                    "attempt": 31,
+                    "http_ok": true,
+                    "http_status": 200,
+                    "label_found": false,
+                    "label_url_found": false
+                },
+                {
+                    "attempt": 32,
+                    "http_ok": true,
+                    "http_status": 200,
+                    "label_found": false,
+                    "label_url_found": false
+                },
+                {
+                    "attempt": 33,
+                    "http_ok": true,
+                    "http_status": 200,
+                    "label_found": false,
+                    "label_url_found": false
+                },
+                {
+                    "attempt": 34,
+                    "http_ok": true,
+                    "http_status": 200,
+                    "label_found": false,
+                    "label_url_found": false
+                },
+                {
+                    "attempt": 35,
+                    "http_ok": true,
+                    "http_status": 200,
+                    "label_found": false,
+                    "label_url_found": false
+                },
+                {
+                    "attempt": 36,
+                    "http_ok": true,
+                    "http_status": 200,
+                    "label_found": false,
+                    "label_url_found": false
+                },
+                {
+                    "attempt": 37,
+                    "http_ok": true,
+                    "http_status": 200,
+                    "label_found": false,
+                    "label_url_found": false
+                },
+                {
+                    "attempt": 38,
+                    "http_ok": true,
+                    "http_status": 200,
+                    "label_found": false,
+                    "label_url_found": false
+                },
+                {
+                    "attempt": 39,
+                    "http_ok": true,
+                    "http_status": 200,
+                    "label_found": false,
+                    "label_url_found": false
+                },
+                {
+                    "attempt": 40,
+                    "http_ok": true,
+                    "http_status": 200,
+                    "label_found": false,
+                    "label_url_found": false
+                }
+            ]
+        }
+    },
+    "print_allow_label_url": true
+}
