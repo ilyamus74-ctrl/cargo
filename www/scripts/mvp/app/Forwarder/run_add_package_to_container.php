@@ -1163,7 +1163,6 @@ if ($printRequested) {
         $labelUrlStorage = forwarder_add_package_to_container_save_label_from_url($track, $labelUrl);
     }
 
-);
     $generatedWaybill = forwarder_add_package_to_container_build_html_label_from_verify(
         $verifyJson,
         $track,
