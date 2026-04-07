@@ -191,10 +191,7 @@ if (!function_exists('warehouse_sync_resolve_departure_table_names')) {
 
             try {
                 $tableNames[] = connectors_subrunner_resolve_flight_table_name($connector, $options);
-                error_log('warehouse_sync save_connector_label_template error: ' . $e->getMessage());
-            $response = ['status' => 'error', 'message' => 'Не удалось сохранить шаблон'];
-            return;
-        }    } catch (Throwable $e) {
+            } catch (Throwable $e) {
                 error_log('warehouse_sync resolve departure table error: ' . $e->getMessage());
             }
         }

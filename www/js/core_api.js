@@ -643,6 +643,7 @@ const CoreAPI = {
         'save_connector_label_template': async (data) => {
             alert(data.message || 'Шаблон сохранён');
             const connectorId = String(data?.connector_id || '').trim();
+            await CoreAPI.ui.reloadList('view_connectors');
             if (connectorId) {
                 const fd = new FormData();
                 fd.append('action', 'form_connector_label_template');
@@ -652,7 +653,6 @@ const CoreAPI = {
                     CoreAPI.ui.showModal(d2.html);
                 }
             }
-            await CoreAPI.ui.reloadList('view_connectors');
         },
         'test_print_connector_label_template': (data) => {
             const box = document.getElementById('connector-label-template-validation');
