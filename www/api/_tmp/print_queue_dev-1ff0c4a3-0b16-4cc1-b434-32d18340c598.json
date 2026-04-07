@@ -1475,5 +1475,27 @@
                 "at": "2026-04-07T08:20:23+00:00"
             }
         ]
+    },
+    {
+        "job_id": "job-preview-20260407083403-b0554eb1",
+        "status": "printed",
+        "created_at": "2026-04-07T08:34:03+00:00",
+        "file_name": "connector_label_preview_20260407_083403.pdf",
+        "label_base64": "JVBERi0xLjQKMSAwIG9iago8PCAvVHlwZSAvQ2F0YWxvZyAvUGFnZXMgMiAwIFIgPj4KZW5kb2JqCjIgMCBvYmoKPDwgL1R5cGUgL1BhZ2VzIC9LaWRzIFszIDAgUl0gL0NvdW50IDEgPj4KZW5kb2JqCjMgMCBvYmoKPDwgL1R5cGUgL1BhZ2UgL1BhcmVudCAyIDAgUiAvTWVkaWFCb3ggWzAgMCA1OTUgODQyXSAvQ29udGVudHMgNCAwIFIgL1Jlc291cmNlcyA8PCAvRm9udCA8PCAvRjEgNSAwIFIgPj4gPj4gPj4KZW5kb2JqCjQgMCBvYmoKPDwgL0xlbmd0aCAxMTQzID4+CnN0cmVhbQpCVAovRjEgMTEgVGYKNTAgNzkwIFRkCihDb25uZWN0b3IgIzEzILcgcHJldmlldyBcKHNhbml0aXplZFwpKSBUagowIC0xOCBUZAooV2F5YmlsbCBURVNULVRSQUNLLTAwMDEpIFRqCjAgLTE4IFRkCihib2R5e2ZvbnQtZmFtaWx5OkFyaWFsLHNhbnMtc2VyaWY7Zm9udC1zaXplOjE0cHg7bWFyZ2luOjA7cGFkZGluZzoxMHB4O30pIFRqCjAgLTE4IFRkCih0YWJsZXt3aWR0aDoxMDAlO2JvcmRlci1jb2xsYXBzZTpjb2xsYXBzZTt9KSBUagowIC0xOCBUZAoodGR7Ym9yZGVyOjFweCBzb2xpZCAjMDAwO3BhZGRpbmc6NHB4O3ZlcnRpY2FsLWFsaWduOnRvcDt9KSBUagowIC0xOCBUZAooLm5vYntib3JkZXI6bm9uZSFpbXBvcnRhbnQ7fSkgVGoKMCAtMTggVGQKKC5jZW50ZXJ7dGV4dC1hbGlnbjpjZW50ZXI7fSkgVGoKMCAtMTggVGQKKC50aXRsZXtmb250LXNpemU6MzhweDtmb250LXdlaWdodDpib2xkO2xpbmUtaGVpZ2h0OjE7fSkgVGoKMCAtMTggVGQKKC5zbWFsbHtmb250LXNpemU6MTJweDt9KSBUagowIC0xOCBUZAooLmg4MHtoZWlnaHQ6ODBweDt9KSBUagowIC0xOCBUZAooLmg3MHtoZWlnaHQ6NzBweDt9KSBUagowIC0xOCBUZAooV0FZQklMTCkgVGoKMCAtMTggVGQKKDEyMzQ1Njc4KSBUagowIC0xOCBUZAooRGV1dHNjaGxhbmQvUGhlaW5sYW5kIFBmYWx6L1NvaHJlbiBSb3V0YnVjaGVud2VnIDMsIDU1NDg3KSBUagowIC0xOCBUZAooe3tjbGllbnRfbmFtZX19IENMSTAwMSkgVGoKMCAtMTggVGQKKFwoe3tjbGllbnRfYWRkcmVzc319XCkpIFRqCjAgLTE4IFRkCihjb2xpYnJpKSBUagowIC0xOCBUZAooW1FSIHByZXZpZXddKSBUagowIC0xOCBUZAooe3tmbGlnaHRfZGVwYXJ0dXJlfX0pIFRqCjAgLTE4IFRkCih7e2ZsaWdodF9kZXN0aW5hdGlvbn19KSBUagowIC0xOCBUZAooV2VpZ2h0Vm9sdW1lIFdlaWdodEFtb3VudCkgVGoKMCAtMTggVGQKKDEuMDAwe3t2b2x1bWVfd2VpZ2h0fX0xMC4wMCBVU0QpIFRqCjAgLTE4IFRkCihGTElHSFQ6IEFaMDAxKSBUagowIC0xOCBUZAooe3tkZXNjcmlwdGlvbn19KSBUagowIC0xOCBUZAooQ2F0ZWdvcnlEZWNsYXJlZFRvdGFsKSBUagowIC0xOCBUZAooe3tjYXRlZ29yeX19e3tpbnZvaWNlX3VzZH19IFVTRHt7dG90YWxfaW52b2ljZV9wcmljZX19KSBUagpFVAplbmRzdHJlYW0KZW5kb2JqCjUgMCBvYmoKPDwgL1R5cGUgL0ZvbnQgL1N1YnR5cGUgL1R5cGUxIC9CYXNlRm9udCAvSGVsdmV0aWNhID4+CmVuZG9iagp4cmVmCjAgNgowMDAwMDAwMDAwIDY1NTM1IGYgCjAwMDAwMDAwMDkgMDAwMDAgbiAKMDAwMDAwMDA1OCAwMDAwMCBuIAowMDAwMDAwMTE1IDAwMDAwIG4gCjAwMDAwMDAyNDEgMDAwMDAgbiAKMDAwMDAwMTQzNSAwMDAwMCBuIAp0cmFpbGVyCjw8IC9TaXplIDYgL1Jvb3QgMSAwIFIgPj4Kc3RhcnR4cmVmCjE1MDUKJSVFT0YK",
+        "delivered_at": "2026-04-07T08:34:03+00:00",
+        "updated_at": "2026-04-07T08:34:04+00:00",
+        "last_message": "request id is HP_Officejet_4500_G510n-z-63 (1 file(s))",
+        "history": [
+            {
+                "status": "received",
+                "message": "job accepted by device",
+                "at": "2026-04-07T08:34:03+00:00"
+            },
+            {
+                "status": "printed",
+                "message": "request id is HP_Officejet_4500_G510n-z-63 (1 file(s))",
+                "at": "2026-04-07T08:34:04+00:00"
+            }
+        ]
     }
 ]

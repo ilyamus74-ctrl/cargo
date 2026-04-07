@@ -1983,86 +1983,6 @@ if (!function_exists('warehouse_sync_fetch_active_print_devices')) {
 }
 
 if (!function_exists('warehouse_sync_queue_print_preview')) {
-
-    function warehouse_sync_escape_pdf_text(string $text): string
-    {
-        $normalized = preg_replace('/\s+/u', ' ', trim($text)) ?? trim($text);
-        $encoded = @iconv('UTF-8', 'Windows-1252//TRANSLIT//IGNORE', $normalized);
-        if (!is_string($encoded) || $encoded === '') {
-            $encoded = preg_replace('/[^\x20-\x7E]/', '?', $normalized) ?? $normalized;
-        }
-
-        return str_replace(['\\', '(', ')'], ['\\\\', '\(', '\)'], $encoded);
-    }
-
-    function warehouse_sync_preview_html_to_simple_pdf(string $previewHtml): string
-    {
-        $plain = preg_replace('#<(br|/p|/div|/li|/h[1-6])\b[^>]*>#iu', "\n", $previewHtml) ?? $previewHtml;
-        $plain = strip_tags($plain);
-        $plain = html_entity_decode($plain, ENT_QUOTES | ENT_HTML5, 'UTF-8');
-        $plain = preg_replace("/\r\n?/", "\n", $plain) ?? $plain;
-        $plain = trim($plain);
-        if ($plain === '') {
-            $plain = 'Template preview';
-        }
-
-        $rawLines = preg_split('/\n+/u', $plain) ?: [];
-        $lines = [];
-        foreach ($rawLines as $line) {
-            $candidate = trim((string)$line);
-            if ($candidate === '') {
-                continue;
-            }
-            $lines[] = $candidate;
-            if (count($lines) >= 30) {
-                break;
-            }
-        }
-        if (empty($lines)) {
-            $lines = ['Template preview'];
-        }
-
-        $textCommands = ['BT', '/F1 11 Tf', '50 790 Td'];
-        $lineIndex = 0;
-        foreach ($lines as $line) {
-            $escaped = warehouse_sync_escape_pdf_text((string)$line);
-            if ($lineIndex > 0) {
-                $textCommands[] = '0 -18 Td';
-            }
-            $textCommands[] = '(' . $escaped . ') Tj';
-            $lineIndex++;
-        }
-        $textCommands[] = 'ET';
-        $stream = implode("\n", $textCommands) . "\n";
-        $streamLen = strlen($stream);
-
-        $objects = [
-            "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n",
-            "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n",
-            "3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>\nendobj\n",
-            "4 0 obj\n<< /Length {$streamLen} >>\nstream\n{$stream}endstream\nendobj\n",
-            "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n",
-        ];
-
-        $pdf = "%PDF-1.4\n";
-        $offsets = [];
-        foreach ($objects as $obj) {
-            $offsets[] = strlen($pdf);
-            $pdf .= $obj;
-        }
-
-        $xrefPos = strlen($pdf);
-        $pdf .= "xref\n0 " . (count($objects) + 1) . "\n";
-        $pdf .= "0000000000 65535 f \n";
-        foreach ($offsets as $offset) {
-            $pdf .= sprintf("%010d 00000 n \n", $offset);
-        }
-        $pdf .= "trailer\n<< /Size " . (count($objects) + 1) . " /Root 1 0 R >>\n";
-        $pdf .= "startxref\n" . $xrefPos . "\n%%EOF\n";
-
-        return $pdf;
-    }
-
     function warehouse_sync_queue_print_preview(string $deviceUid, string $previewHtml): array
     {
         if ($deviceUid === '') {
@@ -2086,13 +2006,13 @@ if (!function_exists('warehouse_sync_queue_print_preview')) {
         if (!is_array($queue)) {
             $queue = [];
         }
-        $previewPdf = warehouse_sync_preview_html_to_simple_pdf($previewHtml);
+
         $queue[] = [
             'job_id' => $jobId,
             'status' => 'queued',
             'created_at' => gmdate('c'),
-            'file_name' => 'connector_label_preview_' . gmdate('Ymd_His') . '.pdf',
-            'label_base64' => base64_encode($previewPdf)
+            'file_name' => 'connector_label_preview_' . gmdate('Ymd_His') . '.html',
+            'label_base64' => base64_encode($previewHtml),
         ];
         if (!print_write_queue($deviceUid, $queue)) {
             return ['status' => 'error', 'message' => 'Не удалось записать задачу в print queue'];
