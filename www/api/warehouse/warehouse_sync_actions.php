@@ -191,7 +191,10 @@ if (!function_exists('warehouse_sync_resolve_departure_table_names')) {
 
             try {
                 $tableNames[] = connectors_subrunner_resolve_flight_table_name($connector, $options);
-            } catch (Throwable $e) {
+                error_log('warehouse_sync save_connector_label_template error: ' . $e->getMessage());
+            $response = ['status' => 'error', 'message' => 'Не удалось сохранить шаблон'];
+            return;
+        }    } catch (Throwable $e) {
                 error_log('warehouse_sync resolve departure table error: ' . $e->getMessage());
             }
         }
@@ -3580,36 +3583,41 @@ if ($action === 'warehouse_item_out_confirm_send') {
 
 if ($action === 'form_connector_label_template') {
     auth_require_login();
-    if (!warehouse_sync_ensure_label_templates_table($dbcnx)) {
-        $response = ['status' => 'error', 'message' => 'Не удалось подготовить хранилище шаблонов лейблов'];
-        return;
+
+    try {
+        if (!warehouse_sync_ensure_label_templates_table($dbcnx)) {
+            $response = ['status' => 'error', 'message' => 'Не удалось подготовить хранилище шаблонов лейблов'];
+            return;
+        }
+        $connectorId = (int)($_POST['connector_id'] ?? 0);
+        $connector = warehouse_sync_fetch_connector_by_id($dbcnx, $connectorId);
+        if (!$connector) {
+            $response = ['status' => 'error', 'message' => 'Коннектор не найден'];
+            return;
+        }
+        $template = warehouse_sync_resolve_label_template_code($dbcnx, $connector);
+        $templateBody = (string)($template['template_body'] ?? '');
+        $previewHtml = warehouse_sync_label_template_preview_html($templateBody, $connectorId);
+
+        $smarty->assign('connector', $connector);
+        $smarty->assign('template', [
+            'template_code' => (string)($template['template_code'] ?? 'default'),
+            'template_body' => $templateBody,
+            'test_track' => 'TEST-TRACK-0001',
+            'preview_html' => $previewHtml,
+        ]);
+        ob_start();
+        $smarty->display('cells_NA_API_connector_label_template_modal.html');
+        $html = ob_get_clean();
+
+        $response = [
+            'status' => 'ok',
+            'html' => $html,
+        ];
+    } catch (Throwable $e) {
+        error_log('warehouse_sync form_connector_label_template error: ' . $e->getMessage());
+        $response = ['status' => 'error', 'message' => 'Не удалось открыть форму шаблона'];
     }
-    $connectorId = (int)($_POST['connector_id'] ?? 0);
-    $connector = warehouse_sync_fetch_connector_by_id($dbcnx, $connectorId);
-    if (!$connector) {
-        $response = ['status' => 'error', 'message' => 'Коннектор не найден'];
-        return;
-    }
-
-    $template = warehouse_sync_resolve_label_template_code($dbcnx, $connector);
-    $templateBody = (string)($template['template_body'] ?? '');
-    $previewHtml = warehouse_sync_label_template_preview_html($templateBody, $connectorId);
-
-    $smarty->assign('connector', $connector);
-    $smarty->assign('template', [
-        'template_code' => (string)($template['template_code'] ?? 'default'),
-        'template_body' => $templateBody,
-        'test_track' => 'TEST-TRACK-0001',
-        'preview_html' => $previewHtml,
-    ]);
-    ob_start();
-    $smarty->display('cells_NA_API_connector_label_template_modal.html');
-    $html = ob_get_clean();
-
-    $response = [
-        'status' => 'ok',
-        'html' => $html,
-    ];
 }
 
 if ($action === 'validate_connector_label_template') {
@@ -3668,11 +3676,6 @@ if ($action === 'save_connector_label_template') {
         $ok = $stmtInsert->execute();
         $stmtInsert->close();
         if (!$ok) {
-            $response = ['status' => 'error', 'message' => 'Не удалось сохранить шаблон'];
-            return;
-        }
-    } catch (Throwable $e) {
-        error_log('warehouse_sync save_connector_label_template error: ' . $e->getMessage());
             $response = ['status' => 'error', 'message' => 'Не удалось сохранить шаблон'];
             return;
         }
