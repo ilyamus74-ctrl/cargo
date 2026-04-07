@@ -2002,12 +2002,45 @@ if (!function_exists('warehouse_sync_resolve_label_template_code')) {
 if (!function_exists('warehouse_sync_ensure_label_templates_table')) {
     function warehouse_sync_ensure_label_templates_table(mysqli $dbcnx): bool
     {
+        $ensureColumns = static function () use ($dbcnx): bool {
+            $columns = [];
+            if ($resCols = $dbcnx->query("SHOW COLUMNS FROM forwarder_label_templates")) {
+                while ($row = $resCols->fetch_assoc()) {
+                    $name = (string)($row['Field'] ?? '');
+                    if ($name !== '') {
+                        $columns[$name] = true;
+                    }
+                }
+                $resCols->free();
+            } else {
+                return false;
+            }
+
+            $missing = [];
+            if (empty($columns['template_code'])) {
+                $missing[] = "ADD COLUMN template_code VARCHAR(64) NOT NULL DEFAULT 'default' AFTER connector_id";
+            }
+            if (empty($columns['is_active'])) {
+                $missing[] = "ADD COLUMN is_active TINYINT(1) NOT NULL DEFAULT 1 AFTER template_body";
+            }
+            if (empty($columns['priority'])) {
+                $missing[] = "ADD COLUMN priority INT NOT NULL DEFAULT 100 AFTER is_active";
+            }
+            if ($missing !== []) {
+                $sqlAlter = "ALTER TABLE forwarder_label_templates " . implode(', ', $missing);
+                if (!$dbcnx->query($sqlAlter)) {
+                    return false;
+                }
+            }
+
+            return true;
+        };
         try {
             if ($res = $dbcnx->query("SHOW TABLES LIKE 'forwarder_label_templates'")) {
                 $exists = (bool)$res->num_rows;
                 $res->free();
                 if ($exists) {
-                    return true;
+                    return $ensureColumns();
                 }
             }
         } catch (Throwable $e) {
@@ -2021,14 +2054,15 @@ if (!function_exists('warehouse_sync_ensure_label_templates_table')) {
             template_body MEDIUMTEXT NOT NULL,
             is_active TINYINT(1) NOT NULL DEFAULT 1,
             priority INT NOT NULL DEFAULT 100,
-            created_by BIGINT UNSIGNED NOT NULL DEFAULT 0,
-            updated_by BIGINT UNSIGNED NOT NULL DEFAULT 0,
             created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
             updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             KEY idx_connector_active (connector_id, is_active, priority, id)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4";
         try {
-            return (bool)$dbcnx->query($sql);
+            if (!(bool)$dbcnx->query($sql)) {
+                return false;
+            }
+            return $ensureColumns();
         } catch (Throwable $e) {
             error_log('warehouse_sync label template table create error: ' . $e->getMessage());
             return false;
@@ -2102,8 +2136,24 @@ if (!function_exists('warehouse_sync_validate_label_template_body')) {
             $errors[] = 'Несогласованные плейсхолдеры: количество {{ и }} не совпадает.';
         }
 
-        if (preg_match('/(?<!\\{)\\{(?!\\{)|(?<!\\})\\}(?!\\})/', $templateBody) === 1) {
-            $errors[] = 'Обнаружены одиночные фигурные скобки. Используйте формат {{field_name}}.';
+        // Допускаем одиночные фигурные скобки в CSS/JS/HTML (например, body{...}).
+        // Ошибкой считаем только "похожий на плейсхолдер" синтаксис вида {field_name},
+        // т.к. корректный формат плейсхолдера — {{field_name}}.
+        // Без флага /u: входной шаблон может содержать невалидные UTF-8 байты,
+        // что на некоторых окружениях приводит к warning/500 в preg_*.
+        if (preg_match_all('/\\{+\\s*([a-zA-Z0-9_\\.\\-]+)\\s*\\}+/', $templateBody, $braceMatches, PREG_SET_ORDER)) {
+            foreach ($braceMatches as $braceMatch) {
+                $token = (string)($braceMatch[0] ?? '');
+                if ($token === '') {
+                    continue;
+                }
+                $leftBraceCount = strspn($token, '{');
+                $rightBraceCount = strspn(strrev($token), '}');
+                if ($leftBraceCount === 1 && $rightBraceCount === 1) {
+                    $errors[] = 'Обнаружены одиночные фигурные скобки. Используйте формат {{field_name}}.';
+                    break;
+                }
+            }
         }
 
         if (preg_match_all('/\\{\\{([^{}]+)\\}\\}/', $templateBody, $matches)) {
@@ -3602,34 +3652,45 @@ if ($action === 'save_connector_label_template') {
         ];
         return;
     }
-
-    $stmtDeactivate = $dbcnx->prepare("UPDATE forwarder_label_templates SET is_active = 0, updated_by = ? WHERE connector_id = ? AND template_code = ?");
-    if ($stmtDeactivate) {
-        $stmtDeactivate->bind_param('iis', $userId, $connectorId, $templateCode);
-        $stmtDeactivate->execute();
-        $stmtDeactivate->close();
-    }
-
-    $stmtInsert = $dbcnx->prepare("INSERT INTO forwarder_label_templates (connector_id, template_code, template_body, is_active, priority, created_by, updated_by) VALUES (?, ?, ?, 1, 100, ?, ?)");
-    if (!$stmtInsert) {
+    try {
+        $stmtDeactivate = $dbcnx->prepare("UPDATE forwarder_label_templates SET is_active = 0 WHERE connector_id = ? AND template_code = ?");
+        if ($stmtDeactivate) {
+            $stmtDeactivate->bind_param('is', $connectorId, $templateCode);
+            $stmtDeactivate->execute();
+            $stmtDeactivate->close();
+        }
+        $stmtInsert = $dbcnx->prepare("INSERT INTO forwarder_label_templates (connector_id, template_code, template_body, is_active, priority) VALUES (?, ?, ?, 1, 100)");
+        if (!$stmtInsert) {
+            $response = ['status' => 'error', 'message' => 'Не удалось сохранить шаблон'];
+            return;
+        }
+        $stmtInsert->bind_param('iss', $connectorId, $templateCode, $templateBody);
+        $ok = $stmtInsert->execute();
+        $stmtInsert->close();
+        if (!$ok) {
+            $response = ['status' => 'error', 'message' => 'Не удалось сохранить шаблон'];
+            return;
+        }
+    } catch (Throwable $e) {
+        error_log('warehouse_sync save_connector_label_template error: ' . $e->getMessage());
+            $response = ['status' => 'error', 'message' => 'Не удалось сохранить шаблон'];
+            return;
+        }
+    } catch (Throwable $e) {
+        error_log('warehouse_sync save_connector_label_template error: ' . $e->getMessage());
         $response = ['status' => 'error', 'message' => 'Не удалось сохранить шаблон'];
         return;
     }
-    $stmtInsert->bind_param('issii', $connectorId, $templateCode, $templateBody, $userId, $userId);
-    $ok = $stmtInsert->execute();
-    $stmtInsert->close();
-    if (!$ok) {
-        $response = ['status' => 'error', 'message' => 'Не удалось сохранить шаблон'];
-        return;
+    try {
+        audit_log($userId, 'CONNECTOR_LABEL_TEMPLATE_UPDATED', 'connectors', $connectorId, 'Шаблон лейбла обновлён', [
+            'connector_id' => $connectorId,
+            'template_code' => $templateCode,
+            'template_sha256' => hash('sha256', $templateBody),
+            'warnings' => $check['warnings'],
+        ]);
+    } catch (Throwable $e) {
+        error_log('warehouse_sync save_connector_label_template audit error: ' . $e->getMessage());
     }
-
-    audit_log($userId, 'CONNECTOR_LABEL_TEMPLATE_UPDATED', 'connectors', $connectorId, 'Шаблон лейбла обновлён', [
-        'connector_id' => $connectorId,
-        'template_code' => $templateCode,
-        'template_sha256' => hash('sha256', $templateBody),
-        'warnings' => $check['warnings'],
-    ]);
-
     $response = [
         'status' => 'ok',
         'message' => 'Шаблон сохранён',
