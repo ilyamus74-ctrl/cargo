@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-04-07 05:56:03
+/* Smarty version 5.3.1, created on 2026-04-07 08:17:33
   from 'file:cells_NA_API_connector_label_template_modal.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_69d49c73816966_35336603',
+  'unifunc' => 'content_69d4bd9d83d350_22055365',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '837d386e7f61a5e4cbaacc48d56efa349bdf1327' => 
     array (
       0 => 'cells_NA_API_connector_label_template_modal.html',
-      1 => 1775541360,
+      1 => 1775549850,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_69d49c73816966_35336603 (\Smarty\Template $_smarty_tpl) {
+function content_69d4bd9d83d350_22055365 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?><form id="connector-label-template-form">
   <input type="hidden" name="connector_id" value="<?php echo $_smarty_tpl->getSmarty()->getModifierCallback('escape')((($tmp = $_smarty_tpl->getValue('connector')['id'] ?? null)===null||$tmp==='' ? 0 ?? null : $tmp), 'htmlattr');?>
@@ -89,11 +89,26 @@ $_smarty_current_dir = '/home/cells/web/templates';
           </div>
           <div class="col-sm-6">
             <label for="connector_label_template_print_device" class="form-label form-label-sm">Print device key</label>
-            <input id="connector_label_template_print_device"
-                   type="text"
-                   class="form-control form-control-sm"
-                   name="print_device_key"
-                   value="">
+            <select id="connector_label_template_print_device"
+                    class="form-select form-select-sm"
+                    name="print_device_key">
+              <option value="">Не использовать принтер (только preview)</option>
+              <?php
+$_from = $_smarty_tpl->getSmarty()->getRuntime('Foreach')->init($_smarty_tpl, $_smarty_tpl->getValue('print_devices'), 'device');
+$foreach0DoElse = true;
+foreach ($_from ?? [] as $_smarty_tpl->getVariable('device')->value) {
+$foreach0DoElse = false;
+?>
+                <option value="<?php echo $_smarty_tpl->getSmarty()->getModifierCallback('escape')($_smarty_tpl->getValue('device')['device_uid'], 'htmlattr');?>
+" <?php if ($_smarty_tpl->getValue('print_devices_count') === 1) {?>selected<?php }?>>
+                  <?php echo htmlspecialchars((string)(($tmp = $_smarty_tpl->getValue('device')['name'] ?? null)===null||$tmp==='' ? 'Printer' ?? null : $tmp), ENT_QUOTES, 'UTF-8', true);?>
+ (<?php echo htmlspecialchars((string)$_smarty_tpl->getValue('device')['device_uid'], ENT_QUOTES, 'UTF-8', true);?>
+)
+                </option>
+              <?php
+}
+$_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
+            </select>
           </div>
         </div>
         <div class="border rounded p-2 bg-light" style="min-height: 420px; max-height: 620px; overflow: auto;">

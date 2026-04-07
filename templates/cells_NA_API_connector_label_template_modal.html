@@ -57,11 +57,16 @@
           </div>
           <div class="col-sm-6">
             <label for="connector_label_template_print_device" class="form-label form-label-sm">Print device key</label>
-            <input id="connector_label_template_print_device"
-                   type="text"
-                   class="form-control form-control-sm"
-                   name="print_device_key"
-                   value="">
+            <select id="connector_label_template_print_device"
+                    class="form-select form-select-sm"
+                    name="print_device_key">
+              <option value="">Не использовать принтер (только preview)</option>
+              {foreach $print_devices as $device}
+                <option value="{$device.device_uid|escape:'htmlattr'}" {if $print_devices_count === 1}selected{/if}>
+                  {$device.name|default:'Printer'|escape} ({$device.device_uid|escape})
+                </option>
+              {/foreach}
+            </select>
           </div>
         </div>
         <div class="border rounded p-2 bg-light" style="min-height: 420px; max-height: 620px; overflow: auto;">

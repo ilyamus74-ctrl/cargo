@@ -1951,6 +1951,81 @@ if (!function_exists('warehouse_sync_exec_forwarder_cli_script')) {
     }
 }
 
+if (!function_exists('warehouse_sync_fetch_active_print_devices')) {
+    function warehouse_sync_fetch_active_print_devices(mysqli $dbcnx): array
+    {
+        $printDevices = [];
+        $sql = "
+            SELECT device_uid, name, device_token
+            FROM devices
+            WHERE is_active = 1
+              AND TRIM(app_version) LIKE 'print-agent-%'
+              AND TRIM(device_uid) <> ''
+            ORDER BY name ASC, device_uid ASC
+        ";
+        if ($resDevices = $dbcnx->query($sql)) {
+            while ($row = $resDevices->fetch_assoc()) {
+                $deviceUid = trim((string)($row['device_uid'] ?? ''));
+                if ($deviceUid === '') {
+                    continue;
+                }
+                $printDevices[] = [
+                    'device_uid' => $deviceUid,
+                    'name' => trim((string)($row['name'] ?? '')),
+                    'device_token' => trim((string)($row['device_token'] ?? '')),
+                ];
+            }
+            $resDevices->free();
+        }
+
+        return $printDevices;
+    }
+}
+
+if (!function_exists('warehouse_sync_queue_print_preview')) {
+    function warehouse_sync_queue_print_preview(string $deviceUid, string $previewHtml): array
+    {
+        if ($deviceUid === '') {
+            return ['status' => 'skipped', 'message' => 'print_device_key пустой'];
+        }
+        if ($previewHtml === '') {
+            return ['status' => 'error', 'message' => 'preview пустой'];
+        }
+
+        $printLibPath = dirname(__DIR__) . '/print/_lib.php';
+        if (!is_file($printLibPath)) {
+            return ['status' => 'error', 'message' => 'Не найден print/_lib.php'];
+        }
+        require_once $printLibPath;
+        if (!function_exists('print_read_queue') || !function_exists('print_write_queue')) {
+            return ['status' => 'error', 'message' => 'print lib не содержит queue helpers'];
+        }
+
+        $jobId = 'job-preview-' . gmdate('YmdHis') . '-' . bin2hex(random_bytes(4));
+        $queue = print_read_queue($deviceUid);
+        if (!is_array($queue)) {
+            $queue = [];
+        }
+
+        $queue[] = [
+            'job_id' => $jobId,
+            'status' => 'queued',
+            'created_at' => gmdate('c'),
+            'file_name' => 'connector_label_preview_' . gmdate('Ymd_His') . '.html',
+            'label_base64' => base64_encode($previewHtml),
+        ];
+        if (!print_write_queue($deviceUid, $queue)) {
+            return ['status' => 'error', 'message' => 'Не удалось записать задачу в print queue'];
+        }
+
+        return [
+            'status' => 'ok',
+            'message' => 'Тестовая печать отправлена в очередь',
+            'job_id' => $jobId,
+        ];
+    }
+}
+
 if (!function_exists('warehouse_sync_resolve_label_template_code')) {
     function warehouse_sync_resolve_label_template_code(mysqli $dbcnx, array $connector): array
     {
@@ -3099,26 +3174,7 @@ if ($action === 'item_out') {
     auth_require_login();
     $current = $user;
 
-    $printDevices = [];
-    $sql = "
-        SELECT device_uid, name, device_token
-        FROM devices
-        WHERE is_active = 1
-          AND TRIM(app_version) LIKE 'print-agent-%'
-          AND TRIM(device_uid) <> ''
-        ORDER BY name ASC, device_uid ASC
-    ";
-    if ($resDevices = $dbcnx->query($sql)) {
-        while ($row = $resDevices->fetch_assoc()) {
-            $printDevices[] = [
-                'device_uid' => trim((string)($row['device_uid'] ?? '')),
-                'name' => trim((string)($row['name'] ?? '')),
-                'device_token' => trim((string)($row['device_token'] ?? '')),
-            ];
-        }
-        $resDevices->free();
-    }
-
+    $printDevices = warehouse_sync_fetch_active_print_devices($dbcnx);
     $forwarders = [];
     $sql = "
         SELECT DISTINCT UPPER(TRIM(receiver_company)) AS forwarder
@@ -3595,6 +3651,7 @@ if ($action === 'form_connector_label_template') {
         $template = warehouse_sync_resolve_label_template_code($dbcnx, $connector);
         $templateBody = (string)($template['template_body'] ?? '');
         $previewHtml = warehouse_sync_label_template_preview_html($templateBody, $connectorId);
+        $printDevices = warehouse_sync_fetch_active_print_devices($dbcnx);
 
         $smarty->assign('connector', $connector);
         $smarty->assign('template', [
@@ -3603,6 +3660,8 @@ if ($action === 'form_connector_label_template') {
             'test_track' => 'TEST-TRACK-0001',
             'preview_html' => $previewHtml,
         ]);
+        $smarty->assign('print_devices', $printDevices);
+        $smarty->assign('print_devices_count', count($printDevices));
         ob_start();
         $smarty->display('cells_NA_API_connector_label_template_modal.html');
         $html = ob_get_clean();
@@ -3735,18 +3794,34 @@ if ($action === 'test_print_connector_label_template') {
         }
 
         $previewHtml = warehouse_sync_label_template_preview_html($templateBody, $connectorId);
+        $printResult = ['status' => 'skipped', 'message' => 'Отправка на принтер не запрошена'];
+        if ($printDeviceKey !== '') {
+            $printResult = warehouse_sync_queue_print_preview($printDeviceKey, $previewHtml);
+        }
+
+        $message = 'Тест печати: сформирован preview шаблона.';
+        if ($printDeviceKey !== '') {
+            $message = strtolower((string)($printResult['status'] ?? '')) === 'ok'
+                ? 'Тест печати: preview сформирован и отправлен на принтер.'
+                : 'Тест печати: preview сформирован, но отправка на принтер завершилась ошибкой.';
+        }
+
         $response = [
             'status' => 'ok',
-            'message' => 'Тест печати: сформирован preview шаблона' . ($printDeviceKey !== '' ? ' (без отправки на устройство).' : '.'),
+            'message' => $message,
             'connector_id' => $connectorId,
             'test_track' => $testTrack,
             'preview_html' => $previewHtml,
             'label_base64' => base64_encode($previewHtml),
             'warnings' => $check['warnings'],
+            'print_result' => $printResult,
             'diagnostics' => [
                 'template_sha256' => hash('sha256', $templateBody),
                 'preview_size' => strlen($previewHtml),
                 'print_device_key' => $printDeviceKey,
+                'print_status' => (string)($printResult['status'] ?? ''),
+                'print_job_id' => (string)($printResult['job_id'] ?? ''),
+                'print_message' => (string)($printResult['message'] ?? ''),
             ],
         ];
         audit_log($userId, 'CONNECTOR_LABEL_TEMPLATE_TEST_PRINT', 'connectors', $connectorId, 'Тест печати шаблона выполнен', [
