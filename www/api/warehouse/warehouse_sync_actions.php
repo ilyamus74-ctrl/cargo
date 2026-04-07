@@ -1999,6 +1999,122 @@ if (!function_exists('warehouse_sync_resolve_label_template_code')) {
     }
 }
 
+if (!function_exists('warehouse_sync_ensure_label_templates_table')) {
+    function warehouse_sync_ensure_label_templates_table(mysqli $dbcnx): void
+    {
+        $sql = "CREATE TABLE IF NOT EXISTS forwarder_label_templates (
+            id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            connector_id BIGINT UNSIGNED NOT NULL,
+            template_code VARCHAR(64) NOT NULL DEFAULT 'default',
+            template_body MEDIUMTEXT NOT NULL,
+            is_active TINYINT(1) NOT NULL DEFAULT 1,
+            priority INT NOT NULL DEFAULT 100,
+            created_by BIGINT UNSIGNED NOT NULL DEFAULT 0,
+            updated_by BIGINT UNSIGNED NOT NULL DEFAULT 0,
+            created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+            KEY idx_connector_active (connector_id, is_active, priority, id)
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4";
+        $dbcnx->query($sql);
+    }
+}
+
+if (!function_exists('warehouse_sync_fetch_connector_by_id')) {
+    function warehouse_sync_fetch_connector_by_id(mysqli $dbcnx, int $connectorId): ?array
+    {
+        if ($connectorId <= 0) {
+            return null;
+        }
+        $stmt = $dbcnx->prepare("SELECT id, name, base_url, auth_username, auth_password FROM connectors WHERE id = ? LIMIT 1");
+        if (!$stmt) {
+            return null;
+        }
+        $stmt->bind_param('i', $connectorId);
+        $stmt->execute();
+        $row = $stmt->get_result()?->fetch_assoc();
+        $stmt->close();
+        return is_array($row) ? $row : null;
+    }
+}
+
+if (!function_exists('warehouse_sync_label_template_preview_html')) {
+    function warehouse_sync_label_template_preview_html(string $templateBody, int $connectorId = 0): string
+    {
+        $sample = [
+            '{{track}}' => 'TEST-TRACK-0001',
+            '{{client}}' => 'Test Client',
+            '{{client_code}}' => 'CLI001',
+            '{{client_id}}' => '12345678',
+            '{{internal_id}}' => 'INT-00001',
+            '{{weight}}' => '1.000',
+            '{{amount}}' => '10.00 USD',
+            '{{flight_name}}' => 'AZ001',
+            '{{barcode_url}}' => 'https://barcode.tec-it.com/barcode.ashx?data=INT-00001&code=Code128&dpi=96',
+            '{{qr_img_html}}' => '<span style="font-size:12px;color:#777;">[QR preview]</span>',
+        ];
+
+        $body = trim($templateBody);
+        if ($body === '') {
+            return '<span class="text-muted">Предпросмотр отсутствует: шаблон пуст.</span>';
+        }
+
+        $rendered = strtr($body, $sample);
+        $rendered = preg_replace('/<script\\b[^>]*>(.*?)<\\/script>/is', '', $rendered) ?? $rendered;
+
+        return '<div class="small text-muted mb-2">Connector #' . (int)$connectorId . ' · preview (sanitized)</div>' . $rendered;
+    }
+}
+
+if (!function_exists('warehouse_sync_validate_label_template_body')) {
+    function warehouse_sync_validate_label_template_body(string $templateBody): array
+    {
+        $errors = [];
+        $warnings = [];
+        $body = trim($templateBody);
+        $maxBytes = 102400;
+        $sizeBytes = strlen($templateBody);
+
+        if ($body === '') {
+            $errors[] = 'Шаблон пустой.';
+        }
+        if ($sizeBytes > $maxBytes) {
+            $errors[] = 'Размер шаблона превышает 100KB.';
+        }
+
+        if (substr_count($templateBody, '{{') !== substr_count($templateBody, '}}')) {
+            $errors[] = 'Несогласованные плейсхолдеры: количество {{ и }} не совпадает.';
+        }
+
+        if (preg_match('/(?<!\\{)\\{(?!\\{)|(?<!\\})\\}(?!\\})/', $templateBody) === 1) {
+            $errors[] = 'Обнаружены одиночные фигурные скобки. Используйте формат {{field_name}}.';
+        }
+
+        if (preg_match_all('/\\{\\{([^{}]+)\\}\\}/', $templateBody, $matches)) {
+            foreach ($matches[1] as $rawName) {
+                $name = trim((string)$rawName);
+                if ($name === '') {
+                    $errors[] = 'Найден пустой плейсхолдер {{ }}.';
+                    continue;
+                }
+                if (preg_match('/^[a-zA-Z0-9_\\.\\-]+$/', $name) !== 1) {
+                    $errors[] = 'Недопустимое имя плейсхолдера: ' . $name;
+                }
+            }
+        }
+
+        if (mb_stripos($templateBody, '{{track}}') === false) {
+            $warnings[] = 'Рекомендуется добавить {{track}} в шаблон.';
+        }
+
+        return [
+            'status' => $errors === [] ? 'ok' : 'error',
+            'errors' => array_values(array_unique($errors)),
+            'warnings' => array_values(array_unique($warnings)),
+            'size_bytes' => $sizeBytes,
+        ];
+    }
+}
+
 if (!function_exists('warehouse_sync_update_forwarder_snapshot_for_container')) {
     function warehouse_sync_update_forwarder_snapshot_for_container(
         mysqli $dbcnx,
@@ -3393,6 +3509,167 @@ if ($action === 'warehouse_item_out_confirm_send') {
         'forwarder_sync' => $forwarderSync,
     ];
 }
+
+
+if ($action === 'form_connector_label_template') {
+    auth_require_login();
+    warehouse_sync_ensure_label_templates_table($dbcnx);
+
+    $connectorId = (int)($_POST['connector_id'] ?? 0);
+    $connector = warehouse_sync_fetch_connector_by_id($dbcnx, $connectorId);
+    if (!$connector) {
+        $response = ['status' => 'error', 'message' => 'Коннектор не найден'];
+        return;
+    }
+
+    $template = warehouse_sync_resolve_label_template_code($dbcnx, $connector);
+    $templateBody = (string)($template['template_body'] ?? '');
+    $previewHtml = warehouse_sync_label_template_preview_html($templateBody, $connectorId);
+
+    $smarty->assign('connector', $connector);
+    $smarty->assign('template', [
+        'template_code' => (string)($template['template_code'] ?? 'default'),
+        'template_body' => $templateBody,
+        'test_track' => 'TEST-TRACK-0001',
+        'preview_html' => $previewHtml,
+    ]);
+    ob_start();
+    $smarty->display('cells_NA_API_connector_label_template_modal.html');
+    $html = ob_get_clean();
+
+    $response = [
+        'status' => 'ok',
+        'html' => $html,
+    ];
+}
+
+if ($action === 'validate_connector_label_template') {
+    auth_require_login();
+    $connectorId = (int)($_POST['connector_id'] ?? 0);
+    $templateBody = (string)($_POST['template_body'] ?? '');
+
+    $check = warehouse_sync_validate_label_template_body($templateBody);
+    $check['connector_id'] = $connectorId;
+    $check['preview_html'] = warehouse_sync_label_template_preview_html($templateBody, $connectorId);
+    $response = $check;
+}
+
+if ($action === 'save_connector_label_template') {
+    auth_require_login();
+    warehouse_sync_ensure_label_templates_table($dbcnx);
+
+    $current = $user;
+    $userId = (int)($current['id'] ?? 0);
+    $connectorId = (int)($_POST['connector_id'] ?? 0);
+    $templateCode = trim((string)($_POST['template_code'] ?? 'default'));
+    $templateBody = (string)($_POST['template_body'] ?? '');
+    $templateCode = $templateCode !== '' ? $templateCode : 'default';
+
+    $connector = warehouse_sync_fetch_connector_by_id($dbcnx, $connectorId);
+    if (!$connector) {
+        $response = ['status' => 'error', 'message' => 'Коннектор не найден'];
+        return;
+    }
+
+    $check = warehouse_sync_validate_label_template_body($templateBody);
+    if (!empty($check['errors'])) {
+        $response = [
+            'status' => 'error',
+            'message' => 'Шаблон не прошёл валидацию',
+            'errors' => $check['errors'],
+            'warnings' => $check['warnings'],
+        ];
+        return;
+    }
+
+    $stmtDeactivate = $dbcnx->prepare("UPDATE forwarder_label_templates SET is_active = 0, updated_by = ? WHERE connector_id = ? AND template_code = ?");
+    if ($stmtDeactivate) {
+        $stmtDeactivate->bind_param('iis', $userId, $connectorId, $templateCode);
+        $stmtDeactivate->execute();
+        $stmtDeactivate->close();
+    }
+
+    $stmtInsert = $dbcnx->prepare("INSERT INTO forwarder_label_templates (connector_id, template_code, template_body, is_active, priority, created_by, updated_by) VALUES (?, ?, ?, 1, 100, ?, ?)");
+    if (!$stmtInsert) {
+        $response = ['status' => 'error', 'message' => 'Не удалось сохранить шаблон'];
+        return;
+    }
+    $stmtInsert->bind_param('issii', $connectorId, $templateCode, $templateBody, $userId, $userId);
+    $ok = $stmtInsert->execute();
+    $stmtInsert->close();
+    if (!$ok) {
+        $response = ['status' => 'error', 'message' => 'Не удалось сохранить шаблон'];
+        return;
+    }
+
+    audit_log($userId, 'CONNECTOR_LABEL_TEMPLATE_UPDATED', 'connectors', $connectorId, 'Шаблон лейбла обновлён', [
+        'connector_id' => $connectorId,
+        'template_code' => $templateCode,
+        'template_sha256' => hash('sha256', $templateBody),
+        'warnings' => $check['warnings'],
+    ]);
+
+    $response = [
+        'status' => 'ok',
+        'message' => 'Шаблон сохранён',
+        'connector_id' => $connectorId,
+        'warnings' => $check['warnings'],
+    ];
+}
+
+if ($action === 'test_print_connector_label_template') {
+    auth_require_login();
+    $current = $user;
+    $userId = (int)($current['id'] ?? 0);
+    $connectorId = (int)($_POST['connector_id'] ?? 0);
+    $templateBody = (string)($_POST['template_body'] ?? '');
+    $testTrack = trim((string)($_POST['test_track'] ?? 'TEST-TRACK-0001'));
+    $printDeviceKey = trim((string)($_POST['print_device_key'] ?? ''));
+
+    $connector = warehouse_sync_fetch_connector_by_id($dbcnx, $connectorId);
+    if (!$connector) {
+        $response = ['status' => 'error', 'message' => 'Коннектор не найден'];
+        return;
+    }
+
+    $check = warehouse_sync_validate_label_template_body($templateBody);
+    if (!empty($check['errors'])) {
+        $response = [
+            'status' => 'error',
+            'message' => 'Тест печати остановлен: шаблон не валиден',
+            'errors' => $check['errors'],
+            'warnings' => $check['warnings'],
+        ];
+        audit_log($userId, 'CONNECTOR_LABEL_TEMPLATE_TEST_PRINT', 'connectors', $connectorId, 'Ошибка теста печати шаблона', [
+            'connector_id' => $connectorId,
+            'template_code' => trim((string)($_POST['template_code'] ?? 'default')),
+            'template_sha256' => hash('sha256', $templateBody),
+            'result' => 'validation_error',
+            'errors' => $check['errors'],
+        ]);
+        return;
+    }
+
+    $previewHtml = warehouse_sync_label_template_preview_html($templateBody, $connectorId);
+    $response = [
+        'status' => 'ok',
+        'message' => 'Тест печати: сформирован preview шаблона' . ($printDeviceKey !== '' ? ' (без отправки на устройство).' : '.'),
+        'connector_id' => $connectorId,
+        'test_track' => $testTrack,
+        'preview_html' => $previewHtml,
+        'label_base64' => base64_encode($previewHtml),
+    ];
+
+    audit_log($userId, 'CONNECTOR_LABEL_TEMPLATE_TEST_PRINT', 'connectors', $connectorId, 'Тест печати шаблона выполнен', [
+        'connector_id' => $connectorId,
+        'template_code' => trim((string)($_POST['template_code'] ?? 'default')),
+        'template_sha256' => hash('sha256', $templateBody),
+        'result' => 'ok',
+        'test_track' => $testTrack,
+        'print_device_key' => $printDeviceKey,
+    ]);
+}
+
 
 if ($action === 'warehouse_sync_missing') {
     auth_require_login();

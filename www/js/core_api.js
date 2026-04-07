@@ -93,6 +93,7 @@ const CoreAPI = {
                 'form_edit_cell': () => this.withAttribute('cell_id', link),
                 'form_edit_connector': () => this.withAttribute('connector_id', link),
                 'test_connector': () => this.withAttribute('connector_id', link),
+                'form_connector_label_template': () => this.withAttribute('connector_id', link),
                 'manual_confirm_connector': () => this.getFormById('connector-form'),
                 'manual_confirm_puppeteer': () => this.getFormById('connector-form'),
                 'form_connector_operations': () => {
@@ -128,6 +129,9 @@ const CoreAPI = {
                     return fd;
                 },
                 'save_connector_addons': (currentLink) => this.getFormById('connector-operations-form', currentLink),
+                'save_connector_label_template': (currentLink) => this.getFormById('connector-label-template-form', currentLink),
+                'validate_connector_label_template': (currentLink) => this.getFormById('connector-label-template-form', currentLink),
+                'test_print_connector_label_template': (currentLink) => this.getFormById('connector-label-template-form', currentLink),
 
                 'warehouse_sync_process_helper': () => {
                     const fd = new FormData();
@@ -607,6 +611,63 @@ const CoreAPI = {
 
         'form_connector_operations': (data) => {
             CoreAPI.ui.showModal(data.html);
+        },
+
+        'form_connector_label_template': (data) => {
+            CoreAPI.ui.showModal(data.html);
+        },
+        'validate_connector_label_template': (data) => {
+            const box = document.getElementById('connector-label-template-validation');
+            if (box) {
+                const errors = Array.isArray(data?.errors) ? data.errors : [];
+                const warnings = Array.isArray(data?.warnings) ? data.warnings : [];
+                const parts = [];
+                if (errors.length > 0) {
+                    parts.push(`<div class=\"text-danger\"><strong>Ошибки:</strong><ul class=\"mb-1\">${errors.map((item) => `<li>${String(item || '').replace(/[<>&]/g, '')}</li>`).join('')}</ul></div>`);
+                }
+                if (warnings.length > 0) {
+                    parts.push(`<div class=\"text-warning\"><strong>Предупреждения:</strong><ul class=\"mb-0\">${warnings.map((item) => `<li>${String(item || '').replace(/[<>&]/g, '')}</li>`).join('')}</ul></div>`);
+                }
+                if (parts.length === 0) {
+                    parts.push('<div class=\"text-success\">Валидация успешна.</div>');
+                }
+                box.innerHTML = parts.join('');
+            }
+            if (typeof data?.preview_html === 'string') {
+                const preview = document.getElementById('connector-label-template-preview');
+                if (preview) {
+                    preview.innerHTML = data.preview_html;
+                }
+            }
+        },
+        'save_connector_label_template': async (data) => {
+            alert(data.message || 'Шаблон сохранён');
+            const connectorId = String(data?.connector_id || '').trim();
+            if (connectorId) {
+                const fd = new FormData();
+                fd.append('action', 'form_connector_label_template');
+                fd.append('connector_id', connectorId);
+                const d2 = await CoreAPI.client.call(fd);
+                if (d2?.status === 'ok') {
+                    CoreAPI.ui.showModal(d2.html);
+                }
+            }
+            await CoreAPI.ui.reloadList('view_connectors');
+        },
+        'test_print_connector_label_template': (data) => {
+            const box = document.getElementById('connector-label-template-validation');
+            const message = String(data?.message || '').trim() || 'Тест печати выполнен';
+            if (box) {
+                const cls = String(data?.status || '').toLowerCase() === 'ok' ? 'text-success' : 'text-danger';
+                box.innerHTML = `<div class=\"${cls}\">${message.replace(/[<>&]/g, '')}</div>`;
+            }
+            if (typeof data?.preview_html === 'string') {
+                const preview = document.getElementById('connector-label-template-preview');
+                if (preview) {
+                    preview.innerHTML = data.preview_html;
+                }
+            }
+            alert(message);
         },
         'save_connector_operations': async (data) => {
             alert(data.message || 'Операции сохранены');

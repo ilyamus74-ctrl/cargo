@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-03-17 08:10:14
+/* Smarty version 5.3.1, created on 2026-04-07 05:33:21
   from 'file:cells_NA_API_connectors.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_69b90c66304b95_80681845',
+  'unifunc' => 'content_69d4972199f3c0_09503408',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '98a558f7d8b706e3186772b3ec457fb100f271e8' => 
     array (
       0 => 'cells_NA_API_connectors.html',
-      1 => 1772019280,
+      1 => 1775539575,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_69b90c66304b95_80681845 (\Smarty\Template $_smarty_tpl) {
+function content_69d4972199f3c0_09503408 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>    <div class="pagetitle">
       <h1>Settings connectors</h1>
@@ -60,6 +60,7 @@ $_smarty_current_dir = '/home/cells/web/templates';
                       <th scope="col">Успешное обновление</th>
                       <th scope="col">Ошибка</th>
                       <th scope="col" class="text-end">Операции</th>
+                      <th scope="col" class="text-end">Шаблон</th>
                       <th scope="col" class="text-end">Действия</th>
                     </tr>
                   </thead>
@@ -115,6 +116,15 @@ $foreach0DoElse = false;
                           </td>
                           <td class="text-end">
                             <button type="button"
+                                    class="btn btn-sm btn-outline-warning js-core-link"
+                                    data-core-action="form_connector_label_template"
+                                    data-connector-id="<?php echo $_smarty_tpl->getValue('connector')['id'];?>
+">
+                              Шаблон лейбла
+                            </button>
+                          </td>
+                          <td class="text-end">
+                            <button type="button"
                                     class="btn btn-sm btn-outline-primary js-core-link"
                                     data-core-action="form_edit_connector"
                                     data-connector-id="<?php echo $_smarty_tpl->getValue('connector')['id'];?>
@@ -128,7 +138,7 @@ $foreach0DoElse = false;
 $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
                     <?php } else { ?>
                       <tr>
-                        <td colspan="9" class="text-muted text-center">Коннекторы не настроены</td>
+                        <td colspan="10" class="text-muted text-center">Коннекторы не настроены</td>
                       </tr>
                     <?php }?>
                   </tbody>
