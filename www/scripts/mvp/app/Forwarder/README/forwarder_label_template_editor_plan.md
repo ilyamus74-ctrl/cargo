@@ -133,12 +133,12 @@
 
 готово
 ### Шаг 3 — Тест печати
-- Кнопка `Тест печати шаблона` готово
-- backend action `test_print_connector_label_template` готово
+- Кнопка `Тест печати шаблона` 
+- backend action `test_print_connector_label_template`
 - вывод результата: success/fail + диагностическое сообщение
 - `audit_log` на тест
 
-
+готово
 
 ### Шаг 4 — Полировка
 - UX-подсказки по плейсхолдерам

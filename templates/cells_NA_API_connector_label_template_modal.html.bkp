@@ -1,0 +1,87 @@
+<form id="connector-label-template-form">
+  <input type="hidden" name="connector_id" value="{$connector.id|default:0|escape:'htmlattr'}">
+  <input type="hidden" name="template_code" value="{$template.template_code|default:'default'|escape:'htmlattr'}">
+
+  <div class="container-fluid">
+    <div class="row g-3">
+      <div class="col-lg-6">
+        <div class="mb-2">
+          <label class="form-label">Template code</label>
+          <input type="text"
+                 class="form-control"
+                 value="{$template.template_code|default:'default'|escape}"
+                 readonly>
+        </div>
+        <div class="mb-2">
+          <label for="connector_label_template_body" class="form-label">Тело шаблона</label>
+          <textarea id="connector_label_template_body"
+                    name="template_body"
+                    class="form-control font-monospace"
+                    rows="18"
+                    placeholder="<!doctype html>...">{$template.template_body|default:''|escape}</textarea>
+          <div class="form-text">Лимит: 100KB. Доступны плейсхолдеры вида <code>{{track}}</code>.</div>
+        </div>
+        <div class="alert alert-light border small mb-2">
+          <div class="fw-semibold mb-1">Плейсхолдеры (минимум)</div>
+          <div class="d-flex flex-wrap gap-2">
+            <code>{{track}}</code>
+            <code>{{client}}</code>
+            <code>{{client_code}}</code>
+            <code>{{client_id}}</code>
+            <code>{{internal_id}}</code>
+            <code>{{weight}}</code>
+            <code>{{amount}}</code>
+            <code>{{flight_name}}</code>
+            <code>{{barcode_url}}</code>
+            <code>{{qr_img_html}}</code>
+          </div>
+        </div>
+        <div id="connector-label-template-validation" class="small text-muted">Валидация ещё не запускалась.</div>
+      </div>
+
+      <div class="col-lg-6">
+        <div class="mb-2 small text-muted">
+          Коннектор: <strong>{$connector.name|default:'—'|escape}</strong> (#{$connector.id|default:0|escape})
+        </div>
+        <div class="mb-2 small text-muted">
+          Test track: <code>{$template.test_track|default:'TEST-TRACK-0001'|escape}</code>
+        </div>
+        <div class="row g-2 mb-2">
+          <div class="col-sm-6">
+            <label for="connector_label_template_test_track" class="form-label form-label-sm">Test track</label>
+            <input id="connector_label_template_test_track"
+                   type="text"
+                   class="form-control form-control-sm"
+                   name="test_track"
+                   value="{$template.test_track|default:'TEST-TRACK-0001'|escape}">
+          </div>
+          <div class="col-sm-6">
+            <label for="connector_label_template_print_device" class="form-label form-label-sm">Print device key</label>
+            <input id="connector_label_template_print_device"
+                   type="text"
+                   class="form-control form-control-sm"
+                   name="print_device_key"
+                   value="">
+          </div>
+        </div>
+        <div class="border rounded p-2 bg-light" style="min-height: 420px; max-height: 620px; overflow: auto;">
+          <div id="connector-label-template-preview" class="small">{$template.preview_html|default:'<span class="text-muted">Предпросмотр пока пуст</span>' nofilter}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="d-flex justify-content-between mt-3 pt-2 border-top gap-2 flex-wrap">
+    <div class="d-flex gap-2 flex-wrap">
+      <button type="button" class="btn btn-outline-secondary js-core-link" data-core-action="validate_connector_label_template">
+        Проверить шаблон
+      </button>
+      <button type="button" class="btn btn-outline-info js-core-link" data-core-action="test_print_connector_label_template">
+        Тест печати шаблона
+      </button>
+    </div>
+    <button type="button" class="btn btn-primary js-core-link" data-core-action="save_connector_label_template">
+      Сохранить шаблон
+    </button>
+  </div>
+</form>

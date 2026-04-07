@@ -2000,8 +2000,20 @@ if (!function_exists('warehouse_sync_resolve_label_template_code')) {
 }
 
 if (!function_exists('warehouse_sync_ensure_label_templates_table')) {
-    function warehouse_sync_ensure_label_templates_table(mysqli $dbcnx): void
+    function warehouse_sync_ensure_label_templates_table(mysqli $dbcnx): bool
     {
+        try {
+            if ($res = $dbcnx->query("SHOW TABLES LIKE 'forwarder_label_templates'")) {
+                $exists = (bool)$res->num_rows;
+                $res->free();
+                if ($exists) {
+                    return true;
+                }
+            }
+        } catch (Throwable $e) {
+            error_log('warehouse_sync label template table check error: ' . $e->getMessage());
+        }
+
         $sql = "CREATE TABLE IF NOT EXISTS forwarder_label_templates (
             id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
             connector_id BIGINT UNSIGNED NOT NULL,
@@ -2015,7 +2027,12 @@ if (!function_exists('warehouse_sync_ensure_label_templates_table')) {
             updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             KEY idx_connector_active (connector_id, is_active, priority, id)
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4";
-        $dbcnx->query($sql);
+        try {
+            return (bool)$dbcnx->query($sql);
+        } catch (Throwable $e) {
+            error_log('warehouse_sync label template table create error: ' . $e->getMessage());
+            return false;
+        }
     }
 }
 
@@ -3513,8 +3530,10 @@ if ($action === 'warehouse_item_out_confirm_send') {
 
 if ($action === 'form_connector_label_template') {
     auth_require_login();
-    warehouse_sync_ensure_label_templates_table($dbcnx);
-
+    if (!warehouse_sync_ensure_label_templates_table($dbcnx)) {
+        $response = ['status' => 'error', 'message' => 'Не удалось подготовить хранилище шаблонов лейблов'];
+        return;
+    }
     $connectorId = (int)($_POST['connector_id'] ?? 0);
     $connector = warehouse_sync_fetch_connector_by_id($dbcnx, $connectorId);
     if (!$connector) {
@@ -3556,8 +3575,10 @@ if ($action === 'validate_connector_label_template') {
 
 if ($action === 'save_connector_label_template') {
     auth_require_login();
-    warehouse_sync_ensure_label_templates_table($dbcnx);
-
+    if (!warehouse_sync_ensure_label_templates_table($dbcnx)) {
+        $response = ['status' => 'error', 'message' => 'Не удалось подготовить хранилище шаблонов лейблов'];
+        return;
+    }
     $current = $user;
     $userId = (int)($current['id'] ?? 0);
     $connectorId = (int)($_POST['connector_id'] ?? 0);
@@ -3632,42 +3653,62 @@ if ($action === 'test_print_connector_label_template') {
         return;
     }
 
-    $check = warehouse_sync_validate_label_template_body($templateBody);
-    if (!empty($check['errors'])) {
+
+    try {
+        $check = warehouse_sync_validate_label_template_body($templateBody);
+        if (!empty($check['errors'])) {
+            $response = [
+                'status' => 'error',
+                'message' => 'Тест печати остановлен: шаблон не валиден',
+                'errors' => $check['errors'],
+                'warnings' => $check['warnings'],
+            ];
+            audit_log($userId, 'CONNECTOR_LABEL_TEMPLATE_TEST_PRINT', 'connectors', $connectorId, 'Ошибка теста печати шаблона', [
+                'connector_id' => $connectorId,
+                'template_code' => trim((string)($_POST['template_code'] ?? 'default')),
+                'template_sha256' => hash('sha256', $templateBody),
+                'result' => 'validation_error',
+                'errors' => $check['errors'],
+            ]);
+            return;
+        }
+
+        $previewHtml = warehouse_sync_label_template_preview_html($templateBody, $connectorId);
         $response = [
-            'status' => 'error',
-            'message' => 'Тест печати остановлен: шаблон не валиден',
-            'errors' => $check['errors'],
+            'status' => 'ok',
+            'message' => 'Тест печати: сформирован preview шаблона' . ($printDeviceKey !== '' ? ' (без отправки на устройство).' : '.'),
+            'connector_id' => $connectorId,
+            'test_track' => $testTrack,
+            'preview_html' => $previewHtml,
+            'label_base64' => base64_encode($previewHtml),
             'warnings' => $check['warnings'],
+            'diagnostics' => [
+                'template_sha256' => hash('sha256', $templateBody),
+                'preview_size' => strlen($previewHtml),
+                'print_device_key' => $printDeviceKey,
+            ],
         ];
+        audit_log($userId, 'CONNECTOR_LABEL_TEMPLATE_TEST_PRINT', 'connectors', $connectorId, 'Тест печати шаблона выполнен', [
+            'connector_id' => $connectorId,
+            'template_code' => trim((string)($_POST['template_code'] ?? 'default')),
+            'template_sha256' => hash('sha256', $templateBody),
+            'result' => 'ok',
+            'test_track' => $testTrack,
+            'print_device_key' => $printDeviceKey,
+        ]);
+    } catch (Throwable $e) {
         audit_log($userId, 'CONNECTOR_LABEL_TEMPLATE_TEST_PRINT', 'connectors', $connectorId, 'Ошибка теста печати шаблона', [
             'connector_id' => $connectorId,
             'template_code' => trim((string)($_POST['template_code'] ?? 'default')),
             'template_sha256' => hash('sha256', $templateBody),
-            'result' => 'validation_error',
-            'errors' => $check['errors'],
+            'result' => 'runtime_error',
+            'error' => $e->getMessage(),
         ]);
-        return;
+        $response = [
+            'status' => 'error',
+            'message' => 'Тест печати завершился ошибкой: ' . $e->getMessage(),
+        ];
     }
-
-    $previewHtml = warehouse_sync_label_template_preview_html($templateBody, $connectorId);
-    $response = [
-        'status' => 'ok',
-        'message' => 'Тест печати: сформирован preview шаблона' . ($printDeviceKey !== '' ? ' (без отправки на устройство).' : '.'),
-        'connector_id' => $connectorId,
-        'test_track' => $testTrack,
-        'preview_html' => $previewHtml,
-        'label_base64' => base64_encode($previewHtml),
-    ];
-
-    audit_log($userId, 'CONNECTOR_LABEL_TEMPLATE_TEST_PRINT', 'connectors', $connectorId, 'Тест печати шаблона выполнен', [
-        'connector_id' => $connectorId,
-        'template_code' => trim((string)($_POST['template_code'] ?? 'default')),
-        'template_sha256' => hash('sha256', $templateBody),
-        'result' => 'ok',
-        'test_track' => $testTrack,
-        'print_device_key' => $printDeviceKey,
-    ]);
 }
 
 

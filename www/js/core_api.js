@@ -658,8 +658,26 @@ const CoreAPI = {
             const box = document.getElementById('connector-label-template-validation');
             const message = String(data?.message || '').trim() || 'Тест печати выполнен';
             if (box) {
-                const cls = String(data?.status || '').toLowerCase() === 'ok' ? 'text-success' : 'text-danger';
-                box.innerHTML = `<div class=\"${cls}\">${message.replace(/[<>&]/g, '')}</div>`;
+                const status = String(data?.status || '').toLowerCase();
+                const cls = status === 'ok' ? 'text-success' : 'text-danger';
+                const errors = Array.isArray(data?.errors) ? data.errors : [];
+                const warnings = Array.isArray(data?.warnings) ? data.warnings : [];
+                const diagnostics = (data?.diagnostics && typeof data.diagnostics === 'object') ? data.diagnostics : {};
+
+                const lines = [`<div class=\"${cls}\"><strong>${message.replace(/[<>&]/g, '')}</strong></div>`];
+                if (errors.length > 0) {
+                    lines.push(`<div class=\"text-danger mt-1\"><ul class=\"mb-1\">${errors.map((item) => `<li>${String(item || '').replace(/[<>&]/g, '')}</li>`).join('')}</ul></div>`);
+                }
+                if (warnings.length > 0) {
+                    lines.push(`<div class=\"text-warning mt-1\"><ul class=\"mb-1\">${warnings.map((item) => `<li>${String(item || '').replace(/[<>&]/g, '')}</li>`).join('')}</ul></div>`);
+                }
+                const diagnosticsRows = Object.entries(diagnostics)
+                    .filter(([key, val]) => String(key).trim() !== '' && val !== null && val !== undefined && String(val).trim() !== '')
+                    .map(([key, val]) => `<li><code>${String(key).replace(/[<>&]/g, '')}</code>: ${String(val).replace(/[<>&]/g, '')}</li>`);
+                if (diagnosticsRows.length > 0) {
+                    lines.push(`<div class=\"text-muted mt-1\"><div class=\"small fw-semibold\">Диагностика</div><ul class=\"small mb-0\">${diagnosticsRows.join('')}</ul></div>`);
+                }
+                box.innerHTML = lines.join('');
             }
             if (typeof data?.preview_html === 'string') {
                 const preview = document.getElementById('connector-label-template-preview');

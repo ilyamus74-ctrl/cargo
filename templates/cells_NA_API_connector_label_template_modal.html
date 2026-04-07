@@ -19,21 +19,21 @@
                     class="form-control font-monospace"
                     rows="18"
                     placeholder="<!doctype html>...">{$template.template_body|default:''|escape}</textarea>
-          <div class="form-text">Лимит: 100KB. Доступны плейсхолдеры вида <code>{{track}}</code>.</div>
+          <div class="form-text">Лимит: 100KB. Доступны плейсхолдеры вида <code>{literal}{{track}}{/literal}</code>.</div>
         </div>
         <div class="alert alert-light border small mb-2">
           <div class="fw-semibold mb-1">Плейсхолдеры (минимум)</div>
           <div class="d-flex flex-wrap gap-2">
-            <code>{{track}}</code>
-            <code>{{client}}</code>
-            <code>{{client_code}}</code>
-            <code>{{client_id}}</code>
-            <code>{{internal_id}}</code>
-            <code>{{weight}}</code>
-            <code>{{amount}}</code>
-            <code>{{flight_name}}</code>
-            <code>{{barcode_url}}</code>
-            <code>{{qr_img_html}}</code>
+            <code>{literal}{{track}}{/literal}</code>
+            <code>{literal}{{client}}{/literal}</code>
+            <code>{literal}{{client_code}}{/literal}</code>
+            <code>{literal}{{client_id}}{/literal}</code>
+            <code>{literal}{{internal_id}}{/literal}</code>
+            <code>{literal}{{weight}}{/literal}</code>
+            <code>{literal}{{amount}}{/literal}</code>
+            <code>{literal}{{flight_name}}{/literal}</code>
+            <code>{literal}{{barcode_url}}{/literal}</code>
+            <code>{literal}{{qr_img_html}}{/literal}</code>
           </div>
         </div>
         <div id="connector-label-template-validation" class="small text-muted">Валидация ещё не запускалась.</div>

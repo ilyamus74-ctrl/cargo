@@ -59,6 +59,7 @@ mysqldump --defaults-extra-file="$TMP_CNF" \
   --single-transaction --quick --lock-tables=false \
   --routines --triggers --events \
   --default-character-set=utf8mb4 \
+  --no-data \
   "$DB_NAME" | gzip -9 > "$FULL_FILE"
 
 echo "OK:"
