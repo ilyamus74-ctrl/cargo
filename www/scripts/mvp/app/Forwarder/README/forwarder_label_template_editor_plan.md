@@ -122,17 +122,23 @@
 - Новый action `form_connector_label_template`
 - Рендер формы в `fullscreenModal`
 
+
+готово
 ### Шаг 2 — Сохранение + валидация
 - `validate_connector_label_template`
 - `save_connector_label_template`
 - frontend обработка ошибок/warnings
 - `audit_log` на сохранение
 
+
+готово
 ### Шаг 3 — Тест печати
-- Кнопка `Тест печати шаблона`
-- backend action `test_print_connector_label_template`
+- Кнопка `Тест печати шаблона` готово
+- backend action `test_print_connector_label_template` готово
 - вывод результата: success/fail + диагностическое сообщение
 - `audit_log` на тест
+
+
 
 ### Шаг 4 — Полировка
 - UX-подсказки по плейсхолдерам
