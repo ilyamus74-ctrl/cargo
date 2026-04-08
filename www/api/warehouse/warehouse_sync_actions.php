@@ -2089,7 +2089,8 @@ if (!function_exists('warehouse_sync_queue_print_preview')) {
     function warehouse_sync_preview_html_to_pdf_base64(
         string $previewHtml,
         float $labelWidthCm = 10.0,
-        float $labelHeightCm = 15.0
+        float $labelHeightCm = 15.0,
+        int $rotateDegrees = 0
     ): array
     {
         $html = trim($previewHtml);
@@ -2105,11 +2106,12 @@ if (!function_exists('warehouse_sync_queue_print_preview')) {
         if ($heightCm < 2.0 || $heightCm > 30.0) {
             $heightCm = 15.0;
         }
-
+        $rotate = in_array($rotateDegrees, [0, 90, 180, 270], true) ? $rotateDegrees : 0;
         $printCss = sprintf(
             '@page { size: %.2Fcm %.2Fcm; margin: 0; }'
             . ' html, body { margin: 0; padding: 0; width: %.2Fcm; height: %.2Fcm; }'
             . ' body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }'
+            . ' body { overflow: hidden; }'
             . ' #ws-print-fit-root { transform-origin: top left; break-inside: avoid; page-break-inside: avoid; }',
             $widthCm,
             $heightCm,
@@ -2123,20 +2125,28 @@ if (!function_exists('warehouse_sync_queue_print_preview')) {
             . 'function fit(){'
             . 'var root=document.getElementById("ws-print-fit-root");'
             . 'if(!root){return;}'
-            . 'root.style.transform="none";root.style.zoom="1";root.style.width="auto";'
+            . 'root.style.transform="none";root.style.width="auto";'
             . 'var pageW=cmToPx(%F),pageH=cmToPx(%F);'
             . 'var contentW=Math.max(root.scrollWidth,root.getBoundingClientRect().width)||1;'
             . 'var contentH=Math.max(root.scrollHeight,root.getBoundingClientRect().height)||1;'
-            . 'var scale=Math.min(1,pageW/contentW,pageH/contentH);'
+            . 'var rotate=%d;'
+            . 'var rotW=(rotate===90||rotate===270)?contentH:contentW;'
+            . 'var rotH=(rotate===90||rotate===270)?contentW:contentH;'
+            . 'var scale=Math.min(pageW/rotW,pageH/rotH);'
             . 'if(!isFinite(scale)||scale<=0){scale=1;}'
             . 'root.style.width=contentW+"px";'
-            . 'root.style.zoom=String(scale);'
+            . 'var translateX=0,translateY=0;'
+            . 'if(rotate===90){translateX=pageW;}'
+            . 'else if(rotate===180){translateX=pageW;translateY=pageH;}'
+            . 'else if(rotate===270){translateY=pageH;}'
+            . 'root.style.transform="translate("+translateX+"px,"+translateY+"px) rotate("+rotate+"deg) scale("+scale+")";'
             . '}'
             . 'if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",fit,{once:true});}else{fit();}'
             . 'window.addEventListener("load",fit,{once:true});'
             . '})();</script>',
             $widthCm,
-            $heightCm
+            $heightCm,
+            $rotate
         );
         if (stripos($html, '<html') === false || stripos($html, '<body') === false) {
             $html = '<!doctype html><html><head><meta charset="utf-8"><title>Connector Label Preview</title><style>' . $printCss . '</style></head><body>'
@@ -2281,7 +2291,7 @@ if (!function_exists('warehouse_sync_queue_print_preview')) {
         if (!is_array($queue)) {
             $queue = [];
         }
-        $render = warehouse_sync_preview_html_to_pdf_base64($previewHtml, $labelWidthCm, $labelHeightCm);
+        $render = warehouse_sync_preview_html_to_pdf_base64($previewHtml, $labelWidthCm, $labelHeightCm, $rotateDegrees);
         $labelBase64 = (string)($render['pdf_base64'] ?? '');
         $renderEngine = 'html-to-pdf';
         $renderMessage = '';
@@ -4166,7 +4176,7 @@ if ($action === 'test_print_connector_label_template') {
         }
 
         $previewHtml = warehouse_sync_label_template_preview_html($templateBody, $connectorId);
-        $previewPdfRender = warehouse_sync_preview_html_to_pdf_base64($previewHtml, $labelWidthCm, $labelHeightCm);
+        $previewPdfRender = warehouse_sync_preview_html_to_pdf_base64($previewHtml, $labelWidthCm, $labelHeightCm, $printRotate);
         $previewPdfBase64 = (string)($previewPdfRender['pdf_base64'] ?? '');
         if ($previewPdfBase64 === '') {
             $previewPdfBase64 = base64_encode(
