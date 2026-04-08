@@ -2110,9 +2110,11 @@ if (!function_exists('warehouse_sync_queue_print_preview')) {
         $printCss = sprintf(
             '@page { size: %.2Fcm %.2Fcm; margin: 0; }'
             . ' html, body { margin: 0; padding: 0; width: %.2Fcm; height: %.2Fcm; }'
-            . ' body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }'
-            . ' body { overflow: hidden; }'
-            . ' #ws-print-fit-root { transform-origin: top left; break-inside: avoid; page-break-inside: avoid; }',
+            . ' body { position: relative; overflow: hidden; -webkit-print-color-adjust: exact; print-color-adjust: exact; }'
+            . ' #ws-print-fit-page { position: fixed; left: 0; top: 0; width: %.2Fcm; height: %.2Fcm; overflow: hidden; }'
+            . ' #ws-print-fit-root { position: absolute; left: 0; top: 0; transform-origin: top left; break-inside: avoid; page-break-inside: avoid; }',
+            $widthCm,
+            $heightCm,
             $widthCm,
             $heightCm,
             $widthCm,
@@ -2123,9 +2125,11 @@ if (!function_exists('warehouse_sync_queue_print_preview')) {
             '<script>(function(){'
             . 'function cmToPx(cm){return cm*96/2.54;}'
             . 'function fit(){'
+            . 'var page=document.getElementById("ws-print-fit-page");'
             . 'var root=document.getElementById("ws-print-fit-root");'
-            . 'if(!root){return;}'
+            . 'if(!root||!page){return;}'
             . 'root.style.transform="none";root.style.width="auto";'
+            . 'root.style.left="0px";root.style.top="0px";'
             . 'var pageW=cmToPx(%F),pageH=cmToPx(%F);'
             . 'var contentW=Math.max(root.scrollWidth,root.getBoundingClientRect().width)||1;'
             . 'var contentH=Math.max(root.scrollHeight,root.getBoundingClientRect().height)||1;'
@@ -2135,11 +2139,13 @@ if (!function_exists('warehouse_sync_queue_print_preview')) {
             . 'var scale=Math.min(pageW/rotW,pageH/rotH);'
             . 'if(!isFinite(scale)||scale<=0){scale=1;}'
             . 'root.style.width=contentW+"px";'
-            . 'var translateX=0,translateY=0;'
-            . 'if(rotate===90){translateX=pageW;}'
-            . 'else if(rotate===180){translateX=pageW;translateY=pageH;}'
-            . 'else if(rotate===270){translateY=pageH;}'
-            . 'root.style.transform="translate("+translateX+"px,"+translateY+"px) rotate("+rotate+"deg) scale("+scale+")";'
+            . 'var tx=0,ty=0;'
+            . 'if(rotate===90){tx=pageW;}'
+            . 'else if(rotate===180){tx=pageW;ty=pageH;}'
+            . 'else if(rotate===270){ty=pageH;}'
+            . 'root.style.transform="translate("+tx+"px,"+ty+"px) rotate("+rotate+"deg) scale("+scale+")";'
+            . 'page.style.width=pageW+"px";'
+            . 'page.style.height=pageH+"px";'
             . '}'
             . 'if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",fit,{once:true});}else{fit();}'
             . 'window.addEventListener("load",fit,{once:true});'
@@ -2150,7 +2156,7 @@ if (!function_exists('warehouse_sync_queue_print_preview')) {
         );
         if (stripos($html, '<html') === false || stripos($html, '<body') === false) {
             $html = '<!doctype html><html><head><meta charset="utf-8"><title>Connector Label Preview</title><style>' . $printCss . '</style></head><body>'
-                . '<div id="ws-print-fit-root">' . $html . '</div>'
+                . '<div id="ws-print-fit-page"><div id="ws-print-fit-root">' . $html . '</div></div>'
                 . $fitScript
                 . '</body></html>';
         } else {
@@ -2161,10 +2167,10 @@ if (!function_exists('warehouse_sync_queue_print_preview')) {
                 $html = $styleTag . $html;
             }
             if (preg_match('/<body\b[^>]*>/i', $html) === 1) {
-                $html = preg_replace('/<body\b([^>]*)>/i', '<body$1><div id="ws-print-fit-root">', $html, 1) ?? $html;
-                $html = preg_replace('/<\/body>/i', '</div>' . $fitScript . '</body>', $html, 1) ?? $html;
+                $html = preg_replace('/<body\b([^>]*)>/i', '<body$1><div id="ws-print-fit-page"><div id="ws-print-fit-root">', $html, 1) ?? $html;
+                $html = preg_replace('/<\/body>/i', '</div></div>' . $fitScript . '</body>', $html, 1) ?? $html;
             } else {
-                $html .= '<body><div id="ws-print-fit-root"></div>' . $fitScript . '</body>';
+                $html .= '<body><div id="ws-print-fit-page"><div id="ws-print-fit-root"></div></div>' . $fitScript . '</body>';
             }
         }
 
