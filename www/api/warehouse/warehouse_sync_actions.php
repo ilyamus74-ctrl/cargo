@@ -2108,10 +2108,7 @@ if (!function_exists('warehouse_sync_queue_print_preview')) {
         }
         $printableHtml = $html;
 
-        $widthCss = rtrim(rtrim(number_format($widthCm, 2, '.', ''), '0'), '.');
-        $heightCss = rtrim(rtrim(number_format($heightCm, 2, '.', ''), '0'), '.');
-        $printCss = '@page { size: ' . $widthCss . 'cm ' . $heightCss . 'cm; margin: 0; }'
-            . ' html, body { margin: 0; padding: 0; width: ' . $widthCss . 'cm; height: ' . $heightCss . 'cm; overflow: hidden; }'
+        $printCss = 'html, body { margin: 0; padding: 0; }'
             . ' body { background: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }';
         if (stripos($html, '<html') === false || stripos($html, '<body') === false) {
             $html = '<!doctype html><html><head><meta charset="utf-8"><title>Connector Label Preview</title><style>' . $printCss . '</style></head><body>'
@@ -2150,8 +2147,8 @@ if (!function_exists('warehouse_sync_queue_print_preview')) {
         if ($wkhtmltopdf !== '') {
             $cmd = escapeshellarg($wkhtmltopdf)
                 . ' --quiet'
-                . ' --page-width ' . escapeshellarg($widthCss . 'cm')
-                . ' --page-height ' . escapeshellarg($heightCss . 'cm')
+//                . ' --page-width ' . escapeshellarg($widthCss . 'cm')
+//                . ' --page-height ' . escapeshellarg($heightCss . 'cm')
                 . ' --margin-top 0 --margin-right 0 --margin-bottom 0 --margin-left 0'
                 . ' ' . escapeshellarg($tmpHtmlFile)
                 . ' ' . escapeshellarg($tmpPdfFile)
@@ -5361,4 +5358,3 @@ if ($action === 'warehouse_sync_reports') {
     ];
 }
 
-}
