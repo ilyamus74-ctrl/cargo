@@ -2216,8 +2216,6 @@ if (!function_exists('warehouse_sync_queue_print_preview')) {
         @unlink($tmpPdfFile);
         return ['ok' => false, 'error' => implode('; ', $errors), 'pdf_base64' => ''];
     }
-
-
     function warehouse_sync_preview_html_to_png_base64(
         string $previewHtml,
         float $labelWidthCm = 10.0,
@@ -2363,7 +2361,8 @@ if (!function_exists('warehouse_sync_queue_print_preview')) {
         $renderMessage = '';
         $fileName = 'connector_label_preview_' . gmdate('Ymd_His') . '.pdf';
 
-        if ($preferRasterImage) {
+        $preferRaster = (bool)$preferRasterImage;
+        if ($preferRaster) {
             $renderPng = warehouse_sync_preview_html_to_png_base64($previewHtml, $labelWidthCm, $labelHeightCm);
             $labelBase64 = (string)($renderPng['png_base64'] ?? '');
             $renderEngine = 'html-to-png';
@@ -4232,6 +4231,8 @@ if ($action === 'test_print_connector_label_template') {
     $printRotate = (int)($_POST['print_rotate'] ?? 0);
     $labelWidthCm = (float)($_POST['label_width_cm'] ?? 10);
     $labelHeightCm = (float)($_POST['label_height_cm'] ?? 15);
+    $previewRasterizeRaw = strtolower(trim((string)($_POST['preview_rasterize'] ?? '0')));
+    $preferRasterImage = in_array($previewRasterizeRaw, ['1', 'true', 'yes', 'on'], true);
     if (!in_array($printRotate, [0, 90, 180, 270], true)) {
         $printRotate = 0;
     }
@@ -4300,7 +4301,7 @@ if ($action === 'test_print_connector_label_template') {
                 $printRotate,
                 $labelWidthCm,
                 $labelHeightCm,
-                $preferRasterImage
+                (bool)$preferRasterImage
             );
         }
 
