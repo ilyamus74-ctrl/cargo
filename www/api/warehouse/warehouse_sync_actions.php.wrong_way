@@ -5,7 +5,6 @@ $response = ['status' => 'error', 'message' => 'Unknown warehouse sync action'];
 require_once __DIR__ . '/../system/system_tasks_lib.php';
 require_once __DIR__ . '/../connectors/subrunners/connector_modules.php';
 
-
 if (!function_exists('warehouse_sync_normalize_key')) {
     function warehouse_sync_normalize_key(string $value): string
     {
@@ -1978,6 +1977,7 @@ if (!function_exists('warehouse_sync_fetch_active_print_devices')) {
             }
             $resDevices->free();
         }
+
         return $printDevices;
     }
 }
@@ -2106,26 +2106,84 @@ if (!function_exists('warehouse_sync_queue_print_preview')) {
         if ($heightCm < 2.0 || $heightCm > 30.0) {
             $heightCm = 15.0;
         }
+        $rotate = in_array($rotateDegrees, [0, 90, 180, 270], true) ? $rotateDegrees : 0;
         $printableHtml = $html;
 
         $printCss = sprintf(
             '@page { size: %.2Fcm %.2Fcm; margin: 0; }'
-            . ' html, body { margin: 0; padding: 0; }'
-            . ' body { background: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }',
+            . ' html, body { margin: 0; padding: 0; width: %.2Fcm; height: %.2Fcm; }'
+            . ' body { position: relative; overflow: hidden; -webkit-print-color-adjust: exact; print-color-adjust: exact; }'
+            . ' #ws-print-fit-page { position: absolute; left: 0; top: 0; width: %.2Fcm; height: %.2Fcm; overflow: hidden; }'
+            . ' #ws-print-fit-root { position: absolute; left: 0; top: 0; width: %.2Fcm; height: %.2Fcm; overflow: hidden; transform-origin: top left; break-inside: avoid; page-break-inside: avoid; }',
+            $widthCm,
+            $heightCm,
+            $widthCm,
+            $heightCm,
+            $widthCm,
+            $heightCm,
             $widthCm,
             $heightCm
         );
-        if (stripos($html, '<html') === false || stripos($html, '<body') === false) {
-            $html = '<!doctype html><html><head><meta charset="utf-8"><title>Connector Label Preview</title><style>' . $printCss . '</style></head><body>'
-                . $html
-                . '</body></html>';
-        } else {
-            $styleTag = '<style>' . $printCss . '</style>';
-            if (preg_match('/<head\b[^>]*>/i', $html) === 1) {
-                $html = preg_replace('/<head\b[^>]*>/i', '$0' . $styleTag, $html, 1) ?? ($styleTag . $html);
-            } else {
-                $html = $styleTag . $html;
-            }
+
+        $fitScript = sprintf(
+            '<script>(function(){'
+            . 'function cmToPx(cm){return cm*96/2.54;}'
+            . 'function fit(){'
+            . 'var page=document.getElementById("ws-print-fit-page");'
+            . 'var root=document.getElementById("ws-print-fit-root");'
+            . 'if(!root||!page){return;}'
+            . 'root.style.transform="none";root.style.width="auto";'
+            . 'root.style.left="0px";root.style.top="0px";'
+            . 'var pageW=cmToPx(%F),pageH=cmToPx(%F);'
+            . 'var boundary=root.querySelector(".connector-label-preview-boundary");'
+            . 'if(boundary){'
+            . 'boundary.style.boxSizing="border-box";'
+            . 'boundary.style.margin="0";'
+            . 'boundary.style.width=pageW+"px";'
+            . 'boundary.style.height=pageH+"px";'
+            . 'boundary.style.minWidth=pageW+"px";'
+            . 'boundary.style.maxWidth=pageW+"px";'
+            . 'boundary.style.minHeight=pageH+"px";'
+            . 'boundary.style.maxHeight=pageH+"px";'
+            . 'boundary.style.overflow="hidden";'
+            . 'boundary.style.transformOrigin="top left";'
+            . 'boundary.style.transform="none";'
+            . 'var boundaryContentW=Math.max(boundary.scrollWidth,boundary.getBoundingClientRect().width)||1;'
+            . 'var boundaryContentH=Math.max(boundary.scrollHeight,boundary.getBoundingClientRect().height)||1;'
+            . 'var boundaryScale=Math.min(pageW/boundaryContentW,pageH/boundaryContentH);'
+            . 'if(!isFinite(boundaryScale)||boundaryScale<=0||boundaryScale>1){boundaryScale=1;}'
+            . 'boundary.style.transform="scale("+boundaryScale+")";'
+            . '}'
+            . 'var contentW=boundary?pageW:(Math.max(root.scrollWidth,root.getBoundingClientRect().width)||1);'
+            . 'var contentH=boundary?pageH:(Math.max(root.scrollHeight,root.getBoundingClientRect().height)||1);'
+            . 'var rotate=%d;'
+            . 'var rotW=(rotate===90||rotate===270)?contentH:contentW;'
+            . 'var rotH=(rotate===90||rotate===270)?contentW:contentH;'
+            . 'var scaleContain=Math.min(pageW/rotW,pageH/rotH);'
+            . 'var scaleCover=Math.max(pageW/rotW,pageH/rotH);'
+            . 'var useCover=(rotate===90||rotate===270);'
+            . 'var scale=useCover?scaleCover:scaleContain;'
+            . 'if(!isFinite(scale)||scale<=0){scale=1;}'
+            . 'var tx=0,ty=0;'
+            . 'var scaleX=scale,scaleY=scale;'
+            . 'if(rotate===90){tx=pageW;}'
+            . 'else if(rotate===180){tx=pageW;ty=pageH;}'
+            . 'else if(rotate===270){ty=pageH;}'
+            . 'root.style.transform="translate("+tx+"px,"+ty+"px) rotate("+rotate+"deg) scale("+scaleX+","+scaleY+")";'
+            . 'page.style.width=pageW+"px";'
+            . 'page.style.height=pageH+"px";'
+            . '}'
+            . 'if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",fit,{once:true});}else{fit();}'
+            . 'window.addEventListener("load",fit,{once:true});'
+            . '})();</script>',
+            $widthCm,
+            $heightCm,
+            $rotate
+        );
+        $html = '<!doctype html><html><head><meta charset="utf-8"><title>Connector Label Preview</title><style>' . $printCss . '</style></head><body>'
+            . '<div id="ws-print-fit-page"><div id="ws-print-fit-root">' . $printableHtml . '</div></div>'
+            . $fitScript
+            . '</body></html>';
 
         $tmpDir = sys_get_temp_dir();
         $tmpHtml = tempnam($tmpDir, 'ws_preview_html_');
@@ -2498,11 +2556,22 @@ if (!function_exists('warehouse_sync_label_template_preview_html')) {
         if ($body === '') {
             return '<span class="text-muted">Предпросмотр отсутствует: шаблон пуст.</span>';
         }
+        $resolvedWidthCm = (float)($labelWidthCm ?? 10.0);
+        if ($resolvedWidthCm < 2.0 || $resolvedWidthCm > 30.0) {
+            $resolvedWidthCm = 10.0;
+        }
+        $resolvedHeightCm = (float)($labelHeightCm ?? 15.0);
+        if ($resolvedHeightCm < 2.0 || $resolvedHeightCm > 30.0) {
+            $resolvedHeightCm = 15.0;
+        }
+
+        $widthAttr = number_format($resolvedWidthCm, 2, '.', '');
+        $heightAttr = number_format($resolvedHeightCm, 2, '.', '');
 
         $rendered = strtr($body, $sample);
         $rendered = preg_replace('/<script\\b[^>]*>(.*?)<\\/script>/is', '', $rendered) ?? $rendered;
         return '<div class="small text-muted mb-2">Connector #' . (int)$connectorId . ' · preview (sanitized)</div>'
-            . '<div class="connector-label-preview-boundary" style="box-sizing: border-box; overflow: visible; background: #fff; border: 1px dashed #ced4da; padding: 6px; width: fit-content; max-width: 100%;">'
+            . '<div class="connector-label-preview-boundary" style="--label-width-cm: ' . $widthAttr . 'cm; --label-height-cm: ' . $heightAttr . 'cm; width: var(--label-width-cm); height: var(--label-height-cm); min-width: var(--label-width-cm); min-height: var(--label-height-cm); max-width: var(--label-width-cm); max-height: var(--label-height-cm); box-sizing: border-box; overflow: hidden; background: #fff; border: 1px dashed #ced4da;">'
             . $rendered
             . '</div>';
     }
@@ -5360,5 +5429,4 @@ if ($action === 'warehouse_sync_reports') {
         'html' => $html,
         'total' => count($items),
     ];
-}
 }
