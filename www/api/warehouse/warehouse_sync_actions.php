@@ -2108,13 +2108,8 @@ if (!function_exists('warehouse_sync_queue_print_preview')) {
         }
         $printableHtml = $html;
 
-        $printCss = sprintf(
-            '@page { size: %.2Fcm %.2Fcm; margin: 0; }'
-            . ' html, body { margin: 0; padding: 0; }'
-            . ' body { background: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }',
-            $widthCm,
-            $heightCm
-        );
+        $printCss = 'html, body { margin: 0; padding: 0; }'
+            . ' body { background: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }';
         if (stripos($html, '<html') === false || stripos($html, '<body') === false) {
             $html = '<!doctype html><html><head><meta charset="utf-8"><title>Connector Label Preview</title><style>' . $printCss . '</style></head><body>'
                 . $html
@@ -2152,8 +2147,6 @@ if (!function_exists('warehouse_sync_queue_print_preview')) {
             $cmd = escapeshellarg($wkhtmltopdf)
                 . ' --quiet'
                 . ' --margin-top 0 --margin-right 0 --margin-bottom 0 --margin-left 0'
-                . ' --page-width ' . escapeshellarg(number_format($widthCm, 2, '.', '') . 'cm')
-                . ' --page-height ' . escapeshellarg(number_format($heightCm, 2, '.', '') . 'cm')
                 . ' ' . escapeshellarg($tmpHtmlFile)
                 . ' ' . escapeshellarg($tmpPdfFile)
                 . ' 2>&1';
