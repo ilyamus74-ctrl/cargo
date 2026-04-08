@@ -2517,7 +2517,12 @@ if (!function_exists('warehouse_sync_fetch_connector_by_id')) {
 }
 
 if (!function_exists('warehouse_sync_label_template_preview_html')) {
-    function warehouse_sync_label_template_preview_html(string $templateBody, int $connectorId = 0): string
+    function warehouse_sync_label_template_preview_html(
+        string $templateBody,
+        int $connectorId = 0,
+        ?float $labelWidthCm = null,
+        ?float $labelHeightCm = null
+    ): string
     {
         $sample = [
             '{{track}}' => 'TEST-TRACK-0001',
@@ -2541,11 +2546,24 @@ if (!function_exists('warehouse_sync_label_template_preview_html')) {
         if ($body === '') {
             return '<span class="text-muted">Предпросмотр отсутствует: шаблон пуст.</span>';
         }
+        $resolvedWidthCm = (float)($labelWidthCm ?? 10.0);
+        if ($resolvedWidthCm < 2.0 || $resolvedWidthCm > 30.0) {
+            $resolvedWidthCm = 10.0;
+        }
+        $resolvedHeightCm = (float)($labelHeightCm ?? 15.0);
+        if ($resolvedHeightCm < 2.0 || $resolvedHeightCm > 30.0) {
+            $resolvedHeightCm = 15.0;
+        }
+
+        $widthAttr = number_format($resolvedWidthCm, 2, '.', '');
+        $heightAttr = number_format($resolvedHeightCm, 2, '.', '');
 
         $rendered = strtr($body, $sample);
         $rendered = preg_replace('/<script\\b[^>]*>(.*?)<\\/script>/is', '', $rendered) ?? $rendered;
-
-        return '<div class="small text-muted mb-2">Connector #' . (int)$connectorId . ' · preview (sanitized)</div>' . $rendered;
+        return '<div class="small text-muted mb-2">Connector #' . (int)$connectorId . ' · preview (sanitized)</div>'
+            . '<div class="connector-label-preview-boundary" style="--label-width-cm: ' . $widthAttr . 'cm; --label-height-cm: ' . $heightAttr . 'cm; width: var(--label-width-cm); height: var(--label-height-cm); min-width: var(--label-width-cm); min-height: var(--label-height-cm); max-width: var(--label-width-cm); max-height: var(--label-height-cm); box-sizing: border-box; overflow: hidden; background: #fff; border: 1px dashed #ced4da;">'
+            . $rendered
+            . '</div>';
     }
 }
 
@@ -4008,7 +4026,9 @@ if ($action === 'form_connector_label_template') {
         }
         $template = warehouse_sync_resolve_label_template_code($dbcnx, $connector);
         $templateBody = (string)($template['template_body'] ?? '');
-        $previewHtml = warehouse_sync_label_template_preview_html($templateBody, $connectorId);
+        $labelWidthCm = (float)($template['label_width_cm'] ?? 10.0);
+        $labelHeightCm = (float)($template['label_height_cm'] ?? 15.0);
+        $previewHtml = warehouse_sync_label_template_preview_html($templateBody, $connectorId, $labelWidthCm, $labelHeightCm);
         $printDevices = warehouse_sync_fetch_active_print_devices($dbcnx);
 
         $smarty->assign('connector', $connector);
@@ -4016,8 +4036,8 @@ if ($action === 'form_connector_label_template') {
             'template_code' => (string)($template['template_code'] ?? 'default'),
             'template_body' => $templateBody,
             'test_track' => 'TEST-TRACK-0001',
-            'label_width_cm' => (float)($template['label_width_cm'] ?? 10.0),
-            'label_height_cm' => (float)($template['label_height_cm'] ?? 15.0),
+            'label_width_cm' => $labelWidthCm,
+            'label_height_cm' => $labelHeightCm,
             'print_rotate' => (int)($template['print_rotate'] ?? 0),
             'preview_html' => $previewHtml,
         ]);
@@ -4041,10 +4061,12 @@ if ($action === 'validate_connector_label_template') {
     auth_require_login();
     $connectorId = (int)($_POST['connector_id'] ?? 0);
     $templateBody = (string)($_POST['template_body'] ?? '');
+    $labelWidthCm = (float)($_POST['label_width_cm'] ?? 10.0);
+    $labelHeightCm = (float)($_POST['label_height_cm'] ?? 15.0);
 
     $check = warehouse_sync_validate_label_template_body($templateBody);
     $check['connector_id'] = $connectorId;
-    $check['preview_html'] = warehouse_sync_label_template_preview_html($templateBody, $connectorId);
+    $check['preview_html'] = warehouse_sync_label_template_preview_html($templateBody, $connectorId, $labelWidthCm, $labelHeightCm);
     $response = $check;
 }
 
@@ -4182,7 +4204,7 @@ if ($action === 'test_print_connector_label_template') {
             return;
         }
 
-        $previewHtml = warehouse_sync_label_template_preview_html($templateBody, $connectorId);
+        $previewHtml = warehouse_sync_label_template_preview_html($templateBody, $connectorId, $labelWidthCm, $labelHeightCm);
         $previewPdfRender = warehouse_sync_preview_html_to_pdf_base64($previewHtml, $labelWidthCm, $labelHeightCm, $printRotate);
         $previewPdfBase64 = (string)($previewPdfRender['pdf_base64'] ?? '');
         if ($previewPdfBase64 === '') {
