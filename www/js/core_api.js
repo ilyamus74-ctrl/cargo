@@ -3745,6 +3745,10 @@ const CoreAPI = {
             const flightRecordId = String(button?.getAttribute('data-flight-record-id') || '').trim();
             const containerName = String(button?.getAttribute('data-container-name') || 'NEW').trim() || 'NEW';
             const containerId = String(button?.getAttribute('data-container-id') || '').trim();
+            const carrier = String(button?.getAttribute('data-carrier') || '').trim();
+            const departure = String(button?.getAttribute('data-departure') || '').trim();
+            const destination = String(button?.getAttribute('data-destination') || '').trim();
+            const flightTime = String(button?.getAttribute('data-flight-time') || '').trim();
             const dateSelector = String(button?.getAttribute('data-date-input') || '').trim();
             const awbSelector = String(button?.getAttribute('data-awb-input') || button?.getAttribute('data-input') || '').trim();
             const dateInput = dateSelector ? this.root?.querySelector(dateSelector) : null;
@@ -3781,6 +3785,10 @@ const CoreAPI = {
                 container_name: containerName,
                 container_label: containerName,
                 container_code: containerName,
+                carrier,
+                departure,
+                destination,
+                flight_time: flightTime,
                 departure_id: '6',
                 destination_id: '1',
                 count: '1'
@@ -3818,7 +3826,7 @@ const CoreAPI = {
             const entrypointModeRawFromButton = String(button?.getAttribute('data-entrypoint-mode') || '').trim();
             const entrypointModeRaw = entrypointModeRawFromButton !== ''
                 ? entrypointModeRawFromButton
-                : (operationId === 'close_flight_php' ? 'php' : '');
+                : (operationId === 'close_flight_php' || operationId === 'edit_flight' ? 'php' : '');
             const isPhpOperationId = /_php$/i.test(operationId);
             const entrypointMode = entrypointModeRaw !== '' ? entrypointModeRaw : (isPhpOperationId ? 'php' : '');
             const entrypointModeNormalized = entrypointMode.toLowerCase();
@@ -3832,7 +3840,7 @@ const CoreAPI = {
                 'delete_container_php'
             ].includes(operationId);
 
-            if (operationId === 'edit_flight') {
+            if (operationId === 'edit_flight' || operationId === 'edit_flight_php') {
                 if (!runtimeVars.set_date) {
                     alert('Укажите новую дату рейса.');
                     const dateSelector = String(button?.getAttribute('data-date-input') || '').trim();
@@ -3843,6 +3851,10 @@ const CoreAPI = {
                     alert('Укажите новый AWB цифрами без префикса AWB.');
                     const awbSelector = String(button?.getAttribute('data-awb-input') || button?.getAttribute('data-input') || '').trim();
                     this.root?.querySelector(awbSelector)?.focus();
+                    return;
+                }
+                if (!runtimeVars.carrier || !runtimeVars.departure || !runtimeVars.destination || !runtimeVars.flight_time) {
+                    alert('Недостаточно данных рейса для редактирования (carrier/departure/destination/flight_time). Обновите список рейсов и попробуйте снова.');
                     return;
                 }
             }

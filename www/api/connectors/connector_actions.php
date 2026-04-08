@@ -761,8 +761,49 @@ function connectors_operation_config_templates(): array
                         '--password={{auth_password}}',
                         '--page-path=/collector/flights',
                         '--id={{target_flight_id}}',
+                        '--carrier={{carrier}}',
                         '--flight-number={{set_date}}',
                         '--awb={{awb}}',
+                        '--departure={{departure}}',
+                        '--destination={{destination}}',
+                        '--flight-time={{flight_time}}',
+                    ],
+                ],
+            ],
+        ],
+
+        'edit_flight_php' => [
+            'description' => 'Редактирование рейса через PHP runtime (alias для entrypoint_mode=php).',
+            'operation' => [
+                'operation_id' => 'edit_flight_php',
+                'display_name' => 'Edit flight (PHP alias)',
+                'module' => 'connectors',
+                'kind' => 'script',
+                'enabled' => 1,
+                'entrypoint' => 0,
+                'on_dependency_fail' => 'stop',
+                'run_after' => [],
+                'run_with' => [],
+                'run_finally' => [],
+                'config' => [
+                    'interpreter' => 'php',
+                    'script_path' => 'www/scripts/mvp/app/Forwarder/run_edit_flight.php',
+                    'timeout_sec' => 180,
+                    'set_date' => '',
+                    'awb' => '',
+                    'target_flight_id' => '',
+                    'args' => [
+                        '--base-url={{base_url}}',
+                        '--login={{auth_username}}',
+                        '--password={{auth_password}}',
+                        '--page-path=/collector/flights',
+                        '--id={{target_flight_id}}',
+                        '--carrier={{carrier}}',
+                        '--flight-number={{set_date}}',
+                        '--awb={{awb}}',
+                        '--departure={{departure}}',
+                        '--destination={{destination}}',
+                        '--flight-time={{flight_time}}',
                     ],
                 ],
             ],
@@ -2169,7 +2210,7 @@ function connectors_resolve_test_entrypoint_with_diagnostics(array $operationsPa
 
 
     if ($phpModeRequested && $resolvedRequestedOperation !== 'submission') {
-        $forceTemplateForRequested = in_array($resolvedRequestedOperation, ['delete_container_php'], true);
+        $forceTemplateForRequested = in_array($resolvedRequestedOperation, ['delete_container_php', 'edit_flight', 'edit_flight_php'], true);
         $runtimeOperations = connectors_apply_php_entrypoint_template_fallback($runtimeOperations, $resolvedRequestedOperation, $connector, $forceTemplateForRequested);
         if ($candidatePhpOperationId !== $resolvedRequestedOperation) {
             $forceTemplateForCandidate = in_array($candidatePhpOperationId, ['delete_container_php'], true);

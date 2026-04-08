@@ -2106,10 +2106,12 @@ if (!function_exists('warehouse_sync_queue_print_preview')) {
         if ($heightCm < 2.0 || $heightCm > 30.0) {
             $heightCm = 15.0;
         }
-        $printableHtml = $html;
 
-        $printCss = 'html, body { margin: 0; padding: 0; }'
-            . ' body { background: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; }';
+        $widthCss = number_format($widthCm, 2, '.', '');
+        $heightCss = number_format($heightCm, 2, '.', '');
+        $printCss = '@page { size: ' . $widthCss . 'cm ' . $heightCss . 'cm; margin: 0; }'
+            . ' html, body { margin: 0; padding: 0; width: ' . $widthCss . 'cm; height: ' . $heightCss . 'cm; }'
+            . ' body { background: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; overflow: hidden; }';
         if (stripos($html, '<html') === false || stripos($html, '<body') === false) {
             $html = '<!doctype html><html><head><meta charset="utf-8"><title>Connector Label Preview</title><style>' . $printCss . '</style></head><body>'
                 . $html
@@ -2147,8 +2149,8 @@ if (!function_exists('warehouse_sync_queue_print_preview')) {
         if ($wkhtmltopdf !== '') {
             $cmd = escapeshellarg($wkhtmltopdf)
                 . ' --quiet'
-//                . ' --page-width ' . escapeshellarg($widthCss . 'cm')
-//                . ' --page-height ' . escapeshellarg($heightCss . 'cm')
+                . ' --page-width ' . escapeshellarg($widthCss . 'cm')
+                . ' --page-height ' . escapeshellarg($heightCss . 'cm')
                 . ' --margin-top 0 --margin-right 0 --margin-bottom 0 --margin-left 0'
                 . ' ' . escapeshellarg($tmpHtmlFile)
                 . ' ' . escapeshellarg($tmpPdfFile)
@@ -2195,6 +2197,7 @@ if (!function_exists('warehouse_sync_queue_print_preview')) {
                 . ' --headless --disable-gpu --no-sandbox --disable-dev-shm-usage --allow-file-access-from-files'
                 . ' --disable-crash-reporter --user-data-dir=' . escapeshellarg($chromeUserDataDir)
                 . ' --crash-dumps-dir=' . escapeshellarg($chromeCrashDir)
+                . ' --no-pdf-header-footer --print-to-pdf-no-header'
                 . ' --print-to-pdf=' . escapeshellarg($tmpPdfFile)
                 . ' ' . escapeshellarg($fileUrl) . ' 2>&1';
             $envPrefix = 'HOME=' . escapeshellarg($chromeHome)
@@ -2596,7 +2599,9 @@ if (!function_exists('warehouse_sync_label_template_preview_html')) {
         string $templateBody,
         int $connectorId = 0,
         ?float $labelWidthCm = null,
-        ?float $labelHeightCm = null
+        ?float $labelHeightCm = null,
+        bool $withDebugFrame = false,
+        bool $fitToLabel = false
     ): string
     {
         $sample = [
@@ -2622,11 +2627,37 @@ if (!function_exists('warehouse_sync_label_template_preview_html')) {
             return '<span class="text-muted">Предпросмотр отсутствует: шаблон пуст.</span>';
         }
 
+
+        $widthCm = (float)($labelWidthCm ?? 10.0);
+        $heightCm = (float)($labelHeightCm ?? 15.0);
+        if ($widthCm < 2.0 || $widthCm > 30.0) {
+            $widthCm = 10.0;
+        }
+        if ($heightCm < 2.0 || $heightCm > 30.0) {
+            $heightCm = 15.0;
+        }
+
         $rendered = strtr($body, $sample);
         $rendered = preg_replace('/<script\\b[^>]*>(.*?)<\\/script>/is', '', $rendered) ?? $rendered;
+
+
+        if ($fitToLabel) {
+            $labelShell = '<div class="connector-label-preview-boundary" style="box-sizing: border-box; overflow: hidden; background: #fff; width: '
+                . number_format($widthCm, 2, '.', '') . 'cm; height: ' . number_format($heightCm, 2, '.', '') . 'cm; max-width: 100%; max-height: 100%;">'
+                . '<div style="box-sizing: border-box; width: 100%; height: 100%; overflow: hidden;">' . $rendered . '</div>'
+                . '</div>';
+        } else {
+            $labelShell = '<div class="connector-label-preview-boundary" style="box-sizing: border-box; overflow: visible; background: #fff; max-width: 100%;">'
+                . $rendered
+                . '</div>';
+        }
+
+        if (!$withDebugFrame) {
+            return $labelShell;
+        }
         return '<div class="small text-muted mb-2">Connector #' . (int)$connectorId . ' · preview (sanitized)</div>'
-            . '<div class="connector-label-preview-boundary" style="box-sizing: border-box; overflow: visible; background: #fff; border: 1px dashed #ced4da; padding: 6px; width: fit-content; max-width: 100%;">'
-            . $rendered
+            . '<div style="box-sizing: border-box; overflow: visible; background: #fff; border: 1px dashed #ced4da; padding: 6px; width: fit-content; max-width: 100%;">'
+            . $labelShell
             . '</div>';
     }
 }
@@ -4092,7 +4123,7 @@ if ($action === 'form_connector_label_template') {
         $templateBody = (string)($template['template_body'] ?? '');
         $labelWidthCm = (float)($template['label_width_cm'] ?? 10.0);
         $labelHeightCm = (float)($template['label_height_cm'] ?? 15.0);
-        $previewHtml = warehouse_sync_label_template_preview_html($templateBody, $connectorId, $labelWidthCm, $labelHeightCm);
+        $previewHtml = warehouse_sync_label_template_preview_html($templateBody, $connectorId, $labelWidthCm, $labelHeightCm,true, false);
         $printDevices = warehouse_sync_fetch_active_print_devices($dbcnx);
 
         $smarty->assign('connector', $connector);
@@ -4130,7 +4161,7 @@ if ($action === 'validate_connector_label_template') {
 
     $check = warehouse_sync_validate_label_template_body($templateBody);
     $check['connector_id'] = $connectorId;
-    $check['preview_html'] = warehouse_sync_label_template_preview_html($templateBody, $connectorId, $labelWidthCm, $labelHeightCm);
+    $check['preview_html'] = warehouse_sync_label_template_preview_html($templateBody, $connectorId, $labelWidthCm, $labelHeightCm, true, false);
     $response = $check;
 }
 
@@ -4147,7 +4178,7 @@ if ($action === 'save_connector_label_template') {
     $templateBody = (string)($_POST['template_body'] ?? '');
     $labelWidthCm = (float)($_POST['label_width_cm'] ?? 10);
     $labelHeightCm = (float)($_POST['label_height_cm'] ?? 15);
-    $preferRasterImage = ((string)($_POST['preview_rasterize'] ?? '0') === '1');
+    $preferRasterImage = ((string)($_POST['preview_rasterize'] ?? '1') === '1');
     $printRotate = (int)($_POST['print_rotate'] ?? 0);
     $templateCode = $templateCode !== '' ? $templateCode : 'default';
     if ($labelWidthCm < 2.0 || $labelWidthCm > 30.0) {
@@ -4231,7 +4262,7 @@ if ($action === 'test_print_connector_label_template') {
     $printRotate = (int)($_POST['print_rotate'] ?? 0);
     $labelWidthCm = (float)($_POST['label_width_cm'] ?? 10);
     $labelHeightCm = (float)($_POST['label_height_cm'] ?? 15);
-    $previewRasterizeRaw = strtolower(trim((string)($_POST['preview_rasterize'] ?? '0')));
+    $previewRasterizeRaw = strtolower(trim((string)($_POST['preview_rasterize'] ?? '1')));
     $preferRasterImage = in_array($previewRasterizeRaw, ['1', 'true', 'yes', 'on'], true);
     if (!in_array($printRotate, [0, 90, 180, 270], true)) {
         $printRotate = 0;
@@ -4271,7 +4302,7 @@ if ($action === 'test_print_connector_label_template') {
             return;
         }
 
-        $previewHtml = warehouse_sync_label_template_preview_html($templateBody, $connectorId, $labelWidthCm, $labelHeightCm);
+        $previewHtml = warehouse_sync_label_template_preview_html($templateBody, $connectorId, $labelWidthCm, $labelHeightCm, true, false);
         $previewPdfRender = warehouse_sync_preview_html_to_pdf_base64($previewHtml, $labelWidthCm, $labelHeightCm, $printRotate);
         $previewPdfBase64 = (string)($previewPdfRender['pdf_base64'] ?? '');
         if ($previewPdfBase64 === '') {
