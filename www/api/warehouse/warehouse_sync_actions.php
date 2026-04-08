@@ -2107,16 +2107,41 @@ if (!function_exists('warehouse_sync_queue_print_preview')) {
         }
 
         $printCss = sprintf(
-            '@page { size: %.2Fcm %.2Fcm; margin: 0; } html, body { margin: 0; padding: 0; width: %.2Fcm; height: %.2Fcm; }',
+            '@page { size: %.2Fcm %.2Fcm; margin: 0; }'
+            . ' html, body { margin: 0; padding: 0; width: %.2Fcm; height: %.2Fcm; }'
+            . ' body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }'
+            . ' #ws-print-fit-root { transform-origin: top left; break-inside: avoid; page-break-inside: avoid; }',
             $widthCm,
             $heightCm,
             $widthCm,
             $heightCm
         );
 
+        $fitScript = sprintf(
+            '<script>(function(){'
+            . 'function cmToPx(cm){return cm*96/2.54;}'
+            . 'function fit(){'
+            . 'var root=document.getElementById("ws-print-fit-root");'
+            . 'if(!root){return;}'
+            . 'root.style.transform="none";root.style.zoom="1";root.style.width="auto";'
+            . 'var pageW=cmToPx(%F),pageH=cmToPx(%F);'
+            . 'var contentW=Math.max(root.scrollWidth,root.getBoundingClientRect().width)||1;'
+            . 'var contentH=Math.max(root.scrollHeight,root.getBoundingClientRect().height)||1;'
+            . 'var scale=Math.min(1,pageW/contentW,pageH/contentH);'
+            . 'if(!isFinite(scale)||scale<=0){scale=1;}'
+            . 'root.style.width=contentW+"px";'
+            . 'root.style.zoom=String(scale);'
+            . '}'
+            . 'if(document.readyState==="loading"){document.addEventListener("DOMContentLoaded",fit,{once:true});}else{fit();}'
+            . 'window.addEventListener("load",fit,{once:true});'
+            . '})();</script>',
+            $widthCm,
+            $heightCm
+        );
         if (stripos($html, '<html') === false || stripos($html, '<body') === false) {
             $html = '<!doctype html><html><head><meta charset="utf-8"><title>Connector Label Preview</title><style>' . $printCss . '</style></head><body>'
-                . $html
+                . '<div id="ws-print-fit-root">' . $html . '</div>'
+                . $fitScript
                 . '</body></html>';
         } else {
             $styleTag = '<style>' . $printCss . '</style>';
@@ -2124,6 +2149,12 @@ if (!function_exists('warehouse_sync_queue_print_preview')) {
                 $html = preg_replace('/<head\b[^>]*>/i', '$0' . $styleTag, $html, 1) ?? ($styleTag . $html);
             } else {
                 $html = $styleTag . $html;
+            }
+            if (preg_match('/<body\b[^>]*>/i', $html) === 1) {
+                $html = preg_replace('/<body\b([^>]*)>/i', '<body$1><div id="ws-print-fit-root">', $html, 1) ?? $html;
+                $html = preg_replace('/<\/body>/i', '</div>' . $fitScript . '</body>', $html, 1) ?? $html;
+            } else {
+                $html .= '<body><div id="ws-print-fit-root"></div>' . $fitScript . '</body>';
             }
         }
 
