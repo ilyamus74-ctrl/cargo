@@ -2086,45 +2086,17 @@ if (!function_exists('warehouse_sync_queue_print_preview')) {
         return $pdf;
     }
 
-    function warehouse_sync_preview_html_to_pdf_base64(
-        string $previewHtml,
-        float $labelWidthCm = 10.0,
-        float $labelHeightCm = 15.0
-    ): array
+    function warehouse_sync_preview_html_to_pdf_base64(string $previewHtml): array
     {
         $html = trim($previewHtml);
         if ($html === '') {
             return ['ok' => false, 'error' => 'preview html is empty', 'pdf_base64' => ''];
         }
 
-        $widthCm = $labelWidthCm > 0 ? $labelWidthCm : 10.0;
-        $heightCm = $labelHeightCm > 0 ? $labelHeightCm : 15.0;
-        if ($widthCm < 2.0 || $widthCm > 30.0) {
-            $widthCm = 10.0;
-        }
-        if ($heightCm < 2.0 || $heightCm > 30.0) {
-            $heightCm = 15.0;
-        }
-
-        $printCss = sprintf(
-            '@page { size: %.2Fcm %.2Fcm; margin: 0; } html, body { margin: 0; padding: 0; width: %.2Fcm; height: %.2Fcm; }',
-            $widthCm,
-            $heightCm,
-            $widthCm,
-            $heightCm
-        );
-
-        if (stripos($html, '<html') === false || stripos($html, '<body') === false) {
-            $html = '<!doctype html><html><head><meta charset="utf-8"><title>Connector Label Preview</title><style>' . $printCss . '</style></head><body>'
+        if (stripos($html, '<html') === false) {
+            $html = '<!doctype html><html><head><meta charset="utf-8"><title>Connector Label Preview</title></head><body>'
                 . $html
                 . '</body></html>';
-        } else {
-            $styleTag = '<style>' . $printCss . '</style>';
-            if (preg_match('/<head\b[^>]*>/i', $html) === 1) {
-                $html = preg_replace('/<head\b[^>]*>/i', '$0' . $styleTag, $html, 1) ?? ($styleTag . $html);
-            } else {
-                $html = $styleTag . $html;
-            }
         }
 
         $tmpDir = sys_get_temp_dir();
@@ -2149,14 +2121,7 @@ if (!function_exists('warehouse_sync_queue_print_preview')) {
 
         $wkhtmltopdf = trim((string)shell_exec('command -v wkhtmltopdf 2>/dev/null'));
         if ($wkhtmltopdf !== '') {
-            $cmd = escapeshellarg($wkhtmltopdf)
-                . ' --quiet'
-                . ' --margin-top 0 --margin-right 0 --margin-bottom 0 --margin-left 0'
-                . ' --page-width ' . escapeshellarg(number_format($widthCm, 2, '.', '') . 'cm')
-                . ' --page-height ' . escapeshellarg(number_format($heightCm, 2, '.', '') . 'cm')
-                . ' ' . escapeshellarg($tmpHtmlFile)
-                . ' ' . escapeshellarg($tmpPdfFile)
-                . ' 2>&1';
+            $cmd = escapeshellarg($wkhtmltopdf) . ' --quiet ' . escapeshellarg($tmpHtmlFile) . ' ' . escapeshellarg($tmpPdfFile) . ' 2>&1';
             $output = shell_exec($cmd);
             $pdfBinary = @file_get_contents($tmpPdfFile);
             if (is_string($pdfBinary) && $pdfBinary !== '') {
@@ -2250,12 +2215,12 @@ if (!function_exists('warehouse_sync_queue_print_preview')) {
         if (!is_array($queue)) {
             $queue = [];
         }
-        $render = warehouse_sync_preview_html_to_pdf_base64($previewHtml, $labelWidthCm, $labelHeightCm);
+        $render = warehouse_sync_preview_html_to_pdf_base64($previewHtml);
         $labelBase64 = (string)($render['pdf_base64'] ?? '');
         $renderEngine = 'html-to-pdf';
         $renderMessage = '';
         if ($labelBase64 === '') {
-            $previewPdf = warehouse_sync_preview_html_to_simple_pdf($previewHtml, $rotateDegrees, $labelWidthCm, $labelHeightCm);
+        $previewPdf = warehouse_sync_preview_html_to_simple_pdf($previewHtml, $rotateDegrees, $labelWidthCm, $labelHeightCm);
             $labelBase64 = base64_encode($previewPdf);
             $renderEngine = 'simple-pdf-fallback';
             $renderMessage = trim((string)($render['error'] ?? ''));
@@ -2265,11 +2230,7 @@ if (!function_exists('warehouse_sync_queue_print_preview')) {
             'status' => 'queued',
             'created_at' => gmdate('c'),
             'file_name' => 'connector_label_preview_' . gmdate('Ymd_His') . '.pdf',
-            'label_base64' => $labelBase64,
-            'label_base64' => $labelBase64,
-            'rotate' => $rotateDegrees,
-            'label_width_cm' => $labelWidthCm,
-            'label_height_cm' => $labelHeightCm,
+            'label_base64' => $labelBase64
         ];
         if (!print_write_queue($deviceUid, $queue)) {
             return ['status' => 'error', 'message' => 'Не удалось записать задачу в print queue'];
@@ -2290,13 +2251,7 @@ if (!function_exists('warehouse_sync_resolve_label_template_code')) {
     {
         $connectorId = max(0, (int)($connector['id'] ?? 0));
         if ($connectorId <= 0) {
-            return [
-                'template_code' => 'default',
-                'template_body' => '',
-                'label_width_cm' => 10.0,
-                'label_height_cm' => 15.0,
-                'print_rotate' => 0,
-            ];
+            return ['template_code' => 'default', 'template_body' => ''];
         }
 
         $tableExists = false;
@@ -2305,17 +2260,11 @@ if (!function_exists('warehouse_sync_resolve_label_template_code')) {
             $res->free();
         }
         if (!$tableExists) {
-            return [
-                'template_code' => 'default',
-                'template_body' => '',
-                'label_width_cm' => 10.0,
-                'label_height_cm' => 15.0,
-                'print_rotate' => 0,
-            ];
+            return ['template_code' => 'default', 'template_body' => ''];
         }
 
         $sql = "
-            SELECT template_code, template_body, label_width_cm, label_height_cm, print_rotate
+            SELECT template_code, template_body
             FROM forwarder_label_templates
             WHERE connector_id = ?
               AND is_active = 1
@@ -2324,13 +2273,7 @@ if (!function_exists('warehouse_sync_resolve_label_template_code')) {
         ";
         $stmt = $dbcnx->prepare($sql);
         if (!$stmt) {
-            return [
-                'template_code' => 'default',
-                'template_body' => '',
-                'label_width_cm' => 10.0,
-                'label_height_cm' => 15.0,
-                'print_rotate' => 0,
-            ];
+            return ['template_code' => 'default', 'template_body' => ''];
         }
         $stmt->bind_param('i', $connectorId);
         $stmt->execute();
@@ -2344,24 +2287,9 @@ if (!function_exists('warehouse_sync_resolve_label_template_code')) {
 
         $templateCode = trim((string)($row['template_code'] ?? ''));
         $templateBody = trim((string)($row['template_body'] ?? ''));
-        $labelWidthCm = (float)($row['label_width_cm'] ?? 10.0);
-        $labelHeightCm = (float)($row['label_height_cm'] ?? 15.0);
-        $printRotate = (int)($row['print_rotate'] ?? 0);
-        if ($labelWidthCm < 2.0 || $labelWidthCm > 30.0) {
-            $labelWidthCm = 10.0;
-        }
-        if ($labelHeightCm < 2.0 || $labelHeightCm > 30.0) {
-            $labelHeightCm = 15.0;
-        }
-        if (!in_array($printRotate, [0, 90, 180, 270], true)) {
-            $printRotate = 0;
-        }
         return [
             'template_code' => $templateCode !== '' ? $templateCode : 'default',
             'template_body' => $templateBody,
-            'label_width_cm' => $labelWidthCm,
-            'label_height_cm' => $labelHeightCm,
-            'print_rotate' => $printRotate,
         ];
     }
 }
@@ -2393,16 +2321,6 @@ if (!function_exists('warehouse_sync_ensure_label_templates_table')) {
             if (empty($columns['priority'])) {
                 $missing[] = "ADD COLUMN priority INT NOT NULL DEFAULT 100 AFTER is_active";
             }
-
-            if (empty($columns['label_width_cm'])) {
-                $missing[] = "ADD COLUMN label_width_cm DECIMAL(5,2) NOT NULL DEFAULT 10.00 AFTER priority";
-            }
-            if (empty($columns['label_height_cm'])) {
-                $missing[] = "ADD COLUMN label_height_cm DECIMAL(5,2) NOT NULL DEFAULT 15.00 AFTER label_width_cm";
-            }
-            if (empty($columns['print_rotate'])) {
-                $missing[] = "ADD COLUMN print_rotate SMALLINT NOT NULL DEFAULT 0 AFTER label_height_cm";
-            }
             if ($missing !== []) {
                 $sqlAlter = "ALTER TABLE forwarder_label_templates " . implode(', ', $missing);
                 if (!$dbcnx->query($sqlAlter)) {
@@ -2431,9 +2349,6 @@ if (!function_exists('warehouse_sync_ensure_label_templates_table')) {
             template_body MEDIUMTEXT NOT NULL,
             is_active TINYINT(1) NOT NULL DEFAULT 1,
             priority INT NOT NULL DEFAULT 100,
-            label_width_cm DECIMAL(5,2) NOT NULL DEFAULT 10.00,
-            label_height_cm DECIMAL(5,2) NOT NULL DEFAULT 15.00,
-            print_rotate SMALLINT NOT NULL DEFAULT 0,
             created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
             updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
             KEY idx_connector_active (connector_id, is_active, priority, id)
@@ -3968,9 +3883,6 @@ if ($action === 'form_connector_label_template') {
             'template_code' => (string)($template['template_code'] ?? 'default'),
             'template_body' => $templateBody,
             'test_track' => 'TEST-TRACK-0001',
-            'label_width_cm' => (float)($template['label_width_cm'] ?? 10.0),
-            'label_height_cm' => (float)($template['label_height_cm'] ?? 15.0),
-            'print_rotate' => (int)($template['print_rotate'] ?? 0),
             'preview_html' => $previewHtml,
         ]);
         $smarty->assign('print_devices', $printDevices);
@@ -4011,22 +3923,8 @@ if ($action === 'save_connector_label_template') {
     $connectorId = (int)($_POST['connector_id'] ?? 0);
     $templateCode = trim((string)($_POST['template_code'] ?? 'default'));
     $templateBody = (string)($_POST['template_body'] ?? '');
-    $labelWidthCm = (float)($_POST['label_width_cm'] ?? 10);
-    $labelHeightCm = (float)($_POST['label_height_cm'] ?? 15);
-    $printRotate = (int)($_POST['print_rotate'] ?? 0);
     $templateCode = $templateCode !== '' ? $templateCode : 'default';
-    if ($labelWidthCm < 2.0 || $labelWidthCm > 30.0) {
-        $response = ['status' => 'error', 'message' => 'label_width_cm должен быть в диапазоне 2..30 см'];
-        return;
-    }
-    if ($labelHeightCm < 2.0 || $labelHeightCm > 30.0) {
-        $response = ['status' => 'error', 'message' => 'label_height_cm должен быть в диапазоне 2..30 см'];
-        return;
-    }
-    if (!in_array($printRotate, [0, 90, 180, 270], true)) {
-        $response = ['status' => 'error', 'message' => 'print_rotate должен быть одним из: 0, 90, 180, 270'];
-        return;
-    }
+
     $connector = warehouse_sync_fetch_connector_by_id($dbcnx, $connectorId);
     if (!$connector) {
         $response = ['status' => 'error', 'message' => 'Коннектор не найден'];
@@ -4050,12 +3948,12 @@ if ($action === 'save_connector_label_template') {
             $stmtDeactivate->execute();
             $stmtDeactivate->close();
         }
-        $stmtInsert = $dbcnx->prepare("INSERT INTO forwarder_label_templates (connector_id, template_code, template_body, is_active, priority, label_width_cm, label_height_cm, print_rotate) VALUES (?, ?, ?, 1, 100, ?, ?, ?)");
+        $stmtInsert = $dbcnx->prepare("INSERT INTO forwarder_label_templates (connector_id, template_code, template_body, is_active, priority) VALUES (?, ?, ?, 1, 100)");
         if (!$stmtInsert) {
             $response = ['status' => 'error', 'message' => 'Не удалось сохранить шаблон'];
             return;
         }
-        $stmtInsert->bind_param('issddi', $connectorId, $templateCode, $templateBody, $labelWidthCm, $labelHeightCm, $printRotate);
+        $stmtInsert->bind_param('iss', $connectorId, $templateCode, $templateBody);
         $ok = $stmtInsert->execute();
         $stmtInsert->close();
         if (!$ok) {
@@ -4100,12 +3998,10 @@ if ($action === 'test_print_connector_label_template') {
         $printRotate = 0;
     }
     if ($labelWidthCm < 2.0 || $labelWidthCm > 30.0) {
-        $response = ['status' => 'error', 'message' => 'label_width_cm должен быть в диапазоне 2..30 см'];
-        return;
+        $labelWidthCm = 10.0;
     }
     if ($labelHeightCm < 2.0 || $labelHeightCm > 30.0) {
-        $response = ['status' => 'error', 'message' => 'label_height_cm должен быть в диапазоне 2..30 см'];
-        return;
+        $labelHeightCm = 15.0;
     }
 
     $connector = warehouse_sync_fetch_connector_by_id($dbcnx, $connectorId);
@@ -4135,13 +4031,6 @@ if ($action === 'test_print_connector_label_template') {
         }
 
         $previewHtml = warehouse_sync_label_template_preview_html($templateBody, $connectorId);
-        $previewPdfRender = warehouse_sync_preview_html_to_pdf_base64($previewHtml, $labelWidthCm, $labelHeightCm);
-        $previewPdfBase64 = (string)($previewPdfRender['pdf_base64'] ?? '');
-        if ($previewPdfBase64 === '') {
-            $previewPdfBase64 = base64_encode(
-                warehouse_sync_preview_html_to_simple_pdf($previewHtml, $printRotate, $labelWidthCm, $labelHeightCm)
-            );
-        }
         $printResult = ['status' => 'skipped', 'message' => 'Отправка на принтер не запрошена'];
         if ($printDeviceKey !== '') {
             $printResult = warehouse_sync_queue_print_preview(
@@ -4167,14 +4056,11 @@ if ($action === 'test_print_connector_label_template') {
             'test_track' => $testTrack,
             'preview_html' => $previewHtml,
             'label_base64' => base64_encode($previewHtml),
-            'label_base64' => $previewPdfBase64,
-            'label_base64_mime' => 'application/pdf',
             'warnings' => $check['warnings'],
             'print_result' => $printResult,
             'diagnostics' => [
                 'template_sha256' => hash('sha256', $templateBody),
                 'preview_size' => strlen($previewHtml),
-                'preview_pdf_engine' => $previewPdfBase64 === (string)($previewPdfRender['pdf_base64'] ?? '') ? 'html-to-pdf' : 'simple-pdf-fallback',
                 'print_device_key' => $printDeviceKey,
                 'print_rotate' => $printRotate,
                 'label_width_cm' => $labelWidthCm,

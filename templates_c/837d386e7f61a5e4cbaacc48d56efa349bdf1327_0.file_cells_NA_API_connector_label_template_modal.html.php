@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-04-08 11:02:58
+/* Smarty version 5.3.1, created on 2026-04-08 11:44:20
   from 'file:cells_NA_API_connector_label_template_modal.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_69d635e2442586_31703490',
+  'unifunc' => 'content_69d63f94b860e4_49231811',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '837d386e7f61a5e4cbaacc48d56efa349bdf1327' => 
     array (
       0 => 'cells_NA_API_connector_label_template_modal.html',
-      1 => 1775645896,
+      1 => 1775648166,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_69d635e2442586_31703490 (\Smarty\Template $_smarty_tpl) {
+function content_69d63f94b860e4_49231811 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?><form id="connector-label-template-form">
   <input type="hidden" name="connector_id" value="<?php echo $_smarty_tpl->getSmarty()->getModifierCallback('escape')((($tmp = $_smarty_tpl->getValue('connector')['id'] ?? null)===null||$tmp==='' ? 0 ?? null : $tmp), 'htmlattr');?>
@@ -121,10 +121,10 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
             <select id="connector_label_template_print_rotate"
                     class="form-select form-select-sm"
                     name="print_rotate">
-              <option value="0" selected>0°</option>
-              <option value="90">90°</option>
-              <option value="180">180°</option>
-              <option value="270">270°</option>
+              <option value="0" <?php if ((int)((($tmp = $_smarty_tpl->getValue('template')['print_rotate'] ?? null)===null||$tmp==='' ? 0 ?? null : $tmp)) === 0) {?>selected<?php }?>>0°</option>
+              <option value="90" <?php if ((int)((($tmp = $_smarty_tpl->getValue('template')['print_rotate'] ?? null)===null||$tmp==='' ? 0 ?? null : $tmp)) === 90) {?>selected<?php }?>>90°</option>
+              <option value="180" <?php if ((int)((($tmp = $_smarty_tpl->getValue('template')['print_rotate'] ?? null)===null||$tmp==='' ? 0 ?? null : $tmp)) === 180) {?>selected<?php }?>>180°</option>
+              <option value="270" <?php if ((int)((($tmp = $_smarty_tpl->getValue('template')['print_rotate'] ?? null)===null||$tmp==='' ? 0 ?? null : $tmp)) === 270) {?>selected<?php }?>>270°</option>
             </select>
           </div>
           <div class="col-sm-3">
@@ -136,7 +136,8 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
                    step="0.1"
                    class="form-control form-control-sm"
                    name="label_width_cm"
-                   value="10">
+                   value="<?php echo $_smarty_tpl->getSmarty()->getModifierCallback('escape')((($tmp = $_smarty_tpl->getValue('template')['label_width_cm'] ?? null)===null||$tmp==='' ? 10 ?? null : $tmp), 'htmlattr');?>
+">
           </div>
           <div class="col-sm-3">
             <label for="connector_label_template_label_height_cm" class="form-label form-label-sm">Label height (cm)</label>
@@ -147,7 +148,8 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
                    step="0.1"
                    class="form-control form-control-sm"
                    name="label_height_cm"
-                   value="15">
+                   value="<?php echo $_smarty_tpl->getSmarty()->getModifierCallback('escape')((($tmp = $_smarty_tpl->getValue('template')['label_height_cm'] ?? null)===null||$tmp==='' ? 15 ?? null : $tmp), 'htmlattr');?>
+">
           </div>
         </div>
         <div class="border rounded p-2 bg-light" style="min-height: 420px; max-height: 620px; overflow: auto;">

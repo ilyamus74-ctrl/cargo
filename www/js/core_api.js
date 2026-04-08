@@ -677,6 +677,12 @@ const CoreAPI = {
                 if (diagnosticsRows.length > 0) {
                     lines.push(`<div class=\"text-muted mt-1\"><div class=\"small fw-semibold\">Диагностика</div><ul class=\"small mb-0\">${diagnosticsRows.join('')}</ul></div>`);
                 }
+                const labelBase64 = String(data?.label_base64 || '').trim();
+                const labelMime = String(data?.label_base64_mime || '').trim().toLowerCase();
+                if (labelBase64 !== '' && labelMime === 'application/pdf') {
+                    const href = `data:application/pdf;base64,${labelBase64}`;
+                    lines.push(`<div class=\"mt-2\"><a class=\"btn btn-sm btn-outline-primary\" href=\"${href}\" target=\"_blank\" rel=\"noopener\">Открыть PDF preview (без печати)</a></div>`);
+                }
                 box.innerHTML = lines.join('');
             }
             if (typeof data?.preview_html === 'string') {
