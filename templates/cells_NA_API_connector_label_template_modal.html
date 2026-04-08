@@ -25,12 +25,17 @@
           <div class="fw-semibold mb-1">Плейсхолдеры (минимум)</div>
           <div class="d-flex flex-wrap gap-2">
             <code>{literal}{{track}}{/literal}</code>
+            <code>{literal}{{client_name}}{/literal}</code>
             <code>{literal}{{client}}{/literal}</code>
             <code>{literal}{{client_code}}{/literal}</code>
             <code>{literal}{{client_id}}{/literal}</code>
             <code>{literal}{{internal_id}}{/literal}</code>
             <code>{literal}{{weight}}{/literal}</code>
             <code>{literal}{{amount}}{/literal}</code>
+            <code>{literal}{{forward_name}}{/literal}</code>
+            <code>{literal}{{country_dest}}{/literal}</code>
+            <code>{literal}{{flight_departure}}{/literal}</code>
+            <code>{literal}{{flight_destination}}{/literal}</code>
             <code>{literal}{{flight_name}}{/literal}</code>
             <code>{literal}{{barcode_url}}{/literal}</code>
             <code>{literal}{{qr_img_html}}{/literal}</code>
@@ -67,6 +72,40 @@
                 </option>
               {/foreach}
             </select>
+          </div>
+
+          <div class="col-sm-6">
+            <label for="connector_label_template_print_rotate" class="form-label form-label-sm">Rotate (test print)</label>
+            <select id="connector_label_template_print_rotate"
+                    class="form-select form-select-sm"
+                    name="print_rotate">
+              <option value="0" selected>0°</option>
+              <option value="90">90°</option>
+              <option value="180">180°</option>
+              <option value="270">270°</option>
+            </select>
+          </div>
+          <div class="col-sm-3">
+            <label for="connector_label_template_label_width_cm" class="form-label form-label-sm">Label width (cm)</label>
+            <input id="connector_label_template_label_width_cm"
+                   type="number"
+                   min="2"
+                   max="30"
+                   step="0.1"
+                   class="form-control form-control-sm"
+                   name="label_width_cm"
+                   value="10">
+          </div>
+          <div class="col-sm-3">
+            <label for="connector_label_template_label_height_cm" class="form-label form-label-sm">Label height (cm)</label>
+            <input id="connector_label_template_label_height_cm"
+                   type="number"
+                   min="2"
+                   max="30"
+                   step="0.1"
+                   class="form-control form-control-sm"
+                   name="label_height_cm"
+                   value="15">
           </div>
         </div>
         <div class="border rounded p-2 bg-light" style="min-height: 420px; max-height: 620px; overflow: auto;">

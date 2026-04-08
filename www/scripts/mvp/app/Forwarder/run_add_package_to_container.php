@@ -639,8 +639,28 @@ function forwarder_add_package_to_container_build_html_label_from_verify(
         : '';
 
 
-    $clientNameRaw = trim((string)($package['client_name'] ?? ''));
-    $clientCodeRaw = trim((string)($package['client'] ?? ''));
+
+    $clientNameRaw = forwarder_add_package_to_container_pick_first_non_empty([
+        $package['client_name'] ?? '',
+        $package['client_name_surname'] ?? '',
+        $package['consignee_name'] ?? '',
+        $package['receiver_name'] ?? '',
+        $verifyJson['client_name'] ?? '',
+        $verifyJson['client_name_surname'] ?? '',
+        $verifyJson['consignee_name'] ?? '',
+        $verifyJson['receiver_name'] ?? '',
+    ]);
+
+    $clientCodeRaw = forwarder_add_package_to_container_pick_first_non_empty([
+        $package['client'] ?? '',
+        $package['client_code'] ?? '',
+        $package['client_no'] ?? '',
+        $package['suite'] ?? '',
+        $verifyJson['client'] ?? '',
+        $verifyJson['client_code'] ?? '',
+        $verifyJson['client_no'] ?? '',
+        $verifyJson['suite'] ?? '',
+    ]);
     $clientIdRaw = trim((string)($package['client_id'] ?? ''));
     $internalIdRaw = trim((string)($package['internal_id'] ?? ''));
     $weightRaw = trim((string)($package['gross_weight'] ?? ''));
@@ -649,12 +669,67 @@ function forwarder_add_package_to_container_build_html_label_from_verify(
     $amountCurrencyRaw = trim((string)($package['amount_currency'] ?? 'USD'));
     $categoryRaw = trim((string)($package['category'] ?? $package['title'] ?? ''));
     $invoiceUsdRaw = trim((string)($package['invoice_usd'] ?? '0.00'));
-    $flightDepartureRaw = trim((string)($package['flight_departure'] ?? ''));
-    $flightDestinationRaw = trim((string)($package['flight_destination'] ?? ''));
-    $flightNameRaw = trim((string)($package['flight_name'] ?? ''));
+
+    $flightDepartureRaw = forwarder_add_package_to_container_pick_first_non_empty([
+        $package['flight_departure'] ?? '',
+        $package['departure'] ?? '',
+        $package['from'] ?? '',
+        $package['flight_from'] ?? '',
+        $verifyJson['flight_departure'] ?? '',
+        $verifyJson['departure'] ?? '',
+        $verifyJson['from'] ?? '',
+        $verifyJson['flight_from'] ?? '',
+    ]);
+
+    $flightDestinationRaw = forwarder_add_package_to_container_pick_first_non_empty([
+        $package['flight_destination'] ?? '',
+        $package['destination'] ?? '',
+        $package['to'] ?? '',
+        $package['flight_to'] ?? '',
+        $verifyJson['flight_destination'] ?? '',
+        $verifyJson['destination'] ?? '',
+        $verifyJson['to'] ?? '',
+        $verifyJson['flight_to'] ?? '',
+    ]);
+
+    $flightNameRaw = forwarder_add_package_to_container_pick_first_non_empty([
+        $package['flight_name'] ?? '',
+        $package['flight_number'] ?? '',
+        $package['flight'] ?? '',
+        $package['container'] ?? '',
+        $verifyJson['flight_name'] ?? '',
+        $verifyJson['flight_number'] ?? '',
+        $verifyJson['flight'] ?? '',
+        $verifyJson['container'] ?? '',
+    ]);
     $clientPhoneRaw = trim((string)($package['client_phone'] ?? ''));
     $clientAddressRaw = trim((string)($package['client_address'] ?? ''));
     $descriptionRaw = trim((string)($package['description'] ?? ''));
+    $forwardNameRaw = forwarder_add_package_to_container_pick_first_non_empty([
+        $package['forward_name'] ?? '',
+        $package['forwarder_name'] ?? '',
+        $package['forwarder'] ?? '',
+        $package['carrier_name'] ?? '',
+        $verifyJson['forward_name'] ?? '',
+        $verifyJson['forwarder_name'] ?? '',
+        $verifyJson['forwarder'] ?? '',
+        $verifyJson['carrier_name'] ?? '',
+    ]);
+    if ($forwardNameRaw === '') {
+        $forwardNameRaw = 'Colibri';
+    }
+
+    $countryDestRaw = forwarder_add_package_to_container_pick_first_non_empty([
+        $package['country_dest'] ?? '',
+        $package['country_destination'] ?? '',
+        $package['destination_country'] ?? '',
+        $verifyJson['country_dest'] ?? '',
+        $verifyJson['country_destination'] ?? '',
+        $verifyJson['destination_country'] ?? '',
+    ]);
+    if ($countryDestRaw === '') {
+        $countryDestRaw = 'Azerbaijan';
+    }
 
     $client = htmlspecialchars($clientNameRaw, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
     $clientCode = htmlspecialchars($clientCodeRaw, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
@@ -671,6 +746,8 @@ function forwarder_add_package_to_container_build_html_label_from_verify(
     $clientPhone = htmlspecialchars($clientPhoneRaw, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
     $clientAddress = htmlspecialchars($clientAddressRaw, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
     $description = htmlspecialchars($descriptionRaw, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    $forwardName = htmlspecialchars($forwardNameRaw, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    $countryDest = htmlspecialchars($countryDestRaw, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
     $trackSafe = htmlspecialchars($track, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 
     $qrImg = $qrUrl !== '' ? '<img src="' . htmlspecialchars($qrUrl, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '" alt="QR Code" style="width:90px;height:90px;">' : '';
@@ -721,6 +798,7 @@ function forwarder_add_package_to_container_build_html_label_from_verify(
     $html = forwarder_add_package_to_container_render_template_html($templateBody, [
         'track' => $trackSafe,
         'client' => $client,
+        'client_name' => $client,
         'client_code' => $clientCode,
         'client_id' => $clientId,
         'internal_id' => $internalId,
@@ -732,6 +810,8 @@ function forwarder_add_package_to_container_build_html_label_from_verify(
         'flight_departure' => $flightDeparture,
         'flight_destination' => $flightDestination,
         'flight_name' => $flightName,
+        'forward_name' => $forwardName,
+        'country_dest' => $countryDest,
         'client_phone' => $clientPhone,
         'client_address' => $clientAddress,
         'description' => $description,

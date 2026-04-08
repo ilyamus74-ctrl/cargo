@@ -1995,7 +1995,12 @@ if (!function_exists('warehouse_sync_queue_print_preview')) {
         return str_replace(['\\', '(', ')'], ['\\\\', '\(', '\)'], $encoded);
     }
 
-    function warehouse_sync_preview_html_to_simple_pdf(string $previewHtml): string
+    function warehouse_sync_preview_html_to_simple_pdf(
+        string $previewHtml,
+        int $rotateDegrees = 0,
+        float $labelWidthCm = 10.0,
+        float $labelHeightCm = 15.0
+    ): string
     {
         $plain = preg_replace('#<(br|/p|/div|/li|/h[1-6])\b[^>]*>#iu', "\n", $previewHtml) ?? $previewHtml;
         $plain = strip_tags($plain);
@@ -2022,7 +2027,18 @@ if (!function_exists('warehouse_sync_queue_print_preview')) {
             $lines = ['Template preview'];
         }
 
-        $textCommands = ['BT', '/F1 11 Tf', '50 790 Td'];
+        $widthCm = $labelWidthCm > 0 ? $labelWidthCm : 10.0;
+        $heightCm = $labelHeightCm > 0 ? $labelHeightCm : 15.0;
+        if ($widthCm < 2.0 || $widthCm > 30.0) {
+            $widthCm = 10.0;
+        }
+        if ($heightCm < 2.0 || $heightCm > 30.0) {
+            $heightCm = 15.0;
+        }
+        $pageWidth = max(120.0, ($widthCm / 2.54) * 72.0);
+        $pageHeight = max(120.0, ($heightCm / 2.54) * 72.0);
+        $startY = max(30.0, $pageHeight - 30.0);
+        $textCommands = ['BT', '/F1 11 Tf', '20 ' . rtrim(rtrim(number_format($startY, 2, '.', ''), '0'), '.') . ' Td'];
         $lineIndex = 0;
         foreach ($lines as $line) {
             $escaped = warehouse_sync_escape_pdf_text((string)$line);
@@ -2036,10 +2052,17 @@ if (!function_exists('warehouse_sync_queue_print_preview')) {
         $stream = implode("\n", $textCommands) . "\n";
         $streamLen = strlen($stream);
 
+        $rotateValue = in_array($rotateDegrees, [0, 90, 180, 270], true) ? $rotateDegrees : 0;
+        $rotateChunk = $rotateValue !== 0 ? " /Rotate {$rotateValue}" : '';
+        $mediaBox = '0 0 '
+            . rtrim(rtrim(number_format($pageWidth, 2, '.', ''), '0'), '.')
+            . ' '
+            . rtrim(rtrim(number_format($pageHeight, 2, '.', ''), '0'), '.');
+
         $objects = [
             "1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n",
             "2 0 obj\n<< /Type /Pages /Kids [3 0 R] /Count 1 >>\nendobj\n",
-            "3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>\nendobj\n",
+            "3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [{$mediaBox}]{$rotateChunk} /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>\nendobj\n",
             "4 0 obj\n<< /Length {$streamLen} >>\nstream\n{$stream}endstream\nendobj\n",
             "5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n",
         ];
@@ -2063,7 +2086,113 @@ if (!function_exists('warehouse_sync_queue_print_preview')) {
         return $pdf;
     }
 
-    function warehouse_sync_queue_print_preview(string $deviceUid, string $previewHtml): array
+    function warehouse_sync_preview_html_to_pdf_base64(string $previewHtml): array
+    {
+        $html = trim($previewHtml);
+        if ($html === '') {
+            return ['ok' => false, 'error' => 'preview html is empty', 'pdf_base64' => ''];
+        }
+
+        if (stripos($html, '<html') === false) {
+            $html = '<!doctype html><html><head><meta charset="utf-8"><title>Connector Label Preview</title></head><body>'
+                . $html
+                . '</body></html>';
+        }
+
+        $tmpDir = sys_get_temp_dir();
+        $tmpHtml = tempnam($tmpDir, 'ws_preview_html_');
+        $tmpPdf = tempnam($tmpDir, 'ws_preview_pdf_');
+        if (!is_string($tmpHtml) || !is_string($tmpPdf)) {
+            return ['ok' => false, 'error' => 'failed to create temp files', 'pdf_base64' => ''];
+        }
+
+        $tmpHtmlFile = $tmpHtml . '.html';
+        $tmpPdfFile = $tmpPdf . '.pdf';
+        @rename($tmpHtml, $tmpHtmlFile);
+        @rename($tmpPdf, $tmpPdfFile);
+
+        if (file_put_contents($tmpHtmlFile, $html) === false) {
+            @unlink($tmpHtmlFile);
+            @unlink($tmpPdfFile);
+            return ['ok' => false, 'error' => 'failed to write temp html', 'pdf_base64' => ''];
+        }
+
+        $errors = [];
+
+        $wkhtmltopdf = trim((string)shell_exec('command -v wkhtmltopdf 2>/dev/null'));
+        if ($wkhtmltopdf !== '') {
+            $cmd = escapeshellarg($wkhtmltopdf) . ' --quiet ' . escapeshellarg($tmpHtmlFile) . ' ' . escapeshellarg($tmpPdfFile) . ' 2>&1';
+            $output = shell_exec($cmd);
+            $pdfBinary = @file_get_contents($tmpPdfFile);
+            if (is_string($pdfBinary) && $pdfBinary !== '') {
+                @unlink($tmpHtmlFile);
+                @unlink($tmpPdfFile);
+                return ['ok' => true, 'error' => '', 'pdf_base64' => base64_encode($pdfBinary)];
+            }
+            $errors[] = 'wkhtmltopdf failed: ' . trim((string)$output);
+            @unlink($tmpPdfFile);
+            $tmpPdf = tempnam($tmpDir, 'ws_preview_pdf_');
+            if (!is_string($tmpPdf)) {
+                @unlink($tmpHtmlFile);
+                return ['ok' => false, 'error' => implode('; ', $errors), 'pdf_base64' => ''];
+            }
+            $tmpPdfFile = $tmpPdf . '.pdf';
+            @rename($tmpPdf, $tmpPdfFile);
+        } else {
+            $errors[] = 'wkhtmltopdf is not installed';
+        }
+
+        $chromeCandidates = ['chromium', 'chromium-browser', 'google-chrome', 'google-chrome-stable'];
+        $chromeBinary = '';
+        foreach ($chromeCandidates as $candidate) {
+            $resolved = trim((string)shell_exec('command -v ' . escapeshellarg($candidate) . ' 2>/dev/null'));
+            if ($resolved !== '') {
+                $chromeBinary = $resolved;
+                break;
+            }
+        }
+
+        if ($chromeBinary !== '') {
+            $fileUrl = 'file://' . $tmpHtmlFile;
+            $chromeHome = '/tmp/warehouse-sync-chrome-home';
+            $chromeUserDataDir = '/tmp/warehouse-sync-chrome-profile';
+            $chromeCrashDir = '/tmp/warehouse-sync-chrome-crash';
+            @mkdir($chromeHome, 0777, true);
+            @mkdir($chromeUserDataDir, 0777, true);
+            @mkdir($chromeCrashDir, 0777, true);
+            $cmd = escapeshellarg($chromeBinary)
+                . ' --headless --disable-gpu --no-sandbox --disable-dev-shm-usage --allow-file-access-from-files'
+                . ' --disable-crash-reporter --user-data-dir=' . escapeshellarg($chromeUserDataDir)
+                . ' --crash-dumps-dir=' . escapeshellarg($chromeCrashDir)
+                . ' --print-to-pdf=' . escapeshellarg($tmpPdfFile)
+                . ' ' . escapeshellarg($fileUrl) . ' 2>&1';
+            $envPrefix = 'HOME=' . escapeshellarg($chromeHome)
+                . ' XDG_CONFIG_HOME=' . escapeshellarg($chromeHome . '/.config')
+                . ' XDG_CACHE_HOME=' . escapeshellarg($chromeHome . '/.cache');
+            $output = shell_exec($envPrefix . ' ' . $cmd);
+            $pdfBinary = @file_get_contents($tmpPdfFile);
+            if (is_string($pdfBinary) && $pdfBinary !== '') {
+                @unlink($tmpHtmlFile);
+                @unlink($tmpPdfFile);
+                return ['ok' => true, 'error' => '', 'pdf_base64' => base64_encode($pdfBinary)];
+            }
+            $errors[] = 'headless chrome failed: ' . trim((string)$output);
+        } else {
+            $errors[] = 'chromium/google-chrome is not installed';
+        }
+
+        @unlink($tmpHtmlFile);
+        @unlink($tmpPdfFile);
+        return ['ok' => false, 'error' => implode('; ', $errors), 'pdf_base64' => ''];
+    }
+
+    function warehouse_sync_queue_print_preview(
+        string $deviceUid,
+        string $previewHtml,
+        int $rotateDegrees = 0,
+        float $labelWidthCm = 10.0,
+        float $labelHeightCm = 15.0
+    ): array
     {
         if ($deviceUid === '') {
             return ['status' => 'skipped', 'message' => 'print_device_key пустой'];
@@ -2086,13 +2215,22 @@ if (!function_exists('warehouse_sync_queue_print_preview')) {
         if (!is_array($queue)) {
             $queue = [];
         }
-        $previewPdf = warehouse_sync_preview_html_to_simple_pdf($previewHtml);
+        $render = warehouse_sync_preview_html_to_pdf_base64($previewHtml);
+        $labelBase64 = (string)($render['pdf_base64'] ?? '');
+        $renderEngine = 'html-to-pdf';
+        $renderMessage = '';
+        if ($labelBase64 === '') {
+        $previewPdf = warehouse_sync_preview_html_to_simple_pdf($previewHtml, $rotateDegrees, $labelWidthCm, $labelHeightCm);
+            $labelBase64 = base64_encode($previewPdf);
+            $renderEngine = 'simple-pdf-fallback';
+            $renderMessage = trim((string)($render['error'] ?? ''));
+        }
         $queue[] = [
             'job_id' => $jobId,
             'status' => 'queued',
             'created_at' => gmdate('c'),
             'file_name' => 'connector_label_preview_' . gmdate('Ymd_His') . '.pdf',
-            'label_base64' => base64_encode($previewPdf)
+            'label_base64' => $labelBase64
         ];
         if (!print_write_queue($deviceUid, $queue)) {
             return ['status' => 'error', 'message' => 'Не удалось записать задачу в print queue'];
@@ -2102,6 +2240,8 @@ if (!function_exists('warehouse_sync_queue_print_preview')) {
             'status' => 'ok',
             'message' => 'Тестовая печать отправлена в очередь',
             'job_id' => $jobId,
+            'render_engine' => $renderEngine,
+            'render_message' => $renderMessage,
         ];
     }
 }
@@ -2248,12 +2388,17 @@ if (!function_exists('warehouse_sync_label_template_preview_html')) {
     {
         $sample = [
             '{{track}}' => 'TEST-TRACK-0001',
+            '{{client_name}}' => 'Test Client',
             '{{client}}' => 'Test Client',
             '{{client_code}}' => 'CLI001',
             '{{client_id}}' => '12345678',
             '{{internal_id}}' => 'INT-00001',
             '{{weight}}' => '1.000',
             '{{amount}}' => '10.00 USD',
+            '{{country_dest}}' => 'Azerbaijan',
+            '{{forward_name}}' => 'Colibri',
+            '{{flight_departure}}' => 'HHN',
+            '{{flight_destination}}' => 'GYD',
             '{{flight_name}}' => 'AZ001',
             '{{barcode_url}}' => 'https://barcode.tec-it.com/barcode.ashx?data=INT-00001&code=Code128&dpi=96',
             '{{qr_img_html}}' => '<span style="font-size:12px;color:#777;">[QR preview]</span>',
@@ -3846,6 +3991,18 @@ if ($action === 'test_print_connector_label_template') {
     $templateBody = (string)($_POST['template_body'] ?? '');
     $testTrack = trim((string)($_POST['test_track'] ?? 'TEST-TRACK-0001'));
     $printDeviceKey = trim((string)($_POST['print_device_key'] ?? ''));
+    $printRotate = (int)($_POST['print_rotate'] ?? 0);
+    $labelWidthCm = (float)($_POST['label_width_cm'] ?? 10);
+    $labelHeightCm = (float)($_POST['label_height_cm'] ?? 15);
+    if (!in_array($printRotate, [0, 90, 180, 270], true)) {
+        $printRotate = 0;
+    }
+    if ($labelWidthCm < 2.0 || $labelWidthCm > 30.0) {
+        $labelWidthCm = 10.0;
+    }
+    if ($labelHeightCm < 2.0 || $labelHeightCm > 30.0) {
+        $labelHeightCm = 15.0;
+    }
 
     $connector = warehouse_sync_fetch_connector_by_id($dbcnx, $connectorId);
     if (!$connector) {
@@ -3876,7 +4033,13 @@ if ($action === 'test_print_connector_label_template') {
         $previewHtml = warehouse_sync_label_template_preview_html($templateBody, $connectorId);
         $printResult = ['status' => 'skipped', 'message' => 'Отправка на принтер не запрошена'];
         if ($printDeviceKey !== '') {
-            $printResult = warehouse_sync_queue_print_preview($printDeviceKey, $previewHtml);
+            $printResult = warehouse_sync_queue_print_preview(
+                $printDeviceKey,
+                $previewHtml,
+                $printRotate,
+                $labelWidthCm,
+                $labelHeightCm
+            );
         }
 
         $message = 'Тест печати: сформирован preview шаблона.';
@@ -3899,6 +4062,9 @@ if ($action === 'test_print_connector_label_template') {
                 'template_sha256' => hash('sha256', $templateBody),
                 'preview_size' => strlen($previewHtml),
                 'print_device_key' => $printDeviceKey,
+                'print_rotate' => $printRotate,
+                'label_width_cm' => $labelWidthCm,
+                'label_height_cm' => $labelHeightCm,
                 'print_status' => (string)($printResult['status'] ?? ''),
                 'print_job_id' => (string)($printResult['job_id'] ?? ''),
                 'print_message' => (string)($printResult['message'] ?? ''),
@@ -3911,6 +4077,9 @@ if ($action === 'test_print_connector_label_template') {
             'result' => 'ok',
             'test_track' => $testTrack,
             'print_device_key' => $printDeviceKey,
+            'print_rotate' => $printRotate,
+            'label_width_cm' => $labelWidthCm,
+            'label_height_cm' => $labelHeightCm,
         ]);
     } catch (Throwable $e) {
         audit_log($userId, 'CONNECTOR_LABEL_TEMPLATE_TEST_PRINT', 'connectors', $connectorId, 'Ошибка теста печати шаблона', [
