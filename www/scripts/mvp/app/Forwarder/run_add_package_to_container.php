@@ -401,7 +401,79 @@ function forwarder_add_package_to_container_convert_html_to_pdf(string $html): a
 
     @unlink($tmpHtmlFile);
     @unlink($tmpPdfFile);
-    return ['ok' => false, 'error' => implode('; ', $errors), 'pdf_base64' => ''];}
+
+    return ['ok' => false, 'error' => implode('; ', $errors), 'pdf_base64' => ''];
+}
+
+function forwarder_add_package_to_container_convert_html_to_png(string $html, float $labelWidthCm, float $labelHeightCm): array
+{
+    $tmpDir = sys_get_temp_dir();
+    $tmpHtml = tempnam($tmpDir, 'fwd_html_');
+    $tmpPng = tempnam($tmpDir, 'fwd_png_');
+    if (!is_string($tmpHtml) || !is_string($tmpPng)) {
+        return ['ok' => false, 'error' => 'failed to create temp files', 'png_base64' => ''];
+    }
+
+    $tmpHtmlFile = $tmpHtml . '.html';
+    $tmpPngFile = $tmpPng . '.png';
+    @rename($tmpHtml, $tmpHtmlFile);
+    @rename($tmpPng, $tmpPngFile);
+
+    if (file_put_contents($tmpHtmlFile, $html) === false) {
+        @unlink($tmpHtmlFile);
+        @unlink($tmpPngFile);
+        return ['ok' => false, 'error' => 'failed to write temp html', 'png_base64' => ''];
+    }
+
+    $chromeCandidates = ['chromium', 'chromium-browser', 'google-chrome', 'google-chrome-stable'];
+    $chromeBinary = '';
+    foreach ($chromeCandidates as $candidate) {
+        $resolved = trim((string)shell_exec('command -v ' . escapeshellarg($candidate) . ' 2>/dev/null'));
+        if ($resolved !== '') {
+            $chromeBinary = $resolved;
+            break;
+        }
+    }
+
+    if ($chromeBinary === '') {
+        @unlink($tmpHtmlFile);
+        @unlink($tmpPngFile);
+        return ['ok' => false, 'error' => 'chromium/google-chrome is not installed', 'png_base64' => ''];
+    }
+
+    $widthPx = (int)max(120, round(($labelWidthCm > 0 ? $labelWidthCm : 10.0) / 2.54 * 96));
+    $heightPx = (int)max(120, round(($labelHeightCm > 0 ? $labelHeightCm : 15.0) / 2.54 * 96));
+    $fileUrl = 'file://' . $tmpHtmlFile;
+    $chromeHome = '/tmp/forwarder-chrome-home';
+    $chromeUserDataDir = '/tmp/forwarder-chrome-profile';
+    $chromeCrashDir = '/tmp/forwarder-chrome-crash';
+    @mkdir($chromeHome, 0777, true);
+    @mkdir($chromeUserDataDir, 0777, true);
+    @mkdir($chromeCrashDir, 0777, true);
+
+    $cmd = escapeshellarg($chromeBinary)
+        . ' --headless --disable-gpu --no-sandbox --disable-dev-shm-usage --allow-file-access-from-files'
+        . ' --disable-crash-reporter --hide-scrollbars'
+        . ' --user-data-dir=' . escapeshellarg($chromeUserDataDir)
+        . ' --crash-dumps-dir=' . escapeshellarg($chromeCrashDir)
+        . ' --window-size=' . $widthPx . ',' . $heightPx
+        . ' --screenshot=' . escapeshellarg($tmpPngFile)
+        . ' ' . escapeshellarg($fileUrl) . ' 2>&1';
+    $envPrefix = 'HOME=' . escapeshellarg($chromeHome)
+        . ' XDG_CONFIG_HOME=' . escapeshellarg($chromeHome . '/.config')
+        . ' XDG_CACHE_HOME=' . escapeshellarg($chromeHome . '/.cache');
+    $output = shell_exec($envPrefix . ' ' . $cmd);
+    $pngBinary = @file_get_contents($tmpPngFile);
+
+    @unlink($tmpHtmlFile);
+    @unlink($tmpPngFile);
+
+    if (!is_string($pngBinary) || $pngBinary === '') {
+        return ['ok' => false, 'error' => 'headless chrome screenshot failed: ' . trim((string)$output), 'png_base64' => ''];
+    }
+
+    return ['ok' => true, 'error' => '', 'png_base64' => base64_encode($pngBinary)];
+}
 
 /** @param mixed $value @param array<int,string> $accumulator */
 function forwarder_add_package_to_container_collect_data_url_images($value, array &$accumulator): void
@@ -620,7 +692,10 @@ function forwarder_add_package_to_container_build_html_label_from_verify(
     string $track,
     string $publicBaseUrl,
     string $labelTemplateCode = 'default',
-    string $labelTemplateBody = ''
+    string $labelTemplateBody = '',
+    float $labelWidthCm = 10.0,
+    float $labelHeightCm = 15.0,
+    bool $preferRasterImage = false
 ): array
 {
     $templateCode = trim($labelTemplateCode) !== '' ? trim($labelTemplateCode) : 'default';
@@ -820,6 +895,22 @@ function forwarder_add_package_to_container_build_html_label_from_verify(
         'consignee_phone' => $consigneePhone,
         'total_invoice_price' => $totalWaybillInvoicePrice,
     ]);
+
+    if ($preferRasterImage) {
+        $pngRender = forwarder_add_package_to_container_convert_html_to_png($html, $labelWidthCm, $labelHeightCm);
+        if (!empty($pngRender['ok']) && trim((string)($pngRender['png_base64'] ?? '')) !== '') {
+            return [
+                'ok' => true,
+                'error' => '',
+                'label_base64' => (string)$pngRender['png_base64'],
+                'file_name' => 'waybill_' . preg_replace('/[^a-zA-Z0-9_-]+/', '_', $track) . '.png',
+                'invoice_url' => $invoiceUrl,
+                'qr_url' => $qrUrl,
+                'render_engine' => 'html-to-png',
+                'template_code' => $templateCode,
+            ];
+        }
+    }
 
     $pdfRender = forwarder_add_package_to_container_convert_html_to_pdf($html);
     if (!empty($pdfRender['ok']) && trim((string)($pdfRender['pdf_base64'] ?? '')) !== '') {
@@ -1080,6 +1171,9 @@ $labelTemplateBodyBase64 = trim(forwarder_add_package_to_container_arg($args, 'l
 $labelWidthCm = (float)forwarder_add_package_to_container_arg($args, 'label-width-cm', 'label_width_cm');
 $labelHeightCm = (float)forwarder_add_package_to_container_arg($args, 'label-height-cm', 'label_height_cm');
 $printRotate = (int)forwarder_add_package_to_container_arg($args, 'print-rotate', 'print_rotate');
+$printRasterize = forwarder_add_package_to_container_as_bool(
+    forwarder_add_package_to_container_arg($args, 'print-rasterize', 'print_rasterize')
+);
 $labelTemplateBody = '';
 if ($labelTemplateBodyBase64 !== '') {
     $decodedTemplateBody = base64_decode($labelTemplateBodyBase64, true);
@@ -1260,7 +1354,10 @@ if ($printRequested) {
         $track,
         $publicBaseUrl,
         $labelTemplateCode,
-        $labelTemplateBody
+        $labelTemplateBody,
+        $labelWidthCm,
+        $labelHeightCm,
+        $printRasterize
     );
 
     if ($labelBase64 === '' && !empty($generatedWaybill['ok']) && trim((string)($generatedWaybill['label_base64'] ?? '')) !== '') {
@@ -1415,6 +1512,7 @@ $result = [
     'label_width_cm' => $labelWidthCm,
     'label_height_cm' => $labelHeightCm,
     'print_allow_label_url' => $allowLabelUrl,
+    'print_rasterize' => $printRasterize ? 1 : 0,
 ];
 
 

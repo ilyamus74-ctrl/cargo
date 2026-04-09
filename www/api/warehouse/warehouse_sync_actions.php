@@ -4038,6 +4038,9 @@ if ($action === 'warehouse_item_out_confirm_send') {
                 $labelTemplate = warehouse_sync_resolve_label_template_code($dbcnx, $connector);
                 $labelTemplateCode = trim((string)($labelTemplate['template_code'] ?? 'default'));
                 $labelTemplateBody = trim((string)($labelTemplate['template_body'] ?? ''));
+                $labelWidthCm = (float)($labelTemplate['label_width_cm'] ?? 10.0);
+                $labelHeightCm = (float)($labelTemplate['label_height_cm'] ?? 15.0);
+                $printRotate = (int)($labelTemplate['print_rotate'] ?? 0);
                 $addResult = warehouse_sync_exec_forwarder_cli_script('run_add_package_to_container.php', [
                     'base-url' => $baseUrl,
                     'login' => $login,
@@ -4052,6 +4055,10 @@ if ($action === 'warehouse_item_out_confirm_send') {
                     'print-file-name' => 'label_' . (string)(preg_replace('/[^A-Za-z0-9._-]+/', '_', $trackingForForwarder) ?? 'track') . '.html',
                     'label-template-code' => $labelTemplateCode,
                     'label-template-body-base64' => $labelTemplateBody !== '' ? base64_encode($labelTemplateBody) : '',
+                    'label-width-cm' => (string)$labelWidthCm,
+                    'label-height-cm' => (string)$labelHeightCm,
+                    'print-rotate' => (string)$printRotate,
+                    'print-rasterize' => '1',
                     'allow-label-url' => '0',
                     'print-label-retries' => '5',
                     'print-label-retry-delay-ms' => '1200',
@@ -5536,4 +5543,3 @@ if ($action === 'warehouse_sync_reports') {
         'total' => count($items),
     ];
 }
-

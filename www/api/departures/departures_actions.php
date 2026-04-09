@@ -1409,6 +1409,7 @@ function departures_force_sync_missing_container_packages(
             '--label-width-cm=' . (string)($labelTemplate['label_width_cm'] ?? 10.0),
             '--label-height-cm=' . (string)($labelTemplate['label_height_cm'] ?? 15.0),
             '--print-rotate=' . (string)($labelTemplate['print_rotate'] ?? 0),
+            '--print-rasterize=1',
             '--allow-label-url=0',
             '--print-label-retries=5',
             '--print-label-retry-delay-ms=1200',
