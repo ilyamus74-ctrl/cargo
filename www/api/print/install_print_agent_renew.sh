@@ -255,10 +255,46 @@ def post_status(job_id, status, message=""):
     except Exception as e:
         print(f"[WARN] post_status failed: {e}")
 
-def print_file(path):
+def _job_float(job, key, default=0.0):
+    try:
+        return float(job.get(key, default))
+    except Exception:
+        return float(default)
+
+def _job_int(job, key, default=0):
+    try:
+        return int(job.get(key, default))
+    except Exception:
+        return int(default)
+
+def print_file(path, job):
     cmd = ["lp"]
     if PRINTER_NAME:
         cmd += ["-d", PRINTER_NAME]
+
+    width_cm = _job_float(job, "label_width_cm", 0.0)
+    height_cm = _job_float(job, "label_height_cm", 0.0)
+    rotate = _job_int(job, "rotate", 0)
+    if rotate in (90, 270):
+        width_cm, height_cm = height_cm, width_cm
+
+    if width_cm > 0 and height_cm > 0:
+        width_mm = max(20, int(round(width_cm * 10.0)))
+        height_mm = max(20, int(round(height_cm * 10.0)))
+        cmd += ["-o", f"media=Custom.{width_mm}x{height_mm}mm"]
+
+    cmd += [
+        "-o", "fit-to-page",
+        "-o", "position=center",
+        "-o", "page-left=0",
+        "-o", "page-right=0",
+        "-o", "page-top=0",
+        "-o", "page-bottom=0",
+    ]
+
+    if width_cm > 0 and height_cm > 0:
+        cmd += ["-o", "orientation-requested=4" if width_cm >= height_cm else "orientation-requested=3"]
+
     cmd += [path]
     p = subprocess.run(cmd, capture_output=True, text=True)
     if p.returncode != 0:
@@ -298,7 +334,7 @@ def handle_job(job):
             f.write(data)
             tmp_path = f.name
 
-        out = print_file(tmp_path)
+        out = print_file(tmp_path, job)
         post_status(job_id, "printed", out)
     except Exception as e:
         post_status(job_id, "failed", str(e))
