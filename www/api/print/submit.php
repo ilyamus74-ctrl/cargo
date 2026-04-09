@@ -11,6 +11,9 @@ $deviceUid = trim((string)($data['device_uid'] ?? ''));
 $labelUrl = trim((string)($data['label_url'] ?? ''));
 $labelBase64 = trim((string)($data['label_base64'] ?? ''));
 $fileName = trim((string)($data['file_name'] ?? 'label.pdf'));
+$labelWidthCm = isset($data['label_width_cm']) ? (float)$data['label_width_cm'] : 0.0;
+$labelHeightCm = isset($data['label_height_cm']) ? (float)$data['label_height_cm'] : 0.0;
+$rotate = isset($data['rotate']) ? (int)$data['rotate'] : (int)($data['print_rotate'] ?? 0);
 
 if ($deviceUid === '') {
     print_json_response(['status' => 'error', 'message' => 'device_uid required'], 400);
@@ -43,6 +46,15 @@ $job = [
     'file_name' => $fileName,
 ];
 
+if ($labelWidthCm > 0) {
+    $job['label_width_cm'] = $labelWidthCm;
+}
+if ($labelHeightCm > 0) {
+    $job['label_height_cm'] = $labelHeightCm;
+}
+if (in_array($rotate, [0, 90, 180, 270], true)) {
+    $job['rotate'] = $rotate;
+}
 if ($labelUrl !== '') {
     $job['label_url'] = $labelUrl;
 }

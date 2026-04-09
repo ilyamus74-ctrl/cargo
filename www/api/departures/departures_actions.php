@@ -973,6 +973,108 @@ function departures_fetch_connector(mysqli $dbcnx, int $connectorId): ?array
 }
 
 
+function departures_fetch_active_print_devices(mysqli $dbcnx): array
+{
+    $devices = [];
+    $sql = "
+        SELECT device_uid, name, device_token
+        FROM devices
+        WHERE is_active = 1
+          AND TRIM(app_version) LIKE 'print-agent-%'
+          AND TRIM(device_uid) <> ''
+        ORDER BY name ASC, device_uid ASC
+    ";
+
+    if ($res = $dbcnx->query($sql)) {
+        while ($row = $res->fetch_assoc()) {
+            $deviceUid = trim((string)($row['device_uid'] ?? ''));
+            if ($deviceUid === '') {
+                continue;
+            }
+            $devices[] = [
+                'device_uid' => $deviceUid,
+                'name' => trim((string)($row['name'] ?? '')),
+                'device_token' => trim((string)($row['device_token'] ?? '')),
+            ];
+        }
+        $res->free();
+    }
+
+    return $devices;
+}
+
+function departures_resolve_label_template(mysqli $dbcnx, array $connector): array
+{
+    $defaults = [
+        'template_code' => 'default',
+        'template_body' => '',
+        'label_width_cm' => 10.0,
+        'label_height_cm' => 15.0,
+        'print_rotate' => 0,
+    ];
+
+    $connectorId = max(0, (int)($connector['id'] ?? 0));
+    if ($connectorId <= 0) {
+        return $defaults;
+    }
+
+    $tableExists = false;
+    if ($res = $dbcnx->query("SHOW TABLES LIKE 'forwarder_label_templates'")) {
+        $tableExists = (bool)$res->num_rows;
+        $res->free();
+    }
+    if (!$tableExists) {
+        return $defaults;
+    }
+
+    $sql = "
+        SELECT template_code, template_body, label_width_cm, label_height_cm, print_rotate
+        FROM forwarder_label_templates
+        WHERE connector_id = ?
+          AND is_active = 1
+        ORDER BY priority DESC, id DESC
+        LIMIT 1
+    ";
+    $stmt = $dbcnx->prepare($sql);
+    if (!$stmt) {
+        return $defaults;
+    }
+    $stmt->bind_param('i', $connectorId);
+    $stmt->execute();
+    $row = null;
+    $result = $stmt->get_result();
+    if ($result instanceof mysqli_result) {
+        $row = $result->fetch_assoc() ?: null;
+        $result->free();
+    }
+    $stmt->close();
+
+    if (!is_array($row)) {
+        return $defaults;
+    }
+
+    $labelWidthCm = (float)($row['label_width_cm'] ?? $defaults['label_width_cm']);
+    $labelHeightCm = (float)($row['label_height_cm'] ?? $defaults['label_height_cm']);
+    $printRotate = (int)($row['print_rotate'] ?? $defaults['print_rotate']);
+    if ($labelWidthCm < 2.0 || $labelWidthCm > 30.0) {
+        $labelWidthCm = (float)$defaults['label_width_cm'];
+    }
+    if ($labelHeightCm < 2.0 || $labelHeightCm > 30.0) {
+        $labelHeightCm = (float)$defaults['label_height_cm'];
+    }
+    if (!in_array($printRotate, [0, 90, 180, 270], true)) {
+        $printRotate = (int)$defaults['print_rotate'];
+    }
+
+    return [
+        'template_code' => trim((string)($row['template_code'] ?? '')) ?: (string)$defaults['template_code'],
+        'template_body' => trim((string)($row['template_body'] ?? '')),
+        'label_width_cm' => $labelWidthCm,
+        'label_height_cm' => $labelHeightCm,
+        'print_rotate' => $printRotate,
+    ];
+}
+
 function departures_recalculate_compare_status(
     ?int $warehousePackages,
     ?float $warehouseWeight,
@@ -1272,6 +1374,13 @@ function departures_force_sync_missing_container_packages(
         throw new RuntimeException('Недостаточно данных коннектора для добавления посылок в контейнер у форварда.');
     }
 
+
+    $labelTemplate = departures_resolve_label_template($dbcnx, $connector);
+    $printDevices = departures_fetch_active_print_devices($dbcnx);
+    $primaryPrintDevice = $printDevices[0] ?? [];
+    $printDeviceUid = trim((string)($primaryPrintDevice['device_uid'] ?? ''));
+    $printToken = trim((string)($primaryPrintDevice['device_token'] ?? ''));
+
     $scriptPath = dirname(__DIR__, 2) . '/scripts/mvp/app/Forwarder/run_add_package_to_container.php';
     if (!is_file($scriptPath)) {
         throw new RuntimeException('Не найден скрипт run_add_package_to_container: ' . $scriptPath);
@@ -1291,6 +1400,18 @@ function departures_force_sync_missing_container_packages(
             '--track=' . $trackingOriginal,
             '--position=' . $containerExternalId,
             '--verify-check-package=1',
+            '--print-label=' . (($printToken !== '' && $printDeviceUid !== '') ? '1' : '0'),
+            '--print-token=' . $printToken,
+            '--print-device-key=' . $printDeviceUid,
+            '--print-file-name=' . 'label_' . (string)(preg_replace('/[^A-Za-z0-9._-]+/', '_', $trackingOriginal) ?? 'track') . '.html',
+            '--label-template-code=' . trim((string)($labelTemplate['template_code'] ?? 'default')),
+            '--label-template-body-base64=' . (trim((string)($labelTemplate['template_body'] ?? '')) !== '' ? base64_encode((string)$labelTemplate['template_body']) : ''),
+            '--label-width-cm=' . (string)($labelTemplate['label_width_cm'] ?? 10.0),
+            '--label-height-cm=' . (string)($labelTemplate['label_height_cm'] ?? 15.0),
+            '--print-rotate=' . (string)($labelTemplate['print_rotate'] ?? 0),
+            '--allow-label-url=0',
+            '--print-label-retries=5',
+            '--print-label-retry-delay-ms=1200',
         ];
         $cmd = implode(' ', array_map('escapeshellarg', $cmdParts)) . ' 2>&1';
         $lines = [];
@@ -1359,6 +1480,14 @@ function departures_force_sync_missing_container_packages(
         'attempted_total' => count($attempted),
         'success_total' => count($success),
         'failed_total' => count($failed),
+        'print_enabled' => ($printToken !== '' && $printDeviceUid !== ''),
+        'print_device_uid' => $printDeviceUid,
+        'label_template' => [
+            'template_code' => (string)($labelTemplate['template_code'] ?? 'default'),
+            'label_width_cm' => (float)($labelTemplate['label_width_cm'] ?? 10.0),
+            'label_height_cm' => (float)($labelTemplate['label_height_cm'] ?? 15.0),
+            'print_rotate' => (int)($labelTemplate['print_rotate'] ?? 0),
+        ],
         'missing_trackings' => array_values($missingTrackings),
         'attempted' => $attempted,
         'last_error' => $lastError,

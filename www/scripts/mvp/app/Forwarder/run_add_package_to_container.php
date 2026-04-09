@@ -1077,12 +1077,24 @@ $labelUrlArg = forwarder_add_package_to_container_arg($args, 'label-url', 'label
 $labelUrlBaseArg = forwarder_add_package_to_container_arg($args, 'label-url-base', 'label_url_base');
 $labelTemplateCode = trim(forwarder_add_package_to_container_arg($args, 'label-template-code', 'label_template_code'));
 $labelTemplateBodyBase64 = trim(forwarder_add_package_to_container_arg($args, 'label-template-body-base64', 'label_template_body_base64'));
+$labelWidthCm = (float)forwarder_add_package_to_container_arg($args, 'label-width-cm', 'label_width_cm');
+$labelHeightCm = (float)forwarder_add_package_to_container_arg($args, 'label-height-cm', 'label_height_cm');
+$printRotate = (int)forwarder_add_package_to_container_arg($args, 'print-rotate', 'print_rotate');
 $labelTemplateBody = '';
 if ($labelTemplateBodyBase64 !== '') {
     $decodedTemplateBody = base64_decode($labelTemplateBodyBase64, true);
     if (is_string($decodedTemplateBody) && trim($decodedTemplateBody) !== '') {
         $labelTemplateBody = $decodedTemplateBody;
     }
+}
+if ($labelWidthCm < 2.0 || $labelWidthCm > 30.0) {
+    $labelWidthCm = 10.0;
+}
+if ($labelHeightCm < 2.0 || $labelHeightCm > 30.0) {
+    $labelHeightCm = 15.0;
+}
+if (!in_array($printRotate, [0, 90, 180, 270], true)) {
+    $printRotate = 0;
 }
 $allowLabelUrl = forwarder_add_package_to_container_as_bool(
     forwarder_add_package_to_container_arg($args, 'allow-label-url', 'allow_label_url')
@@ -1328,6 +1340,10 @@ if ($printRequested) {
         if ($allowLabelUrl && $labelUrl !== '') {
             $printPayload['label_url'] = $labelUrl;
         }
+
+        $printPayload['label_width_cm'] = $labelWidthCm;
+        $printPayload['label_height_cm'] = $labelHeightCm;
+        $printPayload['rotate'] = $printRotate;
         $printResponsePayload = forwarder_add_package_to_container_send_print_job($printUrl, $printToken, $printPayload);
         $printResponsePayload['selected_device'] = $selectedDevice;
         $printResponsePayload['label_storage'] = $savedLabel;
@@ -1395,6 +1411,9 @@ $result = [
     ],
     'verification' => $verifyResponsePayload,
     'print' => $printResponsePayload,
+    'print_rotate' => $printRotate,
+    'label_width_cm' => $labelWidthCm,
+    'label_height_cm' => $labelHeightCm,
     'print_allow_label_url' => $allowLabelUrl,
 ];
 
