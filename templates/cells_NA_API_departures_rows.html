@@ -152,7 +152,7 @@
                             data-flight-name="{$flight.name|default:$flight.flight_no|default:''|escape:'htmlattr'}"
                             data-flight-id="{$flight.flight_id|default:''|escape:'htmlattr'}"
                             data-flight-record-id="{$flight.flight_record_id|default:0|escape:'htmlattr'}"
-                            data-carrier="{$flight.carrier|default:''|escape:'htmlattr'}"
+                            data-carrier="{$flight.carrier|default:$flight.departure|default:''|escape:'htmlattr'}"
                             data-departure="{$flight.departure|default:''|escape:'htmlattr'}"
                             data-destination="{$flight.destination|default:''|escape:'htmlattr'}"
                             data-flight-time="{$flight.flight_time|default:''|escape:'htmlattr'}"

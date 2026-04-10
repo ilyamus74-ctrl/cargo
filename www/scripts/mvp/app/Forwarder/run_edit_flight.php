@@ -64,6 +64,37 @@ function forwarder_edit_flight_set_env(string $name, string $value): void
     $_ENV[$name] = $value;
 }
 
+function forwarder_edit_flight_env_value(string $name): string
+{
+    $fromGetenv = getenv($name);
+    if (is_string($fromGetenv) && trim($fromGetenv) !== '') {
+        return trim($fromGetenv);
+    }
+
+    $fromEnv = $_ENV[$name] ?? '';
+    if (is_string($fromEnv) && trim($fromEnv) !== '') {
+        return trim($fromEnv);
+    }
+
+    return '';
+}
+
+/** @return array{base_url:string,login:string,password:string} */
+function forwarder_edit_flight_resolve_config_from_carrier(string $carrier): array
+{
+    $carrierKey = strtoupper(preg_replace('/[^a-z0-9]+/i', '_', trim($carrier)) ?? '');
+    $carrierKey = trim($carrierKey, '_');
+    if ($carrierKey === '') {
+        return ['base_url' => '', 'login' => '', 'password' => ''];
+    }
+
+    return [
+        'base_url' => forwarder_edit_flight_env_value($carrierKey . '_BASE_URL'),
+        'login' => forwarder_edit_flight_env_value($carrierKey . '_LOGIN'),
+        'password' => forwarder_edit_flight_env_value($carrierKey . '_PASSWORD'),
+    ];
+}
+
 function forwarder_edit_flight_normalize_base_url(string $rawBaseUrl): string
 {
     $value = trim($rawBaseUrl);
@@ -180,6 +211,23 @@ $destination = forwarder_edit_flight_arg($args, 'destination');
 $flightTime = forwarder_edit_flight_arg($args, 'flight-time', 'flight_time');
 $csrfToken = forwarder_edit_flight_arg($args, '_token', 'token', 'csrf-token', 'csrf_token');
 
+$carrierConfig = forwarder_edit_flight_resolve_config_from_carrier($carrier);
+if ($normalizedBaseUrl === '' && $carrierConfig['base_url'] !== '') {
+    $normalizedBaseUrl = forwarder_edit_flight_normalize_base_url($carrierConfig['base_url']);
+    forwarder_edit_flight_set_env('DEV_COLIBRI_BASE_URL', $normalizedBaseUrl);
+    forwarder_edit_flight_set_env('FORWARDER_BASE_URL', $normalizedBaseUrl);
+}
+
+if (forwarder_edit_flight_arg($args, 'login') === '' && $carrierConfig['login'] !== '') {
+    forwarder_edit_flight_set_env('DEV_COLIBRI_LOGIN', $carrierConfig['login']);
+    forwarder_edit_flight_set_env('FORWARDER_LOGIN', $carrierConfig['login']);
+}
+
+if (forwarder_edit_flight_arg($args, 'password') === '' && $carrierConfig['password'] !== '') {
+    forwarder_edit_flight_set_env('DEV_COLIBRI_PASSWORD', $carrierConfig['password']);
+    forwarder_edit_flight_set_env('FORWARDER_PASSWORD', $carrierConfig['password']);
+}
+
 if (
     $flightId === ''
     || $carrier === ''
@@ -237,7 +285,32 @@ $payload = [
     'flight_time' => $flightTime,
 ];
 
-$submitResponse = $sessionClient->requestWithSession('POST', $updatePath, $payload, false);
+
+$authStep = $sessionClient->ensureSession();
+if (empty($authStep['ok'])) {
+    fwrite(STDERR, "run_edit_flight: login/session bootstrap failed\n");
+    exit(6);
+}
+
+$headers = array_merge(
+    $session->securityHeaders(true),
+    [
+        'X-CSRF-TOKEN' => $csrfToken,
+        'Origin' => $config->baseUrl(),
+        'Referer' => rtrim($config->baseUrl(), '/') . $pagePath,
+    ]
+);
+
+$submitResponse = $httpClient->request(
+    'POST',
+    $updatePath,
+    $payload,
+    $headers,
+    false,
+    $session->cookieHeader()
+);
+$session->updateFromHeaders((string)($submitResponse['headers_raw'] ?? ''));
+$session->updateFromHtml((string)($submitResponse['body'] ?? ''));
 $submitStatusCode = (int)($submitResponse['status_code'] ?? 0);
 $submitOk = !empty($submitResponse['ok']) && $submitStatusCode >= 200 && $submitStatusCode < 400;
 
