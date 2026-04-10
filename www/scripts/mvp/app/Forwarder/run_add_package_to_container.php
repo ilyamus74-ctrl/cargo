@@ -419,7 +419,11 @@ function forwarder_add_package_to_container_convert_html_to_png(string $html, fl
     @rename($tmpHtml, $tmpHtmlFile);
     @rename($tmpPng, $tmpPngFile);
 
-    if (file_put_contents($tmpHtmlFile, $html) === false) {
+    $widthPx = (int)max(300, round(($labelWidthCm > 0 ? $labelWidthCm : 10.0) / 2.54 * 300));
+    $heightPx = (int)max(200, round(($labelHeightCm > 0 ? $labelHeightCm : 15.0) / 2.54 * 300));
+    $htmlForRaster = forwarder_add_package_to_container_prepare_html_for_png_capture($html, $widthPx, $heightPx);
+
+    if (file_put_contents($tmpHtmlFile, $htmlForRaster) === false) {
         @unlink($tmpHtmlFile);
         @unlink($tmpPngFile);
         return ['ok' => false, 'error' => 'failed to write temp html', 'png_base64' => ''];
@@ -441,8 +445,6 @@ function forwarder_add_package_to_container_convert_html_to_png(string $html, fl
         return ['ok' => false, 'error' => 'chromium/google-chrome is not installed', 'png_base64' => ''];
     }
 
-    $widthPx = (int)max(120, round(($labelWidthCm > 0 ? $labelWidthCm : 10.0) / 2.54 * 96));
-    $heightPx = (int)max(120, round(($labelHeightCm > 0 ? $labelHeightCm : 15.0) / 2.54 * 96));
     $fileUrl = 'file://' . $tmpHtmlFile;
     $chromeHome = '/tmp/forwarder-chrome-home';
     $chromeUserDataDir = '/tmp/forwarder-chrome-profile';
@@ -456,6 +458,7 @@ function forwarder_add_package_to_container_convert_html_to_png(string $html, fl
         . ' --disable-crash-reporter --hide-scrollbars'
         . ' --user-data-dir=' . escapeshellarg($chromeUserDataDir)
         . ' --crash-dumps-dir=' . escapeshellarg($chromeCrashDir)
+        . ' --virtual-time-budget=4000'
         . ' --window-size=' . $widthPx . ',' . $heightPx
         . ' --screenshot=' . escapeshellarg($tmpPngFile)
         . ' ' . escapeshellarg($fileUrl) . ' 2>&1';
@@ -474,6 +477,51 @@ function forwarder_add_package_to_container_convert_html_to_png(string $html, fl
 
     return ['ok' => true, 'error' => '', 'png_base64' => base64_encode($pngBinary)];
 }
+
+function forwarder_add_package_to_container_prepare_html_for_png_capture(string $html, int $widthPx, int $heightPx): string
+{
+    $targetWidth = max(300, $widthPx);
+    $targetHeight = max(200, $heightPx);
+    $bootstrap = '<style>'
+        . 'html,body{margin:0!important;padding:0!important;width:100%!important;height:100%!important;overflow:hidden!important;background:#fff!important;}'
+        . '#__raster_frame{position:relative;width:' . $targetWidth . 'px;height:' . $targetHeight . 'px;overflow:hidden;background:#fff;}'
+        . '#__raster_content{position:absolute;left:0;top:0;transform-origin:top left;}'
+        . '</style>'
+        . '<script>'
+        . '(function(){'
+        . 'function fit(){'
+        . 'var body=document.body;if(!body){return;}'
+        . 'var frame=document.getElementById("__raster_frame");'
+        . 'if(!frame){'
+        . 'frame=document.createElement("div");frame.id="__raster_frame";'
+        . 'var content=document.createElement("div");content.id="__raster_content";'
+        . 'while(body.firstChild){content.appendChild(body.firstChild);}'
+        . 'frame.appendChild(content);body.appendChild(frame);'
+        . '}'
+        . 'var content=document.getElementById("__raster_content");if(!content){return;}'
+        . 'content.style.transform="none";'
+        . 'var tw=' . $targetWidth . ';var th=' . $targetHeight . ';'
+        . 'var cw=Math.max(content.scrollWidth,content.offsetWidth,1);'
+        . 'var ch=Math.max(content.scrollHeight,content.offsetHeight,1);'
+        . 'var scale=Math.min(tw/cw,th/ch);'
+        . 'if(!isFinite(scale)||scale<=0){scale=1;}'
+        . 'content.style.transform="scale("+scale+")";'
+        . '}'
+        . 'window.addEventListener("load",function(){fit();setTimeout(fit,200);setTimeout(fit,800);});'
+        . '})();'
+        . '</script>';
+
+    if (stripos($html, '</head>') !== false) {
+        return preg_replace('/<\/head>/i', $bootstrap . '</head>', $html, 1) ?? ($html . $bootstrap);
+    }
+
+    if (stripos($html, '<body') !== false) {
+        return preg_replace('/(<body[^>]*>)/i', '$1' . $bootstrap, $html, 1) ?? ($html . $bootstrap);
+    }
+
+    return '<!doctype html><html><head><meta charset="utf-8">' . $bootstrap . '</head><body>' . $html . '</body></html>';
+}
+
 
 /** @param mixed $value @param array<int,string> $accumulator */
 function forwarder_add_package_to_container_collect_data_url_images($value, array &$accumulator): void

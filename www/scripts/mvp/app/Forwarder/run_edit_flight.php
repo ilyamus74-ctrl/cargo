@@ -180,7 +180,6 @@ $destination = forwarder_edit_flight_arg($args, 'destination');
 $flightTime = forwarder_edit_flight_arg($args, 'flight-time', 'flight_time');
 $csrfToken = forwarder_edit_flight_arg($args, '_token', 'token', 'csrf-token', 'csrf_token');
 
-
 if (
     $flightId === ''
     || $carrier === ''
