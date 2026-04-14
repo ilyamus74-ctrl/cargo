@@ -2977,13 +2977,22 @@ const CoreAPI = {
             this.currentLookupItem = item;
             this.populateModalFields(item, containerMeta);
 
-            if (normalizedStatus === 'to_send') {
-                this.setModalMessage('success', `Посылка готова к отправке: <strong>${this.escapeHtml(trackLabel)}</strong>. Проверьте получателя и подтвердите перемещение в контейнер.`);
+            if (normalizedStatus === 'to_send' || normalizedStatus === 'sended') {
+                const isResend = normalizedStatus === 'sended';
+                this.setModalMessage(
+                    isResend ? 'warning' : 'success',
+                    isResend
+                        ? `Посылка уже в статусе <strong>sended</strong>: <strong>${this.escapeHtml(trackLabel)}</strong>. Можно повторно выбрать контейнер и отправить лейбл на печать.`
+                        : `Посылка готова к отправке: <strong>${this.escapeHtml(trackLabel)}</strong>. Проверьте получателя и подтвердите перемещение в контейнер.`
+                );
                 this.modalConfirmButton?.classList.remove('d-none');
                 this.modalCancelButton?.classList.remove('d-none');
                 this.modalCloseButton?.classList.add('d-none');
                 if (this.modalConfirmButton) {
                     this.modalConfirmButton.disabled = !containerMeta;
+                    this.modalConfirmButton.textContent = isResend
+                        ? 'Повторно переместить в контейнер и напечатать'
+                        : 'Подтвердить перемещение в контейнер';
                 }
                 return;
             }

@@ -3867,9 +3867,12 @@ if ($action === 'warehouse_item_out_lookup') {
         LIMIT 1
     ";
 
-    $item = null;
-    $stmt = $dbcnx->prepare($sql);
-    if ($stmt) {
+    $findOutItemByTracking = static function (mysqli $dbcnx, string $sql, string $trackingNo): ?array {
+        $item = null;
+        $stmt = $dbcnx->prepare($sql);
+        if (!$stmt) {
+            return null;
+        }
         $stmt->bind_param('sss', $trackingNo, $trackingNo, $trackingNo);
         $stmt->execute();
         $res = $stmt->get_result();
@@ -3877,7 +3880,10 @@ if ($action === 'warehouse_item_out_lookup') {
             $item = $res->fetch_assoc() ?: null;
         }
         $stmt->close();
-    }
+        return $item;
+    };
+
+    $item = $findOutItemByTracking($dbcnx, $sql, $trackingNo);
 
     $response = [
         'status' => 'ok',
@@ -3957,10 +3963,12 @@ if ($action === 'warehouse_item_out_confirm_send') {
         return;
     }
 
-    if (strtolower(trim((string)($item['status'] ?? ''))) !== 'to_send') {
+    $currentStatus = strtolower(trim((string)($item['status'] ?? '')));
+    if (!in_array($currentStatus, ['to_send', 'sended'], true)) 
         $response = [
             'status' => 'error',
-            'message' => 'Подтверждение доступно только для статуса to_send',
+//            'message' => 'Подтверждение доступно только для статуса to_send',
+            'message' => 'Подтверждение доступно только для статусов to_send или sended',
         ];
         return;
     }
@@ -3974,18 +3982,18 @@ if ($action === 'warehouse_item_out_confirm_send') {
     if ($shipmentCell !== '') {
         $statusMessage .= ' (ячейка ' . $shipmentCell . ')';
     }
+    $nextStatus = $currentStatus === 'to_send' ? 'sended' : $currentStatus;
 
     $sqlUpdate = "
         UPDATE warehouse_item_out
         SET
-            status = 'sended',
+            status = ?,
             status_message = ?,
             shipment_cell = ?,
             shipped_flight_no = ?,
             shipped_container_name = ?,
             status_updated_at = NOW()
         WHERE stock_item_id = ?
-          AND status = 'to_send'
         LIMIT 1
     ";
     $stmtUpdate = $dbcnx->prepare($sqlUpdate);
@@ -3997,15 +4005,15 @@ if ($action === 'warehouse_item_out_confirm_send') {
         return;
     }
 
-    $stmtUpdate->bind_param('ssssi', $statusMessage, $shipmentCell, $flightDisplay, $containerDisplay, $stockItemId);
+    $stmtUpdate->bind_param('sssssi', $nextStatus, $statusMessage, $shipmentCell, $flightDisplay, $containerDisplay, $stockItemId);
     $stmtUpdate->execute();
-    $affected = (int)$stmtUpdate->affected_rows;
+    $updateError = (int)$stmtUpdate->errno;
     $stmtUpdate->close();
 
-    if ($affected < 1) {
+    if ($updateError !== 0) {
         $response = [
             'status' => 'error',
-            'message' => 'Статус посылки уже изменён. Обновите список и попробуйте ещё раз.',
+            'message' => 'Не удалось обновить данные отгрузки. Попробуйте ещё раз.',
         ];
         return;
     }
