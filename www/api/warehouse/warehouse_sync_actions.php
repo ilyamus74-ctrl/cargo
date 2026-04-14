@@ -3964,7 +3964,7 @@ if ($action === 'warehouse_item_out_confirm_send') {
     }
 
     $currentStatus = strtolower(trim((string)($item['status'] ?? '')));
-    if (!in_array($currentStatus, ['to_send', 'sended'], true)) 
+    if (!in_array($currentStatus, ['to_send', 'sended'], true)) {
         $response = [
             'status' => 'error',
 //            'message' => 'Подтверждение доступно только для статуса to_send',
