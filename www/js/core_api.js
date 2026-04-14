@@ -3776,7 +3776,7 @@ const CoreAPI = {
                 selected_flight_id: flightId,
                 selected_flight_external_id: flightId,
                 selected_flight_name: flightName,
-                target_flight_id: flightId,
+                target_flight_id: flightId || flightRecordId,
                 target_flight_external_id: flightId,
                 target_flight_name: flightName,
                 departure_date: flight,
@@ -3810,6 +3810,7 @@ const CoreAPI = {
 
             return runtimeVars;
         },
+
         async triggerPlaceholderOperation(button) {
             const operationIdRaw = String(button?.getAttribute('data-operation') || '').trim();
             if (!operationIdRaw) {
@@ -3879,7 +3880,6 @@ const CoreAPI = {
 
             this.setActionBusy(button, true);
             this.setActionStatus(`Запускаю ${operationId} для рейса ${flight}...`, 'primary', statusEl);
-
             try {
 
                 let effectiveOperationId = operationId;

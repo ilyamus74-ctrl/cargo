@@ -5267,6 +5267,11 @@ function connectors_expand_script_arg_placeholders(string $value, array $context
         '{{target_flight_id}}' => (string)($context['target_flight_id'] ?? ''),
         '{{target_flight_name}}' => (string)($context['target_flight_name'] ?? ''),
         '{{flight_id}}' => (string)($context['flight_id'] ?? ''),
+        '{{carrier}}' => (string)($context['carrier'] ?? ''),
+        '{{awb}}' => (string)($context['awb'] ?? ''),
+        '{{departure}}' => (string)($context['departure'] ?? ''),
+        '{{destination}}' => (string)($context['destination'] ?? ''),
+        '{{flight_time}}' => (string)($context['flight_time'] ?? ''),
         '{{container_id}}' => (string)($context['container_id'] ?? ''),
         '{{target_container_id}}' => (string)($context['target_container_id'] ?? ''),
         '{{id}}' => (string)($context['id'] ?? ''),
@@ -5436,7 +5441,7 @@ function connectors_execute_script_operation(array $operation, array $connector 
     }
     $runtimeTargetFlightId = trim((string)($runtimeVars['target_flight_id'] ?? ''));
     if ($runtimeTargetFlightId === '') {
-        $runtimeTargetFlightId = trim((string)($runtimeVars['flight_id'] ?? ($runtimeVars['external_id'] ?? '')));
+        $runtimeTargetFlightId = trim((string)($runtimeVars['flight_id'] ?? ($runtimeVars['external_id'] ?? ($runtimeVars['flight_record_id'] ?? ''))));
     }
     $runtimeTargetFlightName = trim((string)($runtimeVars['target_flight_name'] ?? ''));
     if ($runtimeTargetFlightName === '') {
@@ -5478,6 +5483,11 @@ function connectors_execute_script_operation(array $operation, array $connector 
         'target_flight_id' => $runtimeTargetFlightId !== '' ? $runtimeTargetFlightId : (string)($config['target_flight_id'] ?? ''),
         'target_flight_name' => $runtimeTargetFlightName !== '' ? $runtimeTargetFlightName : (string)($config['target_flight_name'] ?? ''),
         'flight_id' => $runtimeFlightId !== '' ? $runtimeFlightId : (string)($config['flight_id'] ?? ''),
+        'carrier' => trim((string)($runtimeVars['carrier'] ?? ($config['carrier'] ?? ''))),
+        'awb' => trim((string)($runtimeVars['awb'] ?? ($config['awb'] ?? ''))),
+        'departure' => trim((string)($runtimeVars['departure'] ?? ($config['departure'] ?? ''))),
+        'destination' => trim((string)($runtimeVars['destination'] ?? ($config['destination'] ?? ''))),
+        'flight_time' => trim((string)($runtimeVars['flight_time'] ?? ($config['flight_time'] ?? ''))),
         'container_id' => $runtimeContainerId !== '' ? $runtimeContainerId : (string)($config['container_id'] ?? ''),
         'target_container_id' => $runtimeContainerId !== '' ? $runtimeContainerId : (string)($config['target_container_id'] ?? ''),
         'id' => $runtimeContainerId !== '' ? $runtimeContainerId : (string)($config['id'] ?? ''),
