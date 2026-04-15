@@ -5465,27 +5465,6 @@ function connectors_execute_script_operation(array $operation, array $connector 
     $runtimeDestinationId = trim((string)($runtimeVars['destination_id'] ?? ''));
     $runtimeCount = trim((string)($runtimeVars['count'] ?? ''));
 
-    $scriptBasename = strtolower(basename($scriptPath));
-    $isContainerFlightScript = in_array($scriptBasename, [
-        'run_add_container_to_flight.php',
-        'run_del_container_from_flight.php',
-        'run_sync_flight_containers.php',
-    ], true);
-
-    $resolvedContainersTable = trim((string)($config['containers_table'] ?? ''));
-    if (
-        $isContainerFlightScript
-        && $resolvedContainersTable === ''
-        && $resolvedTargetTable !== ''
-        && preg_match('/_containers$/i', $resolvedTargetTable)
-    ) {
-        $resolvedContainersTable = $resolvedTargetTable;
-        $resolvedTargetTable = preg_replace('/_containers$/i', '', $resolvedTargetTable) ?? $resolvedTargetTable;
-    }
-    if ($resolvedContainersTable === '' && $resolvedTargetTable !== '') {
-        $resolvedContainersTable = $resolvedTargetTable . '_containers';
-    }
-
     $argsContext = [
         'from' => (string)($periodFrom ?? ($config['from'] ?? '')),
         'to' => (string)($periodTo ?? ($config['to'] ?? '')),
@@ -5498,7 +5477,6 @@ function connectors_execute_script_operation(array $operation, array $connector 
         'auth_token' => (string)($connector['auth_token'] ?? ''),
         'api_token' => (string)($connector['api_token'] ?? ''),
         'target_table' => $resolvedTargetTable,
-        'containers_table' => $resolvedContainersTable,
         'set_date' => $runtimeSetDate !== '' ? $runtimeSetDate : (string)($config['set_date'] ?? ''),
         'add_flight' => $runtimeAddFlight !== '' ? $runtimeAddFlight : (string)($config['add_flight'] ?? ''),
         'flight_search_value' => $runtimeFlightSearchValue !== '' ? $runtimeFlightSearchValue : (string)($config['flight_search_value'] ?? ''),
@@ -5523,7 +5501,6 @@ function connectors_execute_script_operation(array $operation, array $connector 
     $args = [];
     $argsMasked = [];
     $hasTargetTableArg = false;
-    $hasContainersTableArg = false;
     if (isset($config['args']) && is_array($config['args'])) {
         foreach ($config['args'] as $arg) {
             $expandedArg = connectors_expand_script_arg_placeholders((string)$arg, $argsContext);
@@ -5532,12 +5509,10 @@ function connectors_execute_script_operation(array $operation, array $connector 
             if (preg_match('/^--target(?:-|_)table=/i', trim($expandedArg))) {
                 $hasTargetTableArg = true;
             }
-            if (preg_match('/^--containers(?:-|_)table=/i', trim($expandedArg))) {
-                $hasContainersTableArg = true;
-            }
         }
     }
 
+    $scriptBasename = strtolower(basename($scriptPath));
     if ($runtimeFlightId !== '' && in_array($scriptBasename, [
         'run_flight_list.php',
         'run_add_container_to_flight.php',
@@ -5583,16 +5558,6 @@ function connectors_execute_script_operation(array $operation, array $connector 
         $forcedTargetArg = '--target-table=' . $resolvedTargetTable;
         $args[] = $forcedTargetArg;
         $argsMasked[] = connectors_mask_script_arg($forcedTargetArg);
-    }
-
-    if (
-        !$hasContainersTableArg
-        && $resolvedContainersTable !== ''
-        && $isContainerFlightScript
-    ) {
-        $forcedContainersArg = '--containers-table=' . $resolvedContainersTable;
-        $args[] = $forcedContainersArg;
-        $argsMasked[] = connectors_mask_script_arg($forcedContainersArg);
     }
     $timeoutSec = max(1, (int)($config['timeout_sec'] ?? 60));
     $parts = [];
