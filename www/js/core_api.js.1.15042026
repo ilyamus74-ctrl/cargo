@@ -1046,9 +1046,6 @@ const CoreAPI = {
             if (typeof initStandDevicePersistence === 'function') {
                 initStandDevicePersistence();
             }
-            if (typeof initWarehouseCellPersistence === 'function') {
-                initWarehouseCellPersistence();
-            }
             if (typeof initWarehouseStockAddons === 'function') {
                 initWarehouseStockAddons();
             }
@@ -1084,9 +1081,6 @@ const CoreAPI = {
                         if (typeof initStandDevicePersistence === 'function') {
                             initStandDevicePersistence();
                         }
-                        if (typeof initWarehouseCellPersistence === 'function') {
-                            initWarehouseCellPersistence();
-                        }
                         if (typeof initWarehouseStockAddons === 'function') {
                             initWarehouseStockAddons();
                         }
@@ -1117,9 +1111,6 @@ const CoreAPI = {
                     modalBody.innerHTML = data.html;
                     if (typeof initStandDevicePersistence === 'function') {
                         initStandDevicePersistence();
-                    }
-                    if (typeof initWarehouseCellPersistence === 'function') {
-                        initWarehouseCellPersistence();
                     }
                     if (typeof initWarehouseStockAddons === 'function') {
                         initWarehouseStockAddons();
@@ -4734,59 +4725,6 @@ function initWarehouseStockAddons() {
         return String(raw || '').trim().toUpperCase();
     }
 
-
-    var categoryPriority = [
-        'vitamins',
-        'clothing',
-        'electrical equipment',
-        'auto parts',
-        'bag',
-        'household appliances',
-        'tools',
-        'game console',
-        'shoes',
-        'toys and sports equipment',
-        'sunglasses',
-        'jewelry',
-        'cd/ dvd'
-    ];
-    var categoryPriorityIndex = {};
-    categoryPriority.forEach(function (name, idx) {
-        categoryPriorityIndex[name] = idx;
-    });
-
-    function normalizeCategoryLabel(raw) {
-        return String(raw || '')
-            .toLowerCase()
-            .replace(/\u00a0/g, ' ')
-            .replace(/\s+/g, ' ')
-            .trim();
-    }
-
-    function sortedOptionEntries(addonKey, optionsMap) {
-        var entries = Object.keys(optionsMap || {}).map(function (valueKey) {
-            return {
-                value: String(valueKey),
-                label: String(optionsMap[valueKey])
-            };
-        });
-
-        if (String(addonKey || '').toLowerCase() !== 'category') {
-            return entries;
-        }
-
-        entries.sort(function (a, b) {
-            var aNorm = normalizeCategoryLabel(a.label);
-            var bNorm = normalizeCategoryLabel(b.label);
-            var aRank = Object.prototype.hasOwnProperty.call(categoryPriorityIndex, aNorm) ? categoryPriorityIndex[aNorm] : Number.MAX_SAFE_INTEGER;
-            var bRank = Object.prototype.hasOwnProperty.call(categoryPriorityIndex, bNorm) ? categoryPriorityIndex[bNorm] : Number.MAX_SAFE_INTEGER;
-            if (aRank !== bRank) return aRank - bRank;
-            return a.label.localeCompare(b.label);
-        });
-
-        return entries;
-    }
-
     function persist() {
         var payload = {};
         controls.querySelectorAll('select[data-addon-key]').forEach(function (select) {
@@ -4816,11 +4754,11 @@ function initWarehouseStockAddons() {
         //emptyOpt.textContent = '— выберите —';
         //select.appendChild(emptyOpt);
 
-        sortedOptionEntries(addonKey, optionsMap).forEach(function (entry) {
+        Object.keys(optionsMap || {}).forEach(function (valueKey) {
             var opt = document.createElement('option');
-            opt.value = entry.value;
-            opt.textContent = entry.label;
-            if (String(initialValue || '') === entry.value) {
+            opt.value = String(valueKey);
+            opt.textContent = String(optionsMap[valueKey]);
+            if (String(initialValue || '') === String(valueKey)) {
                 opt.selected = true;
             }
             select.appendChild(opt);
@@ -5131,34 +5069,6 @@ function initStandDevicePersistence() {
         if (select.value) {
             localStorage.setItem(storageKey, select.value);
         }
-    });
-}
-
-function initWarehouseCellPersistence() {
-    var select = document.getElementById('cellId');
-    if (!select || !window.localStorage) return;
-    if (select.__cellPersistenceBound) return;
-    select.__cellPersistenceBound = true;
-
-    var storageKey = 'warehouse_item_in_last_cell_id';
-    var storedValue = localStorage.getItem(storageKey);
-    if (storedValue) {
-        var hasOption = Array.prototype.some.call(select.options, function (opt) {
-            return opt.value === storedValue;
-        });
-        if (hasOption) {
-            select.value = storedValue;
-            select.dispatchEvent(new Event('change', { bubbles: true }));
-        }
-    }
-
-    select.addEventListener('change', function () {
-        var value = String(select.value || '').trim();
-        if (value === '') {
-            localStorage.removeItem(storageKey);
-            return;
-        }
-        localStorage.setItem(storageKey, value);
     });
 }
 
