@@ -330,18 +330,17 @@ function system_tasks_run_warehouse_sync_reconcile(mysqli $dbcnx, array $task, i
 
     $limit = max(1, min(5000, (int)($payload['limit'] ?? 200)));
 
-    if (!function_exists('warehouse_sync_reconcile_half_sync') || !function_exists('warehouse_sync_out_backfill_from_stock')) {
+    if (!function_exists('warehouse_sync_reconcile_half_sync')) {
         $action = '__system_task_bootstrap__';
         $user = ['id' => $systemUserId > 0 ? $systemUserId : 1, 'role' => 'ADMIN'];
         $response = ['status' => 'ok'];
         require_once __DIR__ . '/../warehouse/warehouse_sync_actions.php';
     }
 
-    if (!function_exists('warehouse_sync_reconcile_half_sync') || !function_exists('warehouse_sync_out_backfill_from_stock')) {
+    if (!function_exists('warehouse_sync_reconcile_half_sync')) {
         return ['status' => 'error', 'message' => 'warehouse_sync_reconcile_half_sync not available'];
     }
 
-    $backfill = warehouse_sync_out_backfill_from_stock($dbcnx, $limit);
     $stats = warehouse_sync_reconcile_half_sync($dbcnx, $limit, $systemUserId > 0 ? $systemUserId : 1);
 
     return [
@@ -349,18 +348,10 @@ function system_tasks_run_warehouse_sync_reconcile(mysqli $dbcnx, array $task, i
         'message' => 'warehouse_sync_reconcile done',
         'context' => [
             'limit' => $limit,
-            'backfill' => [
-                'processed' => (int)($backfill['processed'] ?? 0),
-                'inserted' => (int)($backfill['inserted'] ?? 0),
-                'updated' => (int)($backfill['updated'] ?? 0),
-                'skipped_no_routing' => (int)($backfill['skipped_no_routing'] ?? 0),
-            ],
             'checked' => (int)($stats['checked'] ?? 0),
             'confirmed_sync' => (int)($stats['confirmed_sync'] ?? 0),
             'error' => (int)($stats['error'] ?? 0),
             'unchanged' => (int)($stats['unchanged'] ?? 0),
-            'to_send' => (int)($stats['to_send'] ?? 0),
-            'sended' => (int)($stats['sended'] ?? 0),
         ],
     ];
 }
@@ -442,11 +433,6 @@ function system_tasks_run_connectors_report_operation_1(mysqli $dbcnx, array $ta
     if (!is_array($payload)) {
         $payload = [];
     }
-
-    $autoReconcileEnabled = !array_key_exists('auto_reconcile', $payload)
-        ? true
-        : (bool)$payload['auto_reconcile'];
-    $reconcileLimit = max(1, min(5000, (int)($payload['reconcile_limit'] ?? 500)));
 
     $forcedOperationId = trim((string)($payload['operation_id'] ?? ''));
     $forcedConnectorIds = [];
@@ -676,36 +662,15 @@ function system_tasks_run_connectors_report_operation_1(mysqli $dbcnx, array $ta
     }
     $res->free();
 
-
-    $reconcileResult = null;
-    if ($autoReconcileEnabled && $ok > 0) {
-        $reconcileResult = system_tasks_run_warehouse_sync_reconcile($dbcnx, [
-            'payload_json' => json_encode(['limit' => $reconcileLimit], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES),
-        ], 1);
-    }
-
-    $finalStatus = $fail > 0 ? 'error' : 'ok';
-    if (is_array($reconcileResult) && strtolower(trim((string)($reconcileResult['status'] ?? ''))) !== 'ok') {
-        $finalStatus = 'error';
-    }
-    $message = "connectors_report_operation_1 done: processed={$processed}, ok={$ok}, fail={$fail}";
-    if (is_array($reconcileResult)) {
-        $message .= '; reconcile=' . (string)($reconcileResult['status'] ?? 'unknown');
-    }
     return [
-        'status' => $finalStatus,
-        'message' => $message,
+        'status' => $fail > 0 ? 'error' : 'ok',
+        'message' => "connectors_report_operation_1 done: processed={$processed}, ok={$ok}, fail={$fail}",
         'context' => [
             'processed' => $processed,
             'ok' => $ok,
             'fail' => $fail,
             'forced_operation_id' => $forcedOperationId,
             'forced_connector_ids' => array_keys($forcedConnectorIds),
-            'auto_reconcile' => [
-                'enabled' => $autoReconcileEnabled,
-                'limit' => $reconcileLimit,
-                'result' => $reconcileResult,
-            ],
             'details' => $details,
         ],
     ];

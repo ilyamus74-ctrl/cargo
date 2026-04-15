@@ -1281,8 +1281,8 @@ if (!function_exists('warehouse_sync_reconcile_half_sync')) {
 "
             . "FROM warehouse_item_out
 "
-            . "WHERE status IN ('for_sync', 'half_sync', 'error', 'success')"
-
+            . "WHERE status = 'half_sync' OR status = 'error'
+"
             . "ORDER BY status_updated_at ASC, id ASC
 "
             . "LIMIT {$limit}";
@@ -4724,7 +4724,7 @@ if ($action === 'warehouse_sync_item') {
             'script' => 'run_add_package.php',
         ];
         $responseJson = json_encode($responsePayload, JSON_UNESCAPED_UNICODE);
-        $outStatus = 'half_sync';
+        $outStatus = 'success';
 
         warehouse_sync_audit_log($dbcnx, [
             'item_id' => $itemId,
@@ -5432,14 +5432,11 @@ if ($action === 'warehouse_sync_reconcile') {
     $current = $user;
     $userId = (int)($current['id'] ?? 0);
     $limit = max(1, (int)($_POST['limit'] ?? 200));
-    $backfill = warehouse_sync_out_backfill_from_stock($dbcnx, $limit);
+
     $stats = warehouse_sync_reconcile_half_sync($dbcnx, $limit, $userId);
 
     audit_log($userId, 'WAREHOUSE_SYNC_RECONCILE', 'warehouse_item_out', 0, 'Reconcile статусов warehouse_item_out выполнен', [
         'limit' => $limit,
-        'backfill_inserted' => (int)($backfill['inserted'] ?? 0),
-        'backfill_updated' => (int)($backfill['updated'] ?? 0),
-        'backfill_processed' => (int)($backfill['processed'] ?? 0),
         'checked' => (int)($stats['checked'] ?? 0),
         'confirmed_sync' => (int)($stats['confirmed_sync'] ?? 0),
         'error' => (int)($stats['error'] ?? 0),
@@ -5449,12 +5446,6 @@ if ($action === 'warehouse_sync_reconcile') {
     $response = [
         'status' => 'ok',
         'limit' => $limit,
-        'backfill' => [
-            'inserted' => (int)($backfill['inserted'] ?? 0),
-            'updated' => (int)($backfill['updated'] ?? 0),
-            'processed' => (int)($backfill['processed'] ?? 0),
-            'skipped_no_routing' => (int)($backfill['skipped_no_routing'] ?? 0),
-        ],
         'stats' => $stats,
     ];
 }
