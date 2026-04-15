@@ -244,7 +244,7 @@ function warehouse_item_in_resolve_forwarder_connector(mysqli $dbcnx, string $fo
             if ($nameNorm === '') {
                 continue;
             }
-            if ($nameNorm === $forwarderNorm || $nameNorm === ('DEV_' . $forwarderNorm) || ('DEV_' . $nameNorm) === $forwarderNorm) {
+            if ($nameNorm === $forwarderNorm) {
                 $rows[] = $row;
             }
         }
@@ -267,8 +267,7 @@ function warehouse_item_in_resolve_forwarder_connector(mysqli $dbcnx, string $fo
             }
         }
     }
-
-    return $rows[0];
+    return $countryNorm === '' ? ($rows[0] ?? null) : null;
 }
 
 function warehouse_item_in_decode_json_array($raw): array
