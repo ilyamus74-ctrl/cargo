@@ -5336,6 +5336,21 @@ function connectors_try_decode_script_json_output(string $output): ?array
 
 function connectors_execute_script_operation(array $operation, array $connector = [], ?string $periodFrom = null, ?string $periodTo = null): array
 {
+    $resolveFlightListDefaultTargetTable = static function (array $connectorCtx): string {
+        $connectorCode = trim((string)($connectorCtx['code'] ?? ''));
+        if ($connectorCode === '') {
+            $connectorCode = trim((string)($connectorCtx['name'] ?? ''));
+        }
+        $connectorCode = strtolower($connectorCode);
+        $connectorCode = preg_replace('/[^a-z0-9]+/', '_', $connectorCode) ?? $connectorCode;
+        $connectorCode = trim((string)$connectorCode, '_');
+        if ($connectorCode === '') {
+            $connectorCode = 'unknown';
+        }
+
+        return 'connector_' . $connectorCode . '_operation_flight_list';
+    };
+
     $rawConfig = isset($operation['config']) && is_array($operation['config']) ? $operation['config'] : [];
     $operationId = trim((string)($operation['operation_id'] ?? ''));
     $config = connectors_unwrap_embedded_operation_config($rawConfig, $operationId);
@@ -5374,6 +5389,14 @@ function connectors_execute_script_operation(array $operation, array $connector 
         $resolvedTargetTable = trim((string)($operation['target_table'] ?? ''));
     }
     $scriptPathRaw = trim((string)($config['script_path'] ?? ''));
+
+    $scriptBasename = strtolower(basename($scriptPathRaw));
+    if ($operationId === 'flight_list_php' || $scriptBasename === 'run_flight_list.php') {
+        if ($resolvedTargetTable === '' || $resolvedTargetTable === 'connector_dev_colibri_operation_flight_list') {
+            $resolvedTargetTable = $resolveFlightListDefaultTargetTable($connector);
+            $targetTableTrace['normalized_default'] = $resolvedTargetTable;
+        }
+    }
     if ($scriptPathRaw === '') {
         throw new InvalidArgumentException('Для kind=script укажите operation.config.script_path');
     }
