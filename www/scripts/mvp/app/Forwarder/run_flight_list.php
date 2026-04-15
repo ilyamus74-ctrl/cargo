@@ -91,6 +91,23 @@ function forwarder_flight_list_normalize_base_url(string $rawBaseUrl): string
     return rtrim($base, '/');
 }
 
+function forwarder_flight_list_parse_bool(string $value, bool $default = true): bool
+{
+    $normalized = mb_strtolower(trim($value));
+    if ($normalized === '') {
+        return $default;
+    }
+
+    if (in_array($normalized, ['1', 'true', 'yes', 'on', 'y'], true)) {
+        return true;
+    }
+    if (in_array($normalized, ['0', 'false', 'no', 'off', 'n'], true)) {
+        return false;
+    }
+
+    return $default;
+}
+
 function forwarder_flight_list_extract_rows(string $html): array
 {
     $html = trim($html);
@@ -133,6 +150,8 @@ function forwarder_flight_list_import_rows(
     int $connectorId,
     string $targetTable,
     string $writeMode,
+    string $containersTable = '',
+    bool $syncContainers = true,
     string $tableSelector = 'table.references-table',
     string $onlyFlightExternalId = ''
 ): array {
@@ -215,26 +234,45 @@ function forwarder_flight_list_import_rows(
     ];
     $options = [
         'table_name' => $targetTable,
+        'containers_table_name' => $containersTable,
         'table_selector' => $tableSelector,
         'write_mode' => $mode,
-        'sync_containers' => false,
+        'sync_containers' => $syncContainers,
         'only_flight_external_id' => trim($onlyFlightExternalId),
         'timezone' => 'UTC',
     ];
     $subrunnerResult = connectors_subrunner_run_flight_list_colibri($ctx, $options);
 
+    $subrunnerStatus = strtolower(trim((string)($subrunnerResult['status'] ?? 'ok')));
+    $subrunnerErrors = isset($subrunnerResult['errors']) && is_array($subrunnerResult['errors']) ? $subrunnerResult['errors'] : [];
+    $hasOnlyContainerSelectorErrors = false;
+    if ($syncContainers && $subrunnerErrors !== []) {
+        $hasOnlyContainerSelectorErrors = true;
+        foreach ($subrunnerErrors as $entry) {
+            $entryMessage = mb_strtolower(trim((string)($entry['message'] ?? '')));
+            if ($entryMessage === '' || !str_contains($entryMessage, 'таблица не найдена по селектору')) {
+                $hasOnlyContainerSelectorErrors = false;
+                break;
+            }
+        }
+    }
+    if ($hasOnlyContainerSelectorErrors && in_array($subrunnerStatus, ['error', 'failed'], true)) {
+        $subrunnerStatus = 'warning';
+    }
+
     return [
-        'status' => (string)($subrunnerResult['status'] ?? 'ok'),
+        'status' => $subrunnerStatus,
         'message' => (string)($subrunnerResult['message'] ?? ''),
         'imported_rows' => (int)($subrunnerResult['metrics']['rows_written'] ?? 0),
         'rows_detected' => (int)($subrunnerResult['metrics']['rows_extracted'] ?? 0),
         'rows_skipped' => (int)($subrunnerResult['metrics']['rows_skipped'] ?? 0),
         'write_mode' => $mode,
         'target_table' => (string)($subrunnerResult['meta']['table_name'] ?? $targetTable),
+        'containers_table_name' => (string)($subrunnerResult['meta']['containers_table_name'] ?? $containersTable),
         'headers_detected' => isset($subrunnerResult['meta']['detected_headers']) && is_array($subrunnerResult['meta']['detected_headers'])
             ? $subrunnerResult['meta']['detected_headers']
             : [],
-        'errors' => isset($subrunnerResult['errors']) && is_array($subrunnerResult['errors']) ? $subrunnerResult['errors'] : [],
+        'errors' => $subrunnerErrors,
     ];
 }
 $argv = $_SERVER['argv'] ?? [];
@@ -264,8 +302,18 @@ if ($pagePath === '' || $pagePath[0] !== '/') {
 $repoRoot = dirname(__DIR__, 5);
 $targetTable = forwarder_flight_list_arg($args, 'target-table', 'target_table');
 $targetTable = $targetTable !== '' ? $targetTable : trim((string)getenv('FORWARDER_TARGET_TABLE'));
+
+$containersTable = forwarder_flight_list_arg($args, 'containers-table', 'containers_table');
+if ($containersTable === '' && $targetTable !== '' && str_ends_with($targetTable, '_containers')) {
+    $containersTable = $targetTable;
+    $targetTable = preg_replace('/_containers$/', '', $targetTable) ?? '';
+}
 $writeMode = forwarder_flight_list_arg($args, 'write-mode', 'write_mode');
 $writeMode = $writeMode !== '' ? $writeMode : 'upsert';
+$syncContainers = forwarder_flight_list_parse_bool(
+    forwarder_flight_list_arg($args, 'sync-containers', 'sync_containers'),
+    true
+);
 $tableSelector = forwarder_flight_list_arg($args, 'table-selector', 'table_selector');
 $tableSelector = $tableSelector !== '' ? $tableSelector : 'table.references-table';
 $connectorIdRaw = forwarder_flight_list_arg($args, 'connector-id', 'connector_id');
@@ -295,7 +343,16 @@ $body = (string)($response['body'] ?? '');
 $parsed = forwarder_flight_list_extract_rows($body);
 $rows = (int)($parsed['rows'] ?? 0);
 $headers = isset($parsed['headers']) && is_array($parsed['headers']) ? $parsed['headers'] : [];
-$import = forwarder_flight_list_import_rows($body, $repoRoot, $connectorId, $targetTable, $writeMode, $tableSelector);
+$import = forwarder_flight_list_import_rows(
+    $body,
+    $repoRoot,
+    $connectorId,
+    $targetTable,
+    $writeMode,
+    $containersTable,
+    $syncContainers,
+    $tableSelector
+);
 
 $result = [
     'status' => 'ok',
@@ -307,6 +364,8 @@ $result = [
     'headers_detected' => $headers,
     'connector_id' => $connectorId,
     'target_table' => (string)($import['target_table'] ?? $targetTable),
+    'containers_table' => (string)($import['containers_table_name'] ?? $containersTable),
+    'sync_containers' => $syncContainers,
     'write_mode' => (string)($import['write_mode'] ?? $writeMode),
     'imported_rows' => (int)($import['imported_rows'] ?? 0),
     'rows_skipped' => (int)($import['rows_skipped'] ?? 0),

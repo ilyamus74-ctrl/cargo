@@ -247,6 +247,12 @@ $connectorId = (int)forwarder_add_container_arg($args, 'connector-id', 'connecto
 $flightTable = forwarder_add_container_arg($args, 'target-table', 'target_table', 'flight-table', 'flight_table');
 $containersTable = forwarder_add_container_arg($args, 'containers-table', 'containers_table');
 
+if ($containersTable === '' && $flightTable !== '' && str_ends_with($flightTable, '_containers')) {
+    // Backward compatibility: in some operation configs `target_table` mistakenly points to containers table.
+    $containersTable = $flightTable;
+    $flightTable = preg_replace('/_containers$/', '', $flightTable) ?? '';
+}
+
 if ($flightId === '') {
     fwrite(STDERR, "run_add_container_to_flight: missing required --flight-id/--flight_id\n");
     exit(2);

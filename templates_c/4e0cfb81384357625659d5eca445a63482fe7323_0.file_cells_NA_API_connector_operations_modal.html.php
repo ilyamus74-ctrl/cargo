@@ -1,11 +1,11 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-04-15 13:00:21
+/* Smarty version 5.3.1, created on 2026-04-15 16:04:11
   from 'file:cells_NA_API_connector_operations_modal.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_69df8be50a1d46_86515321',
+  'unifunc' => 'content_69dfb6fbbd40f7_39589081',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_69df8be50a1d46_86515321 (\Smarty\Template $_smarty_tpl) {
+function content_69dfb6fbbd40f7_39589081 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?><section class="section">
   <style>
