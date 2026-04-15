@@ -1139,6 +1139,23 @@ function connectors_subrunner_sync_flight_containers(
             'written' => $written,
         ];
     } catch (Throwable $e) {
+
+        $errorMessage = trim((string)$e->getMessage());
+        if ($errorMessage !== '' && mb_stripos($errorMessage, 'таблица не найдена по селектору') !== false) {
+            $flightRow['containers_json'] = '[]';
+            $flightRow['containers_count'] = 0;
+            $flightRow['containers_synced_at'] = gmdate('Y-m-d H:i:s');
+            $flightRow['containers_sync_status'] = 'empty';
+            $flightRow['containers_sync_error'] = null;
+            $flightRow['containers_url'] = $url;
+            connectors_subrunner_update_flight_container_snapshot($db, $flightTableName, $flightRowId, $flightRow);
+
+            return [
+                'pages_checked' => 1,
+                'fetched' => 0,
+                'written' => 0,
+            ];
+        }
         $flightRow['containers_json'] = $flightRow['containers_json'] ?? '[]';
         $flightRow['containers_count'] = $flightRow['containers_count'] ?? 0;
         $flightRow['containers_synced_at'] = gmdate('Y-m-d H:i:s');

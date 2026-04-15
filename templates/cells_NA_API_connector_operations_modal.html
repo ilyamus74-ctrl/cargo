@@ -38,6 +38,7 @@
 
           <form id="connector-operations-form" autocomplete="off" data-node-enabled="{if $node_runtime_available}1{else}0{/if}">
             <input type="hidden" name="connector_id" value="{$connector.id|default:0}">
+            <input type="hidden" id="connector_name" value="{$connector.name|default:''|escape:'htmlattr'}">
             <input type="hidden" id="operations_v3_json" name="operations_v3_json" value="{$operations_v3_json|default:'{"schema_version":3,"operations":[]}'|escape}">
             <input type="hidden" id="operations_last_status_json" value="{$operations_last_status_json|default:'{}'|escape}">
             <div id="operations-existing-summary" class="alert alert-secondary py-2 small mb-3 d-none"></div>
@@ -110,6 +111,7 @@
   var content = root ? root.querySelector('#connector-operations-tab-content') : document.getElementById('connector-operations-tab-content');
   var summary = root ? root.querySelector('#operations-existing-summary') : document.getElementById('operations-existing-summary');
   var statusJsonEl = root ? root.querySelector('#operations_last_status_json') : document.getElementById('operations_last_status_json');
+  var connectorNameEl = root ? root.querySelector('#connector_name') : document.getElementById('connector_name');
   var formEl = root ? root.querySelector('#connector-operations-form') : document.getElementById('connector-operations-form');
   var nodeEnabled = formEl && formEl.dataset ? String(formEl.dataset.nodeEnabled || '1') === '1' : true;
   if (!textarea || !tabs || !content) return;
@@ -126,6 +128,31 @@
   function isPlainObject(v) {
     return Object.prototype.toString.call(v) === '[object Object]';
   }
+
+  function sanitizeConnectorCode(rawValue) {
+    var code = String(rawValue == null ? '' : rawValue).trim().toLowerCase();
+    code = code.replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+    return code || 'unknown';
+  }
+
+  function resolveDefaultFlightListTargetTable() {
+    var connectorName = connectorNameEl && connectorNameEl.value != null ? connectorNameEl.value : '';
+    var connectorCode = sanitizeConnectorCode(connectorName);
+    return 'connector_' + connectorCode + '_operation_flight_list';
+  }
+
+  function applyFlightListPhpDefaultTargetTable(opLike) {
+    if (!opLike || typeof opLike !== 'object') return opLike;
+    var opId = String(opLike.operation_id || '').trim().toLowerCase();
+    if (opId !== 'flight_list_php') return opLike;
+    if (!isPlainObject(opLike.config)) opLike.config = {};
+    var current = String(opLike.config.target_table || '').trim();
+    if (!current || current === 'connector_dev_colibri_operation_flight_list') {
+      opLike.config.target_table = resolveDefaultFlightListTargetTable();
+    }
+    return opLike;
+  }
+
   function normalizeOperation(rawOp, fallbackId) {
     var op = (rawOp && typeof rawOp === 'object') ? Object.assign({}, rawOp) : {};
     if (!op.operation_id) op.operation_id = String(fallbackId || '').trim();
@@ -136,6 +163,7 @@
     if (!Array.isArray(op.run_with)) op.run_with = [];
     if (!Array.isArray(op.run_finally)) op.run_finally = [];
     if (!isPlainObject(op.config)) op.config = {};
+    op = applyFlightListPhpDefaultTargetTable(op);
     return op;
   }
   function normalizePayload(rawPayload) {
@@ -275,7 +303,7 @@
         interpreter: 'php',
         script_path: 'www/scripts/mvp/app/Forwarder/run_flight_list.php',
         timeout_sec: 180,
-        target_table: inheritedTargetTable || 'connector_dev_colibri_operation_flight_list',
+        target_table: inheritedTargetTable || resolveDefaultFlightListTargetTable(),
         args: [
           '--base-url={{base_url}}',
           '--login={{auth_username}}',
@@ -353,7 +381,7 @@
         interpreter: 'php',
         script_path: 'www/scripts/mvp/app/Forwarder/run_flight_list.php',
         timeout_sec: 180,
-        target_table: 'connector_dev_colibri_operation_flight_list',
+        target_table: resolveDefaultFlightListTargetTable(),
         args: [
           '--base-url={{base_url}}',
           '--login={{auth_username}}',
