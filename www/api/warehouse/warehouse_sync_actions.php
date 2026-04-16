@@ -1281,7 +1281,7 @@ if (!function_exists('warehouse_sync_reconcile_half_sync')) {
 "
             . "FROM warehouse_item_out
 "
-            . "WHERE status IN ('for_sync', 'half_sync', 'error', 'success')"
+            . "WHERE status IN ('for_sync', 'confirmed_sync', 'half_sync', 'error', 'success')"
 
             . "ORDER BY status_updated_at ASC, id ASC
 "

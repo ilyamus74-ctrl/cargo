@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-04-03 19:20:36
+/* Smarty version 5.3.1, created on 2026-04-16 12:27:53
   from 'file:cells_NA_API_warehouse_item_out.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_69d01304015f30_89431090',
+  'unifunc' => 'content_69e0d5c9922104_93035654',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '1e9799e9c3e87d128e25a93d4c0cb584ee55eee0' => 
     array (
       0 => 'cells_NA_API_warehouse_item_out.html',
-      1 => 1775243841,
+      1 => 1776342426,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_69d01304015f30_89431090 (\Smarty\Template $_smarty_tpl) {
+function content_69e0d5c9922104_93035654 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?><div class="pagetitle">
   <h1>Отгрузка</h1>
@@ -170,6 +170,53 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
     </div>
   </div>
 </section>
+<?php echo '<script'; ?>
+ id="device-scan-config" type="application/json">
+{
+  "task_id": "warehouse_item_out",
+  "default_mode": "barcode",
+  "modes": ["barcode", "qr"],
+  "barcode": {
+    "action": "fill_field",
+    "field_id": "warehouse-item-out-search"
+  },
+  "qr": {
+    "action": "fill_field",
+    "field_id": "warehouse-item-out-search"
+  },
+  "buttons": {
+    "vol_down_single": "scan",
+    "vol_down_double": "scan",
+    "vol_up_single": "clear",
+    "vol_up_double": "reset"
+  },
+  "flow": {
+    "start": "scan_track",
+    "steps": {
+      "scan_track": {
+        "mode": "barcode",
+        "next_on_scan": "scan_track",
+        "on_action": {
+          "scan": [
+            { "op": "open_scanner", "mode": "barcode" }
+          ],
+          "confirm": [
+            { "op": "open_scanner", "mode": "barcode" }
+          ],
+          "clear": [
+            { "op": "web", "name": "clearWarehouseItemOutSearch" }
+          ],
+          "reset": [
+            { "op": "web", "name": "clearWarehouseItemOutSearch" },
+            { "op": "set_step", "to": "scan_track" }
+          ]
+        }
+      }
+    }
+  }
+}
+<?php echo '</script'; ?>
+>
 <div class="modal fade" id="warehouse-item-out-modal" tabindex="-1" aria-hidden="true">
   <div class="modal-dialog modal-dialog-centered">
     <div class="modal-content">

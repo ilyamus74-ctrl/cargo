@@ -2662,12 +2662,6 @@ const CoreAPI = {
         sentinel: null,
         observer: null,
         searchTimer: null,
-        autoConfirmTimer: null,
-        autoConfirmInFlight: false,
-        autoConfirmedTracking: '',
-        lastConfirmedTracking: '',
-        suppressDuplicateScanUntil: 0,
-        confirmInFlight: false,
         initialized: false,
         state: {
             limit: '50',
@@ -2860,13 +2854,7 @@ const CoreAPI = {
         clearModalState() {
             this.currentLookupItem = null;
             this.state.lookupLoading = false;
-            this.confirmInFlight = false;
-            this.autoConfirmInFlight = false;
-            this.autoConfirmedTracking = '';
-            if (this.autoConfirmTimer) {
-                clearTimeout(this.autoConfirmTimer);
-                this.autoConfirmTimer = null;
-            }
+
             if (this.modalState) {
                 this.modalState.className = 'alert alert-secondary mb-3';
                 this.modalState.textContent = 'Сканируйте или введите трекномер.';
@@ -2928,37 +2916,6 @@ const CoreAPI = {
             this.modalState.className = classMap[level] || classMap.secondary;
             this.modalState.innerHTML = html;
         },
-
-        playOutcomeSound(type = 'success') {
-            const src = type === 'success' ? '/alert_sound/accept.mp3' : '/alert_sound/alert.mp3';
-            try {
-                const audio = new Audio(src);
-                audio.play().catch(() => {});
-            } catch (e) {}
-        },
-        scheduleAutoConfirm(trackingNo = '') {
-            if (this.autoConfirmTimer) {
-                clearTimeout(this.autoConfirmTimer);
-            }
-            if (this.autoConfirmInFlight) {
-                return;
-            }
-            const normalizedTracking = String(trackingNo || '').trim();
-            if (normalizedTracking !== '' && this.autoConfirmedTracking === normalizedTracking) {
-                return;
-            }
-            this.autoConfirmTimer = window.setTimeout(() => {
-                if (!this.modalConfirmButton || this.modalConfirmButton.classList.contains('d-none') || this.modalConfirmButton.disabled) {
-                    return;
-                }
-                this.autoConfirmInFlight = true;
-                if (normalizedTracking !== '') {
-                    this.autoConfirmedTracking = normalizedTracking;
-                }
-                this.confirmSend({ auto: true });
-            }, 120);
-        },
-
         populateModalFields(item, containerMeta) {
             if (this.modalForwarder) this.modalForwarder.textContent = item?.receiver_company || '—';
             if (this.modalCell) this.modalCell.textContent = item?.cell_address || '—';
@@ -2987,13 +2944,7 @@ const CoreAPI = {
             if (!trackingNo || this.state.lookupLoading) {
                 return;
             }
-            if (
-                this.lastConfirmedTracking !== '' &&
-                trackingNo === this.lastConfirmedTracking &&
-                Date.now() < this.suppressDuplicateScanUntil
-            ) {
-                return;
-            }
+
             this.openModal();
             this.state.lookupLoading = true;
             this.setModalMessage('secondary', `Проверяем трекномер <strong>${this.escapeHtml(trackingNo)}</strong>...`);
@@ -3026,7 +2977,6 @@ const CoreAPI = {
             if (!item) {
                 this.populateModalFields(null, containerMeta);
                 this.setModalMessage('danger', `Посылка с трекномером <strong>${this.escapeHtml(requestedTracking)}</strong> не найдена.${fallbackMessage ? ` ${this.escapeHtml(fallbackMessage)}` : ''}`);
-                this.playOutcomeSound('alert');
                 this.modalConfirmButton?.classList.add('d-none');
                 this.modalCancelButton?.classList.add('d-none');
                 this.modalCloseButton?.classList.remove('d-none');
@@ -3053,36 +3003,30 @@ const CoreAPI = {
                         ? 'Повторно переместить в контейнер и напечатать'
                         : 'Подтвердить перемещение в контейнер';
                 }
-                if (containerMeta) {
-                    this.scheduleAutoConfirm(trackLabel);
-                }
                 return;
             }
 
             const statusMessage = item?.status_message ? `<div class="mt-2 small">Статус: <strong>${this.escapeHtml(item.status)}</strong>. ${this.escapeHtml(item.status_message)}</div>` : `<div class="mt-2 small">Статус: <strong>${this.escapeHtml(item.status || 'unknown')}</strong>.</div>`;
             this.setModalMessage('danger', `Подтверждение недоступно для посылки <strong>${this.escapeHtml(trackLabel)}</strong>.${statusMessage}`);
-            this.playOutcomeSound('alert');
             this.modalConfirmButton?.classList.add('d-none');
             this.modalCancelButton?.classList.add('d-none');
             this.modalCloseButton?.classList.remove('d-none');
         },
-        async confirmSend({ auto = false } = {}) {
-            if (!this.currentLookupItem || this.state.lookupLoading || this.confirmInFlight) {
+        async confirmSend() {
+            if (!this.currentLookupItem || this.state.lookupLoading) {
                 return;
             }
 
             const containerMeta = this.getSelectedContainerMeta();
             if (!containerMeta) {
                 this.setModalMessage('warning', 'Сначала выберите контейнер из open-рейса.');
-                this.playOutcomeSound('alert');
                 return;
             }
 
             this.state.lookupLoading = true;
-            this.confirmInFlight = true;
             if (this.modalConfirmButton) {
                 this.modalConfirmButton.disabled = true;
-                this.modalConfirmButton.textContent = auto ? 'Автоподтверждение...' : 'Сохраняем...';
+                this.modalConfirmButton.textContent = 'Сохраняем...';
             }
 
             const fd = new FormData();
@@ -3106,69 +3050,48 @@ const CoreAPI = {
                 fd.append('print_device_key', selectedDeviceUid);
             }
 
-            let data = null;
             try {
-                data = await CoreAPI.client.call(fd);
+                const data = await CoreAPI.client.call(fd);
                 if (!data || data.status !== 'ok') {
                     throw new Error(data?.message || 'confirm_failed');
                 }
-            } catch (err) {
-                console.error('core_api fetch error (warehouse_item_out_confirm_send):', err);
-                this.setModalMessage('danger', 'Не удалось подтвердить перемещение в контейнер. Попробуйте ещё раз.');
-                this.playOutcomeSound('alert');
-                if (this.modalConfirmButton) {
-                    this.modalConfirmButton.disabled = false;
-                    this.modalConfirmButton.textContent = 'Подтвердить перемещение в контейнер';
+                this.state.search = '';
+                if (this.searchInput) {
+                    this.searchInput.value = '';
                 }
-                return;
-            } finally {
-                this.state.lookupLoading = false;
-                this.confirmInFlight = false;
-                this.autoConfirmInFlight = false;
-            }
-            this.playOutcomeSound('success');
-            this.lastConfirmedTracking = String(this.currentLookupItem?.tracking_no || this.currentLookupItem?.tuid || '').trim();
-            this.suppressDuplicateScanUntil = Date.now() + 5000;
-            this.currentLookupItem = null;
-            this.state.search = '';
-            if (this.searchInput) {
-                this.searchInput.value = '';
-            }
-
-            try {
+                this.hideModal();
                 await this.resetAndLoad();
                 if (CoreAPI.warehouseInStorage?.resetAndLoad) {
                     await CoreAPI.warehouseInStorage.resetAndLoad();
                 }
-            } catch (refreshErr) {
-                console.warn('warehouse_item_out post-confirm refresh warning:', refreshErr);
-            }
-
-            CoreAPI.showToast?.('Посылка перемещена в контейнер.', 'success');
-            const printStatus = String(data?.forwarder_sync?.add_result?.print?.status || '').trim().toLowerCase();
-            if (printStatus === 'ok') {
-                CoreAPI.showToast?.('Лейбл отправлен на печать.', 'success');
-                const renderEngine = String(data?.forwarder_sync?.add_result?.print?.generated_waybill?.render_engine || '').trim();
-                if (renderEngine === 'simple-pdf-fallback') {
+                CoreAPI.showToast?.('Посылка перемещена в контейнер.', 'success');
+                const printStatus = String(data?.forwarder_sync?.add_result?.print?.status || '').trim().toLowerCase();
+                if (printStatus === 'ok') {
+                    CoreAPI.showToast?.('Лейбл отправлен на печать.', 'success');
+                    const renderEngine = String(data?.forwarder_sync?.add_result?.print?.generated_waybill?.render_engine || '').trim();
+                    if (renderEngine === 'simple-pdf-fallback') {
+                        CoreAPI.showToast?.(
+                            'Расширенный PDF-лейбл недоступен в этом окружении, использован упрощённый fallback.',
+                            'warning'
+                        );
+                    }
+                } else if (printStatus !== '' && printStatus !== 'skipped') {
+                    const printMessage = String(data?.forwarder_sync?.add_result?.print?.message || data?.forwarder_sync?.add_result?.print?.error || '').trim();
                     CoreAPI.showToast?.(
-                        'Расширенный PDF-лейбл недоступен в этом окружении, использован упрощённый fallback.',
+                        printMessage !== '' ? `Печать лейбла: ${printMessage}` : 'Печать лейбла завершилась с ошибкой.',
                         'warning'
                     );
-                    this.playOutcomeSound('alert');
                 }
-            } else if (printStatus !== '' && printStatus !== 'skipped') {
-                const printMessage = String(data?.forwarder_sync?.add_result?.print?.message || data?.forwarder_sync?.add_result?.print?.error || '').trim();
-                CoreAPI.showToast?.(
-                    printMessage !== '' ? `Печать лейбла: ${printMessage}` : 'Печать лейбла завершилась с ошибкой.',
-                    'warning'
-                );
-                this.playOutcomeSound('alert');
+            } catch (err) {
+                console.error('core_api fetch error (warehouse_item_out_confirm_send):', err);
+                this.setModalMessage('danger', 'Не удалось подтвердить перемещение в контейнер. Попробуйте ещё раз.');
+                if (this.modalConfirmButton) {
+                    this.modalConfirmButton.disabled = false;
+                    this.modalConfirmButton.textContent = 'Подтвердить перемещение в контейнер';
+                }
+            } finally {
+                this.state.lookupLoading = false;
             }
-
-            this.setModalMessage('success', 'Посылка успешно перемещена в контейнер. Закрываем окно...');
-            window.setTimeout(() => {
-                this.hideModal();
-            }, auto ? 2000 : 0);
         },
         updateContainerOptions() {
             if (!this.containerSelect) {
@@ -5888,16 +5811,6 @@ window.reloadWarehouseItemIn = () => CoreAPI.ui.reloadList('warehouse_item_in');
     if (CoreAPI?.toolsManagement?.fetchResults) {
       CoreAPI.toolsManagement.fetchResults('');
     }
-    return true;
-  };
-
-  window.clearWarehouseItemOutSearch = function () {
-    const el = document.getElementById('warehouse-item-out-search');
-    if (!el) return false;
-    el.value = '';
-    el.dispatchEvent(new Event('input', { bubbles: true }));
-    el.dispatchEvent(new Event('change', { bubbles: true }));
-    el.focus();
     return true;
   };
 
