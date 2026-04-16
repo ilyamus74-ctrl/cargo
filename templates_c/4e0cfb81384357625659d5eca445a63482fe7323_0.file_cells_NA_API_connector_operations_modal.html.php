@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-04-15 16:04:11
+/* Smarty version 5.3.1, created on 2026-04-15 17:53:58
   from 'file:cells_NA_API_connector_operations_modal.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_69dfb6fbbd40f7_39589081',
+  'unifunc' => 'content_69dfd0b64e5a39_79391864',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '4e0cfb81384357625659d5eca445a63482fe7323' => 
     array (
       0 => 'cells_NA_API_connector_operations_modal.html',
-      1 => 1774947860,
+      1 => 1776273460,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_69dfb6fbbd40f7_39589081 (\Smarty\Template $_smarty_tpl) {
+function content_69dfd0b64e5a39_79391864 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?><section class="section">
   <style>
@@ -63,6 +63,8 @@ $_smarty_current_dir = '/home/cells/web/templates';
 
           <form id="connector-operations-form" autocomplete="off" data-node-enabled="<?php if ($_smarty_tpl->getValue('node_runtime_available')) {?>1<?php } else { ?>0<?php }?>">
             <input type="hidden" name="connector_id" value="<?php echo (($tmp = $_smarty_tpl->getValue('connector')['id'] ?? null)===null||$tmp==='' ? 0 ?? null : $tmp);?>
+">
+            <input type="hidden" id="connector_name" value="<?php echo $_smarty_tpl->getSmarty()->getModifierCallback('escape')((($tmp = $_smarty_tpl->getValue('connector')['name'] ?? null)===null||$tmp==='' ? '' ?? null : $tmp), 'htmlattr');?>
 ">
             <input type="hidden" id="operations_v3_json" name="operations_v3_json" value="<?php echo htmlspecialchars((string)(($tmp = $_smarty_tpl->getValue('operations_v3_json') ?? null)===null||$tmp==='' ? '{"schema_version":3,"operations":[]}' ?? null : $tmp), ENT_QUOTES, 'UTF-8', true);?>
 ">
@@ -143,6 +145,7 @@ $_smarty_current_dir = '/home/cells/web/templates';
   var content = root ? root.querySelector('#connector-operations-tab-content') : document.getElementById('connector-operations-tab-content');
   var summary = root ? root.querySelector('#operations-existing-summary') : document.getElementById('operations-existing-summary');
   var statusJsonEl = root ? root.querySelector('#operations_last_status_json') : document.getElementById('operations_last_status_json');
+  var connectorNameEl = root ? root.querySelector('#connector_name') : document.getElementById('connector_name');
   var formEl = root ? root.querySelector('#connector-operations-form') : document.getElementById('connector-operations-form');
   var nodeEnabled = formEl && formEl.dataset ? String(formEl.dataset.nodeEnabled || '1') === '1' : true;
   if (!textarea || !tabs || !content) return;
@@ -159,6 +162,31 @@ $_smarty_current_dir = '/home/cells/web/templates';
   function isPlainObject(v) {
     return Object.prototype.toString.call(v) === '[object Object]';
   }
+
+  function sanitizeConnectorCode(rawValue) {
+    var code = String(rawValue == null ? '' : rawValue).trim().toLowerCase();
+    code = code.replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+    return code || 'unknown';
+  }
+
+  function resolveDefaultFlightListTargetTable() {
+    var connectorName = connectorNameEl && connectorNameEl.value != null ? connectorNameEl.value : '';
+    var connectorCode = sanitizeConnectorCode(connectorName);
+    return 'connector_' + connectorCode + '_operation_flight_list';
+  }
+
+  function applyFlightListPhpDefaultTargetTable(opLike) {
+    if (!opLike || typeof opLike !== 'object') return opLike;
+    var opId = String(opLike.operation_id || '').trim().toLowerCase();
+    if (opId !== 'flight_list_php') return opLike;
+    if (!isPlainObject(opLike.config)) opLike.config = {};
+    var current = String(opLike.config.target_table || '').trim();
+    if (!current || current === 'connector_dev_colibri_operation_flight_list') {
+      opLike.config.target_table = resolveDefaultFlightListTargetTable();
+    }
+    return opLike;
+  }
+
   function normalizeOperation(rawOp, fallbackId) {
     var op = (rawOp && typeof rawOp === 'object') ? Object.assign({}, rawOp) : {};
     if (!op.operation_id) op.operation_id = String(fallbackId || '').trim();
@@ -169,6 +197,7 @@ $_smarty_current_dir = '/home/cells/web/templates';
     if (!Array.isArray(op.run_with)) op.run_with = [];
     if (!Array.isArray(op.run_finally)) op.run_finally = [];
     if (!isPlainObject(op.config)) op.config = {};
+    op = applyFlightListPhpDefaultTargetTable(op);
     return op;
   }
   function normalizePayload(rawPayload) {
@@ -308,7 +337,7 @@ $_smarty_current_dir = '/home/cells/web/templates';
         interpreter: 'php',
         script_path: 'www/scripts/mvp/app/Forwarder/run_flight_list.php',
         timeout_sec: 180,
-        target_table: inheritedTargetTable || 'connector_dev_colibri_operation_flight_list',
+        target_table: inheritedTargetTable || resolveDefaultFlightListTargetTable(),
         args: [
           '--base-url={{base_url}}',
           '--login={{auth_username}}',
@@ -389,7 +418,7 @@ $_smarty_current_dir = '/home/cells/web/templates';
         interpreter: 'php',
         script_path: 'www/scripts/mvp/app/Forwarder/run_flight_list.php',
         timeout_sec: 180,
-        target_table: 'connector_dev_colibri_operation_flight_list',
+        target_table: resolveDefaultFlightListTargetTable(),
         args: [
           '--base-url={{base_url}}',
           '--login={{auth_username}}',

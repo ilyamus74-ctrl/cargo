@@ -153,7 +153,9 @@ function forwarder_flight_list_import_rows(
     string $containersTable = '',
     bool $syncContainers = true,
     string $tableSelector = 'table.references-table',
-    string $onlyFlightExternalId = ''
+    string $onlyFlightExternalId = '',
+    string $baseUrl = '',
+    string $runtimeCookies = ''
 ): array {
     if ($targetTable === '') {
         return [
@@ -225,11 +227,12 @@ function forwarder_flight_list_import_rows(
         'connector' => [
             'id' => $connectorId,
             'name' => 'forwarder_flight_list',
-            'base_url' => '',
+            'base_url' => trim($baseUrl),
             'ssl_ignore' => 0,
         ],
         'browser' => [
             'final_html' => $html,
+            'cookies' => trim($runtimeCookies),
         ],
     ];
     $options = [
@@ -351,7 +354,10 @@ $import = forwarder_flight_list_import_rows(
     $writeMode,
     $containersTable,
     $syncContainers,
-    $tableSelector
+    $tableSelector,
+    '',
+    $config->baseUrl(),
+    $session->cookieHeader()
 );
 
 $result = [

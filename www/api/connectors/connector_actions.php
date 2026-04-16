@@ -5389,9 +5389,14 @@ function connectors_execute_script_operation(array $operation, array $connector 
         $resolvedTargetTable = trim((string)($operation['target_table'] ?? ''));
     }
     $scriptPathRaw = trim((string)($config['script_path'] ?? ''));
-
     $scriptBasename = strtolower(basename($scriptPathRaw));
-    if ($operationId === 'flight_list_php' || $scriptBasename === 'run_flight_list.php') {
+    $isFlightSyncScript = in_array($scriptBasename, [
+        'run_flight_list.php',
+        'run_add_container_to_flight.php',
+        'run_del_container_from_flight.php',
+        'run_sync_flight_containers.php',
+    ], true);
+    if ($operationId === 'flight_list_php' || $isFlightSyncScript) {
         if ($resolvedTargetTable === '' || $resolvedTargetTable === 'connector_dev_colibri_operation_flight_list') {
             $resolvedTargetTable = $resolveFlightListDefaultTargetTable($connector);
             $targetTableTrace['normalized_default'] = $resolvedTargetTable;
