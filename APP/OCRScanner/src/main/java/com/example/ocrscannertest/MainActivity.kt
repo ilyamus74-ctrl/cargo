@@ -2996,7 +2996,8 @@ fun DeviceWebViewScreen(
 
                 settings.javaScriptEnabled = true
                 settings.domStorageEnabled = true
-
+                settings.mediaPlaybackRequiresUserGesture = false
+                
                 // Clear WebView cache/storage only when requested (app start)
                 if (shouldClearWebViewData) {
                     onWebViewDataCleared()
@@ -4464,6 +4465,15 @@ fun clearAllInWebView(webView: WebView) {
                         el.dispatchEvent(new Event('change',{bubbles:true}));
                     });
                 } catch(e) {}
+                try {
+                    var modalBody = document.querySelector('.modal.show .modal-body');
+                    if (modalBody) modalBody.scrollTop = 0;
+                    window.scrollTo(0, 0);
+                } catch(e) {}
+                try {
+                    var tuidField = document.getElementById('tuid');
+                    if (tuidField) tuidField.focus({preventScroll:true});
+                } catch(e) {}
             })();""".trimIndent(),
             null
         )
@@ -4590,7 +4600,17 @@ fun prepareFormForNextScanInWebView(webView: WebView) {
             var e=document.getElementById(id);
             if(e){ e.textContent=text; }
           }
-
+          function scrollToTopAndFocusTuid(){
+            try {
+              var modalBody = document.querySelector('.modal.show .modal-body');
+              if (modalBody) modalBody.scrollTop = 0;
+              window.scrollTo(0,0);
+            } catch(e) {}
+            try {
+              var tuidField = document.getElementById('tuid');
+              if (tuidField) tuidField.focus({preventScroll:true});
+            } catch(e) {}
+          }
           var tuid  = getVal('tuid');
           var track = getVal('trackingNo');
 
@@ -4617,6 +4637,7 @@ fun prepareFormForNextScanInWebView(webView: WebView) {
             setValById('sizeH','');
 
             setText('ocrCarrierInfo','');
+            setTimeout(scrollToTopAndFocusTuid, 50);
           }
         })();
     """.trimIndent()
