@@ -155,7 +155,8 @@ function forwarder_flight_list_import_rows(
     string $tableSelector = 'table.references-table',
     string $onlyFlightExternalId = '',
     string $baseUrl = '',
-    string $runtimeCookies = ''
+    string $runtimeCookies = '',
+    bool $sslIgnore = false
 ): array {
     if ($targetTable === '') {
         return [
@@ -228,7 +229,7 @@ function forwarder_flight_list_import_rows(
             'id' => $connectorId,
             'name' => 'forwarder_flight_list',
             'base_url' => trim($baseUrl),
-            'ssl_ignore' => 0,
+            'ssl_ignore' => $sslIgnore ? 1 : 0,
         ],
         'browser' => [
             'final_html' => $html,
@@ -243,6 +244,7 @@ function forwarder_flight_list_import_rows(
         'sync_containers' => $syncContainers,
         'only_flight_external_id' => trim($onlyFlightExternalId),
         'timezone' => 'UTC',
+        'ssl_ignore' => $sslIgnore,
     ];
     $subrunnerResult = connectors_subrunner_run_flight_list_colibri($ctx, $options);
 
@@ -293,6 +295,8 @@ forwarder_flight_list_set_env('DEV_COLIBRI_PASSWORD', forwarder_flight_list_arg(
 forwarder_flight_list_set_env('FORWARDER_BASE_URL', $normalizedBaseUrl);
 forwarder_flight_list_set_env('FORWARDER_LOGIN', forwarder_flight_list_arg($args, 'login'));
 forwarder_flight_list_set_env('FORWARDER_PASSWORD', forwarder_flight_list_arg($args, 'password'));
+forwarder_flight_list_set_env('DEV_COLIBRI_SSL_IGNORE', forwarder_flight_list_arg($args, 'ssl-ignore', 'ssl_ignore'));
+forwarder_flight_list_set_env('FORWARDER_SSL_IGNORE', forwarder_flight_list_arg($args, 'ssl-ignore', 'ssl_ignore'));
 forwarder_flight_list_set_env('FORWARDER_SESSION_FILE', forwarder_flight_list_arg($args, 'session-file', 'session_file'));
 forwarder_flight_list_set_env('FORWARDER_SESSION_TTL_SECONDS', forwarder_flight_list_arg($args, 'session-ttl-seconds', 'session_ttl_seconds'));
 
@@ -336,6 +340,29 @@ $sessionClient = new ForwarderSessionClient($config, $httpClient, $session, $log
 
 $response = $sessionClient->requestWithSession('GET', $pagePath, [], false);
 $statusCode = (int)($response['status_code'] ?? 0);
+
+if (empty($response['ok']) && $statusCode === 0) {
+    $errorLower = mb_strtolower(trim((string)($response['error'] ?? '')));
+    $isTlsCertificateError = $errorLower !== ''
+        && (
+            str_contains($errorLower, 'ssl certificate problem')
+            || str_contains($errorLower, 'certificate has expired')
+            || str_contains($errorLower, 'self-signed certificate')
+            || str_contains($errorLower, 'unable to get local issuer certificate')
+        );
+    if ($isTlsCertificateError && !$config->sslIgnore()) {
+        forwarder_flight_list_set_env('DEV_COLIBRI_SSL_IGNORE', '1');
+        forwarder_flight_list_set_env('FORWARDER_SSL_IGNORE', '1');
+
+        $config = new ForwarderConfig();
+        $httpClient = new ForwarderHttpClient($config);
+        $session = new SessionManager($config->sessionCookieFile(), $config->sessionTtlSeconds());
+        $loginService = new LoginService($config, $httpClient, $session, $logger);
+        $sessionClient = new ForwarderSessionClient($config, $httpClient, $session, $loginService, $logger);
+        $response = $sessionClient->requestWithSession('GET', $pagePath, [], false);
+        $statusCode = (int)($response['status_code'] ?? 0);
+    }
+}
 if (empty($response['ok']) || $statusCode < 200 || $statusCode >= 400) {
     $error = trim((string)($response['error'] ?? 'request_failed'));
     fwrite(STDERR, 'run_flight_list: request failed: status=' . $statusCode . ' error=' . $error . "\n");
@@ -357,7 +384,8 @@ $import = forwarder_flight_list_import_rows(
     $tableSelector,
     '',
     $config->baseUrl(),
-    $session->cookieHeader()
+    $session->cookieHeader(),
+    $config->sslIgnore()
 );
 
 $result = [

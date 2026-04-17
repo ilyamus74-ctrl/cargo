@@ -79,6 +79,11 @@ final class ForwarderConfig
         return max(0, (int)($this->map['http']['retry_delay_ms'] ?? 250));
     }
 
+    public function sslIgnore(): bool
+    {
+        $raw = strtolower(trim((string)(getenv('DEV_COLIBRI_SSL_IGNORE') ?: getenv('FORWARDER_SSL_IGNORE') ?: '0')));
+        return in_array($raw, ['1', 'true', 'yes', 'on'], true);
+    }
     public function sessionCookieFile(): string
     {
         $path = (string)(getenv('FORWARDER_SESSION_FILE') ?: '/tmp/forwarder_session.json');

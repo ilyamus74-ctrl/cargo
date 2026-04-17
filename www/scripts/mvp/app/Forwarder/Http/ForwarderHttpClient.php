@@ -115,6 +115,12 @@ final class ForwarderHttpClient
                 CURLOPT_CONNECTTIMEOUT_MS => $this->config->timeoutConnectMs(),
                 CURLOPT_TIMEOUT_MS => $this->config->timeoutTotalMs(),
             ]);
+            curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+            curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
+            if ($this->config->sslIgnore()) {
+                curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
+                curl_setopt($ch, CURLOPT_SSL_VERIFYHOST, 0);
+            }
 
             $raw = curl_exec($ch);
             $errno = curl_errno($ch);

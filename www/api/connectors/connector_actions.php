@@ -628,6 +628,7 @@ function connectors_operation_config_templates(): array
                         '--base-url={{base_url}}',
                         '--login={{auth_username}}',
                         '--password={{auth_password}}',
+                        '--ssl-ignore={{ssl_ignore}}',
                         '--page-path=/collector/flights',
                         '--connector-id={{connector_id}}',
                         '--target-table={{target_table}}',
@@ -5525,6 +5526,11 @@ function connectors_execute_script_operation(array $operation, array $connector 
         'auth_password' => (string)($connector['auth_password'] ?? ''),
         'auth_token' => (string)($connector['auth_token'] ?? ''),
         'api_token' => (string)($connector['api_token'] ?? ''),
+        'ssl_ignore' => (
+            array_key_exists('ssl_ignore', $runtimeVars)
+                ? (!empty($runtimeVars['ssl_ignore']) ? '1' : '0')
+                : (!empty($connector['ssl_ignore']) ? '1' : '0')
+        ),
         'target_table' => $resolvedTargetTable,
         'containers_table' => $resolvedContainersTable,
         'set_date' => $runtimeSetDate !== '' ? $runtimeSetDate : (string)($config['set_date'] ?? ''),

@@ -681,6 +681,10 @@ function forwarder_add_package_to_container_save_label_from_url(string $track, s
                 'timeout' => 20,
             ],
         ]);
+            'ssl' => [
+                'verify_peer' => false,
+                'verify_peer_name' => false,
+            ],
         $binary = @file_get_contents($candidateUrl, false, $context);
         if ($binary !== false && $binary !== '') {
             $url = $candidateUrl;
@@ -1133,6 +1137,8 @@ function forwarder_add_package_to_container_send_print_job(string $printUrl, str
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_CONNECTTIMEOUT => 8,
         CURLOPT_TIMEOUT => 20,
+        CURLOPT_SSL_VERIFYPEER => false,
+        CURLOPT_SSL_VERIFYHOST => 0,
         CURLOPT_HTTPHEADER => [
             'Authorization: Bearer ' . $printToken,
             'Content-Type: application/json',
