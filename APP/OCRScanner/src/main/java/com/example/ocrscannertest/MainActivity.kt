@@ -536,6 +536,49 @@ fun AppRoot() {
     }
 
 
+    fun resolveActiveWarehouseContext(onResolved: (String, ScanContextConfig) -> Unit) {
+        val cfg = taskConfig ?: return
+        val webView = webViewRef ?: return
+
+        val contexts = cfg.contexts
+
+        // fallback: если contexts нет — используем корневые barcode/qr как единственный контекст
+        if (contexts.isEmpty()) {
+            val fallbackCtx = ScanContextConfig(
+                activeTabSelector = null,
+                barcode = cfg.barcodeAction,
+                qr = cfg.qrAction
+            )
+            onResolved("default", fallbackCtx)
+            return
+        }
+
+        // NEW: если страница/JS уже явно указала active_context — доверяем ему
+        cfg.activeContext?.let { key ->
+            val ctx = contexts[key]
+            if (ctx != null) {
+                Handler(Looper.getMainLooper()).post {
+                    debugToast(context, "CTX RESOLVE: active_context=$key")
+                }
+                onResolved(key, ctx)
+                return
+            } else {
+                println("### resolveActiveWarehouseContext: active_context='$key' not found in contexts, fallback to selector")
+            }
+        }
+
+        resolveActiveContextId(webView, contexts) { activeKey ->
+            val resolvedKey = activeKey ?: contexts.keys.firstOrNull()
+            val resolvedContext = resolvedKey?.let { contexts[it] }
+            if (resolvedKey != null && resolvedContext != null) {
+                Handler(Looper.getMainLooper()).post {
+                    debugToast(context, "CTX RESOLVE: selector=$resolvedKey")
+                }
+                onResolved(resolvedKey, resolvedContext)
+            }
+        }
+    }
+
     fun handleBarcodeResult(result: BarcodeScanResult, closeOverlay: Boolean = true) {
         if (closeOverlay) {
             showBarcodeScan = false
@@ -775,48 +818,7 @@ fun AppRoot() {
             }
         }
     }
-    fun resolveActiveWarehouseContext(onResolved: (String, ScanContextConfig) -> Unit) {
-        val cfg = taskConfig ?: return
-        val webView = webViewRef ?: return
 
-        val contexts = cfg.contexts
-
-        // fallback: если contexts нет — используем корневые barcode/qr как единственный контекст
-        if (contexts.isEmpty()) {
-            val fallbackCtx = ScanContextConfig(
-                activeTabSelector = null,
-                barcode = cfg.barcodeAction,
-                qr = cfg.qrAction
-            )
-            onResolved("default", fallbackCtx)
-            return
-        }
-
-            // NEW: если страница/JS уже явно указала active_context — доверяем ему
-            cfg.activeContext?.let { key ->
-                val ctx = contexts[key]
-                if (ctx != null) {
-                    Handler(Looper.getMainLooper()).post {
-                        debugToast(context, "CTX RESOLVE: active_context=$key")
-                    }
-                    onResolved(key, ctx)
-                    return
-                } else {
-                    println("### resolveActiveWarehouseContext: active_context='$key' not found in contexts, fallback to selector")
-                }
-            }
-
-        resolveActiveContextId(webView, contexts) { activeKey ->
-            val resolvedKey = activeKey ?: contexts.keys.firstOrNull()
-            val resolvedContext = resolvedKey?.let { contexts[it] }
-            if (resolvedKey != null && resolvedContext != null) {
-                Handler(Looper.getMainLooper()).post {
-                    debugToast(context, "CTX RESOLVE: selector=$resolvedKey")
-                }
-                onResolved(resolvedKey, resolvedContext)
-            }
-        }
-    }
     fun warehouseInDownSingle() {
         when (warehouseScanStep) {
             WarehouseScanStep.BARCODE -> {
@@ -1216,15 +1218,15 @@ fun AppRoot() {
                 // IMPORTANT:
                 // When scanner overlay is shown, keep CONFIRM/CLEAR/RESET working via context flow.
                 // VolDownSingle stays as "scan trigger", but VolDownDouble should execute flow "confirm" (save/open modal).
-                    if (hasContextFlow) {
-                        MainActivity.onVolDownDouble = { dispatchContextFlowAction("vol_down_double") }
-                        MainActivity.onVolUpSingle = { dispatchContextFlowAction("vol_up_single") }
-                        MainActivity.onVolUpDouble = { dispatchContextFlowAction("vol_up_double") }
-                    } else {
-                        MainActivity.onVolDownDouble = null
-                        MainActivity.onVolUpSingle = null
-                        MainActivity.onVolUpDouble = null
-                   }
+                if (hasContextFlow) {
+                    MainActivity.onVolDownDouble = { dispatchContextFlowAction("vol_down_double") }
+                    MainActivity.onVolUpSingle = { dispatchContextFlowAction("vol_up_single") }
+                    MainActivity.onVolUpDouble = { dispatchContextFlowAction("vol_up_double") }
+                } else {
+                    MainActivity.onVolDownDouble = null
+                    MainActivity.onVolUpSingle = null
+                    MainActivity.onVolUpDouble = null
+                }
             }
 
             showOcr && ocrHardwareTrigger != null -> {
@@ -1234,15 +1236,15 @@ fun AppRoot() {
 
                 MainActivity.onVolDownSingle = { ocrHardwareTrigger?.invoke() }
                 // Same logic for OCR overlay (if used in context flows)
-                   if (hasContextFlow) {
-                       MainActivity.onVolDownDouble = { dispatchContextFlowAction("vol_down_double") }
-                       MainActivity.onVolUpSingle = { dispatchContextFlowAction("vol_up_single") }
-                       MainActivity.onVolUpDouble = { dispatchContextFlowAction("vol_up_double") }
-                   } else {
-                       MainActivity.onVolDownDouble = null
-                       MainActivity.onVolUpSingle = null
-                       MainActivity.onVolUpDouble = null
-                   }
+                if (hasContextFlow) {
+                    MainActivity.onVolDownDouble = { dispatchContextFlowAction("vol_down_double") }
+                    MainActivity.onVolUpSingle = { dispatchContextFlowAction("vol_up_single") }
+                    MainActivity.onVolUpDouble = { dispatchContextFlowAction("vol_up_double") }
+                } else {
+                    MainActivity.onVolDownDouble = null
+                    MainActivity.onVolUpSingle = null
+                    MainActivity.onVolUpDouble = null
+                }
             }
 
 
@@ -1531,7 +1533,7 @@ fun AppRoot() {
                                     val base = normalizeServerUrl(config.serverUrl)
                                     val cookieManager = CookieManager.getInstance()
                                     cookieManager.setAcceptCookie(true)
-                                   // val cookieStr = "PHPSESSID=${result.sessionId}; Path=/; Secure"
+                                    // val cookieStr = "PHPSESSID=${result.sessionId}; Path=/; Secure"
                                     val isHttps = base.startsWith("https://", ignoreCase = true)
 
                                     val cookieStr = buildString {
@@ -3245,7 +3247,7 @@ fun DeviceWebViewScreen(
                         if (!firstPageLoaded && view != null) {
                             firstPageLoaded = true
                             onWebViewReady(view)
-                          ////  view.evaluateJavascript(INSTALL_MAIN_OBSERVER_JS, null)
+                            ////  view.evaluateJavascript(INSTALL_MAIN_OBSERVER_JS, null)
                         }
                         // ВАЖНО: всегда инжектим, потому что при реальном reload JS улетает
                         view?.evaluateJavascript(INSTALL_MAIN_OBSERVER_JS, null)
@@ -4188,8 +4190,8 @@ fun fillParcelFormInWebView(
 
     val localCarrier = data.localCarrierName?.trim()?.takeIf { it.isNotEmpty() }       // DHL/GLS/...
     val trackingForForm = data.localTrackingNo?.trim()?.takeIf { it.isNotEmpty() }
-            ?: data.trackingNo?.trim()?.takeIf { isProbableTrackingNo(it) }
-            ?: data.tuid?.trim()?.takeIf { it.isNotEmpty() }
+        ?: data.trackingNo?.trim()?.takeIf { isProbableTrackingNo(it) }
+        ?: data.tuid?.trim()?.takeIf { it.isNotEmpty() }
 
     // подпись рядом с TUID: показываем именно форвард/страну (не локального перевозчика)
     val carrierInfo = buildString {
@@ -4247,7 +4249,7 @@ fun fillParcelFormInWebView(
             """.trimIndent()
         )
 
-            // писать в tuid/trackingNo только если это реально похоже на трек
+        // писать в tuid/trackingNo только если это реально похоже на трек
 // 1) TUID — только если нашли
         //data.tuid?.trim()?.takeIf { it.isNotEmpty() }?.let {
         //    append("setValById('tuid','${esc(it)}');")
