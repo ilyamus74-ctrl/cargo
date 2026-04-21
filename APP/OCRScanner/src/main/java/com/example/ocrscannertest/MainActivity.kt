@@ -243,6 +243,7 @@ class MainActivity : ComponentActivity() {
     private var hardwareScanLastCharTs: Long = 0L
     private val hardwareScanTimeoutMs = 250L
     private val handledHardwareDownKeys = mutableSetOf<Int>()
+    private var interceptHardwareTriggerKeys: Boolean = false
     private val scanIntentActions = listOf(
         "com.honeywell.decode.intent.action.SCAN_RESULT",
         "com.datalogic.decodewedge.decode_action",
