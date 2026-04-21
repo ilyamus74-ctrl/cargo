@@ -242,6 +242,7 @@ class MainActivity : ComponentActivity() {
     private val hardwareScanBuffer = StringBuilder()
     private var hardwareScanLastCharTs: Long = 0L
     private val hardwareScanTimeoutMs = 250L
+    private val handledHardwareDownKeys = mutableSetOf<Int>()
     private val scanIntentActions = listOf(
         "com.honeywell.decode.intent.action.SCAN_RESULT",
         "com.datalogic.decodewedge.decode_action",
@@ -321,13 +322,7 @@ class MainActivity : ComponentActivity() {
         }
         return super.dispatchKeyEvent(event)
     }
-    override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
-        val repeat = event?.repeatCount ?: 0
-
-        // глушим авто-повтор ТОЛЬКО для кнопок громкости
-        if (repeat > 0 && (keyCode == KeyEvent.KEYCODE_VOLUME_DOWN || keyCode == KeyEvent.KEYCODE_VOLUME_UP)) {
-            return true
-        }
+    private fun handleHardwareButtonKey(keyCode: Int): Boolean {
 
         when (keyCode) {
             KeyEvent.KEYCODE_VOLUME_DOWN -> {
@@ -364,7 +359,33 @@ class MainActivity : ComponentActivity() {
                 return true
             }
         }
+
+        return false
+    }
+
+    override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
+        val repeat = event?.repeatCount ?: 0
+
+        // глушим авто-повтор ТОЛЬКО для кнопок громкости
+        if (repeat > 0 && (keyCode == KeyEvent.KEYCODE_VOLUME_DOWN || keyCode == KeyEvent.KEYCODE_VOLUME_UP)) {
+            return true
+        }
+
+        if (handleHardwareButtonKey(keyCode)) {
+            handledHardwareDownKeys.add(keyCode)
+            return true
+        }
         return super.onKeyDown(keyCode, event)
+    }
+
+    override fun onKeyUp(keyCode: Int, event: KeyEvent?): Boolean {
+        if (handledHardwareDownKeys.remove(keyCode)) {
+            return true
+        }
+        if (handleHardwareButtonKey(keyCode)) {
+            return true
+        }
+        return super.onKeyUp(keyCode, event)
     }
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

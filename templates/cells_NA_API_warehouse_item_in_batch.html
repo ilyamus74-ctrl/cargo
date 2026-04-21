@@ -270,8 +270,8 @@
     "p1_single":       "ocr_scan",
     "p2_single":       "reset",
 
-    "scan_left_single":   "scan",
-    "scan_right_single":  "scan",
+    "scan_left_single":   "ocr_scan",
+    "scan_right_single":  "ocr_scan",
     "scan_pistol_single": "ocr_scan",
     "scan_top_single":    "reset"
   },
@@ -359,10 +359,6 @@
         }
       }
     }
-
-    if (!rawOverride || typeof rawOverride !== 'object') return;
-
-    var allowedActions = { scan: true, confirm: true, clear: true, reset: true, ocr_scan: true };
     var config;
     try {
       config = JSON.parse(configNode.textContent || '{}');
@@ -372,18 +368,22 @@
 
     if (!config.buttons || typeof config.buttons !== 'object') return;
 
-    Object.keys(rawOverride).forEach(function (eventName) {
-      var action = rawOverride[eventName];
-      if (typeof action === 'string' && allowedActions[action]) {
-        config.buttons[eventName] = action;
-      }
-    });
+    var allowedActions = { scan: true, confirm: true, clear: true, reset: true, ocr_scan: true };
+    if (rawOverride && typeof rawOverride === 'object') {
+      Object.keys(rawOverride).forEach(function (eventName) {
+        var action = rawOverride[eventName];
+        if (typeof action === 'string' && allowedActions[action]) {
+          config.buttons[eventName] = action;
+        }
+      });
+    }
 
     if (config.buttons) {
       config.buttons.p1_single = 'ocr_scan';
+      config.buttons.scan_left_single = 'ocr_scan';
+      config.buttons.scan_right_single = 'ocr_scan';
       config.buttons.scan_pistol_single = 'ocr_scan';
     }
-
     configNode.textContent = JSON.stringify(config, null, 2);
   })();
 </script>
