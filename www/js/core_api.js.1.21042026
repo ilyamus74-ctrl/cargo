@@ -1064,10 +1064,6 @@ const CoreAPI = {
             if (typeof initReceiverAddressQuickCells === 'function') {
                 initReceiverAddressQuickCells();
             }
-
-            if (typeof initItemInScanEntryBehaviour === 'function') {
-                initItemInScanEntryBehaviour();
-            }
             if (typeof emitDeviceContext === 'function') {
                 emitDeviceContext();
             }
@@ -1105,10 +1101,6 @@ const CoreAPI = {
                         }
                         if (typeof initReceiverAddressQuickCells === 'function') {
                             initReceiverAddressQuickCells();
-                        }
-
-                        if (typeof initItemInScanEntryBehaviour === 'function') {
-                            initItemInScanEntryBehaviour();
                         }
                         if (typeof emitDeviceContext === 'function') {
                             emitDeviceContext();
@@ -5112,69 +5104,6 @@ function initItemInDuplicateCheck() {
     carrierSelect.addEventListener('input', scheduleCheck);
     scheduleCheck();
 }
-
-function initItemInScanEntryBehaviour() {
-    var form = document.getElementById('item-in-modal-form');
-    if (!form) return;
-
-    var trackingInput = form.querySelector('#trackingNo');
-    var tuidInput = form.querySelector('#tuid');
-    if (!trackingInput || !tuidInput) return;
-
-    function focusTrackingInput() {
-        if (!document.body.contains(trackingInput)) return;
-        try {
-            trackingInput.focus({ preventScroll: false });
-        } catch (e) {
-            trackingInput.focus();
-        }
-        trackingInput.select();
-    }
-
-    if (!form.__itemInTrackMirrorBound) {
-        form.__itemInTrackMirrorBound = true;
-        var isSyncing = false;
-
-        function syncPair(source, target) {
-            if (isSyncing) return;
-            isSyncing = true;
-            target.value = source.value || '';
-            target.dispatchEvent(new Event('input', { bubbles: true }));
-            target.dispatchEvent(new Event('change', { bubbles: true }));
-            isSyncing = false;
-        }
-
-        trackingInput.addEventListener('input', function () {
-            syncPair(trackingInput, tuidInput);
-        });
-        trackingInput.addEventListener('change', function () {
-            syncPair(trackingInput, tuidInput);
-        });
-        tuidInput.addEventListener('input', function () {
-            syncPair(tuidInput, trackingInput);
-        });
-        tuidInput.addEventListener('change', function () {
-            syncPair(tuidInput, trackingInput);
-        });
-
-        var addBtn = form.querySelector('button[data-core-action="add_new_item_in"]');
-        if (addBtn) {
-            addBtn.addEventListener('click', function () {
-                setTimeout(focusTrackingInput, 350);
-            });
-        }
-
-        var clearBtn = document.getElementById('itemInClearBtn');
-        if (clearBtn) {
-            clearBtn.addEventListener('click', function () {
-                setTimeout(focusTrackingInput, 0);
-            });
-        }
-    }
-
-    setTimeout(focusTrackingInput, 0);
-}
-
 
 
 function getSelectedStandDevice() {

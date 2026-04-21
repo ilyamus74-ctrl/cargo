@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-03-30 14:32:03
+/* Smarty version 5.3.1, created on 2026-04-21 13:40:58
   from 'file:cells_NA_API_warehouse_item_in_batch.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_69ca8963e3a8e3_60737728',
+  'unifunc' => 'content_69e77e6a86a511_65790366',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '7e8c2c62a4cb34a58255b0e76fcea2eec9328b7b' => 
     array (
       0 => 'cells_NA_API_warehouse_item_in_batch.html',
-      1 => 1772628868,
+      1 => 1776778826,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_69ca8963e3a8e3_60737728 (\Smarty\Template $_smarty_tpl) {
+function content_69e77e6a86a511_65790366 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>
 
@@ -31,7 +31,7 @@ $_smarty_current_dir = '/home/cells/web/templates';
   <input type="hidden" name="carrierCode" value="">
   <input type="hidden" name="item_id" id="itemInDraftId" value="">
 
-  <div class="col-md-4">
+  <div class="col-md-4 d-none">
     <label for="tuid" class="form-label">
       TUID
       <span id="ocrCarrierInfo" class="text-muted"></span>
@@ -41,7 +41,7 @@ $_smarty_current_dir = '/home/cells/web/templates';
 
   <div class="col-md-4">
     <label for="trackingNo" class="form-label">Трек-номер</label>
-    <input type="text" class="form-control" id="trackingNo" name="tracking_no" required>
+    <input type="text" class="form-control" id="trackingNo" name="tracking_no" required autofocus>
   </div>
 
   <div class="col-md-4">
@@ -320,7 +320,7 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
 
   "barcode": {
     "action": "fill_field",
-    "field_ids": ["tuid","trackingNo","senderName"]
+    "field_ids": ["trackingNo","tuid","senderName"]
   },
   "qr": {
     "action": "api_check",
@@ -341,7 +341,12 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
     "vol_down_single": "scan",
     "vol_down_double": "confirm",
     "vol_up_single":   "clear",
-    "vol_up_double":   "reset"
+    "vol_up_double":   "reset",
+
+    "scan_left_single":   "scan",
+    "scan_right_single":  "scan",
+    "scan_pistol_single": "scan",
+    "scan_top_single":    "scan"
   },
 
   "ui": {
@@ -361,6 +366,7 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
         "next_on_scan": "ocr",
         "on_action": {
           "scan":    [ { "op":"open_scanner", "mode":"barcode" } ],
+          "ocr_scan":[ { "op":"open_scanner", "mode":"ocr" }, { "op":"set_step", "to":"measure" } ],
           "clear":   [ { "op":"web", "name":"clear_tracking" } ],
           "reset":   [ { "op":"web", "name":"clear_all" }, { "op":"set_step", "to":"barcode" } ],
           "confirm": [ { "op":"noop" } ]
@@ -371,6 +377,7 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
         "next_on_scan": "measure",
         "on_action": {
           "scan":    [ { "op":"open_scanner", "mode":"ocr" }, { "op":"set_step", "to":"measure" } ],
+          "ocr_scan":[ { "op":"open_scanner", "mode":"ocr" }, { "op":"set_step", "to":"measure" } ],
           "clear":   [ { "op":"web", "name":"clear_except_track" }, { "op":"set_step", "to":"barcode" } ],
           "reset":   [ { "op":"web", "name":"clear_all" }, { "op":"set_step", "to":"barcode" } ],
           "confirm": [ { "op":"noop" } ]
@@ -380,16 +387,18 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
       "measure": {
         "on_action": {
           "scan":    [ { "op":"web","name":"measure_request" }, { "op":"set_step","to":"submit" } ],
+          "ocr_scan":[ { "op":"open_scanner", "mode":"ocr" }, { "op":"set_step", "to":"measure" } ],
           "clear":   [ { "op":"web", "name":"clear_measurements" }, { "op":"set_step", "to":"ocr" } ],
           "reset":   [ { "op":"web", "name":"clear_all" }, { "op":"set_step", "to":"barcode" } ],
           "confirm": [ { "op":"noop" } ]
         }
       },
 
-  
+
       "submit": {
         "on_action": {
           "scan":    [ { "op":"web","name":"add_new_item" }, { "op":"set_step","to":"barcode" } ],
+          "ocr_scan":[ { "op":"open_scanner", "mode":"ocr" }, { "op":"set_step", "to":"measure" } ],
           "confirm": [ { "op":"web","name":"add_new_item" }, { "op":"set_step","to":"barcode" } ],
           "clear":   [ { "op":"web","name":"clear_measurements" }, { "op":"set_step", "to":"measure" } ],
           "reset":   [ { "op":"web","name":"clear_all" }, { "op":"set_step", "to":"barcode" } ]
@@ -398,6 +407,56 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
     }
   }
 }
+<?php echo '</script'; ?>
+>
+
+<?php echo '<script'; ?>
+>
+  (function () {
+    var configNode = document.getElementById('device-scan-config');
+    if (!configNode) return;
+
+    var rawOverride = null;
+    if (window.DEVICE_SCAN_BUTTON_OVERRIDES && typeof window.DEVICE_SCAN_BUTTON_OVERRIDES === 'object') {
+      rawOverride = window.DEVICE_SCAN_BUTTON_OVERRIDES;
+    } else {
+      var storageValue = '';
+      try {
+        storageValue = localStorage.getItem('device_scan_buttons_override') || '';
+      } catch (e) {
+        storageValue = '';
+      }
+      if (storageValue) {
+        try {
+          rawOverride = JSON.parse(storageValue);
+        } catch (e) {
+          rawOverride = null;
+        }
+      }
+    }
+
+    if (!rawOverride || typeof rawOverride !== 'object') return;
+
+    var allowedActions = { scan: true, confirm: true, clear: true, reset: true };
+
+    var config;
+    try {
+      config = JSON.parse(configNode.textContent || '{}');
+    } catch (e) {
+      return;
+    }
+
+    if (!config.buttons || typeof config.buttons !== 'object') return;
+
+    Object.keys(rawOverride).forEach(function (eventName) {
+      var action = rawOverride[eventName];
+      if (typeof action === 'string' && allowedActions[action]) {
+        config.buttons[eventName] = action;
+      }
+    });
+
+    configNode.textContent = JSON.stringify(config, null, 2);
+  })();
 <?php echo '</script'; ?>
 >
 

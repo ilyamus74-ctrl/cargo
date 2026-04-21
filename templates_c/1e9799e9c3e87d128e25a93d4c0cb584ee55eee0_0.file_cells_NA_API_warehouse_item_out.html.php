@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-04-16 12:27:53
+/* Smarty version 5.3.1, created on 2026-04-21 13:17:13
   from 'file:cells_NA_API_warehouse_item_out.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_69e0d5c9922104_93035654',
+  'unifunc' => 'content_69e778d98b3703_78879584',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '1e9799e9c3e87d128e25a93d4c0cb584ee55eee0' => 
     array (
       0 => 'cells_NA_API_warehouse_item_out.html',
-      1 => 1776342426,
+      1 => 1776777427,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_69e0d5c9922104_93035654 (\Smarty\Template $_smarty_tpl) {
+function content_69e778d98b3703_78879584 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?><div class="pagetitle">
   <h1>Отгрузка</h1>
@@ -188,7 +188,12 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
     "vol_down_single": "scan",
     "vol_down_double": "scan",
     "vol_up_single": "clear",
-    "vol_up_double": "reset"
+    "vol_up_double":   "reset",
+
+    "scan_left_single":   "scan",
+    "scan_right_single":  "scan",
+    "scan_pistol_single": "scan",
+    "scan_top_single":    "scan"
   },
   "flow": {
     "start": "scan_track",
