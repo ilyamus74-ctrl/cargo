@@ -267,11 +267,13 @@
     "vol_down_double": "confirm",
     "vol_up_single":   "clear",
     "vol_up_double":   "reset",
+    "p1_single":       "ocr_scan",
+    "p2_single":       "reset",
 
     "scan_left_single":   "scan",
     "scan_right_single":  "scan",
     "scan_pistol_single": "scan",
-    "scan_top_single":    "scan"
+    "scan_top_single":    "reset"
   },
 
   "ui": {
@@ -360,8 +362,7 @@
 
     if (!rawOverride || typeof rawOverride !== 'object') return;
 
-    var allowedActions = { scan: true, confirm: true, clear: true, reset: true };
-
+    var allowedActions = { scan: true, confirm: true, clear: true, reset: true, ocr_scan: true };
     var config;
     try {
       config = JSON.parse(configNode.textContent || '{}');

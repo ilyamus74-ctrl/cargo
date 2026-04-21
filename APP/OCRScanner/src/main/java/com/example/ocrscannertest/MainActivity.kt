@@ -227,6 +227,12 @@ class MainActivity : ComponentActivity() {
         var onVolDownDouble: (() -> Unit)? = null
         var onVolUpSingle: (() -> Unit)? = null
         var onVolUpDouble: (() -> Unit)? = null
+        var onScanLeftSingle: (() -> Unit)? = null
+        var onScanRightSingle: (() -> Unit)? = null
+        var onScanPistolSingle: (() -> Unit)? = null
+        var onScanTopSingle: (() -> Unit)? = null
+        var onP1Single: (() -> Unit)? = null
+        var onP2Single: (() -> Unit)? = null
         var activeWebViewProvider: (() -> WebView?)? = null
         var onHardwareScanData: ((String) -> Unit)? = null
     }
@@ -330,6 +336,31 @@ class MainActivity : ComponentActivity() {
             }
             KeyEvent.KEYCODE_VOLUME_UP -> {
                 volumeButtonDispatcher.onVolumeUp(onVolUpSingle, onVolUpDouble)
+                return true
+            }
+
+            KeyEvent.KEYCODE_BUTTON_L1 -> {
+                onScanLeftSingle?.invoke()
+                return true
+            }
+            KeyEvent.KEYCODE_BUTTON_R1 -> {
+                onScanRightSingle?.invoke()
+                return true
+            }
+            KeyEvent.KEYCODE_BUTTON_L2, KeyEvent.KEYCODE_F9 -> {
+                onScanPistolSingle?.invoke()
+                return true
+            }
+            KeyEvent.KEYCODE_BUTTON_R2, KeyEvent.KEYCODE_F10 -> {
+                onScanTopSingle?.invoke()
+                return true
+            }
+            KeyEvent.KEYCODE_BUTTON_1, KeyEvent.KEYCODE_F1 -> {
+                onP1Single?.invoke()
+                return true
+            }
+            KeyEvent.KEYCODE_BUTTON_2, KeyEvent.KEYCODE_F2 -> {
+                onP2Single?.invoke()
                 return true
             }
         }
@@ -579,6 +610,21 @@ fun AppRoot() {
         }
     }
 
+    fun warehouseStepForFlow(step: String): WarehouseScanStep? = when (step) {
+        "barcode" -> WarehouseScanStep.BARCODE
+        "ocr" -> WarehouseScanStep.OCR
+        "measure" -> WarehouseScanStep.MEASURE
+        "submit" -> WarehouseScanStep.SUBMIT
+        else -> null
+    }
+
+    fun setFlowStep(step: String) {
+        currentFlowStep = step
+        if (isWarehouseIn) {
+            warehouseStepForFlow(step)?.let { warehouseScanStep = it }
+        }
+    }
+
     fun handleBarcodeResult(result: BarcodeScanResult, closeOverlay: Boolean = true) {
         if (closeOverlay) {
             showBarcodeScan = false
@@ -699,20 +745,7 @@ fun AppRoot() {
         }
     }
 
-    fun warehouseStepForFlow(step: String): WarehouseScanStep? = when (step) {
-        "barcode" -> WarehouseScanStep.BARCODE
-        "ocr" -> WarehouseScanStep.OCR
-        "measure" -> WarehouseScanStep.MEASURE
-        "submit" -> WarehouseScanStep.SUBMIT
-        else -> null
-    }
 
-    fun setFlowStep(step: String) {
-        currentFlowStep = step
-        if (isWarehouseIn) {
-            warehouseStepForFlow(step)?.let { warehouseScanStep = it }
-        }
-    }
 
     fun executeFlowOps(ops: List<FlowOp>) {
         if (ops.isEmpty()) return
@@ -1196,6 +1229,13 @@ fun AppRoot() {
                 MainActivity.onVolDownDouble = { dispatchContextFlowAction("vol_down_double") }
                 MainActivity.onVolUpSingle = { dispatchContextFlowAction("vol_up_single") }
                 MainActivity.onVolUpDouble = { dispatchContextFlowAction("vol_up_double") }
+
+                MainActivity.onScanLeftSingle = { dispatchContextFlowAction("scan_left_single") }
+                MainActivity.onScanRightSingle = { dispatchContextFlowAction("scan_right_single") }
+                MainActivity.onScanPistolSingle = { dispatchContextFlowAction("scan_pistol_single") }
+                MainActivity.onScanTopSingle = { dispatchContextFlowAction("scan_top_single") }
+                MainActivity.onP1Single = { dispatchContextFlowAction("p1_single") }
+                MainActivity.onP2Single = { dispatchContextFlowAction("p2_single") }
             }
 
             hasButtonMappings && (showWebView || showBarcodeScan || showOcr) && !hasFlow -> {
@@ -1207,6 +1247,12 @@ fun AppRoot() {
                 MainActivity.onVolDownDouble = { dispatchButtonAction(buttonMappings["vol_down_double"]) }
                 MainActivity.onVolUpSingle = { dispatchButtonAction(buttonMappings["vol_up_single"]) }
                 MainActivity.onVolUpDouble = { dispatchButtonAction(buttonMappings["vol_up_double"]) }
+                MainActivity.onScanLeftSingle = { dispatchButtonAction(buttonMappings["scan_left_single"]) }
+                MainActivity.onScanRightSingle = { dispatchButtonAction(buttonMappings["scan_right_single"]) }
+                MainActivity.onScanPistolSingle = { dispatchButtonAction(buttonMappings["scan_pistol_single"]) }
+                MainActivity.onScanTopSingle = { dispatchButtonAction(buttonMappings["scan_top_single"]) }
+                MainActivity.onP1Single = { dispatchButtonAction(buttonMappings["p1_single"]) }
+                MainActivity.onP2Single = { dispatchButtonAction(buttonMappings["p2_single"]) }
             }
 
             showBarcodeScan && barcodeHardwareTrigger != null -> {
@@ -1215,6 +1261,10 @@ fun AppRoot() {
                 }
 
                 MainActivity.onVolDownSingle = { barcodeHardwareTrigger?.invoke() }
+                MainActivity.onScanLeftSingle = { barcodeHardwareTrigger?.invoke() }
+                MainActivity.onScanRightSingle = { barcodeHardwareTrigger?.invoke() }
+                MainActivity.onScanPistolSingle = { barcodeHardwareTrigger?.invoke() }
+                MainActivity.onScanTopSingle = { barcodeHardwareTrigger?.invoke() }
                 // IMPORTANT:
                 // When scanner overlay is shown, keep CONFIRM/CLEAR/RESET working via context flow.
                 // VolDownSingle stays as "scan trigger", but VolDownDouble should execute flow "confirm" (save/open modal).
@@ -1222,10 +1272,14 @@ fun AppRoot() {
                     MainActivity.onVolDownDouble = { dispatchContextFlowAction("vol_down_double") }
                     MainActivity.onVolUpSingle = { dispatchContextFlowAction("vol_up_single") }
                     MainActivity.onVolUpDouble = { dispatchContextFlowAction("vol_up_double") }
+                    MainActivity.onP1Single = { dispatchContextFlowAction("p1_single") }
+                    MainActivity.onP2Single = { dispatchContextFlowAction("p2_single") }
                 } else {
                     MainActivity.onVolDownDouble = null
                     MainActivity.onVolUpSingle = null
                     MainActivity.onVolUpDouble = null
+                    MainActivity.onP1Single = null
+                    MainActivity.onP2Single = null
                 }
             }
 
@@ -1235,15 +1289,23 @@ fun AppRoot() {
                 }
 
                 MainActivity.onVolDownSingle = { ocrHardwareTrigger?.invoke() }
+                MainActivity.onScanLeftSingle = { ocrHardwareTrigger?.invoke() }
+                MainActivity.onScanRightSingle = { ocrHardwareTrigger?.invoke() }
+                MainActivity.onScanPistolSingle = { ocrHardwareTrigger?.invoke() }
+                MainActivity.onScanTopSingle = { ocrHardwareTrigger?.invoke() }
                 // Same logic for OCR overlay (if used in context flows)
                 if (hasContextFlow) {
                     MainActivity.onVolDownDouble = { dispatchContextFlowAction("vol_down_double") }
                     MainActivity.onVolUpSingle = { dispatchContextFlowAction("vol_up_single") }
                     MainActivity.onVolUpDouble = { dispatchContextFlowAction("vol_up_double") }
+                    MainActivity.onP1Single = { dispatchContextFlowAction("p1_single") }
+                    MainActivity.onP2Single = { dispatchContextFlowAction("p2_single") }
                 } else {
                     MainActivity.onVolDownDouble = null
                     MainActivity.onVolUpSingle = null
                     MainActivity.onVolUpDouble = null
+                    MainActivity.onP1Single = null
+                    MainActivity.onP2Single = null
                 }
             }
 
@@ -1260,6 +1322,12 @@ fun AppRoot() {
                     MainActivity.onVolDownDouble = { dispatchFlowAction("vol_down_double") }
                     MainActivity.onVolUpSingle = { dispatchFlowAction("vol_up_single") }
                     MainActivity.onVolUpDouble = { dispatchFlowAction("vol_up_double") }
+                    MainActivity.onScanLeftSingle = { dispatchFlowAction("scan_left_single") }
+                    MainActivity.onScanRightSingle = { dispatchFlowAction("scan_right_single") }
+                    MainActivity.onScanPistolSingle = { dispatchFlowAction("scan_pistol_single") }
+                    MainActivity.onScanTopSingle = { dispatchFlowAction("scan_top_single") }
+                    MainActivity.onP1Single = { dispatchFlowAction("p1_single") }
+                    MainActivity.onP2Single = { dispatchFlowAction("p2_single") }
                 } else if (hasContextFlow) {
                     Handler(Looper.getMainLooper()).post {
                         debugToast(context, "MODE: webview + contextFlow")
@@ -1269,6 +1337,12 @@ fun AppRoot() {
                     MainActivity.onVolDownDouble = { dispatchContextFlowAction("vol_down_double") }
                     MainActivity.onVolUpSingle = { dispatchContextFlowAction("vol_up_single") }
                     MainActivity.onVolUpDouble = { dispatchContextFlowAction("vol_up_double") }
+                    MainActivity.onScanLeftSingle = { dispatchContextFlowAction("scan_left_single") }
+                    MainActivity.onScanRightSingle = { dispatchContextFlowAction("scan_right_single") }
+                    MainActivity.onScanPistolSingle = { dispatchContextFlowAction("scan_pistol_single") }
+                    MainActivity.onScanTopSingle = { dispatchContextFlowAction("scan_top_single") }
+                    MainActivity.onP1Single = { dispatchContextFlowAction("p1_single") }
+                    MainActivity.onP2Single = { dispatchContextFlowAction("p2_single") }
                 } else {
                     Handler(Looper.getMainLooper()).post {
                         debugToast(context, "MODE: webview (legacy)")
@@ -1316,6 +1390,12 @@ fun AppRoot() {
                             }
                         }
                     }
+                    MainActivity.onScanLeftSingle = { MainActivity.onVolDownSingle?.invoke() }
+                    MainActivity.onScanRightSingle = { MainActivity.onVolDownSingle?.invoke() }
+                    MainActivity.onScanPistolSingle = { MainActivity.onVolDownSingle?.invoke() }
+                    MainActivity.onScanTopSingle = { MainActivity.onVolUpDouble?.invoke() }
+                    MainActivity.onP1Single = { MainActivity.onVolDownSingle?.invoke() }
+                    MainActivity.onP2Single = { MainActivity.onVolUpDouble?.invoke() }
                     MainActivity.onVolDownDouble = {
                         if (isWarehouseIn) {
                             warehouseInConfirm()
@@ -1384,6 +1464,12 @@ fun AppRoot() {
                 MainActivity.onVolDownDouble = null
                 MainActivity.onVolUpSingle = null
                 MainActivity.onVolUpDouble = null
+                MainActivity.onScanLeftSingle = null
+                MainActivity.onScanRightSingle = null
+                MainActivity.onScanPistolSingle = null
+                MainActivity.onScanTopSingle = null
+                MainActivity.onP1Single = null
+                MainActivity.onP2Single = null
             }
         }
     }

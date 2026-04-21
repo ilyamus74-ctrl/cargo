@@ -1144,6 +1144,9 @@ const CoreAPI = {
                     if (typeof initReceiverAddressQuickCells === 'function') {
                         initReceiverAddressQuickCells();
                     }
+                    if (typeof initItemInScanEntryBehaviour === 'function') {
+                        initItemInScanEntryBehaviour();
+                    }
                     if (typeof emitDeviceContext === 'function') {
                         emitDeviceContext();
                     }
@@ -5123,6 +5126,7 @@ function initItemInScanEntryBehaviour() {
 
     function focusTrackingInput() {
         if (!document.body.contains(trackingInput)) return;
+        if (trackingInput.disabled || trackingInput.readOnly) return;
         try {
             trackingInput.focus({ preventScroll: false });
         } catch (e) {
@@ -5168,6 +5172,16 @@ function initItemInScanEntryBehaviour() {
         if (clearBtn) {
             clearBtn.addEventListener('click', function () {
                 setTimeout(focusTrackingInput, 0);
+    setTimeout(focusTrackingInput, 180);
+
+    var modalEl = form.closest('.modal');
+    if (modalEl && !modalEl.__itemInFocusHookBound) {
+        modalEl.__itemInFocusHookBound = true;
+        modalEl.addEventListener('shown.bs.modal', function () {
+            setTimeout(focusTrackingInput, 0);
+            setTimeout(focusTrackingInput, 180);
+        });
+    }
             });
         }
     }

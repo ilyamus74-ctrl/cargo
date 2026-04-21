@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-04-21 13:40:58
+/* Smarty version 5.3.1, created on 2026-04-21 13:56:12
   from 'file:cells_NA_API_warehouse_item_in_batch.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_69e77e6a86a511_65790366',
+  'unifunc' => 'content_69e781fc8ad445_83755595',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '7e8c2c62a4cb34a58255b0e76fcea2eec9328b7b' => 
     array (
       0 => 'cells_NA_API_warehouse_item_in_batch.html',
-      1 => 1776778826,
+      1 => 1776779677,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_69e77e6a86a511_65790366 (\Smarty\Template $_smarty_tpl) {
+function content_69e781fc8ad445_83755595 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>
 
@@ -342,11 +342,13 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
     "vol_down_double": "confirm",
     "vol_up_single":   "clear",
     "vol_up_double":   "reset",
+    "p1_single":       "ocr_scan",
+    "p2_single":       "reset",
 
     "scan_left_single":   "scan",
     "scan_right_single":  "scan",
     "scan_pistol_single": "scan",
-    "scan_top_single":    "scan"
+    "scan_top_single":    "reset"
   },
 
   "ui": {
@@ -437,8 +439,7 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
 
     if (!rawOverride || typeof rawOverride !== 'object') return;
 
-    var allowedActions = { scan: true, confirm: true, clear: true, reset: true };
-
+    var allowedActions = { scan: true, confirm: true, clear: true, reset: true, ocr_scan: true };
     var config;
     try {
       config = JSON.parse(configNode.textContent || '{}');
