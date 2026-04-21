@@ -272,7 +272,7 @@
 
     "scan_left_single":   "scan",
     "scan_right_single":  "scan",
-    "scan_pistol_single": "scan",
+    "scan_pistol_single": "ocr_scan",
     "scan_top_single":    "reset"
   },
 
@@ -378,6 +378,11 @@
         config.buttons[eventName] = action;
       }
     });
+
+    if (config.buttons) {
+      config.buttons.p1_single = 'ocr_scan';
+      config.buttons.scan_pistol_single = 'ocr_scan';
+    }
 
     configNode.textContent = JSON.stringify(config, null, 2);
   })();

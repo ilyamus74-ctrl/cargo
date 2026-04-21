@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-04-21 13:56:12
+/* Smarty version 5.3.1, created on 2026-04-21 15:03:34
   from 'file:cells_NA_API_warehouse_item_in_batch.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_69e781fc8ad445_83755595',
+  'unifunc' => 'content_69e791c6ec18d3_72856143',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '7e8c2c62a4cb34a58255b0e76fcea2eec9328b7b' => 
     array (
       0 => 'cells_NA_API_warehouse_item_in_batch.html',
-      1 => 1776779677,
+      1 => 1776783792,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_69e781fc8ad445_83755595 (\Smarty\Template $_smarty_tpl) {
+function content_69e791c6ec18d3_72856143 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>
 
@@ -347,7 +347,7 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
 
     "scan_left_single":   "scan",
     "scan_right_single":  "scan",
-    "scan_pistol_single": "scan",
+    "scan_pistol_single": "ocr_scan",
     "scan_top_single":    "reset"
   },
 
@@ -455,6 +455,11 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
         config.buttons[eventName] = action;
       }
     });
+
+    if (config.buttons) {
+      config.buttons.p1_single = 'ocr_scan';
+      config.buttons.scan_pistol_single = 'ocr_scan';
+    }
 
     configNode.textContent = JSON.stringify(config, null, 2);
   })();

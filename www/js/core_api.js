@@ -5172,8 +5172,11 @@ function initItemInScanEntryBehaviour() {
         if (clearBtn) {
             clearBtn.addEventListener('click', function () {
                 setTimeout(focusTrackingInput, 0);
-    setTimeout(focusTrackingInput, 180);
 
+                setTimeout(focusTrackingInput, 180);
+            });
+        }
+    }
     var modalEl = form.closest('.modal');
     if (modalEl && !modalEl.__itemInFocusHookBound) {
         modalEl.__itemInFocusHookBound = true;
@@ -5181,9 +5184,6 @@ function initItemInScanEntryBehaviour() {
             setTimeout(focusTrackingInput, 0);
             setTimeout(focusTrackingInput, 180);
         });
-    }
-            });
-        }
     }
 
     setTimeout(focusTrackingInput, 0);
