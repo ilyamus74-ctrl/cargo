@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-04-21 16:13:46
+/* Smarty version 5.3.1, created on 2026-04-21 16:27:34
   from 'file:cells_NA_API_warehouse_item_in_batch.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_69e7a23a80e132_47716174',
+  'unifunc' => 'content_69e7a576025929_69757649',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '7e8c2c62a4cb34a58255b0e76fcea2eec9328b7b' => 
     array (
       0 => 'cells_NA_API_warehouse_item_in_batch.html',
-      1 => 1776787934,
+      1 => 1776788827,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_69e7a23a80e132_47716174 (\Smarty\Template $_smarty_tpl) {
+function content_69e7a576025929_69757649 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>
 
@@ -345,9 +345,9 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
     "p1_single":       "ocr_scan",
     "p2_single":       "reset",
 
-    "scan_left_single":   "ocr_scan",
-    "scan_right_single":  "ocr_scan",
-    "scan_pistol_single": "ocr_scan",
+    "scan_left_single":   "scan",
+    "scan_right_single":  "scan",
+    "scan_pistol_single": "scan",
     "scan_top_single":    "reset"
   },
 
@@ -456,10 +456,9 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
     }
 
     if (config.buttons) {
-      config.buttons.p1_single = 'ocr_scan';
-      config.buttons.scan_left_single = 'ocr_scan';
-      config.buttons.scan_right_single = 'ocr_scan';
-      config.buttons.scan_pistol_single = 'ocr_scan';
+      if (!config.buttons.scan_left_single)  config.buttons.scan_left_single = 'scan';
+      if (!config.buttons.scan_right_single) config.buttons.scan_right_single = 'scan';
+      if (!config.buttons.scan_pistol_single) config.buttons.scan_pistol_single = 'scan';
     }
     configNode.textContent = JSON.stringify(config, null, 2);
   })();

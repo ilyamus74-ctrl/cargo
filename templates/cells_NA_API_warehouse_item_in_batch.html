@@ -270,9 +270,9 @@
     "p1_single":       "ocr_scan",
     "p2_single":       "reset",
 
-    "scan_left_single":   "ocr_scan",
-    "scan_right_single":  "ocr_scan",
-    "scan_pistol_single": "ocr_scan",
+    "scan_left_single":   "scan",
+    "scan_right_single":  "scan",
+    "scan_pistol_single": "scan",
     "scan_top_single":    "reset"
   },
 
@@ -379,10 +379,9 @@
     }
 
     if (config.buttons) {
-      config.buttons.p1_single = 'ocr_scan';
-      config.buttons.scan_left_single = 'ocr_scan';
-      config.buttons.scan_right_single = 'ocr_scan';
-      config.buttons.scan_pistol_single = 'ocr_scan';
+      if (!config.buttons.scan_left_single)  config.buttons.scan_left_single = 'scan';
+      if (!config.buttons.scan_right_single) config.buttons.scan_right_single = 'scan';
+      if (!config.buttons.scan_pistol_single) config.buttons.scan_pistol_single = 'scan';
     }
     configNode.textContent = JSON.stringify(config, null, 2);
   })();

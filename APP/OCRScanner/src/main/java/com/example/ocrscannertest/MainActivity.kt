@@ -322,6 +322,23 @@ class MainActivity : ComponentActivity() {
         }
         return super.dispatchKeyEvent(event)
     }
+
+    private fun triggerHardwareAction(callback: (() -> Unit)?): Boolean {
+        val action = callback ?: return false
+        action.invoke()
+        return true
+    }
+
+    private fun triggerFirstAvailable(vararg callbacks: (() -> Unit)?): Boolean {
+        callbacks.forEach { cb ->
+            if (cb != null) {
+                cb.invoke()
+                return true
+            }
+        }
+        return false
+    }
+
     private fun handleHardwareButtonKey(keyCode: Int): Boolean {
 
         when (keyCode) {
@@ -335,28 +352,43 @@ class MainActivity : ComponentActivity() {
             }
 
             KeyEvent.KEYCODE_BUTTON_L1 -> {
-                onScanLeftSingle?.invoke()
-                return true
+                if (!interceptHardwareTriggerKeys) return false
+                return triggerFirstAvailable(onScanLeftSingle, onScanPistolSingle, onVolDownSingle)
+
             }
             KeyEvent.KEYCODE_BUTTON_R1 -> {
-                onScanRightSingle?.invoke()
-                return true
+                if (!interceptHardwareTriggerKeys) return false
+                return triggerFirstAvailable(onScanRightSingle, onScanPistolSingle, onVolDownSingle)
+
             }
             KeyEvent.KEYCODE_BUTTON_L2, KeyEvent.KEYCODE_F9 -> {
-                onScanPistolSingle?.invoke()
-                return true
+                if (!interceptHardwareTriggerKeys) return false
+                return triggerFirstAvailable(onScanPistolSingle, onScanLeftSingle, onScanRightSingle, onVolDownSingle)
             }
             KeyEvent.KEYCODE_BUTTON_R2, KeyEvent.KEYCODE_F10 -> {
-                onScanTopSingle?.invoke()
-                return true
+                if (!interceptHardwareTriggerKeys) return false
+                return triggerFirstAvailable(onScanTopSingle, onVolUpDouble)
             }
             KeyEvent.KEYCODE_BUTTON_1, KeyEvent.KEYCODE_F1 -> {
-                onP1Single?.invoke()
-                return true
-            }
+                return triggerHardwareAction(onP1Single)            }
             KeyEvent.KEYCODE_BUTTON_2, KeyEvent.KEYCODE_F2 -> {
-                onP2Single?.invoke()
-                return true
+
+                return triggerHardwareAction(onP2Single)
+            }
+
+            // Some Android 11 handheld scanners (including NETUM variants)
+            // report trigger keys as camera/focus or F3..F8.
+            KeyEvent.KEYCODE_CAMERA,
+            KeyEvent.KEYCODE_FOCUS,
+            KeyEvent.KEYCODE_F3,
+            KeyEvent.KEYCODE_F4,
+            KeyEvent.KEYCODE_F5,
+            KeyEvent.KEYCODE_F6,
+            KeyEvent.KEYCODE_F7,
+            KeyEvent.KEYCODE_F8 -> {
+                if (!interceptHardwareTriggerKeys) return false
+                return triggerFirstAvailable(onScanPistolSingle, onScanLeftSingle, onScanRightSingle, onVolDownSingle)
+
             }
         }
 
