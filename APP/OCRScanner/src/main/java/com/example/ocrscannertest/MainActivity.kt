@@ -2,6 +2,8 @@
 
 package com.example.ocrscannertest
 import android.content.Context
+import android.content.BroadcastReceiver
+import android.content.IntentFilter
 import java.io.File
 import androidx.core.content.FileProvider
 import android.provider.MediaStore
@@ -226,10 +228,93 @@ class MainActivity : ComponentActivity() {
         var onVolUpSingle: (() -> Unit)? = null
         var onVolUpDouble: (() -> Unit)? = null
         var activeWebViewProvider: (() -> WebView?)? = null
+        var onHardwareScanData: ((String) -> Unit)? = null
     }
 
     private lateinit var volumeButtonDispatcher: VolumeButtonDispatcher
 
+    private val hardwareScanBuffer = StringBuilder()
+    private var hardwareScanLastCharTs: Long = 0L
+    private val hardwareScanTimeoutMs = 250L
+    private val scanIntentActions = listOf(
+        "com.honeywell.decode.intent.action.SCAN_RESULT",
+        "com.datalogic.decodewedge.decode_action",
+        "android.intent.ACTION_DECODE_DATA",
+        "nlscan.action.SCANNER_RESULT",
+        "com.sunmi.scanner.ACTION_DATA_CODE_RECEIVED"
+    )
+    private val scanIntentReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            val raw = extractScanPayload(intent) ?: return
+            dispatchHardwareScan(raw)
+        }
+    }
+
+    private fun extractScanPayload(intent: Intent?): String? {
+        if (intent == null) return null
+        val extras = intent.extras
+        val keys = listOf(
+            "data",
+            "scanData",
+            "SCAN_BARCODE1",
+            "com.symbol.datawedge.data_string",
+            "barcode_string",
+            "decode_data",
+            "code",
+            "value"
+        )
+
+        keys.forEach { key ->
+            val str = extras?.getString(key)
+            if (!str.isNullOrBlank()) return str
+        }
+
+        intent.dataString?.takeIf { it.isNotBlank() }?.let { return it }
+        return null
+    }
+
+    private fun dispatchHardwareScan(raw: String) {
+        val normalized = raw.trim()
+        if (normalized.isBlank()) return
+        runOnUiThread {
+            onHardwareScanData?.invoke(normalized)
+        }
+    }
+
+    private fun handleHardwareKeyboardWedge(event: KeyEvent): Boolean {
+        val callback = onHardwareScanData ?: return false
+        if (event.action != KeyEvent.ACTION_DOWN) return false
+        if (event.keyCode == KeyEvent.KEYCODE_VOLUME_DOWN || event.keyCode == KeyEvent.KEYCODE_VOLUME_UP) return false
+
+        if (event.keyCode == KeyEvent.KEYCODE_ENTER || event.keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER) {
+            val payload = hardwareScanBuffer.toString().trim()
+            hardwareScanBuffer.clear()
+            hardwareScanLastCharTs = 0L
+            if (payload.isNotBlank()) {
+                callback(payload)
+                return true
+            }
+            return false
+        }
+
+        val unicodeChar = event.unicodeChar
+        if (unicodeChar <= 0 || Character.isISOControl(unicodeChar)) return false
+
+        val now = System.currentTimeMillis()
+        if (now - hardwareScanLastCharTs > hardwareScanTimeoutMs) {
+            hardwareScanBuffer.clear()
+        }
+        hardwareScanLastCharTs = now
+        hardwareScanBuffer.append(unicodeChar.toChar())
+        return true
+    }
+
+    override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        if (handleHardwareKeyboardWedge(event)) {
+            return true
+        }
+        return super.dispatchKeyEvent(event)
+    }
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
         val repeat = event?.repeatCount ?: 0
 
@@ -304,6 +389,22 @@ class MainActivity : ComponentActivity() {
                 AppRoot()
             }
         }
+
+        val filter = IntentFilter().apply {
+            scanIntentActions.forEach { addAction(it) }
+        }
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            registerReceiver(scanIntentReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            registerReceiver(scanIntentReceiver, filter)
+        }
+    }
+
+    override fun onDestroy() {
+        runCatching {
+            unregisterReceiver(scanIntentReceiver)
+        }
+        super.onDestroy()
     }
 }
 
@@ -434,6 +535,126 @@ fun AppRoot() {
         }
     }
 
+
+    fun handleBarcodeResult(result: BarcodeScanResult, closeOverlay: Boolean = true) {
+        if (closeOverlay) {
+            showBarcodeScan = false
+        }
+        val resolvedResult = normalizeTrackingScanResult(result)
+        if (hasContexts) {
+            resolveActiveWarehouseContext { contextKey, contextConfig ->
+                val contextFlow = contextConfig.flow
+                val stepId = if (contextFlow != null) {
+                    val candidate = currentFlowStep
+                    if (candidate != null && contextFlow.steps.containsKey(candidate)) {
+                        candidate
+                    } else {
+                        contextFlow.start
+                    }
+                } else {
+                    null
+                }
+                val currentStep = stepId?.let { contextFlow?.steps?.get(it) }
+                val action = if (resolvedResult.isQr) {
+                    currentStep?.qrAction
+                        ?: currentStep?.barcodeAction
+                        ?: contextConfig.qr
+                        ?: contextConfig.barcode
+                } else {
+                    currentStep?.barcodeAction ?: contextConfig.barcode
+                }
+                if (action?.action == "web_callback") {
+                    Handler(Looper.getMainLooper()).post {
+                        debugToast(
+                            context,
+                            "SCAN web_callback ctx=$contextKey step=${stepId ?: "none"} fn=${action.callback ?: "?"}"
+                        )
+                    }
+                } else {
+                    Handler(Looper.getMainLooper()).post {
+                        debugToast(
+                            context,
+                            "SCAN ctx=$contextKey step=${stepId ?: "none"} type=${if (resolvedResult.isQr) "qr" else "barcode"} action=${describeScanAction(action)}"
+                        )
+                    }
+                }
+                if (isWarehouseMove) {
+                    handleWarehouseMoveScanResult(
+                        config = config,
+                        scope = scope,
+                        webView = webViewRef,
+                        scanResult = resolvedResult,
+                        action = action,
+                        contextKey = contextKey,
+                        contextConfig = contextConfig,
+                        onScannerCellUpdate = { cellId, cellCode ->
+                            warehouseMoveScannerCellId = cellId
+                            warehouseMoveScannerCellCode = cellCode
+                        },
+                        onBatchCellUpdate = { cellId, cellCode ->
+                            warehouseMoveBatchCellId = cellId
+                            warehouseMoveBatchCellCode = cellCode
+                        }
+                    )
+                } else {
+                    val cleanBarcode = sanitizeBarcodeInput(resolvedResult.rawValue)
+                    val scanValue = if (action?.action == "web_callback") {
+                        resolvedResult.rawValue
+                    } else {
+                        cleanBarcode
+                    }
+                    webViewRef?.let { web ->
+                        fillBarcodeUsingTemplate(
+                            web = web,
+                            rawBarcode = scanValue,
+                            action = action,
+                            config = config,
+                            scope = scope,
+                            isQr = resolvedResult.isQr
+                        )
+                    }
+                }
+                currentStep?.nextOnScan?.let { next ->
+                    setFlowStep(next)
+                }
+            }
+        } else {
+            val cleanBarcode = sanitizeBarcodeInput(resolvedResult.rawValue)
+            val data = buildParcelFromBarcode(cleanBarcode, sanitizeInput = false)
+            webViewRef?.let { web ->
+                val action = if (resolvedResult.isQr) {
+                    taskConfig?.qrAction ?: taskConfig?.barcodeAction
+                } else {
+                    taskConfig?.barcodeAction
+                }
+                val scanValue = if (action?.action == "web_callback") {
+                    resolvedResult.rawValue
+                } else {
+                    cleanBarcode
+                }
+                fillBarcodeUsingTemplate(
+                    web = web,
+                    rawBarcode = scanValue,
+                    action = action,
+                    config = config,
+                    scope = scope,
+                    isQr = resolvedResult.isQr
+                )
+                if (!isWarehouseIn) {
+                    fillParcelFormInWebView(web, data, taskConfig)
+                }
+            }
+            val flow = taskConfig?.flow
+            if (flow != null) {
+                val stepId = currentFlowStep ?: flow.start
+                flow.steps[stepId]?.nextOnScan?.let { next ->
+                    setFlowStep(next)
+                }
+            } else if (isWarehouseIn) {
+                warehouseScanStep = WarehouseScanStep.OCR
+            }
+        }
+    }
 
     fun warehouseStepForFlow(step: String): WarehouseScanStep? = when (step) {
         "barcode" -> WarehouseScanStep.BARCODE
@@ -1164,6 +1385,42 @@ fun AppRoot() {
             }
         }
     }
+
+
+    DisposableEffect(showWebView, showBarcodeScan, showOcr, showSettings, showQrScan) {
+        MainActivity.onHardwareScanData = { raw ->
+            when {
+                showOcr -> {
+                    // OCR остаётся только через фотокамеру.
+                }
+                showBarcodeScan -> {
+                    handleBarcodeResult(
+                        result = BarcodeScanResult(
+                            rawValue = raw,
+                            format = Barcode.FORMAT_UNKNOWN,
+                            isQr = true
+                        ),
+                        closeOverlay = true
+                    )
+                }
+                showWebView -> {
+                    handleBarcodeResult(
+                        result = BarcodeScanResult(
+                            rawValue = raw,
+                            format = Barcode.FORMAT_UNKNOWN,
+                            isQr = true
+                        ),
+                        closeOverlay = false
+                    )
+                }
+            }
+        }
+
+        onDispose {
+            MainActivity.onHardwareScanData = null
+        }
+    }
+
     Scaffold(
         topBar = {
             // как и было: прячем верхнюю панель, когда открыт WebView
@@ -1387,125 +1644,7 @@ fun AppRoot() {
                         modifier = Modifier.fillMaxSize(),
                         config = config,
                         onResult = { result ->
-                            showBarcodeScan = false
-                            val resolvedResult = normalizeTrackingScanResult(result)
-                            if (hasContexts) {
-                                resolveActiveWarehouseContext { contextKey, contextConfig ->
-                                    // НОВАЯ ЛОГИКА: проверяем, есть ли flow у контекста
-                                    val contextFlow = contextConfig.flow
-                                    val stepId = if (contextFlow != null) {
-                                        val candidate = currentFlowStep
-                                        if (candidate != null && contextFlow.steps.containsKey(candidate)) {
-                                            candidate
-                                        } else {
-                                            contextFlow.start
-                                        }                                    } else {
-                                        null
-                                    }
-                                    val currentStep = stepId?.let { contextFlow?.steps?.get(it) }
-                                    // Определяем действие: сначала из шага, потом из контекста (fallback)
-                                    val action = if (resolvedResult.isQr) {
-                                        currentStep?.qrAction
-                                            ?: currentStep?.barcodeAction
-                                            ?: contextConfig.qr
-                                            ?: contextConfig.barcode
-                                    } else {
-                                        currentStep?.barcodeAction ?: contextConfig.barcode
-                                    }
-                                    if (action?.action == "web_callback") {
-                                        Handler(Looper.getMainLooper()).post {
-                                            debugToast(
-                                                context,
-                                                "SCAN web_callback ctx=$contextKey step=${stepId ?: "none"} fn=${action.callback ?: "?"}"
-                                            )
-                                        }
-                                    } else {
-                                        Handler(Looper.getMainLooper()).post {
-                                            debugToast(
-                                                context,
-                                                "SCAN ctx=$contextKey step=${stepId ?: "none"} type=${if (resolvedResult.isQr) "qr" else "barcode"} action=${describeScanAction(action)}"
-                                            )
-                                        }
-                                    }
-                                    if (isWarehouseMove) {
-                                        handleWarehouseMoveScanResult(
-                                            config = config,
-                                            scope = scope,
-                                            webView = webViewRef,
-                                            scanResult = resolvedResult,
-                                            action = action,
-                                            contextKey = contextKey,
-                                            contextConfig = contextConfig,
-                                            onScannerCellUpdate = { cellId, cellCode ->
-                                                warehouseMoveScannerCellId = cellId
-                                                warehouseMoveScannerCellCode = cellCode
-                                            },
-                                            onBatchCellUpdate = { cellId, cellCode ->
-                                                warehouseMoveBatchCellId = cellId
-                                                warehouseMoveBatchCellCode = cellCode
-                                            }
-                                        )
-
-
-                                    } else {
-                                        val cleanBarcode = sanitizeBarcodeInput(resolvedResult.rawValue)
-                                        val scanValue = if (action?.action == "web_callback") {
-                                            resolvedResult.rawValue
-                                        } else {
-                                            cleanBarcode
-                                        }
-                                        webViewRef?.let { web ->
-                                            fillBarcodeUsingTemplate(
-                                                web = web,
-                                                rawBarcode = scanValue,
-                                                action = action,
-                                                config = config,
-                                                scope = scope,
-                                                isQr = resolvedResult.isQr
-                                            )
-                                        }
-                                    }
-                                    // Переходим к следующему шагу flow
-                                    currentStep?.nextOnScan?.let { next ->
-                                        setFlowStep(next)
-                                    }
-                                }
-                            } else {
-                                val cleanBarcode = sanitizeBarcodeInput(resolvedResult.rawValue)
-                                val data = buildParcelFromBarcode(cleanBarcode, sanitizeInput = false)
-                                webViewRef?.let { web ->
-                                    val action = if (resolvedResult.isQr) {
-                                        taskConfig?.qrAction ?: taskConfig?.barcodeAction
-
-                                    } else {
-                                        taskConfig?.barcodeAction
-                                    }
-                                    val scanValue = if (action?.action == "web_callback") {
-                                        resolvedResult.rawValue                                    } else {
-                                        cleanBarcode
-                                    }
-                                    fillBarcodeUsingTemplate(
-                                        web = web,
-                                        rawBarcode = scanValue,
-                                        action = action,
-                                        config = config,
-                                        scope = scope,
-                                        isQr = resolvedResult.isQr
-                                    )
-                                    if (!isWarehouseIn) {
-                                        fillParcelFormInWebView(web, data, taskConfig)
-                                    }
-                                }
-                                val flow = taskConfig?.flow
-                                if (flow != null) {
-                                    val stepId = currentFlowStep ?: flow.start
-                                    flow.steps[stepId]?.nextOnScan?.let { next ->
-                                        setFlowStep(next)
-                                    }
-                                } else if (isWarehouseIn) {
-                                    warehouseScanStep = WarehouseScanStep.OCR
-                                }
-                            }
+                            handleBarcodeResult(result = result, closeOverlay = true)
                         },
                         onCancel = {
                             showBarcodeScan = false
@@ -2075,7 +2214,21 @@ fun QrCameraPreview(
 ) {
     val context = LocalContext.current
     var camera by remember { mutableStateOf<Camera?>(null) }
-
+    val cameraProviderFuture = remember { ProcessCameraProvider.getInstance(context) }
+    val scannerOptions = remember {
+        BarcodeScannerOptions.Builder()
+            .setBarcodeFormats(
+                Barcode.FORMAT_QR_CODE,
+                Barcode.FORMAT_AZTEC,
+                Barcode.FORMAT_CODE_128,
+                Barcode.FORMAT_CODE_39,
+                Barcode.FORMAT_EAN_13,
+                Barcode.FORMAT_EAN_8
+            )
+            .build()
+    }
+    val scanner = remember { BarcodeScanning.getClient(scannerOptions) }
+    val analyzerExecutor = remember { Executors.newSingleThreadExecutor() }
     // PreviewView для CameraX
     val previewView = remember {
         PreviewView(context).apply {
@@ -2084,7 +2237,7 @@ fun QrCameraPreview(
     }
 
     LaunchedEffect(Unit) {
-        val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
+
         val cameraProvider = cameraProviderFuture.get()
 
         val preview = Preview.Builder()
@@ -2095,23 +2248,9 @@ fun QrCameraPreview(
             .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
             .build()
 
-        val options = BarcodeScannerOptions.Builder()
-            .setBarcodeFormats(
-                Barcode.FORMAT_QR_CODE,
-                Barcode.FORMAT_AZTEC,
-                Barcode.FORMAT_CODE_128,
-                Barcode.FORMAT_CODE_39,
-                Barcode.FORMAT_EAN_13,
-                Barcode.FORMAT_EAN_8
-            )
-            .build()
-
-        val scanner = BarcodeScanning.getClient(options)
-        val executor = Executors.newSingleThreadExecutor()
-
         var found = false
 
-        analysis.setAnalyzer(executor) { imageProxy ->
+        analysis.setAnalyzer(analyzerExecutor) { imageProxy ->
             if (found) {
                 imageProxy.close()
                 return@setAnalyzer
@@ -2160,6 +2299,17 @@ fun QrCameraPreview(
         }
     }
 
+    DisposableEffect(Unit) {
+        onDispose {
+            try {
+                cameraProviderFuture.get().unbindAll()
+            } catch (_: Exception) {
+            }
+            scanner.close()
+            analyzerExecutor.shutdown()
+            camera = null
+        }
+    }
     AndroidView(
         factory = { previewView },
         modifier = modifier
@@ -2997,7 +3147,7 @@ fun DeviceWebViewScreen(
                 settings.javaScriptEnabled = true
                 settings.domStorageEnabled = true
                 settings.mediaPlaybackRequiresUserGesture = false
-                
+
                 // Clear WebView cache/storage only when requested (app start)
                 if (shouldClearWebViewData) {
                     onWebViewDataCleared()
@@ -4721,6 +4871,10 @@ fun BarcodeScanScreen(
     var liveDetectedFormat by remember { mutableStateOf<Int?>(null) }
     var liveAnalyzerBusy by remember { mutableStateOf(false) }
 
+    var liveAnalysis by remember { mutableStateOf<ImageAnalysis?>(null) }
+    var liveScanner by remember { mutableStateOf<com.google.mlkit.vision.barcode.BarcodeScanner?>(null) }
+    var boundCameraProvider by remember { mutableStateOf<ProcessCameraProvider?>(null) }
+
     val barcodeOptions = remember {
         BarcodeScannerOptions.Builder()
             .setBarcodeFormats(
@@ -4903,13 +5057,20 @@ fun BarcodeScanScreen(
         val selector = CameraSelector.DEFAULT_BACK_CAMERA
 
         try {
+            liveAnalysis?.clearAnalyzer()
+            liveAnalysis = null
+            liveScanner?.close()
+            liveScanner = null
             cameraProvider.unbindAll()
+            boundCameraProvider = cameraProvider
 
             if (config.liveScanEnabled) {
                 val analysis = ImageAnalysis.Builder()
                     .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                     .build()
                 val scanner = BarcodeScanning.getClient(barcodeOptions)
+                liveAnalysis = analysis
+                liveScanner = scanner
                 analysis.setAnalyzer(ContextCompat.getMainExecutor(context)) { imageProxy ->
                     val mediaImage = imageProxy.image
                     if (mediaImage == null || liveAnalyzerBusy) {
@@ -4944,6 +5105,17 @@ fun BarcodeScanScreen(
         }
     }
 
+    DisposableEffect(Unit) {
+        onDispose {
+            liveAnalysis?.clearAnalyzer()
+            liveAnalysis = null
+            liveScanner?.close()
+            liveScanner = null
+            boundCameraProvider?.unbindAll()
+            boundCameraProvider = null
+            camera = null
+        }
+    }
     LaunchedEffect(camera, selectedPreset.zoomRatio) {
         val activeCamera = camera ?: return@LaunchedEffect
         val zoomState = activeCamera.cameraInfo.zoomState.value ?: return@LaunchedEffect
@@ -5142,6 +5314,9 @@ fun OcrScanScreen(
     var liveOcrPreview by remember { mutableStateOf<String?>(null) }
     var liveOcrBusy by remember { mutableStateOf(false) }
 
+    var liveAnalysis by remember { mutableStateOf<ImageAnalysis?>(null) }
+    var boundCameraProvider by remember { mutableStateOf<ProcessCameraProvider?>(null) }
+
     fun processRecognizedText(fullText: String) {
         scope.launch {
             try {
@@ -5201,11 +5376,15 @@ fun OcrScanScreen(
         val selector = CameraSelector.DEFAULT_BACK_CAMERA
 
         try {
+            liveAnalysis?.clearAnalyzer()
+            liveAnalysis = null
             cameraProvider.unbindAll()
+            boundCameraProvider = cameraProvider
             if (config.liveScanEnabled) {
                 val analysis = ImageAnalysis.Builder()
                     .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                     .build()
+                liveAnalysis = analysis
                 analysis.setAnalyzer(executor) { imageProxy ->
                     val mediaImage = imageProxy.image
                     if (mediaImage == null || liveOcrBusy || isProcessing) {
@@ -5329,6 +5508,19 @@ fun OcrScanScreen(
 
         onDispose {
             onBindHardwareTrigger(null)
+        }
+    }
+
+
+    DisposableEffect(Unit) {
+        onDispose {
+            liveAnalysis?.clearAnalyzer()
+            liveAnalysis = null
+            boundCameraProvider?.unbindAll()
+            boundCameraProvider = null
+            recognizer.close()
+            executor.shutdown()
+            camera = null
         }
     }
 

@@ -1190,11 +1190,6 @@ function connectors_subrunner_resolve_containers_url(array $connector, array $fl
 
 function connectors_subrunner_http_get(string $url, array $connector, bool $sslIgnore = false): string
 {
-    $ch = curl_init();
-    if ($ch === false) {
-        throw new RuntimeException('Не удалось инициализировать cURL для загрузки containers');
-    }
-
     $headers = ['User-Agent: CargoConnector/1.0'];
     $authToken = trim((string)($connector['auth_token'] ?? ''));
     if ($authToken !== '') {
@@ -1205,7 +1200,7 @@ function connectors_subrunner_http_get(string $url, array $connector, bool $sslI
     if ($cookieValue === '') {
         $cookieValue = trim((string)($connector['auth_cookies'] ?? ''));
     }
-    $opts = [
+    $baseOpts = [
         CURLOPT_URL => $url,
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_FOLLOWLOCATION => true,
@@ -1214,28 +1209,62 @@ function connectors_subrunner_http_get(string $url, array $connector, bool $sslI
         CURLOPT_HTTPHEADER => $headers,
     ];
     if ($cookieValue !== '') {
-        $opts[CURLOPT_COOKIE] = $cookieValue;
+        $baseOpts[CURLOPT_COOKIE] = $cookieValue;
     }
-    if ($sslIgnore) {
-        $opts[CURLOPT_SSL_VERIFYPEER] = false;
-        $opts[CURLOPT_SSL_VERIFYHOST] = 0;
-    }
-
-    curl_setopt_array($ch, $opts);
-    $body = curl_exec($ch);
-    $err = curl_error($ch);
-    $status = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
-    curl_close($ch);
-
-    if ($body === false) {
-        throw new RuntimeException('Ошибка cURL при загрузке containers: ' . ($err !== '' ? $err : 'unknown'));
+    $connectorSslIgnore = !empty($connector['ssl_ignore']) || !empty($connector['ssl_insecure']) || !empty($connector['insecure_ssl']);
+    $attempts = [($sslIgnore || $connectorSslIgnore)];
+    if (!$attempts[0]) {
+        $attempts[] = true;
     }
 
-    if ($status >= 400) {
-        throw new RuntimeException('Ошибка загрузки containers: HTTP ' . $status);
+
+    $lastCurlError = '';
+    $lastStatus = 0;
+    foreach ($attempts as $attemptNo => $attemptSslIgnore) {
+        $ch = curl_init();
+        if ($ch === false) {
+            throw new RuntimeException('Не удалось инициализировать cURL для загрузки containers');
+        }
+
+        $opts = $baseOpts;
+        if ($attemptSslIgnore) {
+            $opts[CURLOPT_SSL_VERIFYPEER] = false;
+            $opts[CURLOPT_SSL_VERIFYHOST] = 0;
+        }
+
+        curl_setopt_array($ch, $opts);
+        $body = curl_exec($ch);
+        $err = trim((string)curl_error($ch));
+        $status = (int)curl_getinfo($ch, CURLINFO_RESPONSE_CODE);
+        curl_close($ch);
+
+        if ($body !== false) {
+            if ($status >= 400) {
+                throw new RuntimeException('Ошибка загрузки containers: HTTP ' . $status);
+            }
+
+
+        return (string)$body;
+        }
+
+        $lastCurlError = $err !== '' ? $err : 'unknown';
+        $lastStatus = $status;
+        $isSslError = stripos($lastCurlError, 'ssl certificate problem') !== false
+            || stripos($lastCurlError, 'certificate has expired') !== false
+            || stripos($lastCurlError, 'unable to get local issuer certificate') !== false
+            || stripos($lastCurlError, 'self signed certificate') !== false;
+
+        $hasRetry = isset($attempts[$attemptNo + 1]);
+        if (!$hasRetry || !$isSslError) {
+            break;
+        }
     }
 
-    return (string)$body;
+    $errorSuffix = $lastCurlError !== '' ? $lastCurlError : 'unknown';
+    if ($lastStatus > 0) {
+        $errorSuffix .= ' (http=' . $lastStatus . ')';
+    }
+    throw new RuntimeException('Ошибка cURL при загрузке containers: ' . $errorSuffix);
 }
 
 function connectors_subrunner_normalize_container_row(array $row, array $headers, array $flightRow, int $rowNo): ?array
