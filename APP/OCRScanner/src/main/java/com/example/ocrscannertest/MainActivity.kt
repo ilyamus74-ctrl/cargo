@@ -85,9 +85,7 @@ import android.net.Uri
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.Image
 import androidx.compose.ui.res.painterResource
-import android.content.pm.PackageManager
 import com.tencent.mmkv.MMKV
-import java.io.File
 
 private val INSTALL_MAIN_OBSERVER_JS = """
 (function(){
@@ -523,92 +521,99 @@ class MainActivity : ComponentActivity() {
             Log.e("HS_SCAN", "Failed to start ScreenService", e)
         }
     }
-    private var hsBootstrappedAtLeastOnce = false
-    override fun onResume() {
-        super.onResume()
+
+    private fun hsVendorContext(): Context? {
+        return try {
+            createPackageContext("com.hs.dcsservice", Context.CONTEXT_IGNORE_SECURITY)
+        } catch (e: Exception) {
+            Log.e("HS_SCAN", "Failed to create vendor context", e)
+            null
+        }
+    }
+    private fun clearHsNoScanBlacklist() {
+        try {
+            val vendorCtx = hsVendorContext() ?: return
+
+            val mmkvRoot = File(vendorCtx.dataDir, "files/mmkv").absolutePath
+            MMKV.initialize(vendorCtx, mmkvRoot)
+
+            val kv = MMKV.defaultMMKV()
+            kv.encode("noScanApp", "")
+            kv.encode("noScanShortClass", "")
+            kv.commit()
+
+
+            Log.d("HS_SCAN", "Cleared HS noScan blacklist in $mmkvRoot")
+        } catch (e: Exception) {
+            Log.e("HS_SCAN", "Failed to clear HS noScan blacklist", e)
+        }
+    }
+
+    private fun sendHsBroadcast(action: String, noAddScanApp: Int? = null) {
+        try {
+            val intent = Intent(action).apply {
+                `package` = "com.hs.dcsservice"
+                noAddScanApp?.let { putExtra("noAddScanApp", it) }
+            }
+
+            sendBroadcast(intent)
+            Log.d("HS_SCAN", "Broadcast sent: $action noAddScanApp=$noAddScanApp")
+        } catch (e: Exception) {
+            Log.e("HS_SCAN", "Failed broadcast: $action", e)
+        }
+    }
+
+    private fun sendHsDcsAction(actionValue: String) {
+        try {
+            val intent = Intent("com.hs.dcsservice.action").apply {
+                `package` = "com.hs.dcsservice"
+                putExtra("action", actionValue)
+            }
+
+            sendBroadcast(intent, "com.honeywell.decode.permission.DECODE")
+            Log.d("HS_SCAN", "DCS action sent: $actionValue")
+        } catch (e: Exception) {
+            Log.e("HS_SCAN", "Failed DCS action: $actionValue", e)
+        }
+    }
+    private fun bootstrapHsScannerStack() {
+        clearHsNoScanBlacklist()
 
         Handler(Looper.getMainLooper()).postDelayed({
             startHsServicesDirectly()
-            private fun hsVendorContext(): Context? {
-                return try {
-                    createPackageContext("com.hs.dcsservice", Context.CONTEXT_IGNORE_SECURITY)
-                } catch (e: Exception) {
-                    Log.e("HS_SCAN", "Failed to create vendor context", e)
-                    null
-                }
-            }
+        }, 150)
 
-            private fun clearHsNoScanBlacklist() {
-                try {
-                    val vendorCtx = hsVendorContext() ?: return
+        Handler(Looper.getMainLooper()).postDelayed({
+            // не даём vendor-сервису занести нас в noScanApp
+            sendHsBroadcast("com.android.hs.action.CAMERACLOSESCAN", 1)
+        }, 500)
 
-                    val mmkvRoot = File(vendorCtx.dataDir, "files/mmkv").absolutePath
-                    MMKV.initialize(vendorCtx, mmkvRoot)
 
-                    val kv = MMKV.defaultMMKV()
-                    kv.encode("noScanApp", "")
-                    kv.encode("noScanShortClass", "")
-                    kv.commit()
+        Handler(Looper.getMainLooper()).postDelayed({
+            // просим vendor stack снова открыть decode path
+            sendHsBroadcast("com.android.hs.action.SCANRESTART")
+        }, 900)
 
-                    Log.d("HS_SCAN", "Cleared HS noScan blacklist in $mmkvRoot")
-                } catch (e: Exception) {
-                    Log.e("HS_SCAN", "Failed to clear HS noScan blacklist", e)
-                }
-            }
+        Handler(Looper.getMainLooper()).postDelayed({
+            // прямой open для DcsService
+            sendHsDcsAction("open")
+        }, 1200)
+        Handler(Looper.getMainLooper()).postDelayed({
+            clearHsNoScanBlacklist()
+        }, 1600)
+    }
 
-            private fun sendHsBroadcast(action: String, noAddScanApp: Int? = null) {
-                try {
-                    val intent = Intent(action).apply {
-                        `package` = "com.hs.dcsservice"
-                        noAddScanApp?.let { putExtra("noAddScanApp", it) }
-                    }
-                    sendBroadcast(intent)
-                    Log.d("HS_SCAN", "Broadcast sent: $action noAddScanApp=$noAddScanApp")
-                } catch (e: Exception) {
-                    Log.e("HS_SCAN", "Failed broadcast: $action", e)
-                }
-            }
+    private var hsBootstrappedAtLeastOnce = false
 
-            private fun sendHsDcsAction(actionValue: String) {
-                try {
-                    val intent = Intent("com.hs.dcsservice.action").apply {
-                        `package` = "com.hs.dcsservice"
-                        putExtra("action", actionValue)
-                    }
-                    sendBroadcast(intent, "com.honeywell.decode.permission.DECODE")
-                    Log.d("HS_SCAN", "DCS action sent: $actionValue")
-                } catch (e: Exception) {
-                    Log.e("HS_SCAN", "Failed DCS action: $actionValue", e)
-                }
-            }
+    override fun onResume() {
+        super.onResume()
 
-            private fun bootstrapHsScannerStack() {
-                clearHsNoScanBlacklist()
-
-                Handler(Looper.getMainLooper()).postDelayed({
-                    startHsServicesDirectly()
-                }, 150)
-
-                Handler(Looper.getMainLooper()).postDelayed({
-                    // не даём vendor-сервису занести нас в noScanApp
-                    sendHsBroadcast("com.android.hs.action.CAMERACLOSESCAN", 1)
-                }, 500)
-
-                Handler(Looper.getMainLooper()).postDelayed({
-                    // просим vendor stack снова открыть decode path
-                    sendHsBroadcast("com.android.hs.action.SCANRESTART")
-                }, 900)
-
-                Handler(Looper.getMainLooper()).postDelayed({
-                    // прямой open для DcsService
-                    sendHsDcsAction("open")
-                }, 1200)
-
-                Handler(Looper.getMainLooper()).postDelayed({
-                    clearHsNoScanBlacklist()
-                }, 1600)
-            }
-        }, 300)
+        if (!hsBootstrappedAtLeastOnce) {
+            hsBootstrappedAtLeastOnce = true
+            Handler(Looper.getMainLooper()).postDelayed({
+                bootstrapHsScannerStack()
+            }, 250)
+        }
     }
 
     override fun onDestroy() {
