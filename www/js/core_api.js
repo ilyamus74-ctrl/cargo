@@ -5180,15 +5180,29 @@ function initItemInScanEntryBehaviour() {
     var tuidInput = form.querySelector('#tuid');
     if (!trackingInput || !tuidInput) return;
 
-    function focusTrackingInput() {
+    var focusRetryDelays = [0, 80, 180, 350, 700];
+
+    function isEditableControl(el) {
+        if (!(el instanceof HTMLElement)) return false;
+        var tag = el.tagName ? String(el.tagName).toUpperCase() : '';
+        return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || !!el.isContentEditable;
+    }
+
+    function focusTrackingInput(force) {
+        return focusScannerFieldIfNeeded(trackingInput, {
+            force: force !== false,
+            preventScroll: false
+        });
+    }
+
+    function scheduleFocusRetries(reason) {
         if (!document.body.contains(trackingInput)) return;
-        if (trackingInput.disabled || trackingInput.readOnly) return;
-        try {
-            trackingInput.focus({ preventScroll: false });
-        } catch (e) {
-            trackingInput.focus();
-        }
-        trackingInput.select();
+        focusRetryDelays.forEach(function (delay) {
+            setTimeout(function () {
+                if (!document.body.contains(trackingInput)) return;
+                focusTrackingInput(true);
+            }, delay);
+        });
     }
 
     if (!form.__itemInTrackMirrorBound) {
@@ -5220,30 +5234,62 @@ function initItemInScanEntryBehaviour() {
         var addBtn = form.querySelector('button[data-core-action="add_new_item_in"]');
         if (addBtn) {
             addBtn.addEventListener('click', function () {
-                setTimeout(focusTrackingInput, 350);
+                scheduleFocusRetries('add_new_item_in');
             });
         }
 
         var clearBtn = document.getElementById('itemInClearBtn');
         if (clearBtn) {
             clearBtn.addEventListener('click', function () {
-                setTimeout(focusTrackingInput, 0);
-
-                setTimeout(focusTrackingInput, 180);
+                scheduleFocusRetries('clear_item_in');
             });
         }
+
+        form.addEventListener('focusout', function () {
+            setTimeout(function () {
+                if (!document.body.contains(trackingInput)) return;
+                var active = document.activeElement;
+                var activeMissing = !active || active === document.body;
+                if (activeMissing) {
+                    scheduleFocusRetries('focusout_to_body');
+                }
+            }, 0);
+        });
     }
     var modalEl = form.closest('.modal');
     if (modalEl && !modalEl.__itemInFocusHookBound) {
         modalEl.__itemInFocusHookBound = true;
         modalEl.addEventListener('shown.bs.modal', function () {
-            setTimeout(focusTrackingInput, 0);
-            setTimeout(focusTrackingInput, 180);
+
+            scheduleFocusRetries('shown.bs.modal');
+        });
+
+        modalEl.addEventListener('click', function (event) {
+            if (!document.body.contains(trackingInput)) return;
+            var target = event.target;
+            if (!(target instanceof HTMLElement)) {
+                scheduleFocusRetries('modal_click_unknown_target');
+                return;
+            }
+            if (target === trackingInput || target.closest('#trackingNo')) return;
+            if (isEditableControl(target) || target.closest('input, textarea, select, [contenteditable="true"]')) return;
+            scheduleFocusRetries('modal_click_background');
         });
     }
-
-    setTimeout(focusTrackingInput, 0);
+    scheduleFocusRetries('init');
 }
+
+window.setWarehouseTrackingFromScanner = function (value) {
+    var trackingInput = document.querySelector('#item-in-modal-form #trackingNo') || document.getElementById('trackingNo');
+    if (!(trackingInput instanceof HTMLInputElement)) return false;
+    if (trackingInput.disabled || trackingInput.readOnly) return false;
+
+    trackingInput.value = String(value == null ? '' : value);
+    trackingInput.dispatchEvent(new Event('input', { bubbles: true }));
+    trackingInput.dispatchEvent(new Event('change', { bubbles: true }));
+    focusScannerFieldIfNeeded(trackingInput, { force: true, preventScroll: false });
+    return true;
+};
 
 function focusScannerFieldIfNeeded(field, options) {
     if (!(field instanceof HTMLElement)) return false;

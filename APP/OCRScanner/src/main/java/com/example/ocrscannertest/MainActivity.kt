@@ -322,8 +322,7 @@ if (root) new MutationObserver(schedule).observe(root, {childList:true, subtree:
 
 private class ScannerDebugBridge(private val context: Context) {
     private val lock = Any()
-    private val logFile = File(context.getExternalFilesDir(null) ?: context.filesDir, "scanner_debug.log")
-
+    private val logFile = File(context.filesDir, "scanner_debug.log")
     init {
         Log.i("ScannerDebugBridge", "Log file path: ${logFile.absolutePath}")
     }
