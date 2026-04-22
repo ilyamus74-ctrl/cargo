@@ -1351,10 +1351,11 @@ fun AppRoot() {
                 MainActivity.onVolUpSingle = { dispatchContextFlowAction("vol_up_single") }
                 MainActivity.onVolUpDouble = { dispatchContextFlowAction("vol_up_double") }
 
-                MainActivity.onScanLeftSingle = { dispatchContextFlowAction("scan_left_single") }
-                MainActivity.onScanRightSingle = { dispatchContextFlowAction("scan_right_single") }
-                MainActivity.onScanPistolSingle = { dispatchContextFlowAction("scan_pistol_single") }
-                MainActivity.onScanTopSingle = { dispatchContextFlowAction("scan_top_single") }
+                MainActivity.onScanLeftSingle = null
+                MainActivity.onScanRightSingle = null
+                MainActivity.onScanPistolSingle = null
+                MainActivity.onScanTopSingle = null
+
                 MainActivity.onP1Single = { dispatchContextFlowAction("p1_single") }
                 MainActivity.onP2Single = { dispatchContextFlowAction("p2_single") }
             }
@@ -1443,10 +1444,12 @@ fun AppRoot() {
                     MainActivity.onVolDownDouble = { dispatchFlowAction("vol_down_double") }
                     MainActivity.onVolUpSingle = { dispatchFlowAction("vol_up_single") }
                     MainActivity.onVolUpDouble = { dispatchFlowAction("vol_up_double") }
-                    MainActivity.onScanLeftSingle = { dispatchFlowAction("scan_left_single") }
-                    MainActivity.onScanRightSingle = { dispatchFlowAction("scan_right_single") }
-                    MainActivity.onScanPistolSingle = { dispatchFlowAction("scan_pistol_single") }
-                    MainActivity.onScanTopSingle = { dispatchFlowAction("scan_top_single") }
+
+                    MainActivity.onScanLeftSingle = null
+                    MainActivity.onScanRightSingle = null
+                    MainActivity.onScanPistolSingle = null
+                    MainActivity.onScanTopSingle = null
+
                     MainActivity.onP1Single = { dispatchFlowAction("p1_single") }
                     MainActivity.onP2Single = { dispatchFlowAction("p2_single") }
                 } else if (hasContextFlow) {
@@ -1458,10 +1461,12 @@ fun AppRoot() {
                     MainActivity.onVolDownDouble = { dispatchContextFlowAction("vol_down_double") }
                     MainActivity.onVolUpSingle = { dispatchContextFlowAction("vol_up_single") }
                     MainActivity.onVolUpDouble = { dispatchContextFlowAction("vol_up_double") }
-                    MainActivity.onScanLeftSingle = { dispatchContextFlowAction("scan_left_single") }
-                    MainActivity.onScanRightSingle = { dispatchContextFlowAction("scan_right_single") }
-                    MainActivity.onScanPistolSingle = { dispatchContextFlowAction("scan_pistol_single") }
-                    MainActivity.onScanTopSingle = { dispatchContextFlowAction("scan_top_single") }
+
+                    MainActivity.onScanLeftSingle = null
+                    MainActivity.onScanRightSingle = null
+                    MainActivity.onScanPistolSingle = null
+                    MainActivity.onScanTopSingle = null
+
                     MainActivity.onP1Single = { dispatchContextFlowAction("p1_single") }
                     MainActivity.onP2Single = { dispatchContextFlowAction("p2_single") }
                 } else {
@@ -1511,10 +1516,11 @@ fun AppRoot() {
                             }
                         }
                     }
-                    MainActivity.onScanLeftSingle = { MainActivity.onVolDownSingle?.invoke() }
-                    MainActivity.onScanRightSingle = { MainActivity.onVolDownSingle?.invoke() }
-                    MainActivity.onScanPistolSingle = { MainActivity.onVolDownSingle?.invoke() }
-                    MainActivity.onScanTopSingle = { MainActivity.onVolUpDouble?.invoke() }
+                    MainActivity.onScanLeftSingle = null
+                    MainActivity.onScanRightSingle = null
+                    MainActivity.onScanPistolSingle = null
+                    MainActivity.onScanTopSingle = null
+
                     MainActivity.onP1Single = { MainActivity.onVolDownSingle?.invoke() }
                     MainActivity.onP2Single = { MainActivity.onVolUpDouble?.invoke() }
                     MainActivity.onVolDownDouble = {
