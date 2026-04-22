@@ -727,10 +727,7 @@ class MainActivity : ComponentActivity() {
     private var scannerRecoveryInProgress = false
     private var lastScannerRecoveryAt = 0L
     private val scannerRecoveryHandler by lazy { Handler(Looper.getMainLooper()) }
-    private val scannerRecoveryActions = listOf(
-        "com.android.hs.action.SCANRESTART",
-        "com.hs.dcsservice.action"
-    )
+    private val scannerRestartAction = "com.android.hs.action.SCANRESTART"
 
     fun requestHardwareScannerRestore(reason: String = "manual", withDelayMs: Long = 350L) {
         scheduleHardwareScannerRestore(reason = reason, initialDelayMs = withDelayMs)
@@ -739,11 +736,11 @@ class MainActivity : ComponentActivity() {
     private fun scheduleHardwareScannerRestore(
         reason: String,
         initialDelayMs: Long = 350L,
-        retries: Int = 3
+        retries: Int = 2
     ) {
         val now = System.currentTimeMillis()
         if (scannerRecoveryInProgress) return
-        if (now - lastScannerRecoveryAt < 1200L) return
+        if (now - lastScannerRecoveryAt < 700L) return
 
         scannerRecoveryInProgress = true
         lastScannerRecoveryAt = now
@@ -759,14 +756,11 @@ class MainActivity : ComponentActivity() {
                         Log.w("HW_SCANNER_RECOVERY", "camera unbind failed attempt=$attemptNo reason=$reason", it)
                     }
 
-                    scannerRecoveryActions.forEach { action ->
-                        val restartIntent = Intent(action).apply {
-                            `package` = "com.hs.dcsservice"
-                            addFlags(Intent.FLAG_RECEIVER_FOREGROUND)
-                        }
-                        sendBroadcast(restartIntent)
-                        Log.i("HW_SCANNER_RECOVERY", "broadcast sent action=$action attempt=$attemptNo reason=$reason")
+                    val restartIntent = Intent(scannerRestartAction).apply {
+                        addFlags(Intent.FLAG_RECEIVER_FOREGROUND)
                     }
+                    sendBroadcast(restartIntent)
+                    Log.i("HW_SCANNER_RECOVERY", "broadcast sent action=$scannerRestartAction attempt=$attemptNo reason=$reason")
                 } catch (e: Exception) {
                     Log.e("HW_SCANNER_RECOVERY", "attempt failed attempt=$attemptNo reason=$reason", e)
                 } finally {
@@ -776,11 +770,12 @@ class MainActivity : ComponentActivity() {
                         scannerRecoveryInProgress = false
                     }
                 }
-            }, if (tryIndex == 0) initialDelayMs else 450L)
+            }, if (tryIndex == 0) initialDelayMs else 500L)
         }
 
         attempt(0)
     }
+
     private fun bootstrapHsViaSplashActivity() {
         if (hsBootstrapInProgress) return
         hsBootstrapInProgress = true
