@@ -724,32 +724,83 @@ class MainActivity : ComponentActivity() {
     private var hsBootstrapInProgress = false
     private var lastHsBootstrapAt = 0L
 
-    private var scannerRecoveryInProgress = false
+    private enum class ScannerRecoveryState {
+        IDLE,
+        WAITING_CAMERA_RELEASE,
+        RUNNING
+    }
+
+    private var scannerRecoveryState = ScannerRecoveryState.IDLE
     private var lastScannerRecoveryAt = 0L
+    private var qrCameraFlowActive = false
+    private var qrCameraReleased = true
+    private var pendingRecoveryReason: String? = null
     private val scannerRecoveryHandler by lazy { Handler(Looper.getMainLooper()) }
     private val scannerRestartAction = "com.android.hs.action.SCANRESTART"
 
+    private val recoveryAttemptDelaysMs = longArrayOf(500L, 1200L, 2000L)
+
+    fun setQrCameraFlowActive(active: Boolean, reason: String = "unknown") {
+        qrCameraFlowActive = active
+        if (active) {
+            qrCameraReleased = false
+            scannerRecoveryState = ScannerRecoveryState.WAITING_CAMERA_RELEASE
+            Log.i("HW_SCANNER_RECOVERY", "qr flow active reason=$reason")
+        } else {
+            Log.i("HW_SCANNER_RECOVERY", "qr flow inactive reason=$reason released=$qrCameraReleased")
+            maybeSchedulePendingRecovery("qr_flow_inactive_$reason")
+        }
+    }
+
+    fun notifyQrCameraReleased(reason: String = "unknown") {
+        qrCameraReleased = true
+        Log.i("HW_SCANNER_RECOVERY", "qr camera released reason=$reason")
+        maybeSchedulePendingRecovery("camera_released_$reason")
+    }
     fun requestHardwareScannerRestore(reason: String = "manual", withDelayMs: Long = 350L) {
-        scheduleHardwareScannerRestore(reason = reason, initialDelayMs = withDelayMs)
+
+        pendingRecoveryReason = reason
+        scannerRecoveryHandler.postDelayed({
+            maybeSchedulePendingRecovery("request_$reason")
+        }, withDelayMs)
+    }
+
+    private fun maybeSchedulePendingRecovery(trigger: String) {
+        val reason = pendingRecoveryReason ?: trigger
+        scheduleHardwareScannerRestore(reason = reason)
     }
 
     private fun scheduleHardwareScannerRestore(
         reason: String,
-        initialDelayMs: Long = 350L,
-        retries: Int = 2
+        retries: Int = recoveryAttemptDelaysMs.size
     ) {
         val now = System.currentTimeMillis()
-        if (scannerRecoveryInProgress) return
+        if (scannerRecoveryState == ScannerRecoveryState.RUNNING) return
         if (now - lastScannerRecoveryAt < 700L) return
 
-        scannerRecoveryInProgress = true
+        if (qrCameraFlowActive || !qrCameraReleased) {
+            pendingRecoveryReason = reason
+            scannerRecoveryState = ScannerRecoveryState.WAITING_CAMERA_RELEASE
+            Log.i("HW_SCANNER_RECOVERY", "defer reason=$reason qrActive=$qrCameraFlowActive qrReleased=$qrCameraReleased")
+            return
+        }
+        scannerRecoveryState = ScannerRecoveryState.RUNNING
         lastScannerRecoveryAt = now
-        Log.i("HW_SCANNER_RECOVERY", "schedule reason=$reason delay=${initialDelayMs}ms retries=$retries")
+        pendingRecoveryReason = null
+        Log.i("HW_SCANNER_RECOVERY", "schedule reason=$reason retries=$retries")
 
         fun attempt(tryIndex: Int) {
+            val delayMs = recoveryAttemptDelaysMs.getOrElse(tryIndex) { recoveryAttemptDelaysMs.last() }
             scannerRecoveryHandler.postDelayed({
                 val attemptNo = tryIndex + 1
                 try {
+
+                    if (qrCameraFlowActive) {
+                        pendingRecoveryReason = reason
+                        scannerRecoveryState = ScannerRecoveryState.WAITING_CAMERA_RELEASE
+                        Log.i("HW_SCANNER_RECOVERY", "stop attempts because qr became active reason=$reason attempt=$attemptNo")
+                        return@postDelayed
+                    }
                     runCatching {
                         ProcessCameraProvider.getInstance(this).get().unbindAll()
                     }.onFailure {
@@ -767,10 +818,10 @@ class MainActivity : ComponentActivity() {
                     if (attemptNo < retries) {
                         attempt(attemptNo)
                     } else {
-                        scannerRecoveryInProgress = false
+                        scannerRecoveryState = ScannerRecoveryState.IDLE
                     }
                 }
-            }, if (tryIndex == 0) initialDelayMs else 500L)
+            }, delayMs)
         }
 
         attempt(0)
@@ -816,7 +867,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-        scheduleHardwareScannerRestore(reason = "activity_onResume", initialDelayMs = 500L, retries = 2)
+        requestHardwareScannerRestore(reason = "activity_onResume", withDelayMs = 500L)
         //val now = System.currentTimeMillis()
         //if (!hsBootstrapInProgress && now - lastHsBootstrapAt > 5000) {
         //    lastHsBootstrapAt = now
@@ -837,7 +888,7 @@ class MainActivity : ComponentActivity() {
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
         if (hasFocus) {
-            scheduleHardwareScannerRestore(reason = "window_focus", initialDelayMs = 300L, retries = 2)
+            requestHardwareScannerRestore(reason = "window_focus", withDelayMs = 500L)
         }
     }
 }
@@ -886,6 +937,21 @@ fun AppRoot() {
     var lastQr by remember { mutableStateOf<String?>(null) }
     var loginError by remember { mutableStateOf<String?>(null) }
     var isLoggingIn by remember { mutableStateOf(false) }
+
+    LaunchedEffect(showQrScan) {
+        if (showQrScan) {
+            activity?.setQrCameraFlowActive(true, reason = "qr_overlay_opened")
+        } else {
+            activity?.setQrCameraFlowActive(false, reason = "qr_overlay_closed")
+            activity?.requestHardwareScannerRestore(reason = "qr_overlay_closed", withDelayMs = 500L)
+        }
+    }
+
+    LaunchedEffect(showWebView, showQrScan) {
+        if (showWebView && !showQrScan) {
+            activity?.requestHardwareScannerRestore(reason = "returned_to_webview", withDelayMs = 1200L)
+        }
+    }
     var destConfig by remember { mutableStateOf<List<DestCountryCfg>>(emptyList()) }
 
     var nameDict by remember { mutableStateOf<NameDict?>(null) }
@@ -2023,6 +2089,7 @@ fun AppRoot() {
                     QrScanScreen(
                         modifier = Modifier.fillMaxSize(),
                         onCameraDisposed = {
+                            activity?.notifyQrCameraReleased(reason = "qr_screen_disposed")
                             val reason = pendingQrScannerRestoreReason ?: return@QrScanScreen
                             activity?.requestHardwareScannerRestore(reason = reason)
                             pendingQrScannerRestoreReason = null
@@ -2030,7 +2097,6 @@ fun AppRoot() {
                         onCodeScanned = { raw ->
                             pendingQrScannerRestoreReason = "qr_scan_completed"
                             showQrScan = false
-                            activity?.requestHardwareScannerRestore(reason = "qr_scan_completed")
                             lastQr = raw
                             loginError = null
                             isLoggingIn = true
@@ -2749,7 +2815,8 @@ fun QrCameraPreview(
             .build()
     }
     val scanner = remember { BarcodeScanning.getClient(scannerOptions) }
-    val analyzerExecutor = remember { Executors.newSingleThreadExecutor() }
+    var activePreview by remember { mutableStateOf<Preview?>(null) }
+    var activeAnalysis by remember { mutableStateOf<ImageAnalysis?>(null) }
     // PreviewView для CameraX
     val previewView = remember {
         PreviewView(context).apply {
@@ -2764,11 +2831,11 @@ fun QrCameraPreview(
         val preview = Preview.Builder()
             .build()
             .also { it.setSurfaceProvider(previewView.surfaceProvider) }
-
+        activePreview = preview
         val analysis = ImageAnalysis.Builder()
             .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
             .build()
-
+        activeAnalysis = analysis
         var found = false
 
         analysis.setAnalyzer(analyzerExecutor) { imageProxy ->
@@ -2823,9 +2890,13 @@ fun QrCameraPreview(
     DisposableEffect(Unit) {
         onDispose {
             try {
+                activeAnalysis?.clearAnalyzer()
+                activePreview?.setSurfaceProvider(null)
                 cameraProviderFuture.get().unbindAll()
             } catch (_: Exception) {
             }
+            activeAnalysis = null
+            activePreview = null
             scanner.close()
             analyzerExecutor.shutdown()
             camera = null
