@@ -2815,6 +2815,7 @@ fun QrCameraPreview(
             .build()
     }
     val scanner = remember { BarcodeScanning.getClient(scannerOptions) }
+    val analyzerExecutor = remember { Executors.newSingleThreadExecutor() }
     var activePreview by remember { mutableStateOf<Preview?>(null) }
     var activeAnalysis by remember { mutableStateOf<ImageAnalysis?>(null) }
     // PreviewView для CameraX
