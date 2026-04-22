@@ -1628,12 +1628,13 @@ fun AppRoot() {
                             ),
                             closeOverlay = false
                         )
-
+                    }
                 }
             }
+        } else {
+            null
         }
-    } else {
-        null
+
         onDispose {
             MainActivity.onHardwareScanData = null
         }
