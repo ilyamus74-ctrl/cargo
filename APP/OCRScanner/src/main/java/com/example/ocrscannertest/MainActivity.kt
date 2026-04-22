@@ -22,6 +22,7 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Bundle
 import android.view.WindowManager
+import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -36,7 +37,6 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
@@ -489,6 +489,42 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun startHsServicesDirectly() {
+        try {
+            val intent1 = Intent().apply {
+                setClassName(
+                    "com.hs.dcsservice",
+                    "com.hs.scanbutton.service.NewFloatWindowService"
+                )
+            }
+            startService(intent1)
+            Log.d("HS_SCAN", "NewFloatWindowService start requested")
+        } catch (e: Exception) {
+            Log.e("HS_SCAN", "Failed to start NewFloatWindowService", e)
+        }
+
+        try {
+            val intent2 = Intent().apply {
+                setClassName(
+                    "com.hs.dcsservice",
+                    "com.hs.scanbutton.service.ScreenService"
+                )
+            }
+            startService(intent2)
+            Log.d("HS_SCAN", "ScreenService start requested")
+        } catch (e: Exception) {
+            Log.e("HS_SCAN", "Failed to start ScreenService", e)
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+
+        Handler(Looper.getMainLooper()).postDelayed({
+            startHsServicesDirectly()
+        }, 300)
+    }
+
     override fun onDestroy() {
         runCatching {
             unregisterReceiver(scanIntentReceiver)
@@ -503,21 +539,6 @@ fun AppRoot() {
     val context = LocalContext.current
     val repo = remember { DeviceConfigRepository(context) }
     val scope = rememberCoroutineScope()
-
-    val lifecycleOwner = LocalLifecycleOwner.current
-    val hiddenInputView = remember { mutableStateOf<android.widget.EditText?>(null) }
-
-    fun refocusScannerInput() {
-        hiddenInputView.value?.let { et ->
-            et.isFocusable = true
-            et.isFocusableInTouchMode = true
-            et.requestFocus()
-            et.setSelection(et.text?.length ?: 0)
-
-            val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as? android.view.inputmethod.InputMethodManager
-            imm?.hideSoftInputFromWindow(et.windowToken, 0)
-        }
-    }
     var config by remember { mutableStateOf(repo.load()) }
     LaunchedEffect(config.debugToasts) {
         debugToastsEnabled = config.debugToasts
@@ -1581,25 +1602,6 @@ fun AppRoot() {
         }
     }
 
-
-    DisposableEffect(lifecycleOwner) {
-        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
-            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
-                Handler(Looper.getMainLooper()).postDelayed({
-                    refocusScannerInput()
-                }, 200)
-            }
-        }
-        lifecycleOwner.lifecycle.addObserver(observer)
-        onDispose {
-            lifecycleOwner.lifecycle.removeObserver(observer)
-        }
-    }
-
-    LaunchedEffect(showWebView, showBarcodeScan, showOcr) {
-        delay(250)
-        refocusScannerInput()
-    }
     Scaffold(
         topBar = {
             // как и было: прячем верхнюю панель, когда открыт WebView
@@ -1648,35 +1650,6 @@ fun AppRoot() {
                 .padding(innerPadding)
                 .fillMaxSize()
         ) {
-
-            AndroidView(
-                factory = { ctx ->
-                    android.widget.EditText(ctx).apply {
-                        layoutParams = ViewGroup.LayoutParams(1, 1)
-                        alpha = 0f
-                        isFocusable = true
-                        isFocusableInTouchMode = true
-                        setText("")
-                        setSingleLine(true)
-
-                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                            showSoftInputOnFocus = false
-                        }
-
-                        hiddenInputView.value = this
-
-                        post {
-                            requestFocus()
-                            val imm = ctx.getSystemService(Context.INPUT_METHOD_SERVICE) as? android.view.inputmethod.InputMethodManager
-                            imm?.hideSoftInputFromWindow(windowToken, 0)
-                        }
-                    }
-                },
-                update = { et ->
-                    hiddenInputView.value = et
-                },
-                modifier = Modifier.size(1.dp)
-            )
             // ОСНОВНОЙ КОНТЕНТ (как раньше, но БЕЗ showOcr)
             when {
                 showSettings -> {
