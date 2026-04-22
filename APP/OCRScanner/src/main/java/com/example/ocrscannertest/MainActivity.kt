@@ -536,14 +536,14 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-        val now = System.currentTimeMillis()
-        if (!hsBootstrapInProgress && now - lastHsBootstrapAt > 5000) {
-            lastHsBootstrapAt = now
-            Handler(Looper.getMainLooper()).postDelayed({
-                bootstrapHsViaSplashActivity()
-
-                }, 250)
-        }
+        //val now = System.currentTimeMillis()
+        //if (!hsBootstrapInProgress && now - lastHsBootstrapAt > 5000) {
+        //    lastHsBootstrapAt = now
+        //    Handler(Looper.getMainLooper()).postDelayed({
+        //        bootstrapHsViaSplashActivity()
+        //        }, 250)
+        //}
+        // Временно отключено: не запускаем HS SplashActivity при старте/возврате в приложение.
     }
 
     override fun onDestroy() {
