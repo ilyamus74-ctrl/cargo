@@ -856,6 +856,7 @@ fun AppRoot() {
 
     var showSettings by remember { mutableStateOf(!config.enrolled || config.serverUrl.isBlank()) }
     var showQrScan by remember { mutableStateOf(false) }
+    var pendingQrScannerRestoreReason by remember { mutableStateOf<String?>(null) }
     var showWebView by remember { mutableStateOf(false) }
     // clear WebView cache/storage only on app start
     var shouldClearWebViewData by remember { mutableStateOf(true) }
@@ -2021,7 +2022,13 @@ fun AppRoot() {
                 showQrScan -> {
                     QrScanScreen(
                         modifier = Modifier.fillMaxSize(),
+                        onCameraDisposed = {
+                            val reason = pendingQrScannerRestoreReason ?: return@QrScanScreen
+                            activity?.requestHardwareScannerRestore(reason = reason)
+                            pendingQrScannerRestoreReason = null
+                        },
                         onCodeScanned = { raw ->
+                            pendingQrScannerRestoreReason = "qr_scan_completed"
                             showQrScan = false
                             activity?.requestHardwareScannerRestore(reason = "qr_scan_completed")
                             lastQr = raw
@@ -2055,8 +2062,8 @@ fun AppRoot() {
                             }
                         },
                         onCancel = {
+                            pendingQrScannerRestoreReason = "qr_scan_canceled"
                             showQrScan = false
-                            activity?.requestHardwareScannerRestore(reason = "qr_scan_canceled")
                         }
                     )
                 }
@@ -2595,6 +2602,7 @@ fun LoginReadyScreen(
 @Composable
 fun QrScanScreen(
     modifier: Modifier = Modifier,
+    onCameraDisposed: () -> Unit = {},
     onCodeScanned: (String) -> Unit,
     onCancel: () -> Unit
 ) {
@@ -2650,7 +2658,10 @@ fun QrScanScreen(
             ) {
                 Text("Нет доступа к камере")
                 Spacer(Modifier.height(16.dp))
-                OutlinedButton(onClick = { onCancel() }) {
+                OutlinedButton(onClick = {
+                    onCancel()
+                    onCameraDisposed()
+                }) {
                     Text("Назад")
                 }
             }
@@ -2660,6 +2671,7 @@ fun QrScanScreen(
                 lifecycleOwner = lifecycleOwner,
                 modifier = Modifier.fillMaxSize(),
                 selectedPreset = selectedPreset,
+                onCameraDisposed = onCameraDisposed,
                 onCodeScanned = onCodeScanned
             )
 
@@ -2717,6 +2729,7 @@ fun QrScanScreen(
 fun QrCameraPreview(
     lifecycleOwner: LifecycleOwner,
     selectedPreset: CameraZoomPreset,
+    onCameraDisposed: () -> Unit = {},
     onCodeScanned: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -2816,6 +2829,7 @@ fun QrCameraPreview(
             scanner.close()
             analyzerExecutor.shutdown()
             camera = null
+            onCameraDisposed()
         }
     }
     AndroidView(
