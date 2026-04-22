@@ -724,6 +724,63 @@ class MainActivity : ComponentActivity() {
     private var hsBootstrapInProgress = false
     private var lastHsBootstrapAt = 0L
 
+    private var scannerRecoveryInProgress = false
+    private var lastScannerRecoveryAt = 0L
+    private val scannerRecoveryHandler by lazy { Handler(Looper.getMainLooper()) }
+    private val scannerRecoveryActions = listOf(
+        "com.android.hs.action.SCANRESTART",
+        "com.hs.dcsservice.action"
+    )
+
+    fun requestHardwareScannerRestore(reason: String = "manual", withDelayMs: Long = 350L) {
+        scheduleHardwareScannerRestore(reason = reason, initialDelayMs = withDelayMs)
+    }
+
+    private fun scheduleHardwareScannerRestore(
+        reason: String,
+        initialDelayMs: Long = 350L,
+        retries: Int = 3
+    ) {
+        val now = System.currentTimeMillis()
+        if (scannerRecoveryInProgress) return
+        if (now - lastScannerRecoveryAt < 1200L) return
+
+        scannerRecoveryInProgress = true
+        lastScannerRecoveryAt = now
+        Log.i("HW_SCANNER_RECOVERY", "schedule reason=$reason delay=${initialDelayMs}ms retries=$retries")
+
+        fun attempt(tryIndex: Int) {
+            scannerRecoveryHandler.postDelayed({
+                val attemptNo = tryIndex + 1
+                try {
+                    runCatching {
+                        ProcessCameraProvider.getInstance(this).get().unbindAll()
+                    }.onFailure {
+                        Log.w("HW_SCANNER_RECOVERY", "camera unbind failed attempt=$attemptNo reason=$reason", it)
+                    }
+
+                    scannerRecoveryActions.forEach { action ->
+                        val restartIntent = Intent(action).apply {
+                            `package` = "com.hs.dcsservice"
+                            addFlags(Intent.FLAG_RECEIVER_FOREGROUND)
+                        }
+                        sendBroadcast(restartIntent)
+                        Log.i("HW_SCANNER_RECOVERY", "broadcast sent action=$action attempt=$attemptNo reason=$reason")
+                    }
+                } catch (e: Exception) {
+                    Log.e("HW_SCANNER_RECOVERY", "attempt failed attempt=$attemptNo reason=$reason", e)
+                } finally {
+                    if (attemptNo < retries) {
+                        attempt(attemptNo)
+                    } else {
+                        scannerRecoveryInProgress = false
+                    }
+                }
+            }, if (tryIndex == 0) initialDelayMs else 450L)
+        }
+
+        attempt(0)
+    }
     private fun bootstrapHsViaSplashActivity() {
         if (hsBootstrapInProgress) return
         hsBootstrapInProgress = true
@@ -764,6 +821,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        scheduleHardwareScannerRestore(reason = "activity_onResume", initialDelayMs = 500L, retries = 2)
         //val now = System.currentTimeMillis()
         //if (!hsBootstrapInProgress && now - lastHsBootstrapAt > 5000) {
         //    lastHsBootstrapAt = now
@@ -779,6 +837,13 @@ class MainActivity : ComponentActivity() {
             unregisterReceiver(scanIntentReceiver)
         }
         super.onDestroy()
+    }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (hasFocus) {
+            scheduleHardwareScannerRestore(reason = "window_focus", initialDelayMs = 300L, retries = 2)
+        }
     }
 }
 
@@ -1963,6 +2028,7 @@ fun AppRoot() {
                         modifier = Modifier.fillMaxSize(),
                         onCodeScanned = { raw ->
                             showQrScan = false
+                            activity?.requestHardwareScannerRestore(reason = "qr_scan_completed")
                             lastQr = raw
                             loginError = null
                             isLoggingIn = true
@@ -1995,6 +2061,7 @@ fun AppRoot() {
                         },
                         onCancel = {
                             showQrScan = false
+                            activity?.requestHardwareScannerRestore(reason = "qr_scan_canceled")
                         }
                     )
                 }
