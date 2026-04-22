@@ -1603,34 +1603,37 @@ fun AppRoot() {
 
 
     DisposableEffect(showWebView, showBarcodeScan, showOcr, showSettings, showQrScan) {
-        MainActivity.onHardwareScanData = { raw ->
-            when {
-                showOcr -> {
-                    // OCR остаётся только через фотокамеру.
-                }
-                showBarcodeScan -> {
-                    handleBarcodeResult(
-                        result = BarcodeScanResult(
-                            rawValue = raw,
-                            format = Barcode.FORMAT_UNKNOWN,
-                            isQr = true
-                        ),
-                        closeOverlay = true
-                    )
-                }
-                showWebView -> {
-                    handleBarcodeResult(
-                        result = BarcodeScanResult(
-                            rawValue = raw,
-                            format = Barcode.FORMAT_UNKNOWN,
-                            isQr = true
-                        ),
-                        closeOverlay = false
-                    )
+        MainActivity.onHardwareScanData = if (showWebView || showBarcodeScan) {
+            { raw ->
+                when {
+                    showOcr -> {
+                        // OCR остаётся только через фотокамеру.
+                    }
+                    showBarcodeScan -> {
+                        handleBarcodeResult(
+                            result = BarcodeScanResult(
+                                rawValue = raw,
+                                format = Barcode.FORMAT_UNKNOWN,
+                                isQr = true
+                            ),
+                            closeOverlay = true
+                        )
+                    }
+                    showWebView -> {
+                        handleBarcodeResult(
+                            result = BarcodeScanResult(
+                                rawValue = raw,
+                                format = Barcode.FORMAT_UNKNOWN,
+                                isQr = true
+                            ),
+                            closeOverlay = false
+                        )
+
                 }
             }
         }
-
+    } else {
+        null
         onDispose {
             MainActivity.onHardwareScanData = null
         }
