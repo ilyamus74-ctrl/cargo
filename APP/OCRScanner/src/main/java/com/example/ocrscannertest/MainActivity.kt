@@ -10,6 +10,7 @@ import android.provider.MediaStore
 import android.content.Intent
 import android.os.Build
 import android.widget.Toast
+import java.io.FileWriter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.withContext
@@ -128,7 +129,235 @@ if (root) new MutationObserver(schedule).observe(root, {childList:true, subtree:
 
   emit();
 })();
+
+
+(function () {
+  if (window.__scannerDebugInstalled) return;
+  window.__scannerDebugInstalled = true;
+
+  try {
+    var q = new URLSearchParams(window.location.search || "");
+    if (q.get("scanner_debug") !== "1") return;
+  } catch (_) {
+    return;
+  }
+
+  if (!window.ScannerDebug || typeof window.ScannerDebug.log !== "function") return;
+
+  var TARGET_IDS = [
+    "warehouse-move-search",
+    "warehouse-move-batch-search",
+    "warehouse-item-out-search"
+  ];
+
+  function safeString(v) {
+    if (v === null || v === undefined) return null;
+    var s = String(v);
+    return s;
+  }
+
+  function elementInfo(el) {
+    if (!el) return null;
+    var info = {
+      tag: safeString(el.tagName),
+      id: safeString(el.id),
+      class: safeString(el.className)
+    };
+    if ("value" in el) info.value = safeString(el.value);
+    return info;
+  }
+
+  function activeInfo() {
+    return elementInfo(document.activeElement);
+  }
+
+  function send(event, data) {
+    try {
+      var payload = {
+        ts: new Date().toISOString(),
+        event: event,
+        url: safeString(window.location.href),
+        readyState: safeString(document.readyState),
+        active: activeInfo()
+      };
+      if (data && typeof data === "object") {
+        for (var k in data) {
+          if (Object.prototype.hasOwnProperty.call(data, k)) {
+            payload[k] = data[k];
+          }
+        }
+      }
+      window.ScannerDebug.log(JSON.stringify(payload));
+    } catch (_) {}
+  }
+
+  try {
+    if (window.ScannerDebug && typeof window.ScannerDebug.reset === "function") {
+      window.ScannerDebug.reset();
+    }
+  } catch (_) {}
+
+  send("scanner_debug_enabled", {
+    targetIds: TARGET_IDS
+  });
+
+  ["focusin", "focusout", "keydown", "keyup", "input", "change"].forEach(function (eventType) {
+    document.addEventListener(eventType, function (e) {
+      var target = e && e.target ? e.target : null;
+      var payload = {
+        target: elementInfo(target)
+      };
+      if (e && (eventType === "keydown" || eventType === "keyup")) {
+        payload.key = safeString(e.key);
+        payload.code = safeString(e.code);
+      }
+      send(eventType, payload);
+    }, true);
+  });
+
+  var targetHandlers = {};
+
+  function bindTarget(el) {
+    if (!el || !el.id || targetHandlers[el.id]) return;
+    var id = el.id;
+    var handlers = {
+      focus: function () { send("target_focus", { targetId: id, target: elementInfo(el) }); },
+      blur: function () { send("target_blur", { targetId: id, target: elementInfo(el) }); },
+      input: function () { send("target_input", { targetId: id, target: elementInfo(el) }); },
+      change: function () { send("target_change", { targetId: id, target: elementInfo(el) }); }
+    };
+    el.addEventListener("focus", handlers.focus, true);
+    el.addEventListener("blur", handlers.blur, true);
+    el.addEventListener("input", handlers.input, true);
+    el.addEventListener("change", handlers.change, true);
+    targetHandlers[id] = { el: el, handlers: handlers };
+    send("target_bound", { targetId: id, target: elementInfo(el) });
+  }
+
+  function unbindTarget(id) {
+    var rec = targetHandlers[id];
+    if (!rec) return;
+    var el = rec.el;
+    var h = rec.handlers;
+    try {
+      el.removeEventListener("focus", h.focus, true);
+      el.removeEventListener("blur", h.blur, true);
+      el.removeEventListener("input", h.input, true);
+      el.removeEventListener("change", h.change, true);
+    } catch (_) {}
+    delete targetHandlers[id];
+    send("target_unbound", { targetId: id });
+  }
+
+  function scanTargets() {
+    TARGET_IDS.forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el) {
+        send("target_present", { targetId: id, found: true, target: elementInfo(el) });
+        bindTarget(el);
+      } else {
+        if (targetHandlers[id]) unbindTarget(id);
+        send("target_present", { targetId: id, found: false });
+      }
+    });
+  }
+
+  scanTargets();
+
+  var observer = new MutationObserver(function (mutations) {
+    var interesting = false;
+    for (var i = 0; i < mutations.length; i++) {
+      var m = mutations[i];
+      if (m.type !== "childList") continue;
+
+      for (var j = 0; j < m.removedNodes.length; j++) {
+        var removed = m.removedNodes[j];
+        if (!removed || removed.nodeType !== 1) continue;
+        var removedEl = removed;
+        if (removedEl.id && TARGET_IDS.indexOf(removedEl.id) >= 0) {
+          send("target_removed", { targetId: removedEl.id, target: elementInfo(removedEl) });
+          interesting = true;
+        }
+        for (var k = 0; k < TARGET_IDS.length; k++) {
+          var nestedRemoved = removedEl.querySelector ? removedEl.querySelector("#" + TARGET_IDS[k]) : null;
+          if (nestedRemoved) {
+            send("target_removed", { targetId: TARGET_IDS[k], target: elementInfo(nestedRemoved) });
+            interesting = true;
+          }
+        }
+      }
+
+      for (var j2 = 0; j2 < m.addedNodes.length; j2++) {
+        var added = m.addedNodes[j2];
+        if (!added || added.nodeType !== 1) continue;
+        var addedEl = added;
+        if (addedEl.id && TARGET_IDS.indexOf(addedEl.id) >= 0) {
+          send("target_added", { targetId: addedEl.id, target: elementInfo(addedEl) });
+          interesting = true;
+        }
+        for (var k2 = 0; k2 < TARGET_IDS.length; k2++) {
+          var nestedAdded = addedEl.querySelector ? addedEl.querySelector("#" + TARGET_IDS[k2]) : null;
+          if (nestedAdded) {
+            send("target_added", { targetId: TARGET_IDS[k2], target: elementInfo(nestedAdded) });
+            interesting = true;
+          }
+        }
+      }
+    }
+
+    if (interesting) {
+      send("dom_mutation_targets", { mutationCount: mutations.length });
+    }
+    scanTargets();
+  });
+
+  observer.observe(document.documentElement || document.body, {
+    childList: true,
+    subtree: true
+  });
+
+  send("scanner_debug_observer_started", { mutationObserver: true });
+})();
 """.trimIndent()
+
+private class ScannerDebugBridge(private val context: Context) {
+    private val lock = Any()
+    private val logFile = File(context.getExternalFilesDir(null) ?: context.filesDir, "scanner_debug.log")
+
+    init {
+        Log.i("ScannerDebugBridge", "Log file path: ${logFile.absolutePath}")
+    }
+
+    @JavascriptInterface
+    fun log(line: String) {
+        synchronized(lock) {
+            try {
+                logFile.parentFile?.mkdirs()
+                FileWriter(logFile, true).use { writer ->
+                    writer.append(line).append('\n')
+                }
+            } catch (e: Exception) {
+                Log.e("ScannerDebugBridge", "Failed to append log", e)
+            }
+        }
+    }
+
+    @JavascriptInterface
+    fun reset() {
+        synchronized(lock) {
+            try {
+                logFile.parentFile?.mkdirs()
+                logFile.writeText("")
+                Log.i("ScannerDebugBridge", "Log file reset: ${logFile.absolutePath}")
+            } catch (e: Exception) {
+                Log.e("ScannerDebugBridge", "Failed to reset log", e)
+            }
+        }
+    }
+
+    @JavascriptInterface
+    fun path(): String = logFile.absolutePath
+}
 
 enum class WarehouseScanStep { BARCODE, OCR, MEASURE, SUBMIT }
 
@@ -3330,6 +3559,7 @@ fun DeviceWebViewScreen(
         factory = { ctx ->
             WebView(ctx).apply {
                 val mainHandler = Handler(Looper.getMainLooper())
+                val scannerDebugBridge = ScannerDebugBridge(ctx.applicationContext)
 
                 class DeviceBridge {
                     @JavascriptInterface
@@ -3357,6 +3587,7 @@ fun DeviceWebViewScreen(
                 }
 
                 addJavascriptInterface(DeviceBridge(), "DeviceApp")
+                addJavascriptInterface(scannerDebugBridge, "ScannerDebug")
                 layoutParams = ViewGroup.LayoutParams(
                     ViewGroup.LayoutParams.MATCH_PARENT,
                     ViewGroup.LayoutParams.MATCH_PARENT
@@ -3460,6 +3691,18 @@ fun DeviceWebViewScreen(
                     override fun onPageFinished(view: WebView?, url: String?) {
                         super.onPageFinished(view, url)
 
+                        if (!url.isNullOrBlank()) {
+                            val scannerDebugEnabled = try {
+                                Uri.parse(url).getQueryParameter("scanner_debug") == "1"
+                            } catch (_: Exception) {
+                                false
+                            }
+                            if (scannerDebugEnabled) {
+                                val path = scannerDebugBridge.path()
+                                Log.i("ScannerDebugBridge", "scanner_debug=1, log file: $path")
+                                debugToast(ctx, "Scanner debug log: $path", Toast.LENGTH_LONG)
+                            }
+                        }
                         if (!firstPageLoaded && view != null) {
                             firstPageLoaded = true
                             onWebViewReady(view)
