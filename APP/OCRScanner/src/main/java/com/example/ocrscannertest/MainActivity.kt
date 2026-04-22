@@ -245,6 +245,10 @@ class MainActivity : ComponentActivity() {
     private val hardwareScanTimeoutMs = 250L
     private val handledHardwareDownKeys = mutableSetOf<Int>()
     private var interceptHardwareTriggerKeys: Boolean = false
+
+    fun setInterceptHardwareTriggerKeys(enabled: Boolean) {
+        interceptHardwareTriggerKeys = enabled
+    }
     private val scanIntentActions = listOf(
         "com.honeywell.decode.intent.action.SCAN_RESULT",
         "com.datalogic.decodewedge.decode_action",
@@ -538,6 +542,7 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun AppRoot() {
     val context = LocalContext.current
+    val activity = context as? MainActivity
     val repo = remember { DeviceConfigRepository(context) }
     val scope = rememberCoroutineScope()
     var config by remember { mutableStateOf(repo.load()) }
@@ -1309,6 +1314,11 @@ fun AppRoot() {
         webViewRef,
         taskConfig
     ) {
+        // Intercept dedicated scanner trigger keys while any in-app scanner/web flow is active.
+        // This avoids dependence on vendor decode services that may ignore ACTION_DOWN when
+        // they mis-detect lock state on some devices.
+        interceptHardwareTriggerKeys = showBarcodeScan || showOcr || showWebView
+
         when {
             // IMPORTANT: Prefer context flow over legacy buttonMappings,
             // but keep hardware triggers for scanner overlays (so VolDownSingle can "take scan").
