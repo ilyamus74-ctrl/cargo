@@ -471,10 +471,12 @@ class MainActivity : ComponentActivity() {
     private var hardwareScanLastCharTs: Long = 0L
     private val hardwareScanTimeoutMs = 250L
     private val handledHardwareDownKeys = mutableSetOf<Int>()
-    private var interceptHardwareTriggerKeys: Boolean = false
+    private val interceptHardwareTriggerKeys: Boolean = false
 
     fun setInterceptHardwareTriggerKeys(enabled: Boolean) {
-        interceptHardwareTriggerKeys = enabled
+        // Intentionally ignored.
+        // We keep vendor trigger routing in the default OS/vendor scanner stack
+        // and do not claim dedicated hardware scan keys in-app.
     }
     private val scanIntentActions = listOf(
         "com.honeywell.decode.intent.action.SCAN_RESULT",
@@ -737,7 +739,7 @@ class MainActivity : ComponentActivity() {
     private var pendingRecoveryReason: String? = null
     private val scannerRecoveryHandler by lazy { Handler(Looper.getMainLooper()) }
     private val scannerRestartAction = "com.android.hs.action.SCANRESTART"
-
+    private val enableVendorScannerRecovery = false
     private val recoveryAttemptDelaysMs = longArrayOf(500L, 1200L, 2000L)
 
     fun setQrCameraFlowActive(active: Boolean, reason: String = "unknown") {
@@ -766,6 +768,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun maybeSchedulePendingRecovery(trigger: String) {
+        if (!enableVendorScannerRecovery) return
         val reason = pendingRecoveryReason ?: trigger
         scheduleHardwareScannerRestore(reason = reason)
     }
@@ -774,6 +777,12 @@ class MainActivity : ComponentActivity() {
         reason: String,
         retries: Int = recoveryAttemptDelaysMs.size
     ) {
+        if (!enableVendorScannerRecovery) {
+            scannerRecoveryState = ScannerRecoveryState.IDLE
+            pendingRecoveryReason = null
+            Log.i("HW_SCANNER_RECOVERY", "skip vendor scanner recovery reason=$reason")
+            return
+        }
         val now = System.currentTimeMillis()
         if (scannerRecoveryState == ScannerRecoveryState.RUNNING) return
         if (now - lastScannerRecoveryAt < 700L) return
@@ -1685,11 +1694,8 @@ fun AppRoot() {
         webViewRef,
         taskConfig
     ) {
-        // Intercept dedicated scanner trigger keys while any in-app scanner/web flow is active.
-        // This avoids dependence on vendor decode services that may ignore ACTION_DOWN when
-        // they mis-detect lock state on some devices.
-        activity?.setInterceptHardwareTriggerKeys(showBarcodeScan || showOcr || showWebView)
-
+        // Keep dedicated scanner keys in vendor stack (no in-app claim/intercept).
+        activity?.setInterceptHardwareTriggerKeys(false)
 
         when {
             // IMPORTANT: Prefer context flow over legacy buttonMappings,
