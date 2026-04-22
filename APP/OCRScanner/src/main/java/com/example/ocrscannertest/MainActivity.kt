@@ -430,6 +430,10 @@ class MainActivity : ComponentActivity() {
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         enableEdgeToEdge()
 
+        window.setSoftInputMode(
+            WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN or
+                    WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING
+        )
         // блокируем "Назад"
         onBackPressedDispatcher.addCallback(
             this,
@@ -500,6 +504,20 @@ fun AppRoot() {
     val repo = remember { DeviceConfigRepository(context) }
     val scope = rememberCoroutineScope()
 
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val hiddenInputView = remember { mutableStateOf<android.widget.EditText?>(null) }
+
+    fun refocusScannerInput() {
+        hiddenInputView.value?.let { et ->
+            et.isFocusable = true
+            et.isFocusableInTouchMode = true
+            et.requestFocus()
+            et.setSelection(et.text?.length ?: 0)
+
+            val imm = context.getSystemService(Context.INPUT_METHOD_SERVICE) as? android.view.inputmethod.InputMethodManager
+            imm?.hideSoftInputFromWindow(et.windowToken, 0)
+        }
+    }
     var config by remember { mutableStateOf(repo.load()) }
     LaunchedEffect(config.debugToasts) {
         debugToastsEnabled = config.debugToasts
@@ -1563,6 +1581,25 @@ fun AppRoot() {
         }
     }
 
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                Handler(Looper.getMainLooper()).postDelayed({
+                    refocusScannerInput()
+                }, 200)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
+
+    LaunchedEffect(showWebView, showBarcodeScan, showOcr) {
+        delay(250)
+        refocusScannerInput()
+    }
     Scaffold(
         topBar = {
             // как и было: прячем верхнюю панель, когда открыт WebView
@@ -1612,6 +1649,34 @@ fun AppRoot() {
                 .fillMaxSize()
         ) {
 
+            AndroidView(
+                factory = { ctx ->
+                    android.widget.EditText(ctx).apply {
+                        layoutParams = ViewGroup.LayoutParams(1, 1)
+                        alpha = 0f
+                        isFocusable = true
+                        isFocusableInTouchMode = true
+                        setText("")
+                        setSingleLine(true)
+
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                            showSoftInputOnFocus = false
+                        }
+
+                        hiddenInputView.value = this
+
+                        post {
+                            requestFocus()
+                            val imm = ctx.getSystemService(Context.INPUT_METHOD_SERVICE) as? android.view.inputmethod.InputMethodManager
+                            imm?.hideSoftInputFromWindow(windowToken, 0)
+                        }
+                    }
+                },
+                update = { et ->
+                    hiddenInputView.value = et
+                },
+                modifier = Modifier.size(1.dp)
+            )
             // ОСНОВНОЙ КОНТЕНТ (как раньше, но БЕЗ showOcr)
             when {
                 showSettings -> {

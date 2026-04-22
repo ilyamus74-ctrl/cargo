@@ -3,7 +3,9 @@
     xmlns:tools="http://schemas.android.com/tools">
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.CAMERA" />
-
+    <uses-permission android:name="com.hs.scanbutton.permission.DECODE" />
+    <uses-permission android:name="com.honeywell.decode.permission.DECODE" />
+    <uses-permission android:name="com.hs.decode.permission.DECODE" />
     <application
         android:keepScreenOn="true"
         android:usesCleartextTraffic="false"
