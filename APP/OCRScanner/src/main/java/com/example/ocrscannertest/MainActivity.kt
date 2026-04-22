@@ -85,7 +85,9 @@ import android.net.Uri
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.Image
 import androidx.compose.ui.res.painterResource
-
+import android.content.pm.PackageManager
+import com.tencent.mmkv.MMKV
+import java.io.File
 
 private val INSTALL_MAIN_OBSERVER_JS = """
 (function(){
@@ -521,12 +523,91 @@ class MainActivity : ComponentActivity() {
             Log.e("HS_SCAN", "Failed to start ScreenService", e)
         }
     }
-
+    private var hsBootstrappedAtLeastOnce = false
     override fun onResume() {
         super.onResume()
 
         Handler(Looper.getMainLooper()).postDelayed({
             startHsServicesDirectly()
+            private fun hsVendorContext(): Context? {
+                return try {
+                    createPackageContext("com.hs.dcsservice", Context.CONTEXT_IGNORE_SECURITY)
+                } catch (e: Exception) {
+                    Log.e("HS_SCAN", "Failed to create vendor context", e)
+                    null
+                }
+            }
+
+            private fun clearHsNoScanBlacklist() {
+                try {
+                    val vendorCtx = hsVendorContext() ?: return
+
+                    val mmkvRoot = File(vendorCtx.dataDir, "files/mmkv").absolutePath
+                    MMKV.initialize(vendorCtx, mmkvRoot)
+
+                    val kv = MMKV.defaultMMKV()
+                    kv.encode("noScanApp", "")
+                    kv.encode("noScanShortClass", "")
+                    kv.commit()
+
+                    Log.d("HS_SCAN", "Cleared HS noScan blacklist in $mmkvRoot")
+                } catch (e: Exception) {
+                    Log.e("HS_SCAN", "Failed to clear HS noScan blacklist", e)
+                }
+            }
+
+            private fun sendHsBroadcast(action: String, noAddScanApp: Int? = null) {
+                try {
+                    val intent = Intent(action).apply {
+                        `package` = "com.hs.dcsservice"
+                        noAddScanApp?.let { putExtra("noAddScanApp", it) }
+                    }
+                    sendBroadcast(intent)
+                    Log.d("HS_SCAN", "Broadcast sent: $action noAddScanApp=$noAddScanApp")
+                } catch (e: Exception) {
+                    Log.e("HS_SCAN", "Failed broadcast: $action", e)
+                }
+            }
+
+            private fun sendHsDcsAction(actionValue: String) {
+                try {
+                    val intent = Intent("com.hs.dcsservice.action").apply {
+                        `package` = "com.hs.dcsservice"
+                        putExtra("action", actionValue)
+                    }
+                    sendBroadcast(intent, "com.honeywell.decode.permission.DECODE")
+                    Log.d("HS_SCAN", "DCS action sent: $actionValue")
+                } catch (e: Exception) {
+                    Log.e("HS_SCAN", "Failed DCS action: $actionValue", e)
+                }
+            }
+
+            private fun bootstrapHsScannerStack() {
+                clearHsNoScanBlacklist()
+
+                Handler(Looper.getMainLooper()).postDelayed({
+                    startHsServicesDirectly()
+                }, 150)
+
+                Handler(Looper.getMainLooper()).postDelayed({
+                    // не даём vendor-сервису занести нас в noScanApp
+                    sendHsBroadcast("com.android.hs.action.CAMERACLOSESCAN", 1)
+                }, 500)
+
+                Handler(Looper.getMainLooper()).postDelayed({
+                    // просим vendor stack снова открыть decode path
+                    sendHsBroadcast("com.android.hs.action.SCANRESTART")
+                }, 900)
+
+                Handler(Looper.getMainLooper()).postDelayed({
+                    // прямой open для DcsService
+                    sendHsDcsAction("open")
+                }, 1200)
+
+                Handler(Looper.getMainLooper()).postDelayed({
+                    clearHsNoScanBlacklist()
+                }, 1600)
+            }
         }, 300)
     }
 
@@ -1317,7 +1398,8 @@ fun AppRoot() {
         // Intercept dedicated scanner trigger keys while any in-app scanner/web flow is active.
         // This avoids dependence on vendor decode services that may ignore ACTION_DOWN when
         // they mis-detect lock state on some devices.
-        interceptHardwareTriggerKeys = showBarcodeScan || showOcr || showWebView
+        activity?.setInterceptHardwareTriggerKeys(showBarcodeScan || showOcr || showWebView)
+
 
         when {
             // IMPORTANT: Prefer context flow over legacy buttonMappings,
