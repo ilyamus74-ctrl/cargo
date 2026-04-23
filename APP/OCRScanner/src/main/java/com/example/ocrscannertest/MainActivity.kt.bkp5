@@ -954,10 +954,6 @@ fun AppRoot() {
 
 
     fun handleQrLogin(raw: String, source: String) {
-        lastHardwareSource = source
-        lastHardwareRaw = raw
-        lastHardwareNormalized = raw.trim()
-        debugHandleQrLoginReached = true
         Log.i("SCAN_QR_DIAG", "handleQrLogin source=$source raw='$raw' loginStart=true")
         debugReachedHandleQrLogin = true
         debugLastScannerSource = source
@@ -2014,64 +2010,49 @@ fun AppRoot() {
     }
 
 
-DisposableEffect(showWebView, showBarcodeScan, showOcr, showSettings, showQrScan) {
-    MainActivity.onHardwareScanData = if (showWebView || showBarcodeScan || showQrScan) {
-        { raw, source ->
-            val normalizedRaw = raw.trim()
-
-            Log.i("HW_LOGIN_DEBUG", "onHardwareScanData source=$source raw=$raw normalized=$normalizedRaw showQrScan=$showQrScan showBarcodeScan=$showBarcodeScan showWebView=$showWebView")
-
-            when {
-                showQrScan -> {
-                    lastHardwareRaw = raw
-                    lastHardwareNormalized = normalizedRaw
-                    lastHardwareSource = source
-
-                    if (normalizedRaw.isNotBlank()) {
-                        handleQrLogin(
-                            raw = normalizedRaw,
-                            source = source
+    DisposableEffect(showWebView, showBarcodeScan, showOcr, showSettings, showQrScan) {
+        MainActivity.onHardwareScanData = if (showWebView || showBarcodeScan || showQrScan) {
+            { raw, source ->
+                debugLastHardwareRaw = raw
+                debugLastHardwareNormalized = normalizeHardwareScanPayloadShared(raw)
+                debugLastScannerSource = source
+                when {
+                    showQrScan -> {
+                        handleQrLogin(raw = raw, source = source)
+                    }
+                    showOcr -> {
+                        // OCR остаётся только через фотокамеру.
+                    }
+                    showBarcodeScan -> {
+                        handleBarcodeResult(
+                            result = BarcodeScanResult(
+                                rawValue = raw,
+                                format = Barcode.FORMAT_UNKNOWN,
+                                isQr = true
+                            ),
+                            closeOverlay = true
                         )
-                    } else {
-                        Log.w("HW_LOGIN_DEBUG", "hardware QR ignored because normalized raw is blank")
+                    }
+                    showWebView -> {
+                        handleBarcodeResult(
+                            result = BarcodeScanResult(
+                                rawValue = raw,
+                                format = Barcode.FORMAT_UNKNOWN,
+                                isQr = true
+                            ),
+                            closeOverlay = false
+                        )
                     }
                 }
-
-                showOcr -> {
-                    Log.i("HW_LOGIN_DEBUG", "hardware scan ignored because OCR screen is active")
-                }
-
-                showBarcodeScan -> {
-                    handleBarcodeResult(
-                        result = BarcodeScanResult(
-                            rawValue = normalizedRaw,
-                            format = Barcode.FORMAT_UNKNOWN,
-                            isQr = true
-                        ),
-                        closeOverlay = true
-                    )
-                }
-
-                showWebView -> {
-                    handleBarcodeResult(
-                        result = BarcodeScanResult(
-                            rawValue = normalizedRaw,
-                            format = Barcode.FORMAT_UNKNOWN,
-                            isQr = true
-                        ),
-                        closeOverlay = false
-                    )
-                }
             }
+        } else {
+            null
         }
-    } else {
-        null
-    }
 
-    onDispose {
-        MainActivity.onHardwareScanData = null
+        onDispose {
+            MainActivity.onHardwareScanData = null
+        }
     }
-}
 
     Scaffold(
         topBar = {
