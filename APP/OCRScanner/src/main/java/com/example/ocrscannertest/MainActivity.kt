@@ -470,6 +470,10 @@ class MainActivity : ComponentActivity() {
     private val hardwareScanBuffer = StringBuilder()
     private var hardwareScanLastCharTs: Long = 0L
     private val hardwareScanTimeoutMs = 250L
+    private val hardwareScanFlushHandler = Handler(Looper.getMainLooper())
+    private val hardwareScanFlushRunnable = Runnable {
+        flushHardwareKeyboardWedgeBuffer(force = false)
+    }
     private val handledHardwareDownKeys = mutableSetOf<Int>()
     private val interceptHardwareTriggerKeys: Boolean = false
 
@@ -502,6 +506,8 @@ class MainActivity : ComponentActivity() {
             "com.symbol.datawedge.data_string",
             "barcode_string",
             "decode_data",
+            "dataBytes",
+            "com.honeywell.scandata",
             "code",
             "value"
         )
@@ -509,34 +515,78 @@ class MainActivity : ComponentActivity() {
         keys.forEach { key ->
             val str = extras?.getString(key)
             if (!str.isNullOrBlank()) return str
+            val bytes = extras?.get(key) as? ByteArray
+            if (bytes != null && bytes.isNotEmpty()) {
+                val decoded = bytes.toString(Charsets.UTF_8)
+                if (decoded.isNotBlank()) return decoded
+            }
         }
 
         intent.dataString?.takeIf { it.isNotBlank() }?.let { return it }
         return null
     }
+    private fun normalizeScannedPayload(raw: String): String {
+        return raw
+            .replace("\u0000", "")
+            .filter { !Character.isISOControl(it) }
+            .trim()
+    }
+
 
     private fun dispatchHardwareScan(raw: String) {
-        val normalized = raw.trim()
+        val normalized = normalizeScannedPayload(raw)
         if (normalized.isBlank()) return
         runOnUiThread {
             onHardwareScanData?.invoke(normalized)
         }
     }
 
-    private fun handleHardwareKeyboardWedge(event: KeyEvent): Boolean {
-        val callback = onHardwareScanData ?: return false
-        if (event.action != KeyEvent.ACTION_DOWN) return false
-        if (event.keyCode == KeyEvent.KEYCODE_VOLUME_DOWN || event.keyCode == KeyEvent.KEYCODE_VOLUME_UP) return false
-
-        if (event.keyCode == KeyEvent.KEYCODE_ENTER || event.keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER) {
-            val payload = hardwareScanBuffer.toString().trim()
+    private fun flushHardwareKeyboardWedgeBuffer(force: Boolean): Boolean {
+        val callback = onHardwareScanData ?: run {
             hardwareScanBuffer.clear()
             hardwareScanLastCharTs = 0L
-            if (payload.isNotBlank()) {
-                callback(payload)
+            return false
+        }
+
+        val payload = hardwareScanBuffer.toString().trim()
+        hardwareScanBuffer.clear()
+        hardwareScanLastCharTs = 0L
+            return false
+        }
+
+        val payload = normalizeScannedPayload(hardwareScanBuffer.toString())
+        hardwareScanBuffer.clear()
+        hardwareScanLastCharTs = 0L
+
+        if (payload.isBlank()) return false
+        if (!force && payload.length < 3) return false
+
+        callback(payload)
+        return true
+    }
+
+    private fun handleHardwareKeyboardWedge(event: KeyEvent): Boolean {
+        if (onHardwareScanData == null) return false
+        if (event.action == KeyEvent.ACTION_MULTIPLE) {
+            val chars = event.characters
+            if (!chars.isNullOrBlank()) {
+                hardwareScanBuffer.append(chars)
+                hardwareScanFlushHandler.removeCallbacks(hardwareScanFlushRunnable)
+                hardwareScanFlushHandler.postDelayed(hardwareScanFlushRunnable, hardwareScanTimeoutMs)
                 return true
             }
             return false
+        }
+        if (event.action != KeyEvent.ACTION_DOWN) return false
+        if (event.keyCode == KeyEvent.KEYCODE_VOLUME_DOWN || event.keyCode == KeyEvent.KEYCODE_VOLUME_UP) return false
+
+        if (
+            event.keyCode == KeyEvent.KEYCODE_ENTER ||
+            event.keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER ||
+            event.keyCode == KeyEvent.KEYCODE_TAB
+        ) {
+            hardwareScanFlushHandler.removeCallbacks(hardwareScanFlushRunnable)
+            return flushHardwareKeyboardWedgeBuffer(force = true)
         }
 
         val unicodeChar = event.unicodeChar
@@ -548,9 +598,10 @@ class MainActivity : ComponentActivity() {
         }
         hardwareScanLastCharTs = now
         hardwareScanBuffer.append(unicodeChar.toChar())
+        hardwareScanFlushHandler.removeCallbacks(hardwareScanFlushRunnable)
+        hardwareScanFlushHandler.postDelayed(hardwareScanFlushRunnable, hardwareScanTimeoutMs)
         return true
     }
-
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         if (handleHardwareKeyboardWedge(event)) {
             return true
@@ -823,6 +874,7 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
+        hardwareScanFlushHandler.removeCallbacks(hardwareScanFlushRunnable)
         runCatching {
             unregisterReceiver(scanIntentReceiver)
         }
