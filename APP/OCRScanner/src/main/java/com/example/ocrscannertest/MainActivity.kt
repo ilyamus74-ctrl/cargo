@@ -470,6 +470,8 @@ class MainActivity : ComponentActivity() {
     private val hardwareScanBuffer = StringBuilder()
     private var hardwareScanLastCharTs: Long = 0L
     private val hardwareScanTimeoutMs = 250L
+    private val hardwareScanFlushHandler by lazy { Handler(Looper.getMainLooper()) }
+    private var hardwareScanFlushRunnable: Runnable? = null
     private val handledHardwareDownKeys = mutableSetOf<Int>()
     private val interceptHardwareTriggerKeys: Boolean = false
 
@@ -595,7 +597,13 @@ class MainActivity : ComponentActivity() {
         if (event.action != KeyEvent.ACTION_DOWN) return false
         if (event.keyCode == KeyEvent.KEYCODE_VOLUME_DOWN || event.keyCode == KeyEvent.KEYCODE_VOLUME_UP) return false
 
-        if (event.keyCode == KeyEvent.KEYCODE_ENTER || event.keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER) {
+        if (
+            event.keyCode == KeyEvent.KEYCODE_ENTER ||
+            event.keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER ||
+            event.keyCode == KeyEvent.KEYCODE_TAB
+        ) {
+            hardwareScanFlushRunnable?.let { hardwareScanFlushHandler.removeCallbacks(it) }
+            hardwareScanFlushRunnable = null
             val payload = hardwareScanBuffer.toString().trim()
             hardwareScanBuffer.clear()
             hardwareScanLastCharTs = 0L
@@ -616,6 +624,18 @@ class MainActivity : ComponentActivity() {
         }
         hardwareScanLastCharTs = now
         hardwareScanBuffer.append(unicodeChar.toChar())
+
+        hardwareScanFlushRunnable?.let { hardwareScanFlushHandler.removeCallbacks(it) }
+        hardwareScanFlushRunnable = Runnable {
+            val payload = hardwareScanBuffer.toString().trim()
+            hardwareScanBuffer.clear()
+            hardwareScanLastCharTs = 0L
+            val normalizedPayload = normalizeHardwareScanPayload(payload)
+            if (!normalizedPayload.isNullOrBlank()) {
+                onHardwareScanData?.invoke(normalizedPayload)
+            }
+        }
+        hardwareScanFlushHandler.postDelayed(hardwareScanFlushRunnable!!, hardwareScanTimeoutMs + 100L)
         return true
     }
 
@@ -876,6 +896,8 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
+        hardwareScanFlushRunnable?.let { hardwareScanFlushHandler.removeCallbacks(it) }
+        hardwareScanFlushRunnable = null
         runCatching {
             unregisterReceiver(scanIntentReceiver)
         }
