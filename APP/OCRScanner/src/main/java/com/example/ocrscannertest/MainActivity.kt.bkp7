@@ -978,19 +978,24 @@ fun AppRoot() {
     // session_id из сервера (по факту сейчас только храним для информации)
     var sessionId by remember { mutableStateOf<String?>(null) }
 
+
     fun handleQrLogin(raw: String, source: String) {
-        debugReachedHandleQrLogin = true
         debugLastScannerSource = source
         debugLastHardwareRaw = raw
         debugLastHardwareNormalized = raw.trim()
-
+        debugReachedHandleQrLogin = true
         Log.i("SCAN_QR_DIAG", "handleQrLogin source=$source raw='$raw' loginStart=true")
-
-       pendingQrScannerRestoreReason = "qr_scan_completed"
-       showQrScan = false
-       lastQr = raw
-       loginError = null
-       isLoggingIn = true
+        debugReachedHandleQrLogin = true
+        debugLastScannerSource = source
+        if (source.startsWith("hardware")) {
+            debugLastHardwareRaw = raw
+            debugLastHardwareNormalized = normalizeHardwareScanPayloadShared(raw)
+        }
+        pendingQrScannerRestoreReason = "qr_scan_completed"
+        showQrScan = false
+        lastQr = raw
+        loginError = null
+        isLoggingIn = true
 
         scope.launch {
             val result = qrLoginOnServer(context, config, raw)
