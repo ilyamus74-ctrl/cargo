@@ -481,11 +481,14 @@ class MainActivity : ComponentActivity() {
         // and do not claim dedicated hardware scan keys in-app.
     }
     private val scanIntentActions = listOf(
-        "com.honeywell.decode.intent.action.SCAN_RESULT",
-        "com.datalogic.decodewedge.decode_action",
-        "android.intent.ACTION_DECODE_DATA",
-        "nlscan.action.SCANNER_RESULT",
-        "com.sunmi.scanner.ACTION_DATA_CODE_RECEIVED"
+    "com.honeywell.decode.intent.action.SCAN_RESULT",
+    "com.datalogic.decodewedge.decode_action",
+    "android.intent.ACTION_DECODE_DATA",
+    "nlscan.action.SCANNER_RESULT",
+    "com.sunmi.scanner.ACTION_DATA_CODE_RECEIVED",
+    "com.android.hs.action.BARCODE_SEND",
+    "com.android.giec.action.BARCODE_FOCAL"
+
     )
     private val scanIntentReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -527,7 +530,18 @@ class MainActivity : ComponentActivity() {
             "barcode_string",
             "decode_data",
             "code",
-            "value"
+            "value",
+            "BARCODE",
+            "barcode",
+            "result",
+            "text",
+            "message",
+            "decode_rslt",
+            "scannerdata",
+            "barcodeData",
+            "dataBytes",
+            "aimId",
+            "charset"
         )
 
         keys.forEach { key ->
