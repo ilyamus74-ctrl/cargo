@@ -954,10 +954,10 @@ fun AppRoot() {
 
 
     fun handleQrLogin(raw: String, source: String) {
-        lastHardwareSource = source
-        lastHardwareRaw = raw
-        lastHardwareNormalized = raw.trim()
-        debugHandleQrLoginReached = true
+        debugLastScannerSource = source
+        debugLastHardwareRaw = raw
+        debugLastHardwareNormalized = raw.trim()
+        debugReachedHandleQrLogin = true
         Log.i("SCAN_QR_DIAG", "handleQrLogin source=$source raw='$raw' loginStart=true")
         debugReachedHandleQrLogin = true
         debugLastScannerSource = source
@@ -2023,9 +2023,9 @@ DisposableEffect(showWebView, showBarcodeScan, showOcr, showSettings, showQrScan
 
             when {
                 showQrScan -> {
-                    lastHardwareRaw = raw
-                    lastHardwareNormalized = normalizedRaw
-                    lastHardwareSource = source
+                    debugLastHardwareRaw = raw
+                    debugLastHardwareNormalized = normalizedRaw
+                    debugLastScannerSource = source
 
                     if (normalizedRaw.isNotBlank()) {
                         handleQrLogin(
