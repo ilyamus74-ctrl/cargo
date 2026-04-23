@@ -2040,46 +2040,36 @@ fun AppRoot() {
     }
 
 
-    val currentShowQrScan by rememberUpdatedState(showQrScan)
-    val currentShowBarcodeScan by rememberUpdatedState(showBarcodeScan)
-    val currentShowWebView by rememberUpdatedState(showWebView)
-    val currentShowOcr by rememberUpdatedState(showOcr)
-    val currentHandleQrLogin by rememberUpdatedState(::handleQrLogin)
-    val currentHandleBarcodeResult by rememberUpdatedState(::handleBarcodeResult)
-
-    LaunchedEffect(Unit) {
-        MainActivity.onHardwareScanData = { raw, source ->
+DisposableEffect(showWebView, showBarcodeScan, showOcr, showSettings, showQrScan) {
+    MainActivity.onHardwareScanData = if (showWebView || showBarcodeScan || showQrScan) {
+        { raw, source ->
             val normalizedRaw = raw.trim()
-            val qrActive = currentShowQrScan
-            val barcodeActive = currentShowBarcodeScan
-            val webViewActive = currentShowWebView
-            val ocrActive = currentShowOcr
-            Log.i(
-                "HW_LOGIN_DEBUG",
-                "onHardwareScanData source=$source raw=$raw normalized=$normalizedRaw showQrScan=$qrActive showBarcodeScan=$barcodeActive showWebView=$webViewActive"
-            )
+
+            Log.i("HW_LOGIN_DEBUG", "onHardwareScanData source=$source raw=$raw normalized=$normalizedRaw showQrScan=$showQrScan showBarcodeScan=$showBarcodeScan showWebView=$showWebView")
 
             when {
-                qrActive -> {
+                showQrScan -> {
                     debugLastHardwareRaw = raw
                     debugLastHardwareNormalized = normalizedRaw
                     debugLastScannerSource = source
 
                     if (normalizedRaw.isNotBlank()) {
-                        currentHandleQrLogin(
-                            normalizedRaw,
-                            source
+                        handleQrLogin(
+                            raw = normalizedRaw,
+                            source = source
                         )
                     } else {
                         Log.w("HW_LOGIN_DEBUG", "hardware QR ignored because normalized raw is blank")
                     }
                 }
-                ocrActive -> {
+
+                showOcr -> {
                     Log.i("HW_LOGIN_DEBUG", "hardware scan ignored because OCR screen is active")
                 }
-                barcodeActive -> {
-                    currentHandleBarcodeResult(
-                        BarcodeScanResult(
+
+                showBarcodeScan -> {
+                    handleBarcodeResult(
+                        result = BarcodeScanResult(
                             rawValue = normalizedRaw,
                             format = Barcode.FORMAT_UNKNOWN,
                             isQr = true
@@ -2088,9 +2078,9 @@ fun AppRoot() {
                     )
                 }
 
-                webViewActive -> {
-                    currentHandleBarcodeResult(
-                        BarcodeScanResult(
+                showWebView -> {
+                    handleBarcodeResult(
+                        result = BarcodeScanResult(
                             rawValue = normalizedRaw,
                             format = Barcode.FORMAT_UNKNOWN,
                             isQr = true
@@ -2100,13 +2090,14 @@ fun AppRoot() {
                 }
             }
         }
-    }
-    DisposableEffect(Unit) {
-        onDispose {
-            MainActivity.onHardwareScanData = null
-        }
+    } else {
+        null
     }
 
+    onDispose {
+        MainActivity.onHardwareScanData = null
+    }
+}
 
     Scaffold(
         topBar = {
