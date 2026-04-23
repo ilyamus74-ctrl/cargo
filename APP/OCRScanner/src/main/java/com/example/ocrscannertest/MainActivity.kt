@@ -470,10 +470,6 @@ class MainActivity : ComponentActivity() {
     private val hardwareScanBuffer = StringBuilder()
     private var hardwareScanLastCharTs: Long = 0L
     private val hardwareScanTimeoutMs = 250L
-    private val hardwareScanFlushHandler = Handler(Looper.getMainLooper())
-    private val hardwareScanFlushRunnable = Runnable {
-        flushHardwareKeyboardWedgeBuffer(force = false)
-    }
     private val handledHardwareDownKeys = mutableSetOf<Int>()
     private val interceptHardwareTriggerKeys: Boolean = false
 
@@ -506,8 +502,6 @@ class MainActivity : ComponentActivity() {
             "com.symbol.datawedge.data_string",
             "barcode_string",
             "decode_data",
-            "dataBytes",
-            "com.honeywell.scandata",
             "code",
             "value"
         )
@@ -515,78 +509,34 @@ class MainActivity : ComponentActivity() {
         keys.forEach { key ->
             val str = extras?.getString(key)
             if (!str.isNullOrBlank()) return str
-            val bytes = extras?.get(key) as? ByteArray
-            if (bytes != null && bytes.isNotEmpty()) {
-                val decoded = bytes.toString(Charsets.UTF_8)
-                if (decoded.isNotBlank()) return decoded
-            }
         }
 
         intent.dataString?.takeIf { it.isNotBlank() }?.let { return it }
         return null
     }
-    private fun normalizeScannedPayload(raw: String): String {
-        return raw
-            .replace("\u0000", "")
-            .filter { !Character.isISOControl(it) }
-            .trim()
-    }
-
 
     private fun dispatchHardwareScan(raw: String) {
-        val normalized = normalizeScannedPayload(raw)
+        val normalized = raw.trim()
         if (normalized.isBlank()) return
         runOnUiThread {
             onHardwareScanData?.invoke(normalized)
         }
     }
 
-    private fun flushHardwareKeyboardWedgeBuffer(force: Boolean): Boolean {
-        val callback = onHardwareScanData ?: run {
-            hardwareScanBuffer.clear()
-            hardwareScanLastCharTs = 0L
-            return false
-        }
-
-        val payload = hardwareScanBuffer.toString().trim()
-        hardwareScanBuffer.clear()
-        hardwareScanLastCharTs = 0L
-            return false
-        }
-
-        val payload = normalizeScannedPayload(hardwareScanBuffer.toString())
-        hardwareScanBuffer.clear()
-        hardwareScanLastCharTs = 0L
-
-        if (payload.isBlank()) return false
-        if (!force && payload.length < 3) return false
-
-        callback(payload)
-        return true
-    }
-
     private fun handleHardwareKeyboardWedge(event: KeyEvent): Boolean {
-        if (onHardwareScanData == null) return false
-        if (event.action == KeyEvent.ACTION_MULTIPLE) {
-            val chars = event.characters
-            if (!chars.isNullOrBlank()) {
-                hardwareScanBuffer.append(chars)
-                hardwareScanFlushHandler.removeCallbacks(hardwareScanFlushRunnable)
-                hardwareScanFlushHandler.postDelayed(hardwareScanFlushRunnable, hardwareScanTimeoutMs)
-                return true
-            }
-            return false
-        }
+        val callback = onHardwareScanData ?: return false
         if (event.action != KeyEvent.ACTION_DOWN) return false
         if (event.keyCode == KeyEvent.KEYCODE_VOLUME_DOWN || event.keyCode == KeyEvent.KEYCODE_VOLUME_UP) return false
 
-        if (
-            event.keyCode == KeyEvent.KEYCODE_ENTER ||
-            event.keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER ||
-            event.keyCode == KeyEvent.KEYCODE_TAB
-        ) {
-            hardwareScanFlushHandler.removeCallbacks(hardwareScanFlushRunnable)
-            return flushHardwareKeyboardWedgeBuffer(force = true)
+        if (event.keyCode == KeyEvent.KEYCODE_ENTER || event.keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER) {
+            val payload = hardwareScanBuffer.toString().trim()
+            hardwareScanBuffer.clear()
+            hardwareScanLastCharTs = 0L
+            if (payload.isNotBlank()) {
+                callback(payload)
+                return true
+            }
+            return false
         }
 
         val unicodeChar = event.unicodeChar
@@ -598,10 +548,9 @@ class MainActivity : ComponentActivity() {
         }
         hardwareScanLastCharTs = now
         hardwareScanBuffer.append(unicodeChar.toChar())
-        hardwareScanFlushHandler.removeCallbacks(hardwareScanFlushRunnable)
-        hardwareScanFlushHandler.postDelayed(hardwareScanFlushRunnable, hardwareScanTimeoutMs)
         return true
     }
+
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         if (handleHardwareKeyboardWedge(event)) {
             return true
@@ -825,42 +774,27 @@ class MainActivity : ComponentActivity() {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION)
             }
-
-            val resolved = hsIntent.resolveActivity(packageManager)
-            if (resolved == null) {
-                hsBootstrapInProgress = false
-                Log.i("HS_BOOTSTRAP", "skip vendor splash reason=$reason not installed")
-                return
-            }
             startActivity(hsIntent)
 
             scannerBootstrapHandler.postDelayed({
                 try {
-                    Log.i("HS_BOOTSTRAP", "send BACK key reason=$reason")
-                    val instrumentation = android.app.Instrumentation()
-                    instrumentation.sendKeyDownUpSync(KeyEvent.KEYCODE_BACK)
-                } catch (e: Exception) {
-
-                    Log.e("HS_BOOTSTRAP", "Failed to send BACK key", e)
-                    try {
-                        val backIntent = packageManager.getLaunchIntentForPackage(packageName)?.apply {
-                            addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
-                            addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
-                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                            addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION)
-                        }
-                        if (backIntent != null) {
-                            Log.i("HS_BOOTSTRAP", "fallback return to app reason=$reason")
-                            startActivity(backIntent)
-                        }
-                    } catch (e2: Exception) {
-                        Log.e("HS_BOOTSTRAP", "Failed fallback return to app", e2)
+                    val backIntent = packageManager.getLaunchIntentForPackage(packageName)?.apply {
+                        addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                        addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION)
                     }
+                    if (backIntent != null) {
+                        Log.i("HS_BOOTSTRAP", "return to app reason=$reason")
+                        startActivity(backIntent)
+                    }
+                } catch (e: Exception) {
+                    Log.e("HS_BOOTSTRAP", "Failed to return to app", e)
                 } finally {
                     hsBootstrapInProgress = false
                     Log.i("HS_BOOTSTRAP", "bootstrap finished reason=$reason")
                 }
-            }, 2000)
+            }, 1200)
 
         } catch (e: Exception) {
             hsBootstrapInProgress = false
@@ -874,7 +808,6 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
-        hardwareScanFlushHandler.removeCallbacks(hardwareScanFlushRunnable)
         runCatching {
             unregisterReceiver(scanIntentReceiver)
         }
@@ -1949,42 +1882,7 @@ fun AppRoot() {
     }
 
 
-
-    val submitLoginByQrOrHardware: (String) -> Unit = remember(config, context) {
-        { raw ->
-            pendingQrScannerRestoreReason = "qr_scan_completed"
-            showQrScan = false
-            lastQr = raw
-            loginError = null
-            isLoggingIn = true
-
-            scope.launch {
-                val result = qrLoginOnServer(context, config, raw)
-                isLoggingIn = false
-
-                if (result.ok && !result.sessionId.isNullOrBlank()) {
-                    sessionId = result.sessionId
-
-                    val base = normalizeServerUrl(config.serverUrl)
-                    val cookieManager = CookieManager.getInstance()
-                    cookieManager.setAcceptCookie(true)
-                    val isHttps = base.startsWith("https://", ignoreCase = true)
-
-                    val cookieStr = buildString {
-                        append("PHPSESSID=${result.sessionId}; Path=/; SameSite=Lax")
-                        if (isHttps) append("; Secure")
-                    }
-                    cookieManager.setCookie(base, cookieStr)
-                    cookieManager.flush()
-                    showWebView = true
-                } else {
-                    loginError = result.errorMessage ?: "Ошибка логина по QR"
-                }
-            }
-        }
-    }
-
-    DisposableEffect(showWebView, showBarcodeScan, showOcr, showSettings, showQrScan, isLoggingIn) {
+    DisposableEffect(showWebView, showBarcodeScan, showOcr, showSettings, showQrScan) {
         MainActivity.onHardwareScanData = if (showWebView || showBarcodeScan) {
             { raw ->
                 when {
@@ -2012,10 +1910,6 @@ fun AppRoot() {
                         )
                     }
                 }
-            }
-        } else if (!showSettings && !isLoggingIn) {
-            { raw ->
-                submitLoginByQrOrHardware(raw)
             }
         } else {
             null
@@ -2126,7 +2020,36 @@ fun AppRoot() {
                             pendingQrScannerRestoreReason = null
                         },
                         onCodeScanned = { raw ->
-                            submitLoginByQrOrHardware(raw)
+                            pendingQrScannerRestoreReason = "qr_scan_completed"
+                            showQrScan = false
+                            lastQr = raw
+                            loginError = null
+                            isLoggingIn = true
+
+                            scope.launch {
+                                val result = qrLoginOnServer(context, config, raw)
+                                isLoggingIn = false
+
+                                if (result.ok && !result.sessionId.isNullOrBlank()) {
+                                    sessionId = result.sessionId
+
+                                    val base = normalizeServerUrl(config.serverUrl)
+                                    val cookieManager = CookieManager.getInstance()
+                                    cookieManager.setAcceptCookie(true)
+                                    // val cookieStr = "PHPSESSID=${result.sessionId}; Path=/; Secure"
+                                    val isHttps = base.startsWith("https://", ignoreCase = true)
+
+                                    val cookieStr = buildString {
+                                        append("PHPSESSID=${result.sessionId}; Path=/; SameSite=Lax")
+                                        if (isHttps) append("; Secure")
+                                    }
+                                    cookieManager.setCookie(base, cookieStr)
+                                    cookieManager.flush()
+                                    showWebView = true
+                                } else {
+                                    loginError = result.errorMessage ?: "Ошибка логина по QR"
+                                }
+                            }
                         },
                         onCancel = {
                             pendingQrScannerRestoreReason = "qr_scan_canceled"
@@ -2634,11 +2557,7 @@ fun LoginReadyScreen(
         Button(onClick = { onScanQr() }) {
             Text("Сканировать QR для входа")
         }
-        Text(
-            text = "Также можно просто считать QR хардсканером (лазером) — вход выполнится автоматически.",
-            style = MaterialTheme.typography.bodySmall,
-            modifier = Modifier.padding(top = 8.dp)
-        )
+
         Spacer(modifier = Modifier.height(24.dp))
 
         if (isLoggingIn) {
