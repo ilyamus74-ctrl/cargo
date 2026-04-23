@@ -489,30 +489,8 @@ class MainActivity : ComponentActivity() {
     )
     private val scanIntentReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
-
-            val extras = intent?.extras
-            val action = intent?.action
-            val extraKeys = extras?.keySet().orEmpty()
-            val extrasDump = extraKeys.joinToString(separator = ", ") { key ->
-                "$key=${safeExtraValue(extras?.get(key))}"
-            }
-            val extracted = extractScanPayload(intent)
-            Log.i(
-                "SCAN_QR_DIAG",
-                "intent_path action=$action extrasKeys=$extraKeys extras=[$extrasDump] extracted=$extracted"
-            )
-            val raw = extracted ?: return
-            dispatchHardwareScan(raw = raw, source = "hardware_intent")
-        }
-    }
-
-    private fun safeExtraValue(value: Any?): String {
-        return when (value) {
-            null -> "null"
-            is ByteArray -> "ByteArray(len=${value.size}, text='${String(value).take(120)}')"
-            is CharArray -> "CharArray(len=${value.size}, text='${String(value).take(120)}')"
-            is Array<*> -> value.joinToString(prefix = "[", postfix = "]") { it?.toString().orEmpty().take(80) }
-            else -> value.toString().take(200)
+            val raw = extractScanPayload(intent) ?: return
+            dispatchHardwareScan(raw)
         }
     }
 
@@ -562,14 +540,10 @@ class MainActivity : ComponentActivity() {
         return null
     }
 
-    private fun dispatchHardwareScan(raw: String, source: String) {
-        val normalized = normalizeHardwareScanPayload(raw)
-        Log.i("SCAN_QR_DIAG", "dispatchHardwareScan source=$source raw='$raw' normalized='$normalized'")
-        if (normalized.isNullOrBlank()) return
+    private fun dispatchHardwareScan(raw: String) {
+        val normalized = normalizeHardwareScanPayload(raw) ?: return
         runOnUiThread {
-            val hasCallback = onHardwareScanData != null
-            Log.i("SCAN_QR_DIAG", "dispatchHardwareScan source=$source invokeCallback=$hasCallback")
-            onHardwareScanData?.invoke(normalized, source)
+            onHardwareScanData?.invoke(normalized)
         }
     }
 
@@ -622,10 +596,7 @@ class MainActivity : ComponentActivity() {
         val callback = onHardwareScanData ?: return false
         if (event.action != KeyEvent.ACTION_DOWN) return false
         if (event.keyCode == KeyEvent.KEYCODE_VOLUME_DOWN || event.keyCode == KeyEvent.KEYCODE_VOLUME_UP) return false
-        Log.i(
-            "SCAN_QR_DIAG",
-            "wedge_key keyCode=${event.keyCode} unicode=${event.unicodeChar} buffer='${hardwareScanBuffer}'"
-        )
+
         if (
             event.keyCode == KeyEvent.KEYCODE_ENTER ||
             event.keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER ||
@@ -637,12 +608,8 @@ class MainActivity : ComponentActivity() {
             hardwareScanBuffer.clear()
             hardwareScanLastCharTs = 0L
             val normalizedPayload = normalizeHardwareScanPayload(payload)
-            Log.i(
-                "SCAN_QR_DIAG",
-                "wedge_flush triggerKey=${event.keyCode} payload='$payload' normalized='$normalizedPayload'"
-            )
             if (!normalizedPayload.isNullOrBlank()) {
-                callback(normalizedPayload, "hardware_wedge")
+                callback(normalizedPayload)
                 return true
             }
             return false
@@ -657,16 +624,15 @@ class MainActivity : ComponentActivity() {
         }
         hardwareScanLastCharTs = now
         hardwareScanBuffer.append(unicodeChar.toChar())
-        Log.i("SCAN_QR_DIAG", "wedge_buffer_appended nowBuffer='${hardwareScanBuffer}'")
+
         hardwareScanFlushRunnable?.let { hardwareScanFlushHandler.removeCallbacks(it) }
         hardwareScanFlushRunnable = Runnable {
             val payload = hardwareScanBuffer.toString().trim()
             hardwareScanBuffer.clear()
             hardwareScanLastCharTs = 0L
             val normalizedPayload = normalizeHardwareScanPayload(payload)
-            Log.i("SCAN_QR_DIAG", "wedge_flush timeout payload='$payload' normalized='$normalizedPayload'")
             if (!normalizedPayload.isNullOrBlank()) {
-                onHardwareScanData?.invoke(normalizedPayload, "hardware_wedge")
+                onHardwareScanData?.invoke(normalizedPayload)
             }
         }
         hardwareScanFlushHandler.postDelayed(hardwareScanFlushRunnable!!, hardwareScanTimeoutMs + 100L)
@@ -988,23 +954,11 @@ fun AppRoot() {
     var lastQr by remember { mutableStateOf<String?>(null) }
     var loginError by remember { mutableStateOf<String?>(null) }
     var isLoggingIn by remember { mutableStateOf(false) }
-    var debugLastHardwareRaw by remember { mutableStateOf<String?>(null) }
-    var debugLastHardwareNormalized by remember { mutableStateOf<String?>(null) }
-    var debugLastScannerSource by remember { mutableStateOf<String?>(null) }
-    var debugReachedHandleQrLogin by remember { mutableStateOf(false) }
 
     // session_id из сервера (по факту сейчас только храним для информации)
     var sessionId by remember { mutableStateOf<String?>(null) }
 
-
-    fun handleQrLogin(raw: String, source: String) {
-        Log.i("SCAN_QR_DIAG", "handleQrLogin source=$source raw='$raw' loginStart=true")
-        debugReachedHandleQrLogin = true
-        debugLastScannerSource = source
-        if (source.startsWith("hardware")) {
-            debugLastHardwareRaw = raw
-            debugLastHardwareNormalized = normalizeHardwareScanPayload(raw)
-        }
+    fun handleQrLogin(raw: String) {
         pendingQrScannerRestoreReason = "qr_scan_completed"
         showQrScan = false
         lastQr = raw
@@ -1016,7 +970,6 @@ fun AppRoot() {
             isLoggingIn = false
 
             if (result.ok && !result.sessionId.isNullOrBlank()) {
-                Log.i("SCAN_QR_DIAG", "handleQrLogin source=$source loginSuccess=true")
                 sessionId = result.sessionId
 
                 val base = normalizeServerUrl(config.serverUrl)
@@ -1032,10 +985,6 @@ fun AppRoot() {
                 cookieManager.flush()
                 showWebView = true
             } else {
-                Log.i(
-                    "SCAN_QR_DIAG",
-                    "handleQrLogin source=$source loginSuccess=false error='${result.errorMessage}'"
-                )
                 loginError = result.errorMessage ?: "Ошибка логина по QR"
             }
         }
@@ -2056,13 +2005,10 @@ fun AppRoot() {
 
     DisposableEffect(showWebView, showBarcodeScan, showOcr, showSettings, showQrScan) {
         MainActivity.onHardwareScanData = if (showWebView || showBarcodeScan || showQrScan) {
-            { raw, source ->
-                debugLastHardwareRaw = raw
-                debugLastHardwareNormalized = normalizeHardwareScanPayload(raw)
-                debugLastScannerSource = source
+            { raw ->
                 when {
                     showQrScan -> {
-                        handleQrLogin(raw = raw, source = source)
+                        handleQrLogin(raw)
                     }
                     showOcr -> {
                         // OCR остаётся только через фотокамеру.
@@ -2198,7 +2144,7 @@ fun AppRoot() {
                             pendingQrScannerRestoreReason = null
                         },
                         onCodeScanned = { raw ->
-                            handleQrLogin(raw = raw, source = "camera")
+                            handleQrLogin(raw)
                         },
                         onCancel = {
                             pendingQrScannerRestoreReason = "qr_scan_canceled"
@@ -2278,10 +2224,6 @@ fun AppRoot() {
                         lastQr = lastQr,
                         isLoggingIn = isLoggingIn,
                         loginError = loginError,
-                        debugLastHardwareRaw = debugLastHardwareRaw,
-                        debugLastHardwareNormalized = debugLastHardwareNormalized,
-                        debugLastScannerSource = debugLastScannerSource,
-                        debugReachedHandleQrLogin = debugReachedHandleQrLogin,
                         onScanQr = {
                             showWebView = false
                             showQrScan = true
@@ -2674,10 +2616,6 @@ fun LoginReadyScreen(
     lastQr: String?,
     isLoggingIn: Boolean,
     loginError: String?,
-    debugLastHardwareRaw: String?,
-    debugLastHardwareNormalized: String?,
-    debugLastScannerSource: String?,
-    debugReachedHandleQrLogin: Boolean,
     onScanQr: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -2715,25 +2653,6 @@ fun LoginReadyScreen(
             Text("Сканировать QR для входа")
         }
 
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        Text(
-            text = "DEBUG source: ${debugLastScannerSource ?: "-"}",
-            style = MaterialTheme.typography.bodySmall
-        )
-        Text(
-            text = "DEBUG hw raw: ${debugLastHardwareRaw ?: "-"}",
-            style = MaterialTheme.typography.bodySmall
-        )
-        Text(
-            text = "DEBUG hw normalized: ${debugLastHardwareNormalized ?: "-"}",
-            style = MaterialTheme.typography.bodySmall
-        )
-        Text(
-            text = "DEBUG handleQrLogin reached: $debugReachedHandleQrLogin",
-            style = MaterialTheme.typography.bodySmall
-        )
         Spacer(modifier = Modifier.height(24.dp))
 
         if (isLoggingIn) {
