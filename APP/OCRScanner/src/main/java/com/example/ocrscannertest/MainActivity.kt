@@ -2084,7 +2084,7 @@ fun AppRoot() {
                             format = Barcode.FORMAT_UNKNOWN,
                             isQr = true
                         ),
-                        closeOverlay = true
+                        true
                     )
                 }
 
@@ -2095,7 +2095,7 @@ fun AppRoot() {
                             format = Barcode.FORMAT_UNKNOWN,
                             isQr = true
                         ),
-                        closeOverlay = false
+                        false
                     )
                 }
             }
