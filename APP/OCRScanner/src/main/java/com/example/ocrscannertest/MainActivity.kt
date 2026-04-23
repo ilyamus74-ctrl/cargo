@@ -1897,7 +1897,42 @@ fun AppRoot() {
     }
 
 
-    DisposableEffect(showWebView, showBarcodeScan, showOcr, showSettings, showQrScan) {
+
+    val submitLoginByQrOrHardware: (String) -> Unit = remember(config, context) {
+        { raw ->
+            pendingQrScannerRestoreReason = "qr_scan_completed"
+            showQrScan = false
+            lastQr = raw
+            loginError = null
+            isLoggingIn = true
+
+            scope.launch {
+                val result = qrLoginOnServer(context, config, raw)
+                isLoggingIn = false
+
+                if (result.ok && !result.sessionId.isNullOrBlank()) {
+                    sessionId = result.sessionId
+
+                    val base = normalizeServerUrl(config.serverUrl)
+                    val cookieManager = CookieManager.getInstance()
+                    cookieManager.setAcceptCookie(true)
+                    val isHttps = base.startsWith("https://", ignoreCase = true)
+
+                    val cookieStr = buildString {
+                        append("PHPSESSID=${result.sessionId}; Path=/; SameSite=Lax")
+                        if (isHttps) append("; Secure")
+                    }
+                    cookieManager.setCookie(base, cookieStr)
+                    cookieManager.flush()
+                    showWebView = true
+                } else {
+                    loginError = result.errorMessage ?: "Ошибка логина по QR"
+                }
+            }
+        }
+    }
+
+    DisposableEffect(showWebView, showBarcodeScan, showOcr, showSettings, showQrScan, isLoggingIn) {
         MainActivity.onHardwareScanData = if (showWebView || showBarcodeScan) {
             { raw ->
                 when {
@@ -1925,6 +1960,10 @@ fun AppRoot() {
                         )
                     }
                 }
+            }
+        } else if (!showSettings && !isLoggingIn) {
+            { raw ->
+                submitLoginByQrOrHardware(raw)
             }
         } else {
             null
@@ -2035,36 +2074,7 @@ fun AppRoot() {
                             pendingQrScannerRestoreReason = null
                         },
                         onCodeScanned = { raw ->
-                            pendingQrScannerRestoreReason = "qr_scan_completed"
-                            showQrScan = false
-                            lastQr = raw
-                            loginError = null
-                            isLoggingIn = true
-
-                            scope.launch {
-                                val result = qrLoginOnServer(context, config, raw)
-                                isLoggingIn = false
-
-                                if (result.ok && !result.sessionId.isNullOrBlank()) {
-                                    sessionId = result.sessionId
-
-                                    val base = normalizeServerUrl(config.serverUrl)
-                                    val cookieManager = CookieManager.getInstance()
-                                    cookieManager.setAcceptCookie(true)
-                                    // val cookieStr = "PHPSESSID=${result.sessionId}; Path=/; Secure"
-                                    val isHttps = base.startsWith("https://", ignoreCase = true)
-
-                                    val cookieStr = buildString {
-                                        append("PHPSESSID=${result.sessionId}; Path=/; SameSite=Lax")
-                                        if (isHttps) append("; Secure")
-                                    }
-                                    cookieManager.setCookie(base, cookieStr)
-                                    cookieManager.flush()
-                                    showWebView = true
-                                } else {
-                                    loginError = result.errorMessage ?: "Ошибка логина по QR"
-                                }
-                            }
+                            submitLoginByQrOrHardware(raw)
                         },
                         onCancel = {
                             pendingQrScannerRestoreReason = "qr_scan_canceled"
@@ -2572,7 +2582,11 @@ fun LoginReadyScreen(
         Button(onClick = { onScanQr() }) {
             Text("Сканировать QR для входа")
         }
-
+        Text(
+            text = "Также можно просто считать QR хардсканером (лазером) — вход выполнится автоматически.",
+            style = MaterialTheme.typography.bodySmall,
+            modifier = Modifier.padding(top = 8.dp)
+        )
         Spacer(modifier = Modifier.height(24.dp))
 
         if (isLoggingIn) {
