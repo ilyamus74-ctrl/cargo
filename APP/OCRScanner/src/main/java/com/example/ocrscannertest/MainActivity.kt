@@ -508,19 +508,86 @@ class MainActivity : ComponentActivity() {
 
         keys.forEach { key ->
             val str = extras?.getString(key)
-            if (!str.isNullOrBlank()) return str
+            normalizeHardwareScanPayload(str)?.let { return it }
+
+            val bytes = extras?.getByteArray(key)
+            if (bytes != null && bytes.isNotEmpty()) {
+                normalizeHardwareScanPayload(String(bytes))?.let { return it }
+            }
+
+            val charSeq = extras?.getCharSequence(key)
+            normalizeHardwareScanPayload(charSeq?.toString())?.let { return it }
         }
 
-        intent.dataString?.takeIf { it.isNotBlank() }?.let { return it }
+        val fallbackKeys = extras?.keySet().orEmpty()
+        fallbackKeys.forEach { key ->
+            val value = extras?.get(key) ?: return@forEach
+            when (value) {
+                is String -> normalizeHardwareScanPayload(value)?.let { return it }
+                is CharSequence -> normalizeHardwareScanPayload(value.toString())?.let { return it }
+                is ByteArray -> normalizeHardwareScanPayload(String(value))?.let { return it }
+                is Array<*> -> value
+                    .asSequence()
+                    .mapNotNull { it?.toString() }
+                    .mapNotNull(::normalizeHardwareScanPayload)
+                    .firstOrNull()
+                    ?.let { return it }
+            }
+        }
+        normalizeHardwareScanPayload(intent.dataString)?.let { return it }
         return null
     }
 
     private fun dispatchHardwareScan(raw: String) {
-        val normalized = raw.trim()
-        if (normalized.isBlank()) return
+        val normalized = normalizeHardwareScanPayload(raw) ?: return
         runOnUiThread {
             onHardwareScanData?.invoke(normalized)
         }
+    }
+
+
+    private fun normalizeHardwareScanPayload(raw: String?): String? {
+        val base = raw?.trim()?.takeIf { it.isNotBlank() } ?: return null
+
+        fun normalizeCandidate(candidate: String?): String? {
+            val value = candidate?.trim()?.takeIf { it.isNotBlank() } ?: return null
+            val normalized = normalizeScanRawValue(value)
+            if (normalized.isBlank()) return null
+            if (normalized.equals("null", ignoreCase = true) || normalized.equals("undefined", ignoreCase = true)) {
+                return null
+            }
+            return normalized
+        }
+
+        normalizeCandidate(base)?.let { direct ->
+            if (!direct.startsWith("{") && !direct.startsWith("[")) return direct
+        }
+
+        if (base.startsWith("[")) {
+            runCatching { JSONArray(base) }.getOrNull()?.let { arr ->
+                for (i in 0 until arr.length()) {
+                    normalizeCandidate(arr.opt(i)?.toString())?.let { return it }
+                }
+            }
+        }
+
+        if (base.startsWith("{")) {
+            runCatching { JSONObject(base) }.getOrNull()?.let { obj ->
+                val jsonKeys = listOf("barcode", "qr", "value", "data", "code", "scanData", "raw", "text")
+                jsonKeys.forEach { key ->
+                    normalizeCandidate(obj.optString(key, null))?.let { return it }
+                }
+            }
+        }
+
+        val tokens = base.split(Regex("""[\s\n\r\t;,|]+"""))
+            .mapNotNull(::normalizeCandidate)
+            .filter { token -> token.any(Char::isLetterOrDigit) }
+        if (tokens.isNotEmpty()) {
+            return tokens.maxByOrNull { it.length }
+        }
+
+        return normalizeCandidate(base)
     }
 
     private fun handleHardwareKeyboardWedge(event: KeyEvent): Boolean {
@@ -532,8 +599,9 @@ class MainActivity : ComponentActivity() {
             val payload = hardwareScanBuffer.toString().trim()
             hardwareScanBuffer.clear()
             hardwareScanLastCharTs = 0L
-            if (payload.isNotBlank()) {
-                callback(payload)
+            val normalizedPayload = normalizeHardwareScanPayload(payload)
+            if (!normalizedPayload.isNullOrBlank()) {
+                callback(normalizedPayload)
                 return true
             }
             return false
