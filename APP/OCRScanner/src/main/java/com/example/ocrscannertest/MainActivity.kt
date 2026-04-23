@@ -837,6 +837,8 @@ class MainActivity : ComponentActivity() {
     private var lastHardwareTriggerAt = 0L
     private val scannerBootstrapHandler by lazy { Handler(Looper.getMainLooper()) }
     private var warmupScheduled = false
+    private val vendorUiWatchdogHandler by lazy { Handler(Looper.getMainLooper()) }
+    private var vendorUiWatchdogRunnable: Runnable? = null
 
     fun setQrCameraFlowActive(active: Boolean, reason: String = "unknown") {
         qrCameraFlowActive = active
@@ -870,7 +872,36 @@ class MainActivity : ComponentActivity() {
         warmupScheduled = false
         Log.i("HS_BOOTSTRAP", "hardware decode reason=$reason at=$lastHardwareDecodeAt")
     }
+    fun scheduleReturnFromVendorUi(reason: String = "unknown", delayMs: Long = 250L) {
+        vendorUiWatchdogRunnable?.let { vendorUiWatchdogHandler.removeCallbacks(it) }
 
+        vendorUiWatchdogRunnable = Runnable {
+            if (qrCameraFlowActive) {
+                Log.i("HS_BOOTSTRAP", "skip return-to-app because qr flow active reason=$reason")
+                return@Runnable
+            }
+
+            try {
+                val intent = packageManager.getLaunchIntentForPackage(packageName)?.apply {
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                    addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                    addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
+                }
+
+                if (intent != null) {
+                    startActivity(intent)
+                    Log.i("HS_BOOTSTRAP", "return to app reason=$reason")
+                } else {
+                    Log.w("HS_BOOTSTRAP", "launch intent is null reason=$reason")
+                }
+            } catch (t: Throwable) {
+                Log.e("HS_BOOTSTRAP", "failed return to app reason=$reason", t)
+            }
+        }
+
+        vendorUiWatchdogHandler.postDelayed(vendorUiWatchdogRunnable!!, delayMs)
+    }
     fun ensureScannerWarmupIfNeeded(reason: String = "unknown", delayMs: Long = 1200L) {
         val now = System.currentTimeMillis()
 
@@ -974,6 +1005,12 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        if (!qrCameraFlowActive) {
+            scheduleReturnFromVendorUi(
+                reason = "activity_onResume",
+                delayMs = 250L
+            )
+        }
     }
 
     override fun onDestroy() {
@@ -982,6 +1019,8 @@ class MainActivity : ComponentActivity() {
         runCatching {
             unregisterReceiver(scanIntentReceiver)
         }
+        vendorUiWatchdogRunnable?.let { vendorUiWatchdogHandler.removeCallbacks(it) }
+        vendorUiWatchdogRunnable = null
         super.onDestroy()
     }
 
@@ -1002,10 +1041,12 @@ fun AppRoot() {
         debugToastsEnabled = config.debugToasts
     }
     LaunchedEffect(Unit) {
-        activity?.ensureScannerWarmupIfNeeded(
+    /*    activity?.ensureScannerWarmupIfNeeded(
             reason = "app_start",
             delayMs = 1200L
         )
+
+     */
     }
     var showSettings by remember { mutableStateOf(!config.enrolled || config.serverUrl.isBlank()) }
     var showQrScan by remember { mutableStateOf(false) }
@@ -1070,6 +1111,16 @@ fun AppRoot() {
                 Log.i("SCAN_QR_DIAG", "handleQrLogin source=$source loginSuccess=true")
                 if (source == "camera") {
                     activity?.suppressVendorBootstrap(
+                        windowMs = 7000L,
+                        reason = "camera_login_success"
+                    )
+                    activity?.scheduleReturnFromVendorUi(
+                        reason = "camera_login_success",
+                        delayMs = 250L
+                    )
+                }
+                if (source == "camera") {
+                    activity?.suppressVendorBootstrap(
                         windowMs = 5000L,
                         reason = "camera_login_success"
                     )
@@ -1108,10 +1159,12 @@ fun AppRoot() {
     LaunchedEffect(showWebView, showQrScan, pendingWebViewBootstrapReason) {
         val reason = pendingWebViewBootstrapReason
         if (showWebView && !showQrScan) {
-            activity?.ensureScannerWarmupIfNeeded(
+           /* activity?.ensureScannerWarmupIfNeeded(
                 reason = reason ?: "webview_visible",
                 delayMs = 900L
             )
+
+            */
         }
         pendingWebViewBootstrapReason = null
     }
