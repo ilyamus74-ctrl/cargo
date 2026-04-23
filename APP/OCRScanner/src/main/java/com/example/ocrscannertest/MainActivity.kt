@@ -725,122 +725,47 @@ class MainActivity : ComponentActivity() {
 
     private var hsBootstrapInProgress = false
     private var lastHsBootstrapAt = 0L
-
-    private enum class ScannerRecoveryState {
-        IDLE,
-        WAITING_CAMERA_RELEASE,
-        RUNNING
-    }
-
-    private var scannerRecoveryState = ScannerRecoveryState.IDLE
-    private var lastScannerRecoveryAt = 0L
     private var qrCameraFlowActive = false
     private var qrCameraReleased = true
-    private var pendingRecoveryReason: String? = null
-    private val scannerRecoveryHandler by lazy { Handler(Looper.getMainLooper()) }
-    private val scannerRestartAction = "com.android.hs.action.SCANRESTART"
-    private val enableVendorScannerRecovery = false
-    private val recoveryAttemptDelaysMs = longArrayOf(500L, 1200L, 2000L)
+    private val scannerBootstrapHandler by lazy { Handler(Looper.getMainLooper()) }
 
     fun setQrCameraFlowActive(active: Boolean, reason: String = "unknown") {
         qrCameraFlowActive = active
         if (active) {
             qrCameraReleased = false
-            scannerRecoveryState = ScannerRecoveryState.WAITING_CAMERA_RELEASE
-            Log.i("HW_SCANNER_RECOVERY", "qr flow active reason=$reason")
+            Log.i("HS_BOOTSTRAP", "qr flow active reason=$reason")
         } else {
-            Log.i("HW_SCANNER_RECOVERY", "qr flow inactive reason=$reason released=$qrCameraReleased")
-            maybeSchedulePendingRecovery("qr_flow_inactive_$reason")
+            Log.i("HS_BOOTSTRAP", "qr flow inactive reason=$reason released=$qrCameraReleased")
         }
     }
 
     fun notifyQrCameraReleased(reason: String = "unknown") {
         qrCameraReleased = true
-        Log.i("HW_SCANNER_RECOVERY", "qr camera released reason=$reason")
-        maybeSchedulePendingRecovery("camera_released_$reason")
+        Log.i("HS_BOOTSTRAP", "qr camera released reason=$reason")
     }
-    fun requestHardwareScannerRestore(reason: String = "manual", withDelayMs: Long = 350L) {
 
-        pendingRecoveryReason = reason
-        scannerRecoveryHandler.postDelayed({
-            maybeSchedulePendingRecovery("request_$reason")
+    fun requestScannerVendorBootstrap(reason: String = "manual", withDelayMs: Long = 350L) {
+        scannerBootstrapHandler.postDelayed({
+            if (qrCameraFlowActive || !qrCameraReleased) {
+                Log.i(
+                    "HS_BOOTSTRAP",
+                    "skip bootstrap reason=$reason qrActive=$qrCameraFlowActive qrReleased=$qrCameraReleased"
+                )
+                return@postDelayed
+            }
+            bootstrapHsViaSplashActivity(reason = reason)
         }, withDelayMs)
     }
 
-    private fun maybeSchedulePendingRecovery(trigger: String) {
-        if (!enableVendorScannerRecovery) return
-        val reason = pendingRecoveryReason ?: trigger
-        scheduleHardwareScannerRestore(reason = reason)
-    }
-
-    private fun scheduleHardwareScannerRestore(
-        reason: String,
-        retries: Int = recoveryAttemptDelaysMs.size
-    ) {
-        if (!enableVendorScannerRecovery) {
-            scannerRecoveryState = ScannerRecoveryState.IDLE
-            pendingRecoveryReason = null
-            Log.i("HW_SCANNER_RECOVERY", "skip vendor scanner recovery reason=$reason")
-            return
-        }
-        val now = System.currentTimeMillis()
-        if (scannerRecoveryState == ScannerRecoveryState.RUNNING) return
-        if (now - lastScannerRecoveryAt < 700L) return
-
-        if (qrCameraFlowActive || !qrCameraReleased) {
-            pendingRecoveryReason = reason
-            scannerRecoveryState = ScannerRecoveryState.WAITING_CAMERA_RELEASE
-            Log.i("HW_SCANNER_RECOVERY", "defer reason=$reason qrActive=$qrCameraFlowActive qrReleased=$qrCameraReleased")
-            return
-        }
-        scannerRecoveryState = ScannerRecoveryState.RUNNING
-        lastScannerRecoveryAt = now
-        pendingRecoveryReason = null
-        Log.i("HW_SCANNER_RECOVERY", "schedule reason=$reason retries=$retries")
-
-        fun attempt(tryIndex: Int) {
-            val delayMs = recoveryAttemptDelaysMs.getOrElse(tryIndex) { recoveryAttemptDelaysMs.last() }
-            scannerRecoveryHandler.postDelayed({
-                val attemptNo = tryIndex + 1
-                try {
-
-                    if (qrCameraFlowActive) {
-                        pendingRecoveryReason = reason
-                        scannerRecoveryState = ScannerRecoveryState.WAITING_CAMERA_RELEASE
-                        Log.i("HW_SCANNER_RECOVERY", "stop attempts because qr became active reason=$reason attempt=$attemptNo")
-                        return@postDelayed
-                    }
-                    runCatching {
-                        ProcessCameraProvider.getInstance(this).get().unbindAll()
-                    }.onFailure {
-                        Log.w("HW_SCANNER_RECOVERY", "camera unbind failed attempt=$attemptNo reason=$reason", it)
-                    }
-
-                    val restartIntent = Intent(scannerRestartAction).apply {
-                        addFlags(Intent.FLAG_RECEIVER_FOREGROUND)
-                    }
-                    sendBroadcast(restartIntent)
-                    Log.i("HW_SCANNER_RECOVERY", "broadcast sent action=$scannerRestartAction attempt=$attemptNo reason=$reason")
-                } catch (e: Exception) {
-                    Log.e("HW_SCANNER_RECOVERY", "attempt failed attempt=$attemptNo reason=$reason", e)
-                } finally {
-                    if (attemptNo < retries) {
-                        attempt(attemptNo)
-                    } else {
-                        scannerRecoveryState = ScannerRecoveryState.IDLE
-                    }
-                }
-            }, delayMs)
-        }
-
-        attempt(0)
-    }
-
-    private fun bootstrapHsViaSplashActivity() {
+    private fun bootstrapHsViaSplashActivity(reason: String) {
         if (hsBootstrapInProgress) return
+        val now = System.currentTimeMillis()
+        if (now - lastHsBootstrapAt < 1200L) return
         hsBootstrapInProgress = true
+        lastHsBootstrapAt = now
 
         try {
+            Log.i("HS_BOOTSTRAP", "start vendor splash reason=$reason")
             val hsIntent = Intent().apply {
                 setClassName(
                     "com.hs.dcsservice",
@@ -851,7 +776,7 @@ class MainActivity : ComponentActivity() {
             }
             startActivity(hsIntent)
 
-            Handler(Looper.getMainLooper()).postDelayed({
+            scannerBootstrapHandler.postDelayed({
                 try {
                     val backIntent = packageManager.getLaunchIntentForPackage(packageName)?.apply {
                         addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
@@ -859,13 +784,17 @@ class MainActivity : ComponentActivity() {
                         addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                         addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION)
                     }
-                    if (backIntent != null) startActivity(backIntent)
+                    if (backIntent != null) {
+                        Log.i("HS_BOOTSTRAP", "return to app reason=$reason")
+                        startActivity(backIntent)
+                    }
                 } catch (e: Exception) {
                     Log.e("HS_BOOTSTRAP", "Failed to return to app", e)
                 } finally {
                     hsBootstrapInProgress = false
+                    Log.i("HS_BOOTSTRAP", "bootstrap finished reason=$reason")
                 }
-            }, 3000)
+            }, 1200)
 
         } catch (e: Exception) {
             hsBootstrapInProgress = false
@@ -876,15 +805,6 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-        requestHardwareScannerRestore(reason = "activity_onResume", withDelayMs = 500L)
-        //val now = System.currentTimeMillis()
-        //if (!hsBootstrapInProgress && now - lastHsBootstrapAt > 5000) {
-        //    lastHsBootstrapAt = now
-        //    Handler(Looper.getMainLooper()).postDelayed({
-        //        bootstrapHsViaSplashActivity()
-        //        }, 250)
-        //}
-        // Временно отключено: не запускаем HS SplashActivity при старте/возврате в приложение.
     }
 
     override fun onDestroy() {
@@ -896,9 +816,6 @@ class MainActivity : ComponentActivity() {
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
-        if (hasFocus) {
-            requestHardwareScannerRestore(reason = "window_focus", withDelayMs = 500L)
-        }
     }
 }
 
@@ -917,6 +834,7 @@ fun AppRoot() {
     var showSettings by remember { mutableStateOf(!config.enrolled || config.serverUrl.isBlank()) }
     var showQrScan by remember { mutableStateOf(false) }
     var pendingQrScannerRestoreReason by remember { mutableStateOf<String?>(null) }
+    var pendingWebViewBootstrapReason by remember { mutableStateOf<String?>(null) }
     var showWebView by remember { mutableStateOf(false) }
     // clear WebView cache/storage only on app start
     var shouldClearWebViewData by remember { mutableStateOf(true) }
@@ -952,13 +870,14 @@ fun AppRoot() {
             activity?.setQrCameraFlowActive(true, reason = "qr_overlay_opened")
         } else {
             activity?.setQrCameraFlowActive(false, reason = "qr_overlay_closed")
-            activity?.requestHardwareScannerRestore(reason = "qr_overlay_closed", withDelayMs = 500L)
         }
     }
 
-    LaunchedEffect(showWebView, showQrScan) {
+    LaunchedEffect(showWebView, showQrScan, pendingWebViewBootstrapReason) {
+        val reason = pendingWebViewBootstrapReason ?: return@LaunchedEffect
         if (showWebView && !showQrScan) {
-            activity?.requestHardwareScannerRestore(reason = "returned_to_webview", withDelayMs = 1200L)
+            activity?.requestScannerVendorBootstrap(reason = reason, withDelayMs = 700L)
+            pendingWebViewBootstrapReason = null
         }
     }
     var destConfig by remember { mutableStateOf<List<DestCountryCfg>>(emptyList()) }
@@ -2097,7 +2016,7 @@ fun AppRoot() {
                         onCameraDisposed = {
                             activity?.notifyQrCameraReleased(reason = "qr_screen_disposed")
                             val reason = pendingQrScannerRestoreReason ?: return@QrScanScreen
-                            activity?.requestHardwareScannerRestore(reason = reason)
+                            activity?.requestScannerVendorBootstrap(reason = reason, withDelayMs = 250L)
                             pendingQrScannerRestoreReason = null
                         },
                         onCodeScanned = { raw ->
@@ -2126,7 +2045,7 @@ fun AppRoot() {
                                     }
                                     cookieManager.setCookie(base, cookieStr)
                                     cookieManager.flush()
-
+                                    pendingWebViewBootstrapReason = "returned_to_webview_after_qr_success"
                                     showWebView = true
                                 } else {
                                     loginError = result.errorMessage ?: "Ошибка логина по QR"
