@@ -955,40 +955,6 @@ fun AppRoot() {
     var loginError by remember { mutableStateOf<String?>(null) }
     var isLoggingIn by remember { mutableStateOf(false) }
 
-    // session_id из сервера (по факту сейчас только храним для информации)
-    var sessionId by remember { mutableStateOf<String?>(null) }
-
-    fun handleQrLogin(raw: String) {
-        pendingQrScannerRestoreReason = "qr_scan_completed"
-        showQrScan = false
-        lastQr = raw
-        loginError = null
-        isLoggingIn = true
-
-        scope.launch {
-            val result = qrLoginOnServer(context, config, raw)
-            isLoggingIn = false
-
-            if (result.ok && !result.sessionId.isNullOrBlank()) {
-                sessionId = result.sessionId
-
-                val base = normalizeServerUrl(config.serverUrl)
-                val cookieManager = CookieManager.getInstance()
-                cookieManager.setAcceptCookie(true)
-                val isHttps = base.startsWith("https://", ignoreCase = true)
-
-                val cookieStr = buildString {
-                    append("PHPSESSID=${result.sessionId}; Path=/; SameSite=Lax")
-                    if (isHttps) append("; Secure")
-                }
-                cookieManager.setCookie(base, cookieStr)
-                cookieManager.flush()
-                showWebView = true
-            } else {
-                loginError = result.errorMessage ?: "Ошибка логина по QR"
-            }
-        }
-    }
     LaunchedEffect(showQrScan) {
         if (showQrScan) {
             activity?.setQrCameraFlowActive(true, reason = "qr_overlay_opened")
@@ -1007,6 +973,9 @@ fun AppRoot() {
     var destConfig by remember { mutableStateOf<List<DestCountryCfg>>(emptyList()) }
 
     var nameDict by remember { mutableStateOf<NameDict?>(null) }
+
+    // session_id из сервера (по факту сейчас только храним для информации)
+    var sessionId by remember { mutableStateOf<String?>(null) }
 
     var menuExpanded by remember { mutableStateOf(false) }
     var taskConfigJson by remember { mutableStateOf<String?>(null) }
@@ -2004,12 +1973,9 @@ fun AppRoot() {
 
 
     DisposableEffect(showWebView, showBarcodeScan, showOcr, showSettings, showQrScan) {
-        MainActivity.onHardwareScanData = if (showWebView || showBarcodeScan || showQrScan) {
+        MainActivity.onHardwareScanData = if (showWebView || showBarcodeScan) {
             { raw ->
                 when {
-                    showQrScan -> {
-                        handleQrLogin(raw)
-                    }
                     showOcr -> {
                         // OCR остаётся только через фотокамеру.
                     }
@@ -2144,7 +2110,36 @@ fun AppRoot() {
                             pendingQrScannerRestoreReason = null
                         },
                         onCodeScanned = { raw ->
-                            handleQrLogin(raw)
+                            pendingQrScannerRestoreReason = "qr_scan_completed"
+                            showQrScan = false
+                            lastQr = raw
+                            loginError = null
+                            isLoggingIn = true
+
+                            scope.launch {
+                                val result = qrLoginOnServer(context, config, raw)
+                                isLoggingIn = false
+
+                                if (result.ok && !result.sessionId.isNullOrBlank()) {
+                                    sessionId = result.sessionId
+
+                                    val base = normalizeServerUrl(config.serverUrl)
+                                    val cookieManager = CookieManager.getInstance()
+                                    cookieManager.setAcceptCookie(true)
+                                    // val cookieStr = "PHPSESSID=${result.sessionId}; Path=/; Secure"
+                                    val isHttps = base.startsWith("https://", ignoreCase = true)
+
+                                    val cookieStr = buildString {
+                                        append("PHPSESSID=${result.sessionId}; Path=/; SameSite=Lax")
+                                        if (isHttps) append("; Secure")
+                                    }
+                                    cookieManager.setCookie(base, cookieStr)
+                                    cookieManager.flush()
+                                    showWebView = true
+                                } else {
+                                    loginError = result.errorMessage ?: "Ошибка логина по QR"
+                                }
+                            }
                         },
                         onCancel = {
                             pendingQrScannerRestoreReason = "qr_scan_canceled"
