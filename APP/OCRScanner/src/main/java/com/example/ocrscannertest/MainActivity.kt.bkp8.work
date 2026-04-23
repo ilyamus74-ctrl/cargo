@@ -826,8 +826,12 @@ class MainActivity : ComponentActivity() {
             registerReceiver(scanIntentReceiver, filter)
         }
     }
+
+    private var hsBootstrapInProgress = false
+    private var lastHsBootstrapAt = 0L
     private var qrCameraFlowActive = false
     private var qrCameraReleased = true
+    private val scannerBootstrapHandler by lazy { Handler(Looper.getMainLooper()) }
 
     fun setQrCameraFlowActive(active: Boolean, reason: String = "unknown") {
         qrCameraFlowActive = active
@@ -844,15 +848,62 @@ class MainActivity : ComponentActivity() {
         Log.i("HS_BOOTSTRAP", "qr camera released reason=$reason")
     }
 
-    /**
-     * В этом сценарии после camera QR login НЕ запускаем vendor Splash/Main UI.
-     * Иначе всплывает com.hs.scanbutton и ломается возврат в normal app flow.
-     */
     fun requestScannerVendorBootstrap(reason: String = "manual", withDelayMs: Long = 350L) {
-        Log.i(
-            "HS_BOOTSTRAP",
-            "vendor bootstrap suppressed reason=$reason delay=${withDelayMs}ms qrActive=$qrCameraFlowActive qrReleased=$qrCameraReleased"
-        )
+        scannerBootstrapHandler.postDelayed({
+            if (qrCameraFlowActive || !qrCameraReleased) {
+                Log.i(
+                    "HS_BOOTSTRAP",
+                    "skip bootstrap reason=$reason qrActive=$qrCameraFlowActive qrReleased=$qrCameraReleased"
+                )
+                return@postDelayed
+            }
+            bootstrapHsViaSplashActivity(reason = reason)
+        }, withDelayMs)
+    }
+
+    private fun bootstrapHsViaSplashActivity(reason: String) {
+        if (hsBootstrapInProgress) return
+        val now = System.currentTimeMillis()
+        if (now - lastHsBootstrapAt < 1200L) return
+        hsBootstrapInProgress = true
+        lastHsBootstrapAt = now
+
+        try {
+            Log.i("HS_BOOTSTRAP", "start vendor splash reason=$reason")
+            val hsIntent = Intent().apply {
+                setClassName(
+                    "com.hs.dcsservice",
+                    "com.hs.scanbutton.SplashActivity"
+                )
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION)
+            }
+            startActivity(hsIntent)
+
+            scannerBootstrapHandler.postDelayed({
+                try {
+                    val backIntent = packageManager.getLaunchIntentForPackage(packageName)?.apply {
+                        addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                        addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION)
+                    }
+                    if (backIntent != null) {
+                        Log.i("HS_BOOTSTRAP", "return to app reason=$reason")
+                        startActivity(backIntent)
+                    }
+                } catch (e: Exception) {
+                    Log.e("HS_BOOTSTRAP", "Failed to return to app", e)
+                } finally {
+                    hsBootstrapInProgress = false
+                    Log.i("HS_BOOTSTRAP", "bootstrap finished reason=$reason")
+                }
+            }, 1200)
+
+        } catch (e: Exception) {
+            hsBootstrapInProgress = false
+            Log.e("HS_BOOTSTRAP", "Failed to start HS SplashActivity", e)
+        }
     }
 
 
@@ -981,7 +1032,7 @@ fun AppRoot() {
     LaunchedEffect(showWebView, showQrScan, pendingWebViewBootstrapReason) {
         val reason = pendingWebViewBootstrapReason ?: return@LaunchedEffect
         if (showWebView && !showQrScan) {
-            Log.i("HS_BOOTSTRAP", "skip webview bootstrap reason=$reason")
+            activity?.requestScannerVendorBootstrap(reason = reason, withDelayMs = 700L)
             pendingWebViewBootstrapReason = null
         }
     }
@@ -2151,7 +2202,7 @@ when {
                         onCameraDisposed = {
                             activity?.notifyQrCameraReleased(reason = "qr_screen_disposed")
                             val reason = pendingQrScannerRestoreReason ?: return@QrScanScreen
-                            Log.i("HS_BOOTSTRAP", "skip bootstrap after camera dispose reason=$reason")
+                            activity?.requestScannerVendorBootstrap(reason = reason, withDelayMs = 250L)
                             pendingQrScannerRestoreReason = null
                         },
                         onCodeScanned = { raw ->
