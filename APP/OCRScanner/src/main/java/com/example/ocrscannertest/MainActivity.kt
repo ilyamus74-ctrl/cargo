@@ -481,14 +481,13 @@ class MainActivity : ComponentActivity() {
         // and do not claim dedicated hardware scan keys in-app.
     }
     private val scanIntentActions = listOf(
-    "com.honeywell.decode.intent.action.SCAN_RESULT",
-    "com.datalogic.decodewedge.decode_action",
-    "android.intent.ACTION_DECODE_DATA",
-    "nlscan.action.SCANNER_RESULT",
-    "com.sunmi.scanner.ACTION_DATA_CODE_RECEIVED",
-    "com.android.hs.action.BARCODE_SEND",
-    "com.android.giec.action.BARCODE_FOCAL"
-
+        "com.honeywell.decode.intent.action.SCAN_RESULT",
+        "com.datalogic.decodewedge.decode_action",
+        "android.intent.ACTION_DECODE_DATA",
+        "nlscan.action.SCANNER_RESULT",
+        "com.sunmi.scanner.ACTION_DATA_CODE_RECEIVED",
+        "com.android.hs.action.BARCODE_SEND",
+        "com.android.giec.action.BARCODE_FOCAL"
     )
     private val scanIntentReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -545,16 +544,9 @@ class MainActivity : ComponentActivity() {
         )
 
         keys.forEach { key ->
-            val str = extras?.getString(key)
-            normalizeHardwareScanPayload(str)?.let { return it }
-
-            val bytes = extras?.getByteArray(key)
-            if (bytes != null && bytes.isNotEmpty()) {
-                normalizeHardwareScanPayload(String(bytes))?.let { return it }
+            extractExtraCandidates(extras, key).forEach { candidate ->
+                normalizeHardwareScanPayload(candidate)?.let { return it }
             }
-
-            val charSeq = extras?.getCharSequence(key)
-            normalizeHardwareScanPayload(charSeq?.toString())?.let { return it }
         }
 
         val fallbackKeys = extras?.keySet().orEmpty()
@@ -574,6 +566,26 @@ class MainActivity : ComponentActivity() {
         }
         normalizeHardwareScanPayload(intent.dataString)?.let { return it }
         return null
+    }
+
+    private fun extractExtraCandidates(extras: Bundle?, key: String): List<String> {
+        if (extras == null) return emptyList()
+        val candidates = mutableListOf<String>()
+
+        extras.getString(key)?.let { candidates += it }
+        extras.getCharSequence(key)?.toString()?.let { candidates += it }
+        extras.getByteArray(key)?.takeIf { it.isNotEmpty() }?.let { candidates += String(it) }
+
+        when (val raw = extras.get(key)) {
+            is String -> candidates += raw
+            is CharSequence -> candidates += raw.toString()
+            is ByteArray -> if (raw.isNotEmpty()) candidates += String(raw)
+            is CharArray -> if (raw.isNotEmpty()) candidates += String(raw)
+            is IntArray -> if (raw.isNotEmpty()) candidates += raw.joinToString(separator = "")
+            is Array<*> -> raw.mapNotNull { it?.toString() }.forEach { candidates += it }
+        }
+
+        return candidates
     }
 
     private fun dispatchHardwareScan(raw: String, source: String) {
