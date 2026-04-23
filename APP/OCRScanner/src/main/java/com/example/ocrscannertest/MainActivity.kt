@@ -462,7 +462,7 @@ class MainActivity : ComponentActivity() {
         var onP1Single: (() -> Unit)? = null
         var onP2Single: (() -> Unit)? = null
         var activeWebViewProvider: (() -> WebView?)? = null
-        var onHardwareScanData: ((String) -> Unit)? = null
+        var onHardwareScanData: ((String, String) -> Unit)? = null
     }
 
     private lateinit var volumeButtonDispatcher: VolumeButtonDispatcher
@@ -572,52 +572,8 @@ class MainActivity : ComponentActivity() {
             onHardwareScanData?.invoke(normalized, source)
         }
     }
-
-
-    private fun normalizeHardwareScanPayload(raw: String?): String? {
-        val base = raw?.trim()?.takeIf { it.isNotBlank() } ?: return null
-
-        fun normalizeCandidate(candidate: String?): String? {
-            val value = candidate?.trim()?.takeIf { it.isNotBlank() } ?: return null
-            val normalized = normalizeScanRawValue(value)
-            if (normalized.isBlank()) return null
-            if (normalized.equals("null", ignoreCase = true) || normalized.equals("undefined", ignoreCase = true)) {
-                return null
-            }
-            return normalized
-        }
-
-        normalizeCandidate(base)?.let { direct ->
-            if (!direct.startsWith("{") && !direct.startsWith("[")) return direct
-        }
-
-        if (base.startsWith("[")) {
-            runCatching { JSONArray(base) }.getOrNull()?.let { arr ->
-                for (i in 0 until arr.length()) {
-                    normalizeCandidate(arr.opt(i)?.toString())?.let { return it }
-                }
-            }
-        }
-
-        if (base.startsWith("{")) {
-            runCatching { JSONObject(base) }.getOrNull()?.let { obj ->
-                val jsonKeys = listOf("barcode", "qr", "value", "data", "code", "scanData", "raw", "text")
-                jsonKeys.forEach { key ->
-                    normalizeCandidate(obj.optString(key, null))?.let { return it }
-                }
-            }
-        }
-
-        val tokens = base.split(Regex("""[\s\n\r\t;,|]+"""))
-            .mapNotNull(::normalizeCandidate)
-            .filter { token -> token.any(Char::isLetterOrDigit) }
-        if (tokens.isNotEmpty()) {
-            return tokens.maxByOrNull { it.length }
-        }
-
-        return normalizeCandidate(base)
-    }
-
+    private fun normalizeHardwareScanPayload(raw: String?): String? = normalizeHardwareScanPayloadShared(raw)
+    
     private fun handleHardwareKeyboardWedge(event: KeyEvent): Boolean {
         val callback = onHardwareScanData ?: return false
         if (event.action != KeyEvent.ACTION_DOWN) return false
@@ -1003,7 +959,7 @@ fun AppRoot() {
         debugLastScannerSource = source
         if (source.startsWith("hardware")) {
             debugLastHardwareRaw = raw
-            debugLastHardwareNormalized = normalizeHardwareScanPayload(raw)
+            debugLastHardwareNormalized = normalizeHardwareScanPayloadShared(raw)
         }
         pendingQrScannerRestoreReason = "qr_scan_completed"
         showQrScan = false
@@ -2058,7 +2014,7 @@ fun AppRoot() {
         MainActivity.onHardwareScanData = if (showWebView || showBarcodeScan || showQrScan) {
             { raw, source ->
                 debugLastHardwareRaw = raw
-                debugLastHardwareNormalized = normalizeHardwareScanPayload(raw)
+                debugLastHardwareNormalized = normalizeHardwareScanPayloadShared(raw)
                 debugLastScannerSource = source
                 when {
                     showQrScan -> {
@@ -5089,6 +5045,51 @@ fun sanitizeBarcodeInput(raw: String): String {
     val best = Regex("[A-Za-z0-9]{8,}").findAll(s).maxByOrNull { it.value.length }?.value
 
     return (best ?: s).trim()
+}
+
+
+private fun normalizeHardwareScanPayloadShared(raw: String?): String? {
+    val base = raw?.trim()?.takeIf { it.isNotBlank() } ?: return null
+
+    fun normalizeCandidate(candidate: String?): String? {
+        val value = candidate?.trim()?.takeIf { it.isNotBlank() } ?: return null
+        val normalized = normalizeScanRawValue(value)
+        if (normalized.isBlank()) return null
+        if (normalized.equals("null", ignoreCase = true) || normalized.equals("undefined", ignoreCase = true)) {
+            return null
+        }
+        return normalized
+    }
+
+    normalizeCandidate(base)?.let { direct ->
+        if (!direct.startsWith("{") && !direct.startsWith("[")) return direct
+    }
+
+    if (base.startsWith("[")) {
+        runCatching { JSONArray(base) }.getOrNull()?.let { arr ->
+            for (i in 0 until arr.length()) {
+                normalizeCandidate(arr.opt(i)?.toString())?.let { return it }
+            }
+        }
+    }
+
+    if (base.startsWith("{")) {
+        runCatching { JSONObject(base) }.getOrNull()?.let { obj ->
+            val jsonKeys = listOf("barcode", "qr", "value", "data", "code", "scanData", "raw", "text")
+            jsonKeys.forEach { key ->
+                normalizeCandidate(obj.optString(key, null))?.let { return it }
+            }
+        }
+    }
+
+    val tokens = base.split(Regex("""[\s\n\r\t;,|]+"""))
+        .mapNotNull(::normalizeCandidate)
+        .filter { token -> token.any(Char::isLetterOrDigit) }
+    if (tokens.isNotEmpty()) {
+        return tokens.maxByOrNull { it.length }
+    }
+
+    return normalizeCandidate(base)
 }
 
 
