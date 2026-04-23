@@ -774,42 +774,27 @@ class MainActivity : ComponentActivity() {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
                 addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION)
             }
-
-            val resolved = hsIntent.resolveActivity(packageManager)
-            if (resolved == null) {
-                hsBootstrapInProgress = false
-                Log.i("HS_BOOTSTRAP", "skip vendor splash reason=$reason not installed")
-                return
-            }
             startActivity(hsIntent)
 
             scannerBootstrapHandler.postDelayed({
                 try {
-                    Log.i("HS_BOOTSTRAP", "send BACK key reason=$reason")
-                    val instrumentation = android.app.Instrumentation()
-                    instrumentation.sendKeyDownUpSync(KeyEvent.KEYCODE_BACK)
-                } catch (e: Exception) {
-
-                    Log.e("HS_BOOTSTRAP", "Failed to send BACK key", e)
-                    try {
-                        val backIntent = packageManager.getLaunchIntentForPackage(packageName)?.apply {
-                            addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
-                            addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
-                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                            addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION)
-                        }
-                        if (backIntent != null) {
-                            Log.i("HS_BOOTSTRAP", "fallback return to app reason=$reason")
-                            startActivity(backIntent)
-                        }
-                    } catch (e2: Exception) {
-                        Log.e("HS_BOOTSTRAP", "Failed fallback return to app", e2)
+                    val backIntent = packageManager.getLaunchIntentForPackage(packageName)?.apply {
+                        addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                        addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION)
                     }
+                    if (backIntent != null) {
+                        Log.i("HS_BOOTSTRAP", "return to app reason=$reason")
+                        startActivity(backIntent)
+                    }
+                } catch (e: Exception) {
+                    Log.e("HS_BOOTSTRAP", "Failed to return to app", e)
                 } finally {
                     hsBootstrapInProgress = false
                     Log.i("HS_BOOTSTRAP", "bootstrap finished reason=$reason")
                 }
-            }, 2000)
+            }, 1200)
 
         } catch (e: Exception) {
             hsBootstrapInProgress = false
