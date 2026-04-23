@@ -593,6 +593,9 @@ class MainActivity : ComponentActivity() {
         Log.i("SCAN_QR_DIAG", "dispatchHardwareScan source=$source raw='$raw' normalized='$normalized'")
         if (normalized.isNullOrBlank()) return
         runOnUiThread {
+            if (source.startsWith("hardware")) {
+                noteHardwareDecode(reason = source)
+            }
             val hasCallback = onHardwareScanData != null
             Log.i("SCAN_QR_DIAG", "dispatchHardwareScan source=$source invokeCallback=$hasCallback")
             onHardwareScanData?.invoke(normalized, source)
@@ -608,6 +611,7 @@ class MainActivity : ComponentActivity() {
             "SCAN_QR_DIAG",
             "wedge_key keyCode=${event.keyCode} unicode=${event.unicodeChar} buffer='${hardwareScanBuffer}'"
         )
+        noteHardwareTrigger(reason = "wedge_key_${event.keyCode}")
         if (
             event.keyCode == KeyEvent.KEYCODE_ENTER ||
             event.keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER ||
@@ -828,6 +832,11 @@ class MainActivity : ComponentActivity() {
     }
     private var qrCameraFlowActive = false
     private var qrCameraReleased = true
+    private var suppressVendorBootstrapUntil = 0L
+    private var lastHardwareDecodeAt = 0L
+    private var lastHardwareTriggerAt = 0L
+    private val scannerBootstrapHandler by lazy { Handler(Looper.getMainLooper()) }
+    private var warmupScheduled = false
 
     fun setQrCameraFlowActive(active: Boolean, reason: String = "unknown") {
         qrCameraFlowActive = active
@@ -843,18 +852,125 @@ class MainActivity : ComponentActivity() {
         qrCameraReleased = true
         Log.i("HS_BOOTSTRAP", "qr camera released reason=$reason")
     }
+    fun suppressVendorBootstrap(windowMs: Long = 5000L, reason: String = "unknown") {
+        suppressVendorBootstrapUntil = System.currentTimeMillis() + windowMs
+        Log.i(
+            "HS_BOOTSTRAP",
+            "suppress bootstrap reason=$reason until=$suppressVendorBootstrapUntil"
+        )
+    }
 
+    fun noteHardwareTrigger(reason: String = "unknown") {
+        lastHardwareTriggerAt = System.currentTimeMillis()
+        Log.i("HS_BOOTSTRAP", "hardware trigger reason=$reason at=$lastHardwareTriggerAt")
+    }
+
+    fun noteHardwareDecode(reason: String = "unknown") {
+        lastHardwareDecodeAt = System.currentTimeMillis()
+        warmupScheduled = false
+        Log.i("HS_BOOTSTRAP", "hardware decode reason=$reason at=$lastHardwareDecodeAt")
+    }
+
+    fun ensureScannerWarmupIfNeeded(reason: String = "unknown", delayMs: Long = 1200L) {
+        val now = System.currentTimeMillis()
+
+        if (now < suppressVendorBootstrapUntil) {
+            Log.i("HS_BOOTSTRAP", "skip warmup suppressed reason=$reason")
+            return
+        }
+
+        if (qrCameraFlowActive || !qrCameraReleased) {
+            Log.i("HS_BOOTSTRAP", "skip warmup qr-active reason=$reason")
+            return
+        }
+
+        if (warmupScheduled) {
+            Log.i("HS_BOOTSTRAP", "skip warmup already scheduled reason=$reason")
+            return
+        }
+
+        val recentlyDecoded = (now - lastHardwareDecodeAt) < 15000L
+        if (recentlyDecoded) {
+            Log.i("HS_BOOTSTRAP", "skip warmup recent decode reason=$reason")
+            return
+        }
+
+        warmupScheduled = true
+        scannerBootstrapHandler.postDelayed({
+            warmupScheduled = false
+
+            val now2 = System.currentTimeMillis()
+            if (now2 < suppressVendorBootstrapUntil) {
+                Log.i("HS_BOOTSTRAP", "cancel warmup suppressed reason=$reason")
+                return@postDelayed
+            }
+
+            val stillRecentlyDecoded = (now2 - lastHardwareDecodeAt) < 15000L
+            if (stillRecentlyDecoded) {
+                Log.i("HS_BOOTSTRAP", "cancel warmup scanner already ready reason=$reason")
+                return@postDelayed
+            }
+
+            if (qrCameraFlowActive || !qrCameraReleased) {
+                Log.i("HS_BOOTSTRAP", "cancel warmup qr-active reason=$reason")
+                return@postDelayed
+            }
+
+            requestScannerVendorBootstrap(reason = reason, withDelayMs = 0L)
+        }, delayMs)
+    }
     /**
      * В этом сценарии после camera QR login НЕ запускаем vendor Splash/Main UI.
      * Иначе всплывает com.hs.scanbutton и ломается возврат в normal app flow.
      */
     fun requestScannerVendorBootstrap(reason: String = "manual", withDelayMs: Long = 350L) {
-        Log.i(
-            "HS_BOOTSTRAP",
-            "vendor bootstrap suppressed reason=$reason delay=${withDelayMs}ms qrActive=$qrCameraFlowActive qrReleased=$qrCameraReleased"
-        )
-    }
+        val now = System.currentTimeMillis()
 
+        if (now < suppressVendorBootstrapUntil) {
+            Log.i("HS_BOOTSTRAP", "skip bootstrap suppressed reason=$reason")
+            return
+        }
+
+        if (qrCameraFlowActive || !qrCameraReleased) {
+            Log.i(
+                "HS_BOOTSTRAP",
+                "skip bootstrap reason=$reason qrActive=$qrCameraFlowActive qrReleased=$qrCameraReleased"
+            )
+            return
+        }
+
+        Log.i("HS_BOOTSTRAP", "schedule bootstrap reason=$reason delay=${withDelayMs}ms")
+
+        scannerBootstrapHandler.postDelayed({
+            val now2 = System.currentTimeMillis()
+
+            if (now2 < suppressVendorBootstrapUntil) {
+                Log.i("HS_BOOTSTRAP", "cancel bootstrap suppressed reason=$reason")
+                return@postDelayed
+            }
+
+            if (qrCameraFlowActive || !qrCameraReleased) {
+                Log.i(
+                    "HS_BOOTSTRAP",
+                    "cancel bootstrap reason=$reason qrActive=$qrCameraFlowActive qrReleased=$qrCameraReleased"
+                )
+                return@postDelayed
+            }
+
+            try {
+                val intent = Intent().apply {
+                    setClassName("com.hs.dcsservice", "com.hs.scanbutton.SplashActivity")
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                    addFlags(Intent.FLAG_ACTIVITY_RESET_TASK_IF_NEEDED)
+                }
+                startActivity(intent)
+                Log.i("HS_BOOTSTRAP", "started SplashActivity reason=$reason")
+            } catch (t: Throwable) {
+                Log.e("HS_BOOTSTRAP", "failed to start SplashActivity reason=$reason", t)
+            }
+        }, withDelayMs)
+    }
 
     override fun onResume() {
         super.onResume()
@@ -885,7 +1001,12 @@ fun AppRoot() {
     LaunchedEffect(config.debugToasts) {
         debugToastsEnabled = config.debugToasts
     }
-
+    LaunchedEffect(Unit) {
+        activity?.ensureScannerWarmupIfNeeded(
+            reason = "app_start",
+            delayMs = 1200L
+        )
+    }
     var showSettings by remember { mutableStateOf(!config.enrolled || config.serverUrl.isBlank()) }
     var showQrScan by remember { mutableStateOf(false) }
     var pendingQrScannerRestoreReason by remember { mutableStateOf<String?>(null) }
@@ -947,6 +1068,12 @@ fun AppRoot() {
 
             if (result.ok && !result.sessionId.isNullOrBlank()) {
                 Log.i("SCAN_QR_DIAG", "handleQrLogin source=$source loginSuccess=true")
+                if (source == "camera") {
+                    activity?.suppressVendorBootstrap(
+                        windowMs = 5000L,
+                        reason = "camera_login_success"
+                    )
+                }
                 sessionId = result.sessionId
 
                 val base = normalizeServerUrl(config.serverUrl)
@@ -979,11 +1106,14 @@ fun AppRoot() {
     }
 
     LaunchedEffect(showWebView, showQrScan, pendingWebViewBootstrapReason) {
-        val reason = pendingWebViewBootstrapReason ?: return@LaunchedEffect
+        val reason = pendingWebViewBootstrapReason
         if (showWebView && !showQrScan) {
-            Log.i("HS_BOOTSTRAP", "skip webview bootstrap reason=$reason")
-            pendingWebViewBootstrapReason = null
+            activity?.ensureScannerWarmupIfNeeded(
+                reason = reason ?: "webview_visible",
+                delayMs = 900L
+            )
         }
+        pendingWebViewBootstrapReason = null
     }
     var destConfig by remember { mutableStateOf<List<DestCountryCfg>>(emptyList()) }
 
