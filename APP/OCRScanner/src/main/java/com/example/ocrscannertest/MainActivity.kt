@@ -487,14 +487,15 @@ class MainActivity : ComponentActivity() {
     private var hsTriggerWatchdogRunnable: Runnable? = null
     private var hsLastHardwareTriggerAtMs = 0L
     private var hsLastBarcodeSendAtMs = 0L
-    private var hsLastCameraRestoreScheduleAtMs = 0L
     private var scannerOwnerState: ScannerOwnerState = ScannerOwnerState.IDLE
     private var cameraReleaseCallback: (() -> Unit)? = null
     private var cameraRestoreCallback: (() -> Unit)? = null
     private var restoreCameraAfterHardwareScanRunnable: Runnable? = null
     private val cameraRestoreDelayAfterBarcodeMs = 900L
     private val cameraRestoreDelayAfterTimeoutMs = 1800L
-
+    private var lastHardwareScanValue: String? = null
+    private var lastHardwareScanAtMs: Long = 0L
+    private val hardwareScanDedupWindowMs = 800L
     fun setScannerCameraCallbacks(
         releaseCamera: (() -> Unit)?,
         restoreCamera: (() -> Unit)?
@@ -577,14 +578,10 @@ class MainActivity : ComponentActivity() {
                 hsTriggerWatchdogRunnable?.let { scannerBootstrapHandler.removeCallbacks(it) }
                 hsTriggerWatchdogRunnable = null
 
-                val now = System.currentTimeMillis()
-                if (now - hsLastCameraRestoreScheduleAtMs > 300L) {
-                    hsLastCameraRestoreScheduleAtMs = now
-                    scheduleReturnToCameraMode(
-                        reason = "barcode_received_$action",
-                        delayMs = cameraRestoreDelayAfterBarcodeMs
-                    )
-                }
+                scheduleReturnToCameraMode(
+                    reason = "barcode_received_$action",
+                    delayMs = cameraRestoreDelayAfterBarcodeMs
+                )
             }
             val extraKeys = extras?.keySet().orEmpty()
             val extrasDump = extraKeys.joinToString(separator = ", ") { key ->
@@ -684,6 +681,16 @@ class MainActivity : ComponentActivity() {
         val normalized = normalizeHardwareScanPayload(raw)
         Log.i("SCAN_QR_DIAG", "dispatchHardwareScan source=$source raw='$raw' normalized='$normalized'")
         if (normalized.isNullOrBlank()) return
+
+        val now = System.currentTimeMillis()
+        if (normalized == lastHardwareScanValue && now - lastHardwareScanAtMs < hardwareScanDedupWindowMs) {
+            Log.i("SCAN_QR_DIAG", "hardware_scan_dedup_skip value='$normalized' source=$source")
+            return
+        }
+
+        lastHardwareScanValue = normalized
+        lastHardwareScanAtMs = now
+
         runOnUiThread {
             val hasCallback = onHardwareScanData != null
             Log.i("SCAN_QR_DIAG", "dispatchHardwareScan source=$source invokeCallback=$hasCallback")
@@ -791,17 +798,12 @@ class MainActivity : ComponentActivity() {
             if (noBarcodeAfterTrigger) {
                 Log.i(
                     "HS_BOOTSTRAP",
-                    "no BARCODE_SEND after hardware trigger; schedule camera restore keyCode=$keyCode"
+                    "no BARCODE_SEND after hardware trigger; restore camera keyCode=$keyCode"
                 )
-
-                val now = System.currentTimeMillis()
-                if (now - hsLastCameraRestoreScheduleAtMs > 300L) {
-                    hsLastCameraRestoreScheduleAtMs = now
-                    scheduleReturnToCameraMode(
-                        reason = "no_barcode_after_hard_key_$keyCode",
-                        delayMs = cameraRestoreDelayAfterTimeoutMs
-                    )
-                }
+                scheduleReturnToCameraMode(
+                    reason = "no_barcode_after_hard_key_$keyCode",
+                    delayMs = cameraRestoreDelayAfterTimeoutMs
+                )
             }
         }
 
@@ -2451,7 +2453,6 @@ when {
                             val shouldRestoreScanner =
                                 (pendingWebViewBootstrapReason ?: pendingQrScannerRestoreReason) != null
                             if (!shouldRestoreScanner) return@QrScanScreen
-                            activity?.requestScannerVendorBootstrap(reason = "qr_camera_disposed", withDelayMs = 1700L)
                             pendingQrScannerRestoreReason = null
                             pendingWebViewBootstrapReason = null
                         },
@@ -5899,7 +5900,7 @@ fun BarcodeScanScreen(
                 liveScanner = null
                 boundCameraProvider?.unbindAll()
                 camera = null
-                Log.i("HS_BOOTSTRAP", "CameraX unbindAll from scanner state machine")
+                Log.i("HS_BOOTSTRAP", "CameraX released by scanner state machine")
             },
             restoreCamera = {
                 cameraRestoreTick++
@@ -6082,43 +6083,9 @@ fun BarcodeScanScreen(
 
     LaunchedEffect(hasCameraPermission, cameraRestoreTick) {
         if (!hasCameraPermission) return@LaunchedEffect
-        DisposableEffect(Unit) {
-            val activity = context as? MainActivity
 
-            activity?.setScannerCameraCallbacks(
-                releaseCamera = {
-                    boundCameraProvider?.unbindAll()
-                    Log.i("HS_BOOTSTRAP", "CameraX unbindAll from scanner state machine")
-                },
-                restoreCamera = {
-                    cameraRestoreTick++
-                    Log.i("HS_BOOTSTRAP", "CameraX restore tick=$cameraRestoreTick")
-                }
-            )
-
-            onDispose {
-                activity?.setScannerCameraCallbacks(null, null)
-            }
-        }
         val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
-        DisposableEffect(Unit) {
-            val activity = context as? MainActivity
 
-            activity?.setScannerCameraCallbacks(
-                releaseCamera = {
-                    boundCameraProvider?.unbindAll()
-                    Log.i("HS_BOOTSTRAP", "CameraX unbindAll from scanner state machine")
-                },
-                restoreCamera = {
-                    cameraRestoreTick++
-                    Log.i("HS_BOOTSTRAP", "CameraX restore tick=$cameraRestoreTick")
-                }
-            )
-
-            onDispose {
-                activity?.setScannerCameraCallbacks(null, null)
-            }
-        }
         val cameraProvider = cameraProviderFuture.get()
 
         val preview = Preview.Builder()
@@ -6171,6 +6138,7 @@ fun BarcodeScanScreen(
                     preview,
                     imageCapture
                 )
+                (context as? MainActivity)?.enterCameraMode("CameraX bindToLifecycle")
             }
         } catch (e: Exception) {
             errorText = "Не удалось открыть камеру"
@@ -6395,9 +6363,11 @@ fun OcrScanScreen(
 
         activity?.setScannerCameraCallbacks(
             releaseCamera = {
+                liveAnalysis?.clearAnalyzer()
+                liveAnalysis = null
                 boundCameraProvider?.unbindAll()
-                Log.i("HS_BOOTSTRAP", "CameraX unbindAll from scanner state machine")
-            },
+                camera = null
+                Log.i("HS_BOOTSTRAP", "CameraX released by scanner state machine")            },
             restoreCamera = {
                 cameraRestoreTick++
                 Log.i("HS_BOOTSTRAP", "CameraX restore tick=$cameraRestoreTick")
@@ -6512,6 +6482,7 @@ fun OcrScanScreen(
                     preview,
                     imageCapture
                 )
+                (context as? MainActivity)?.enterCameraMode("CameraX bindToLifecycle")
             }
         } catch (e: Exception) {
             e.printStackTrace()
