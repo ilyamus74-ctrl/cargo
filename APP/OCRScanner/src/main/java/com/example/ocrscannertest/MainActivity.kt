@@ -582,16 +582,28 @@ class MainActivity : ComponentActivity() {
 
             scannerOwnerState = ScannerOwnerState.CAMERA_MODE
 
-            runCatching {
-                cameraRestoreCallback?.invoke()
-            }.onFailure { t ->
-                Log.e("HS_BOOTSTRAP", "camera restore failed reason=$reason", t)
+            val callbacks = cameraRestoreCallbacks.toMap()
+            Log.i(
+                "HS_BOOTSTRAP",
+                "camera restore callbacks count=${callbacks.size} owners=${callbacks.keys} reason=$reason"
+            )
+
+            callbacks.forEach { (owner, callback) ->
+                runCatching {
+                    Log.i("HS_BOOTSTRAP", "camera restore invoke owner=$owner reason=$reason")
+                    callback.invoke()
+                }.onFailure { t ->
+                    Log.e("HS_BOOTSTRAP", "camera restore failed owner=$owner reason=$reason", t)
+                }
             }
+
+            Log.i("HS_BOOTSTRAP", "camera restore requested reason=$reason")
         }
 
         Log.i("HS_BOOTSTRAP", "schedule camera restore reason=$reason delay=${delayMs}ms")
         scannerBootstrapHandler.postDelayed(restoreCameraAfterHardwareScanRunnable!!, delayMs)
     }
+
     fun setInterceptHardwareTriggerKeys(enabled: Boolean) {
         // Intentionally ignored.
         // We keep vendor trigger routing in the default OS/vendor scanner stack

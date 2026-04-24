@@ -646,3 +646,155 @@ Intent("com.hs.dcsservice.action").apply {
     addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION)
     addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
 }
+
+Добавь в конец SCANNER_STATE_NOTES.md такой блок.
+
+---
+
+## 2026-04-24 — State machine test после патча с callback registry
+
+### Что изменили
+
+Вместо одного callback для CameraX теперь используется registry callbacks по owner:
+
+```kotlin
+private val cameraReleaseCallbacks = linkedMapOf<String, () -> Unit>()
+private val cameraRestoreCallbacks = linkedMapOf<String, () -> Unit>()
+
+Цель:
+
+    не затирать callback между разными camera screen;
+
+    видеть в логах, кто реально зарегистрировал release/restore;
+
+    при hard scan отпускать CameraX перед vendor scanner HAL.
+
+Текущий лог
+
+При нажатии hard scan key:
+
+SCAN_QR_DIAG: dedicated_scan_key_passthrough dispatch keyCode=289 action=0
+HS_BOOTSTRAP: state IDLE -> HARDWARE_SCAN_MODE reason=hard_key_289
+HS_BOOTSTRAP: camera release callbacks count=0 owners=[] reason=hard_key_289
+HS_BOOTSTRAP: camera release requested reason=hard_key_289
+SCAN_QR_DIAG: dedicated_scan_key_passthrough onKeyDown keyCode=289
+
+Через watchdog:
+
+HS_BOOTSTRAP: no BARCODE_SEND after hardware trigger; restore camera keyCode=289
+HS_BOOTSTRAP: schedule camera restore reason=no_barcode_after_hard_key_289 delay=1800ms
+HS_BOOTSTRAP: state HARDWARE_SCAN_MODE -> CAMERA_MODE reason=no_barcode_after_hard_key_289
+HS_BOOTSTRAP: camera restore callbacks count=0 owners=[] reason=no_barcode_after_hard_key_289
+HS_BOOTSTRAP: camera restore requested reason=no_barcode_after_hard_key_289
+
+Главный вывод
+
+State machine работает, но callback registry пустой:
+
+camera release callbacks count=0 owners=[]
+camera restore callbacks count=0 owners=[]
+
+Это означает:
+
+    enterHardwareScanMode() вызывается;
+
+    hard key 289 до приложения доходит;
+
+    watchdog работает;
+
+    переходы IDLE -> HARDWARE_SCAN_MODE -> CAMERA_MODE работают;
+
+    но CameraX release/restore callback не зарегистрирован в момент нажатия hard scan key.
+
+То есть текущая проблема уже не в dispatchKeyEvent, не в BARCODE_SEND, не в dedup и не в DecodeService.
+
+Проблема сейчас в том, что активный экран камеры не регистрирует callback через:
+
+setScannerCameraCallbacks(...)
+
+или регистрирует, но потом callback снимается через onDispose.
+Почему laser scan не стартует
+
+При hard scan нет реального освобождения камеры:
+
+camera release callbacks count=0 owners=[]
+
+Значит vendor scanner HAL всё ещё может видеть занятый camera resource или некорректный foreground/camera state.
+
+Ожидаемый рабочий лог должен быть примерно такой:
+
+HS_BOOTSTRAP: scanner camera callbacks registered owner=BarcodeScanScreen releaseCount=1 restoreCount=1
+...
+HS_BOOTSTRAP: state CAMERA_MODE -> HARDWARE_SCAN_MODE reason=hard_key_289
+HS_BOOTSTRAP: camera release callbacks count=1 owners=[BarcodeScanScreen] reason=hard_key_289
+HS_BOOTSTRAP: camera release invoke owner=BarcodeScanScreen reason=hard_key_289
+HS_BOOTSTRAP: CameraX released by scanner state machine
+
+Сейчас этого нет.
+Что нужно проверить в Kotlin
+
+Нужно найти все вызовы:
+
+setScannerCameraCallbacks
+
+и привести их к новой сигнатуре:
+
+setScannerCameraCallbacks(
+    owner = "BarcodeScanScreen",
+    releaseCamera = { ... },
+    restoreCamera = { ... }
+)
+
+и снятие callback:
+
+setScannerCameraCallbacks(
+    owner = "BarcodeScanScreen",
+    releaseCamera = null,
+    restoreCamera = null
+)
+
+Отдельно для OCR screen:
+
+setScannerCameraCallbacks(
+    owner = "OcrScanScreen",
+    releaseCamera = { ... },
+    restoreCamera = { ... }
+)
+
+и:
+
+setScannerCameraCallbacks(
+    owner = "OcrScanScreen",
+    releaseCamera = null,
+    restoreCamera = null
+)
+
+Следующий точный шаг
+
+Перед дальнейшими тестами laser scan надо добиться в логах регистрации callback:
+
+scanner camera callbacks registered owner=BarcodeScanScreen releaseCount=1 restoreCount=1
+
+или:
+
+scanner camera callbacks registered owner=OcrScanScreen releaseCount=1 restoreCount=1
+
+Если при открытом camera scan этого лога нет — state machine нечем управлять.
+Текущий статус
+
+    build после замены cameraRestoreCallback должен собираться;
+
+    hard key обрабатывается;
+
+    state machine включается;
+
+    BARCODE_SEND не приходит;
+
+    OemScanDemo может показывать No decoded message available, но это не рабочий decode success;
+
+    главный blocker: callback registry пустой в момент hard scan.
+
+Вывод: сначала исправить регистрацию setScannerCameraCallbacks(...) в BarcodeScanScreen и OcrScanScreen, потом снова тестировать hard scan.
+
+
+По текущим логам диагноз жёсткий: **мы построили state machine, но она не управляет CameraX, потому что callback не зарегистрирован**.
