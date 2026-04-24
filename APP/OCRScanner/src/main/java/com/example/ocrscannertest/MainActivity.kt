@@ -941,94 +941,70 @@ class MainActivity : ComponentActivity() {
         qrCameraReleased = true
         Log.i("HS_BOOTSTRAP", "qr camera released reason=$reason")
     }
-
     fun requestScannerVendorBootstrap(reason: String = "manual", withDelayMs: Long = 350L) {
         val now = System.currentTimeMillis()
 
         if (now - hsLastWarmupStartedAtMs < hsBootstrapThrottleMs) {
-            Log.i("HS_BOOTSTRAP", "skip warmup throttled reason=$reason")
+            Log.i("HS_BOOTSTRAP", "skip SettingActivity kick throttled reason=$reason")
             return
         }
 
         if (hsWarmupInProgress) {
-            Log.i("HS_BOOTSTRAP", "skip warmup already in progress reason=$reason")
+            Log.i("HS_BOOTSTRAP", "skip SettingActivity kick already in progress reason=$reason")
             return
         }
 
         hsWarmupInProgress = true
         hsLastWarmupStartedAtMs = now
 
-        Log.i("HS_BOOTSTRAP", "schedule DecodeService warmup reason=$reason delay=${withDelayMs}ms")
+        Log.i("HS_BOOTSTRAP", "schedule SettingActivity kick reason=$reason delay=${withDelayMs}ms")
 
         scannerBootstrapHandler.postDelayed({
-            Log.i("HS_BOOTSTRAP", "DecodeService warmup start reason=$reason")
+            Log.i("HS_BOOTSTRAP", "SettingActivity kick start reason=$reason")
 
-            val serviceIntent = Intent("com.hs.scanservice.action").apply {
-                setClassName("com.hs.scanservice", "com.hs.scanservice.DecodeService")
-                addCategory(Intent.CATEGORY_DEFAULT)
-            }
-
-            runCatching {
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                    startForegroundService(serviceIntent)
-                } else {
-                    startService(serviceIntent)
+            try {
+                val vendorIntent = Intent("com.hs.dcsservice.action").apply {
+                    setClassName("com.hs.dcsservice", "com.hs.dcsservice.SettingActivity")
+                    addCategory(Intent.CATEGORY_DEFAULT)
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                    addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION)
+                    addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
                 }
-                Log.i("HS_BOOTSTRAP", "DecodeService startService ok reason=$reason")
-            }.onFailure { t ->
-                Log.e("HS_BOOTSTRAP", "DecodeService startService failed reason=$reason", t)
-            }
 
-            val connection = object : ServiceConnection {
-                override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
-                    Log.i(
-                        "HS_BOOTSTRAP",
-                        "DecodeService bind connected reason=$reason name=$name binder=$service"
-                    )
+                startActivity(vendorIntent)
+                Log.i("HS_BOOTSTRAP", "SettingActivity startActivity ok reason=$reason")
 
-                    scannerBootstrapHandler.postDelayed({
-                        runCatching {
-                            unbindService(this)
-                            Log.i("HS_BOOTSTRAP", "DecodeService unbind ok reason=$reason")
-                        }.onFailure { t ->
-                            Log.e("HS_BOOTSTRAP", "DecodeService unbind failed reason=$reason", t)
+                scannerBootstrapHandler.postDelayed({
+                    try {
+                        val backIntent = packageManager.getLaunchIntentForPackage(packageName)?.apply {
+                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                            addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                            addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                            addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
+                            addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION)
                         }
 
+                        if (backIntent != null) {
+                            startActivity(backIntent)
+                            Log.i("HS_BOOTSTRAP", "return to app after SettingActivity ok reason=$reason")
+                        } else {
+                            Log.w("HS_BOOTSTRAP", "return to app launch intent is null reason=$reason")
+                        }
+                    } catch (t: Throwable) {
+                        Log.e("HS_BOOTSTRAP", "return to app after SettingActivity failed reason=$reason", t)
+                    } finally {
                         hsWarmupInProgress = false
-                    }, 900L)
-                }
-
-                override fun onServiceDisconnected(name: ComponentName?) {
-                    Log.i("HS_BOOTSTRAP", "DecodeService disconnected reason=$reason name=$name")
-                    hsWarmupInProgress = false
-                }
-
-                override fun onBindingDied(name: ComponentName?) {
-                    Log.w("HS_BOOTSTRAP", "DecodeService binding died reason=$reason name=$name")
-                    hsWarmupInProgress = false
-                }
-
-                override fun onNullBinding(name: ComponentName?) {
-                    Log.w("HS_BOOTSTRAP", "DecodeService null binding reason=$reason name=$name")
-                    hsWarmupInProgress = false
-                }
-            }
-
-            runCatching {
-                val bound = bindService(serviceIntent, connection, Context.BIND_AUTO_CREATE)
-                Log.i("HS_BOOTSTRAP", "DecodeService bindService result=$bound reason=$reason")
-
-                if (!bound) {
-                    hsWarmupInProgress = false
-                }
-            }.onFailure { t ->
-                Log.e("HS_BOOTSTRAP", "DecodeService bindService failed reason=$reason", t)
+                    }
+                }, 450L)
+            } catch (t: Throwable) {
                 hsWarmupInProgress = false
+                Log.e("HS_BOOTSTRAP", "SettingActivity kick failed reason=$reason", t)
             }
 
             scannerBootstrapHandler.postDelayed({
                 if (hsWarmupInProgress) {
-                    Log.w("HS_BOOTSTRAP", "DecodeService warmup timeout reason=$reason")
+                    Log.w("HS_BOOTSTRAP", "SettingActivity kick timeout reason=$reason")
                     hsWarmupInProgress = false
                 }
             }, 2500L)
