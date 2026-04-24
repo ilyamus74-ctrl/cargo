@@ -511,21 +511,22 @@ class MainActivity : ComponentActivity() {
         scannerOwnerState = ScannerOwnerState.CAMERA_MODE
     }
     private fun enterHardwareScanMode(reason: String) {
-        if (scannerOwnerState == ScannerOwnerState.HARDWARE_SCAN_MODE) {
-            Log.i("HS_BOOTSTRAP", "already HARDWARE_SCAN_MODE reason=$reason")
-            return
-        }
-
-        Log.i("HS_BOOTSTRAP", "state ${scannerOwnerState} -> HARDWARE_SCAN_MODE reason=$reason")
-
         restoreCameraAfterHardwareScanRunnable?.let {
             scannerBootstrapHandler.removeCallbacks(it)
         }
         restoreCameraAfterHardwareScanRunnable = null
 
+        if (scannerOwnerState != ScannerOwnerState.HARDWARE_SCAN_MODE) {
+            Log.i("HS_BOOTSTRAP", "state ${scannerOwnerState} -> HARDWARE_SCAN_MODE reason=$reason")
+        } else {
+            Log.i("HS_BOOTSTRAP", "refresh HARDWARE_SCAN_MODE reason=$reason")
+        }
+
         scannerOwnerState = ScannerOwnerState.HARDWARE_SCAN_MODE
 
         runCatching {
+            val hasReleaseCallback = cameraReleaseCallback != null
+            Log.i("HS_BOOTSTRAP", "camera release callback present=$hasReleaseCallback reason=$reason")
             cameraReleaseCallback?.invoke()
             Log.i("HS_BOOTSTRAP", "camera release requested reason=$reason")
         }.onFailure { t ->
@@ -5894,12 +5895,19 @@ fun BarcodeScanScreen(
 
         activity?.setScannerCameraCallbacks(
             releaseCamera = {
+                Log.i(
+                    "HS_BOOTSTRAP",
+                    "CameraX release callback begin provider=${boundCameraProvider != null} camera=${camera != null} analysis=${liveAnalysis != null}"
+                )
+
                 liveAnalysis?.clearAnalyzer()
                 liveAnalysis = null
                 liveScanner?.close()
                 liveScanner = null
                 boundCameraProvider?.unbindAll()
+                boundCameraProvider = null
                 camera = null
+
                 Log.i("HS_BOOTSTRAP", "CameraX released by scanner state machine")
             },
             restoreCamera = {
@@ -6363,11 +6371,19 @@ fun OcrScanScreen(
 
         activity?.setScannerCameraCallbacks(
             releaseCamera = {
+                Log.i(
+                    "HS_BOOTSTRAP",
+                    "CameraX release callback begin provider=${boundCameraProvider != null} camera=${camera != null} analysis=${liveAnalysis != null}"
+                )
+
                 liveAnalysis?.clearAnalyzer()
                 liveAnalysis = null
                 boundCameraProvider?.unbindAll()
+                boundCameraProvider = null
                 camera = null
-                Log.i("HS_BOOTSTRAP", "CameraX released by scanner state machine")            },
+
+                Log.i("HS_BOOTSTRAP", "CameraX released by scanner state machine")
+            },
             restoreCamera = {
                 cameraRestoreTick++
                 Log.i("HS_BOOTSTRAP", "CameraX restore tick=$cameraRestoreTick")
