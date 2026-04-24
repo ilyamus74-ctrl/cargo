@@ -624,14 +624,9 @@ class MainActivity : ComponentActivity() {
         if (event.keyCode == 289 || event.keyCode == 290) {
             Log.i(
                 "SCAN_QR_DIAG",
-                "dedicated_scan_key_passthrough dispatch keyCode=${event.keyCode} action=${event.action}"
+                "dedicated_scan_key_skip_wedge keyCode=${event.keyCode} action=${event.action}"
             )
-
-            if (event.action == KeyEvent.ACTION_DOWN) {
-                pulseWindowNonBlockingForScanner("hard_key_${event.keyCode}")
-            }
-
-            return super.dispatchKeyEvent(event)
+            return false
         }
 
         Log.i(
@@ -692,8 +687,8 @@ class MainActivity : ComponentActivity() {
                 "dedicated_scan_key_passthrough dispatch keyCode=${event.keyCode} action=${event.action}"
             )
 
-            if (event.action == KeyEvent.ACTION_DOWN) {
-                pulseWindowNonBlockingForScanner("hard_key_${event.keyCode}")
+            if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
+                onHardwareTriggerPressed(event.keyCode)
             }
 
             return super.dispatchKeyEvent(event)
