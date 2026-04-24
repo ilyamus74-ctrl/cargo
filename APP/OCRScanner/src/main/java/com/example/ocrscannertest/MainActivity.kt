@@ -1038,25 +1038,18 @@ class MainActivity : ComponentActivity() {
     private fun warmupHsDecodeService(reason: String) {
         Log.i("HS_BOOTSTRAP", "warmup start reason=$reason")
 
-        try {
-            val explicitIntent = Intent().apply {
-                setClassName("com.hs.scanservice", "com.hs.scanservice.DecodeService")
-            }
-            startService(explicitIntent)
-            Log.i("HS_BOOTSTRAP", "warmup explicit startService ok reason=$reason")
-        } catch (t: Throwable) {
-            Log.w("HS_BOOTSTRAP", "warmup explicit startService failed reason=$reason", t)
+        val explicitIntent = Intent().apply {
+            setClassName("com.hs.scanservice", "com.hs.scanservice.DecodeService")
         }
 
-        try {
-            val actionIntent = Intent("com.hs.scanservice.action").apply {
-                setPackage("com.hs.scanservice")
-            }
-            startService(actionIntent)
-            Log.i("HS_BOOTSTRAP", "warmup action startService ok reason=$reason")
-        } catch (t: Throwable) {
-            Log.w("HS_BOOTSTRAP", "warmup action startService failed reason=$reason", t)
+        val actionIntent = Intent("com.hs.scanservice.action").apply {
+            setPackage("com.hs.scanservice")
         }
+
+        Log.i(
+            "HS_BOOTSTRAP",
+            "warmup startService skipped reason=$reason; using bindService only"
+        )
 
         try {
             val bindIntent = Intent().apply {
