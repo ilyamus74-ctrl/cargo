@@ -621,13 +621,18 @@ class MainActivity : ComponentActivity() {
                 // TEST: do not let dedicated hardware scan trigger keys enter
                 // our keyboard-wedge path. These keys must be routed by the
                 // vendor scanner stack, not by the app.
-                if (event.keyCode == 289 || event.keyCode == 290) {
-                        Log.i(
-                                "SCAN_QR_DIAG",
-                                "dedicated_scan_key_skip_wedge keyCode=${event.keyCode} action=${event.action}"
-                                    )
-                        return false
-                   }
+        if (event.keyCode == 289 || event.keyCode == 290) {
+            Log.i(
+                "SCAN_QR_DIAG",
+                "dedicated_scan_key_passthrough dispatch keyCode=${event.keyCode} action=${event.action}"
+            )
+
+            if (event.action == KeyEvent.ACTION_DOWN) {
+                pulseWindowNonBlockingForScanner("hard_key_${event.keyCode}")
+            }
+
+            return super.dispatchKeyEvent(event)
+        }
 
         Log.i(
             "SCAN_QR_DIAG",
@@ -684,9 +689,14 @@ class MainActivity : ComponentActivity() {
         if (event.keyCode == 289 || event.keyCode == 290) {
             Log.i(
                 "SCAN_QR_DIAG",
-                "dedicated_scan_key_return_false keyCode=${event.keyCode} action=${event.action}"
+                "dedicated_scan_key_passthrough dispatch keyCode=${event.keyCode} action=${event.action}"
             )
-            return false
+
+            if (event.action == KeyEvent.ACTION_DOWN) {
+                pulseWindowNonBlockingForScanner("hard_key_${event.keyCode}")
+            }
+
+            return super.dispatchKeyEvent(event)
         }
 
         if (handleHardwareKeyboardWedge(event)) {
@@ -727,7 +737,16 @@ class MainActivity : ComponentActivity() {
         }
         return false
     }
-
+    private fun isDedicatedScanKey(keyCode: Int): Boolean {
+        return keyCode == 289 ||
+                keyCode == 290 ||
+                keyCode == KeyEvent.KEYCODE_CAMERA ||
+                keyCode == KeyEvent.KEYCODE_FOCUS ||
+                keyCode == KeyEvent.KEYCODE_BUTTON_L1 ||
+                keyCode == KeyEvent.KEYCODE_BUTTON_R1 ||
+                keyCode == KeyEvent.KEYCODE_BUTTON_L2 ||
+                keyCode == KeyEvent.KEYCODE_BUTTON_R2
+    }
     private fun handleHardwareButtonKey(keyCode: Int): Boolean {
 
         when (keyCode) {
@@ -740,21 +759,11 @@ class MainActivity : ComponentActivity() {
                 return true
             }
 
-            KeyEvent.KEYCODE_BUTTON_L1 -> {
-                if (!interceptHardwareTriggerKeys) return false
-                return triggerFirstAvailable(onScanLeftSingle, onScanPistolSingle, onVolDownSingle)
-
-            }
-            KeyEvent.KEYCODE_BUTTON_R1 -> {
-                if (!interceptHardwareTriggerKeys) return false
-                return triggerFirstAvailable(onScanRightSingle, onScanPistolSingle, onVolDownSingle)
-
-            }
-            KeyEvent.KEYCODE_BUTTON_L2, KeyEvent.KEYCODE_F9 -> {
+            KeyEvent.KEYCODE_F9 -> {
                 if (!interceptHardwareTriggerKeys) return false
                 return triggerFirstAvailable(onScanPistolSingle, onScanLeftSingle, onScanRightSingle, onVolDownSingle)
             }
-            KeyEvent.KEYCODE_BUTTON_R2, KeyEvent.KEYCODE_F10 -> {
+            KeyEvent.KEYCODE_F10 -> {
                 if (!interceptHardwareTriggerKeys) return false
                 return triggerFirstAvailable(onScanTopSingle, onVolUpDouble)
             }
@@ -767,8 +776,6 @@ class MainActivity : ComponentActivity() {
 
             // Some Android 11 handheld scanners (including NETUM variants)
             // report trigger keys as camera/focus or F3..F8.
-            KeyEvent.KEYCODE_CAMERA,
-            KeyEvent.KEYCODE_FOCUS,
             KeyEvent.KEYCODE_F3,
             KeyEvent.KEYCODE_F4,
             KeyEvent.KEYCODE_F5,
@@ -777,7 +784,6 @@ class MainActivity : ComponentActivity() {
             KeyEvent.KEYCODE_F8 -> {
                 if (!interceptHardwareTriggerKeys) return false
                 return triggerFirstAvailable(onScanPistolSingle, onScanLeftSingle, onScanRightSingle, onVolDownSingle)
-
             }
         }
 
@@ -785,6 +791,11 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
+        if (isDedicatedScanKey(keyCode)) {
+            Log.i("SCAN_QR_DIAG", "dedicated_scan_key_passthrough onKeyDown keyCode=$keyCode")
+            return super.onKeyDown(keyCode, event)
+        }
+
         val repeat = event?.repeatCount ?: 0
 
         // глушим авто-повтор ТОЛЬКО для кнопок громкости
@@ -796,35 +807,37 @@ class MainActivity : ComponentActivity() {
             handledHardwareDownKeys.add(keyCode)
             return true
         }
+
         return super.onKeyDown(keyCode, event)
     }
 
     override fun onKeyUp(keyCode: Int, event: KeyEvent?): Boolean {
+        if (isDedicatedScanKey(keyCode)) {
+            Log.i("SCAN_QR_DIAG", "dedicated_scan_key_passthrough onKeyUp keyCode=$keyCode")
+            return super.onKeyUp(keyCode, event)
+        }
+
         if (handledHardwareDownKeys.remove(keyCode)) {
             return true
         }
+
         if (handleHardwareButtonKey(keyCode)) {
             return true
         }
+
         return super.onKeyUp(keyCode, event)
     }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         // init volume dispatcher with context (for Toast)
         volumeButtonDispatcher = VolumeButtonDispatcher(this)
 
-        // экран не гаснет — поведение киоска
+       // экран не гаснет — поведение киоска
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        // TEST: do not let Activity become an IME/text-input target.
-        // Some HS scanner stacks route hardware trigger differently when
-        // the foreground app owns input focus.
-        window.setFlags(
-            WindowManager.LayoutParams.FLAG_ALT_FOCUSABLE_IM,
-            WindowManager.LayoutParams.FLAG_ALT_FOCUSABLE_IM
-        )
-
-        Log.i("HS_BOOTSTRAP", "ALT_FOCUSABLE_IM enabled")
+        window.addFlags(WindowManager.LayoutParams.FLAG_ALT_FOCUSABLE_IM)
+        Log.i("HS_BOOTSTRAP", "window focus normal; FLAG_NOT_FOCUSABLE disabled")
         enableEdgeToEdge()
 
         window.setSoftInputMode(
@@ -886,7 +899,35 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private val scannerFocusPulseHandler = Handler(Looper.getMainLooper())
+    private var scannerFocusPulseRestoreRunnable: Runnable? = null
 
+    private fun pulseWindowNonBlockingForScanner(reason: String = "unknown") {
+        scannerFocusPulseRestoreRunnable?.let {
+            scannerFocusPulseHandler.removeCallbacks(it)
+        }
+
+        try {
+            window.addFlags(WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL)
+            window.addFlags(WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH)
+
+            Log.i("HS_BOOTSTRAP", "scanner focus pulse enabled reason=$reason")
+
+            scannerFocusPulseRestoreRunnable = Runnable {
+                try {
+                    window.clearFlags(WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL)
+                    window.clearFlags(WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH)
+                    Log.i("HS_BOOTSTRAP", "scanner focus pulse restored reason=$reason")
+                } catch (t: Throwable) {
+                    Log.e("HS_BOOTSTRAP", "scanner focus pulse restore failed reason=$reason", t)
+                }
+            }
+
+            scannerFocusPulseHandler.postDelayed(scannerFocusPulseRestoreRunnable!!, 600L)
+        } catch (t: Throwable) {
+            Log.e("HS_BOOTSTRAP", "scanner focus pulse failed reason=$reason", t)
+        }
+    }
     private var qrCameraFlowActive = false
     private var qrCameraReleased = true
     private val scannerBootstrapHandler by lazy { Handler(Looper.getMainLooper()) }
@@ -906,32 +947,98 @@ class MainActivity : ComponentActivity() {
         Log.i("HS_BOOTSTRAP", "qr camera released reason=$reason")
     }
 
-    fun requestScannerVendorBootstrap(reason: String = "manual", withDelayMs: Long = 1500L) {
+    fun requestScannerVendorBootstrap(reason: String = "manual", withDelayMs: Long = 350L) {
+        val now = System.currentTimeMillis()
+
+        if (now - hsLastWarmupStartedAtMs < hsBootstrapThrottleMs) {
+            Log.i("HS_BOOTSTRAP", "skip warmup throttled reason=$reason")
+            return
+        }
+
+        if (hsWarmupInProgress) {
+            Log.i("HS_BOOTSTRAP", "skip warmup already in progress reason=$reason")
+            return
+        }
+
+        hsWarmupInProgress = true
+        hsLastWarmupStartedAtMs = now
+
+        Log.i("HS_BOOTSTRAP", "schedule DecodeService warmup reason=$reason delay=${withDelayMs}ms")
+
         scannerBootstrapHandler.postDelayed({
-            if (qrCameraFlowActive || !qrCameraReleased) {
-                Log.i(
-                    "HS_BOOTSTRAP",
-                    "skip bootstrap reason=$reason qrActive=$qrCameraFlowActive qrReleased=$qrCameraReleased"
-                )
-                return@postDelayed
+            Log.i("HS_BOOTSTRAP", "DecodeService warmup start reason=$reason")
+
+            val serviceIntent = Intent("com.hs.scanservice.action").apply {
+                setClassName("com.hs.scanservice", "com.hs.scanservice.DecodeService")
+                addCategory(Intent.CATEGORY_DEFAULT)
             }
-            if (hsWarmupInProgress) {
-                Log.i("HS_BOOTSTRAP", "skip warmup reason=$reason inProgress=true")
-                return@postDelayed
+
+            runCatching {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    startForegroundService(serviceIntent)
+                } else {
+                    startService(serviceIntent)
+                }
+                Log.i("HS_BOOTSTRAP", "DecodeService startService ok reason=$reason")
+            }.onFailure { t ->
+                Log.e("HS_BOOTSTRAP", "DecodeService startService failed reason=$reason", t)
             }
-            val now = System.currentTimeMillis()
-            val elapsed = now - hsLastWarmupStartedAtMs
-            if (elapsed < hsBootstrapThrottleMs) {
-                Log.i(
-                    "HS_BOOTSTRAP",
-                    "skip warmup reason=$reason throttleMs=${hsBootstrapThrottleMs - elapsed}"
-                )
-                return@postDelayed
+
+            val connection = object : ServiceConnection {
+                override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
+                    Log.i(
+                        "HS_BOOTSTRAP",
+                        "DecodeService bind connected reason=$reason name=$name binder=$service"
+                    )
+
+                    scannerBootstrapHandler.postDelayed({
+                        runCatching {
+                            unbindService(this)
+                            Log.i("HS_BOOTSTRAP", "DecodeService unbind ok reason=$reason")
+                        }.onFailure { t ->
+                            Log.e("HS_BOOTSTRAP", "DecodeService unbind failed reason=$reason", t)
+                        }
+
+                        hsWarmupInProgress = false
+                    }, 900L)
+                }
+
+                override fun onServiceDisconnected(name: ComponentName?) {
+                    Log.i("HS_BOOTSTRAP", "DecodeService disconnected reason=$reason name=$name")
+                    hsWarmupInProgress = false
+                }
+
+                override fun onBindingDied(name: ComponentName?) {
+                    Log.w("HS_BOOTSTRAP", "DecodeService binding died reason=$reason name=$name")
+                    hsWarmupInProgress = false
+                }
+
+                override fun onNullBinding(name: ComponentName?) {
+                    Log.w("HS_BOOTSTRAP", "DecodeService null binding reason=$reason name=$name")
+                    hsWarmupInProgress = false
+                }
             }
-            warmupHsDecodeService(reason = reason)
+
+            runCatching {
+                val bound = bindService(serviceIntent, connection, Context.BIND_AUTO_CREATE)
+                Log.i("HS_BOOTSTRAP", "DecodeService bindService result=$bound reason=$reason")
+
+                if (!bound) {
+                    hsWarmupInProgress = false
+                }
+            }.onFailure { t ->
+                Log.e("HS_BOOTSTRAP", "DecodeService bindService failed reason=$reason", t)
+                hsWarmupInProgress = false
+            }
+
+            scannerBootstrapHandler.postDelayed({
+                if (hsWarmupInProgress) {
+                    Log.w("HS_BOOTSTRAP", "DecodeService warmup timeout reason=$reason")
+                    hsWarmupInProgress = false
+                }
+            }, 2500L)
         }, withDelayMs)
     }
-
 
     private fun warmupHsDecodeService(reason: String) {
         Log.i("HS_BOOTSTRAP", "warmup start reason=$reason")
@@ -1005,6 +1112,10 @@ class MainActivity : ComponentActivity() {
         runCatching {
             unregisterReceiver(scanIntentReceiver)
         }
+        scannerFocusPulseRestoreRunnable?.let {
+            scannerFocusPulseHandler.removeCallbacks(it)
+        }
+        scannerFocusPulseRestoreRunnable = null
         super.onDestroy()
     }
 
