@@ -908,61 +908,64 @@ class MainActivity : ComponentActivity() {
 
 
     private fun warmupHsDecodeService(reason: String) {
-        hsWarmupInProgress = true
-        hsLastWarmupStartedAtMs = System.currentTimeMillis()
         Log.i("HS_BOOTSTRAP", "warmup start reason=$reason")
 
         try {
-            val explicitIntent = Intent().setClassName(
-                "com.hs.scanservice",
-                "com.hs.scanservice.DecodeService"
-            )
-            val explicitResult = startService(explicitIntent)
-            if (explicitResult != null) {
-                Log.i("HS_BOOTSTRAP", "warmup explicit startService ok reason=$reason")
-            } else {
-                Log.w("HS_BOOTSTRAP", "warmup explicit startService null reason=$reason")
+            val explicitIntent = Intent().apply {
+                setClassName("com.hs.scanservice", "com.hs.scanservice.DecodeService")
             }
-        } catch (e: Exception) {
-            Log.w("HS_BOOTSTRAP", "warmup explicit startService failed reason=$reason", e)
+            startService(explicitIntent)
+            Log.i("HS_BOOTSTRAP", "warmup explicit startService ok reason=$reason")
+        } catch (t: Throwable) {
+            Log.w("HS_BOOTSTRAP", "warmup explicit startService failed reason=$reason", t)
         }
+
         try {
             val actionIntent = Intent("com.hs.scanservice.action").apply {
                 setPackage("com.hs.scanservice")
             }
-            val actionResult = startService(actionIntent)
-            if (actionResult != null) {
-                Log.i("HS_BOOTSTRAP", "warmup action startService ok reason=$reason")
-            } else {
-                Log.w("HS_BOOTSTRAP", "warmup action startService null reason=$reason")
-            }
-        } catch (e: Exception) {
-            Log.w("HS_BOOTSTRAP", "warmup action startService failed reason=$reason", e)
+            startService(actionIntent)
+            Log.i("HS_BOOTSTRAP", "warmup action startService ok reason=$reason")
+        } catch (t: Throwable) {
+            Log.w("HS_BOOTSTRAP", "warmup action startService failed reason=$reason", t)
         }
-        val bindIntent = Intent().setClassName("com.hs.scanservice", "com.hs.scanservice.DecodeService")
-        var bound = false
-        val conn = object : ServiceConnection {
-            override fun onServiceConnected(name: ComponentName?, service: IBinder?) = Unit
-            override fun onServiceDisconnected(name: ComponentName?) = Unit
-        }
-        try {
-            bound = bindService(bindIntent, conn, Context.BIND_AUTO_CREATE)
-            if (bound) {
-                Log.i("HS_BOOTSTRAP", "warmup bindService ok reason=$reason")
-            } else {
-                Log.w("HS_BOOTSTRAP", "warmup bindService failed reason=$reason"
-            }
-        } catch (e: Exception) {
-            Log.e("HS_BOOTSTRAP", "warmup bindService failed reason=$reason", e)
-        } finally {
-            if (bound) {
-                runCatching { unbindService(conn) }
-            }
-            hsWarmupInProgress = false
-            Log.i("HS_BOOTSTRAP", "warmup finished reason=$reason")
-        }
-    }
 
+        try {
+            val bindIntent = Intent().apply {
+                setClassName("com.hs.scanservice", "com.hs.scanservice.DecodeService")
+            }
+
+            var connection: ServiceConnection? = null
+
+            connection = object : ServiceConnection {
+                override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
+                    Log.i("HS_BOOTSTRAP", "warmup bindService connected reason=$reason name=$name")
+                }
+
+                override fun onServiceDisconnected(name: ComponentName?) {
+                    Log.i("HS_BOOTSTRAP", "warmup bindService disconnected reason=$reason name=$name")
+                }
+            }
+
+            val bound = bindService(bindIntent, connection, Context.BIND_AUTO_CREATE)
+            Log.i("HS_BOOTSTRAP", "warmup bindService result=$bound reason=$reason")
+
+            if (bound) {
+                scannerBootstrapHandler.postDelayed({
+                    try {
+                        connection?.let { unbindService(it) }
+                        Log.i("HS_BOOTSTRAP", "warmup unbindService ok reason=$reason")
+                    } catch (t: Throwable) {
+                        Log.w("HS_BOOTSTRAP", "warmup unbindService failed reason=$reason", t)
+                    }
+                }, 700L)
+            }
+        } catch (t: Throwable) {
+            Log.w("HS_BOOTSTRAP", "warmup bindService failed reason=$reason", t)
+        }
+
+        Log.i("HS_BOOTSTRAP", "warmup finished reason=$reason")
+    }
 
     override fun onResume() {
         super.onResume()
