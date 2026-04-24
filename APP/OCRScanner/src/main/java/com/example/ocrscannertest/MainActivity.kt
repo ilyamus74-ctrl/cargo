@@ -362,7 +362,11 @@ private class ScannerDebugBridge(private val context: Context) {
 }
 
 enum class WarehouseScanStep { BARCODE, OCR, MEASURE, SUBMIT }
-
+private enum class ScannerOwnerState {
+    IDLE,
+    CAMERA_MODE,
+    HARDWARE_SCAN_MODE
+}
 private const val VOLUME_DOUBLE_TAP_WINDOW_MS = 650L
 private var debugToastsEnabled = false
 
@@ -483,7 +487,66 @@ class MainActivity : ComponentActivity() {
     private var hsTriggerWatchdogRunnable: Runnable? = null
     private var hsLastHardwareTriggerAtMs = 0L
     private var hsLastBarcodeSendAtMs = 0L
+    private var scannerOwnerState: ScannerOwnerState = ScannerOwnerState.IDLE
+    private var cameraReleaseCallback: (() -> Unit)? = null
+    private var cameraRestoreCallback: (() -> Unit)? = null
+    private var restoreCameraAfterHardwareScanRunnable: Runnable? = null
+    private val cameraRestoreDelayAfterBarcodeMs = 900L
+    private val cameraRestoreDelayAfterTimeoutMs = 1800L
 
+    fun setScannerCameraCallbacks(
+        releaseCamera: (() -> Unit)?,
+        restoreCamera: (() -> Unit)?
+    ) {
+        cameraReleaseCallback = releaseCamera
+        cameraRestoreCallback = restoreCamera
+        Log.i("HS_BOOTSTRAP", "scanner camera callbacks registered release=${releaseCamera != null} restore=${restoreCamera != null}")
+    }
+
+    private fun enterHardwareScanMode(reason: String) {
+        if (scannerOwnerState == ScannerOwnerState.HARDWARE_SCAN_MODE) {
+            Log.i("HS_BOOTSTRAP", "already HARDWARE_SCAN_MODE reason=$reason")
+            return
+        }
+
+        Log.i("HS_BOOTSTRAP", "state ${scannerOwnerState} -> HARDWARE_SCAN_MODE reason=$reason")
+
+        restoreCameraAfterHardwareScanRunnable?.let {
+            scannerBootstrapHandler.removeCallbacks(it)
+        }
+        restoreCameraAfterHardwareScanRunnable = null
+
+        scannerOwnerState = ScannerOwnerState.HARDWARE_SCAN_MODE
+
+        runCatching {
+            cameraReleaseCallback?.invoke()
+            Log.i("HS_BOOTSTRAP", "camera release requested reason=$reason")
+        }.onFailure { t ->
+            Log.e("HS_BOOTSTRAP", "camera release failed reason=$reason", t)
+        }
+    }
+
+    private fun scheduleReturnToCameraMode(reason: String, delayMs: Long) {
+        restoreCameraAfterHardwareScanRunnable?.let {
+            scannerBootstrapHandler.removeCallbacks(it)
+        }
+
+        restoreCameraAfterHardwareScanRunnable = Runnable {
+            Log.i("HS_BOOTSTRAP", "state ${scannerOwnerState} -> CAMERA_MODE reason=$reason")
+
+            scannerOwnerState = ScannerOwnerState.CAMERA_MODE
+
+            runCatching {
+                cameraRestoreCallback?.invoke()
+                Log.i("HS_BOOTSTRAP", "camera restore requested reason=$reason")
+            }.onFailure { t ->
+                Log.e("HS_BOOTSTRAP", "camera restore failed reason=$reason", t)
+            }
+        }
+
+        Log.i("HS_BOOTSTRAP", "schedule camera restore reason=$reason delay=${delayMs}ms")
+        scannerBootstrapHandler.postDelayed(restoreCameraAfterHardwareScanRunnable!!, delayMs)
+    }
     fun setInterceptHardwareTriggerKeys(enabled: Boolean) {
         // Intentionally ignored.
         // We keep vendor trigger routing in the default OS/vendor scanner stack
@@ -503,10 +566,15 @@ class MainActivity : ComponentActivity() {
 
             val extras = intent?.extras
             val action = intent?.action
-            if (action == "com.android.hs.action.BARCODE_SEND") {
+            if (action == "com.android.hs.action.BARCODE_SEND" || action == "com.android.giec.action.BARCODE_FOCAL") {
                 hsLastBarcodeSendAtMs = System.currentTimeMillis()
                 hsTriggerWatchdogRunnable?.let { scannerBootstrapHandler.removeCallbacks(it) }
                 hsTriggerWatchdogRunnable = null
+
+                scheduleReturnToCameraMode(
+                    reason = "barcode_received_$action",
+                    delayMs = cameraRestoreDelayAfterBarcodeMs
+                )
             }
             val extraKeys = extras?.keySet().orEmpty()
             val extrasDump = extraKeys.joinToString(separator = ", ") { key ->
@@ -702,6 +770,8 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun onHardwareTriggerPressed(keyCode: Int) {
+        enterHardwareScanMode(reason = "hard_key_$keyCode")
+
         hsLastHardwareTriggerAtMs = System.currentTimeMillis()
         hsTriggerWatchdogRunnable?.let { scannerBootstrapHandler.removeCallbacks(it) }
         hsTriggerWatchdogRunnable = Runnable {
@@ -711,7 +781,10 @@ class MainActivity : ComponentActivity() {
                     "HS_BOOTSTRAP",
                     "no BARCODE_SEND after hardware trigger, request warmup keyCode=$keyCode"
                 )
-                requestScannerVendorBootstrap(reason = "no_barcode_after_trigger", withDelayMs = 0L)
+                scheduleReturnToCameraMode(
+                    reason = "no_barcode_after_trigger",
+                    delayMs = cameraRestoreDelayAfterTimeoutMs
+                )
             }
         }
         scannerBootstrapHandler.postDelayed(hsTriggerWatchdogRunnable!!, hsBootstrapThrottleMs)
@@ -5795,7 +5868,7 @@ fun BarcodeScanScreen(
     var liveAnalysis by remember { mutableStateOf<ImageAnalysis?>(null) }
     var liveScanner by remember { mutableStateOf<com.google.mlkit.vision.barcode.BarcodeScanner?>(null) }
     var boundCameraProvider by remember { mutableStateOf<ProcessCameraProvider?>(null) }
-
+    var cameraRestoreTick by remember { mutableStateOf(0) }
     val barcodeOptions = remember {
         BarcodeScannerOptions.Builder()
             .setBarcodeFormats(
@@ -5967,8 +6040,43 @@ fun BarcodeScanScreen(
 
     LaunchedEffect(hasCameraPermission) {
         if (!hasCameraPermission) return@LaunchedEffect
+        DisposableEffect(Unit) {
+            val activity = context as? MainActivity
 
+            activity?.setScannerCameraCallbacks(
+                releaseCamera = {
+                    boundCameraProvider?.unbindAll()
+                    Log.i("HS_BOOTSTRAP", "CameraX unbindAll from scanner state machine")
+                },
+                restoreCamera = {
+                    cameraRestoreTick++
+                    Log.i("HS_BOOTSTRAP", "CameraX restore tick=$cameraRestoreTick")
+                }
+            )
+
+            onDispose {
+                activity?.setScannerCameraCallbacks(null, null)
+            }
+        }
         val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
+        DisposableEffect(Unit) {
+            val activity = context as? MainActivity
+
+            activity?.setScannerCameraCallbacks(
+                releaseCamera = {
+                    boundCameraProvider?.unbindAll()
+                    Log.i("HS_BOOTSTRAP", "CameraX unbindAll from scanner state machine")
+                },
+                restoreCamera = {
+                    cameraRestoreTick++
+                    Log.i("HS_BOOTSTRAP", "CameraX restore tick=$cameraRestoreTick")
+                }
+            )
+
+            onDispose {
+                activity?.setScannerCameraCallbacks(null, null)
+            }
+        }
         val cameraProvider = cameraProviderFuture.get()
 
         val preview = Preview.Builder()
