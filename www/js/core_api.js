@@ -2734,7 +2734,6 @@ const CoreAPI = {
             this.bindEvents();
             this.setupObserver();
             this.resetAndLoad();
-            this.focusSearchInput({ force: true });
             this.initialized = true;
         },
 
@@ -2856,7 +2855,7 @@ const CoreAPI = {
                 .replace(/"/g, '&quot;')
                 .replace(/'/g, '&#39;');
         },
-        focusSearchInput({ clear = false, force = false } = {}) {
+        focusSearchInput({ clear = false } = {}) {
             if (!this.searchInput) {
                 return;
             }
@@ -2865,7 +2864,8 @@ const CoreAPI = {
                 this.state.search = '';
             }
             window.setTimeout(() => {
-                focusScannerFieldIfNeeded(this.searchInput, { force: force, preventScroll: false });
+                this.searchInput.focus();
+                this.searchInput.select?.();
             }, 50);
         },
         clearModalState() {
@@ -4449,10 +4449,6 @@ const CoreAPI = {
 
             this.bindEvents();
             this.clearResults();
-            this.focusSearchInput({ force: true });
-            if (scannerDebugEnabled()) {
-                installScannerDebugInput(this.root, this.searchInput);
-            }
             this.initialized = true;
         },
         bindEvents() {
@@ -4469,27 +4465,6 @@ const CoreAPI = {
                     this.fetchResults(value);
                 }, 300);
             });
-
-            this.searchInput.addEventListener('change', () => {
-                const value = this.searchInput.value.trim();
-                if (!value) {
-                    this.clearResults();
-                    return;
-                }
-                this.fetchResults(value);
-            });
-            this.root.addEventListener('click', (event) => {
-                if (event.target && event.target.closest('input, textarea, select, button, a, [contenteditable="true"]')) {
-                    return;
-                }
-                this.focusSearchInput({ force: false });
-            });
-        },
-        focusSearchInput({ force = false } = {}) {
-            if (!this.searchInput) return;
-            setTimeout(() => {
-                focusScannerFieldIfNeeded(this.searchInput, { force: force, preventScroll: false });
-            }, 30);
         },
         clearResults() {
             if (this.tbody) {
@@ -4549,7 +4524,6 @@ const CoreAPI = {
 
             this.bindEvents();
             this.clearResults();
-            this.focusSearchInput({ force: true });
             this.initialized = true;
         },
         bindEvents() {
@@ -4565,25 +4539,9 @@ const CoreAPI = {
                     }
                     this.fetchResults(value);
                 }, 300);
-
-            this.searchInput.addEventListener('change', () => {
-                const value = this.searchInput.value.trim();
-                if (!value) {
-                    this.clearResults();
-                    return;
-                }
-                this.fetchResults(value);
-            });
             });
             this.cellSelect.addEventListener('change', () => {
                 this.updateMoveButtons();
-            });
-
-            this.root.addEventListener('click', (event) => {
-                if (event.target && event.target.closest('input, textarea, select, button, a, [contenteditable="true"]')) {
-                    return;
-                }
-                this.focusSearchInput({ force: false });
             });
         },
         clearResults() {
@@ -4601,15 +4559,8 @@ const CoreAPI = {
             }
             this.clearResults();
             if (this.searchInput) {
-                this.focusSearchInput({ force: true });
+                this.searchInput.focus();
             }
-        },
-
-        focusSearchInput({ force = false } = {}) {
-            if (!this.searchInput) return;
-            setTimeout(() => {
-                focusScannerFieldIfNeeded(this.searchInput, { force: force, preventScroll: false });
-            }, 30);
         },
         updateMoveButtons() {
             if (!this.tbody) return;
@@ -4744,13 +4695,6 @@ const CoreAPI = {
             }
             if (event?.target?.id === 'warehouse-sync-history-tab') {
                 this.warehouseSyncHistory.init();
-            }
-
-            if (event?.target?.id === 'warehouse-move-scanner-tab') {
-                this.warehouseMove.focusSearchInput?.({ force: true });
-            }
-            if (event?.target?.id === 'warehouse-move-batch-tab') {
-                this.warehouseMoveBatch.focusSearchInput?.({ force: true });
             }
         });
         // Ensure page init handlers run on full page load (not only via loadMain).
@@ -5180,29 +5124,15 @@ function initItemInScanEntryBehaviour() {
     var tuidInput = form.querySelector('#tuid');
     if (!trackingInput || !tuidInput) return;
 
-    var focusRetryDelays = [0, 80, 180, 350, 700];
-
-    function isEditableControl(el) {
-        if (!(el instanceof HTMLElement)) return false;
-        var tag = el.tagName ? String(el.tagName).toUpperCase() : '';
-        return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || !!el.isContentEditable;
-    }
-
-    function focusTrackingInput(force) {
-        return focusScannerFieldIfNeeded(trackingInput, {
-            force: force !== false,
-            preventScroll: false
-        });
-    }
-
-    function scheduleFocusRetries(reason) {
+    function focusTrackingInput() {
         if (!document.body.contains(trackingInput)) return;
-        focusRetryDelays.forEach(function (delay) {
-            setTimeout(function () {
-                if (!document.body.contains(trackingInput)) return;
-                focusTrackingInput(true);
-            }, delay);
-        });
+        if (trackingInput.disabled || trackingInput.readOnly) return;
+        try {
+            trackingInput.focus({ preventScroll: false });
+        } catch (e) {
+            trackingInput.focus();
+        }
+        trackingInput.select();
     }
 
     if (!form.__itemInTrackMirrorBound) {
@@ -5234,145 +5164,32 @@ function initItemInScanEntryBehaviour() {
         var addBtn = form.querySelector('button[data-core-action="add_new_item_in"]');
         if (addBtn) {
             addBtn.addEventListener('click', function () {
-                scheduleFocusRetries('add_new_item_in');
+                setTimeout(focusTrackingInput, 350);
             });
         }
 
         var clearBtn = document.getElementById('itemInClearBtn');
         if (clearBtn) {
             clearBtn.addEventListener('click', function () {
-                scheduleFocusRetries('clear_item_in');
+                setTimeout(focusTrackingInput, 0);
+
+                setTimeout(focusTrackingInput, 180);
             });
         }
-
-        form.addEventListener('focusout', function () {
-            setTimeout(function () {
-                if (!document.body.contains(trackingInput)) return;
-                var active = document.activeElement;
-                var activeMissing = !active || active === document.body;
-                if (activeMissing) {
-                    scheduleFocusRetries('focusout_to_body');
-                }
-            }, 0);
-        });
     }
     var modalEl = form.closest('.modal');
     if (modalEl && !modalEl.__itemInFocusHookBound) {
         modalEl.__itemInFocusHookBound = true;
         modalEl.addEventListener('shown.bs.modal', function () {
-
-            scheduleFocusRetries('shown.bs.modal');
-        });
-
-        modalEl.addEventListener('click', function (event) {
-            if (!document.body.contains(trackingInput)) return;
-            var target = event.target;
-            if (!(target instanceof HTMLElement)) {
-                scheduleFocusRetries('modal_click_unknown_target');
-                return;
-            }
-            if (target === trackingInput || target.closest('#trackingNo')) return;
-            if (isEditableControl(target) || target.closest('input, textarea, select, [contenteditable="true"]')) return;
-            scheduleFocusRetries('modal_click_background');
+            setTimeout(focusTrackingInput, 0);
+            setTimeout(focusTrackingInput, 180);
         });
     }
-    scheduleFocusRetries('init');
+
+    setTimeout(focusTrackingInput, 0);
 }
 
-window.setWarehouseTrackingFromScanner = function (value) {
-    var trackingInput = document.querySelector('#item-in-modal-form #trackingNo') || document.getElementById('trackingNo');
-    if (!(trackingInput instanceof HTMLInputElement)) return false;
-    if (trackingInput.disabled || trackingInput.readOnly) return false;
 
-    trackingInput.value = String(value == null ? '' : value);
-    trackingInput.dispatchEvent(new Event('input', { bubbles: true }));
-    trackingInput.dispatchEvent(new Event('change', { bubbles: true }));
-    focusScannerFieldIfNeeded(trackingInput, { force: true, preventScroll: false });
-    return true;
-};
-
-function focusScannerFieldIfNeeded(field, options) {
-    if (!(field instanceof HTMLElement)) return false;
-    if (!document.body.contains(field)) return false;
-    if (field.disabled || field.readOnly) return false;
-
-    var opts = options || {};
-    var active = document.activeElement;
-    var activeTag = active && active.tagName ? String(active.tagName).toUpperCase() : '';
-    var activeIsEditable = !!(active && (
-        activeTag === 'INPUT' ||
-        activeTag === 'TEXTAREA' ||
-        activeTag === 'SELECT' ||
-        active.isContentEditable
-    ));
-    var activeInsideModal = !!(active && typeof active.closest === 'function' && active.closest('.modal.show'));
-
-    if (!opts.force) {
-        if (active === field) return true;
-        if (activeIsEditable && !activeInsideModal) return false;
-    }
-
-    try {
-        field.focus({ preventScroll: !!opts.preventScroll });
-    } catch (e) {
-        field.focus();
-    }
-    if (typeof field.select === 'function') {
-        field.select();
-    }
-    return document.activeElement === field;
-}
-
-function scannerDebugEnabled() {
-    try {
-        return /\bscanner_debug=1\b/i.test(window.location.search || '');
-    } catch (e) {
-        return false;
-    }
-}
-
-function installScannerDebugInput(targetRoot, targetField) {
-    if (!targetRoot || !targetField) return;
-    if (targetRoot.querySelector('#scannerDebugInput')) return;
-
-    var wrap = document.createElement('div');
-    wrap.className = 'mt-2';
-    wrap.innerHTML = ''
-        + '<label for="scannerDebugInput" class="form-label small mb-1">Scanner debug input</label>'
-        + '<input id="scannerDebugInput" type="text" class="form-control form-control-sm" '
-        + 'placeholder="Диагностика scanner keyboard input">';
-    targetRoot.appendChild(wrap);
-
-    var debugInput = wrap.querySelector('#scannerDebugInput');
-    if (!(debugInput instanceof HTMLInputElement)) return;
-
-    function log(prefix, event) {
-        var active = document.activeElement;
-        var activeDesc = active ? (active.id ? ('#' + active.id) : active.tagName) : 'null';
-        console.log('[scanner-debug] ' + prefix, {
-            key: event && event.key,
-            debugValue: debugInput.value,
-            targetValue: targetField.value,
-            activeElement: activeDesc
-        });
-    }
-
-    ['focus', 'blur', 'input', 'keydown', 'keyup'].forEach(function (eventName) {
-        debugInput.addEventListener(eventName, function (event) {
-            log('debugInput:' + eventName, event);
-        });
-    });
-
-    ['focusin', 'focusout', 'keydown', 'input'].forEach(function (eventName) {
-        document.addEventListener(eventName, function (event) {
-            var t = event.target;
-            if (t !== debugInput && t !== targetField) return;
-            log('document:' + eventName, event);
-        });
-    });
-
-    focusScannerFieldIfNeeded(debugInput, { force: true });
-}
 
 function getSelectedStandDevice() {
     var select = document.getElementById('standDevice');

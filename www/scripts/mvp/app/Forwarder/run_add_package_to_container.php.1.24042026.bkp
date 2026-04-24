@@ -680,12 +680,11 @@ function forwarder_add_package_to_container_save_label_from_url(string $track, s
                 'method' => 'GET',
                 'timeout' => 20,
             ],
+        ]);
             'ssl' => [
                 'verify_peer' => false,
                 'verify_peer_name' => false,
             ],
-        ]);
-
         $binary = @file_get_contents($candidateUrl, false, $context);
         if ($binary !== false && $binary !== '') {
             $url = $candidateUrl;
@@ -1273,10 +1272,6 @@ $session = new SessionManager($config->sessionCookieFile(), $config->sessionTtlS
 $loginService = new LoginService($config, $httpClient, $session, $logger);
 $sessionClient = new ForwarderSessionClient($config, $httpClient, $session, $loginService, $logger);
 
-
-$sessionClient->ensureSession();
-$sessionClient->requestWithSession('GET', $collectorPagePath, [], false);
-
 $checkPayload = ['position' => $position];
 $checkResponse = $sessionClient->requestWithSession('POST', $checkPath, $checkPayload, true);
 $checkStatusCode = (int)($checkResponse['status_code'] ?? 0);
@@ -1299,13 +1294,6 @@ $changePayload = [
 
 $changeResponse = $sessionClient->requestWithSession('POST', $changePath, $changePayload, false);
 $changeStatusCode = (int)($changeResponse['status_code'] ?? 0);
-
-if ($changeStatusCode === 419) {
-    $sessionClient->requestWithSession('GET', $collectorPagePath, [], false);
-    $changeResponse = $sessionClient->requestWithSession('POST', $changePath, $changePayload, false);
-}
-$changeStatusCode = (int)($changeResponse['status_code'] ?? 0);
-
 $changeJson = is_array($changeResponse['json'] ?? null)
     ? $changeResponse['json']
     : json_decode((string)($changeResponse['body'] ?? ''), true);

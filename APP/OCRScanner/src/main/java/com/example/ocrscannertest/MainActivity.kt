@@ -827,8 +827,7 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private var hsBootstrapInProgress = false
-    private var lastHsBootstrapAt = 0L
+
     private var qrCameraFlowActive = false
     private var qrCameraReleased = true
     private val scannerBootstrapHandler by lazy { Handler(Looper.getMainLooper()) }
@@ -848,7 +847,7 @@ class MainActivity : ComponentActivity() {
         Log.i("HS_BOOTSTRAP", "qr camera released reason=$reason")
     }
 
-    fun requestScannerVendorBootstrap(reason: String = "manual", withDelayMs: Long = 350L) {
+    fun requestScannerVendorBootstrap(reason: String = "manual", withDelayMs: Long = 1500L) {
         scannerBootstrapHandler.postDelayed({
             if (qrCameraFlowActive || !qrCameraReleased) {
                 Log.i(
@@ -857,52 +856,39 @@ class MainActivity : ComponentActivity() {
                 )
                 return@postDelayed
             }
-            bootstrapHsViaSplashActivity(reason = reason)
+            warmupDecodeService(reason = reason)
         }, withDelayMs)
     }
 
-    private fun bootstrapHsViaSplashActivity(reason: String) {
-        if (hsBootstrapInProgress) return
-        val now = System.currentTimeMillis()
-        if (now - lastHsBootstrapAt < 1200L) return
-        hsBootstrapInProgress = true
-        lastHsBootstrapAt = now
+
+    fun warmupDecodeService(reason: String) {
+        var actionStartSucceeded = false
 
         try {
-            Log.i("HS_BOOTSTRAP", "start vendor splash reason=$reason")
-            val hsIntent = Intent().apply {
-                setClassName(
-                    "com.hs.dcsservice",
-                    "com.hs.scanbutton.SplashActivity"
-                )
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION)
-            }
-            startActivity(hsIntent)
 
-            scannerBootstrapHandler.postDelayed({
-                try {
-                    val backIntent = packageManager.getLaunchIntentForPackage(packageName)?.apply {
-                        addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
-                        addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
-                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                        addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION)
-                    }
-                    if (backIntent != null) {
-                        Log.i("HS_BOOTSTRAP", "return to app reason=$reason")
-                        startActivity(backIntent)
-                    }
-                } catch (e: Exception) {
-                    Log.e("HS_BOOTSTRAP", "Failed to return to app", e)
-                } finally {
-                    hsBootstrapInProgress = false
-                    Log.i("HS_BOOTSTRAP", "bootstrap finished reason=$reason")
-                }
-            }, 1200)
-
+            Log.i("HS_BOOTSTRAP", "warmupDecodeService action start reason=$reason")
+            val actionIntent = Intent("com.hs.scanservice.action").setPackage("com.hs.scanservice")
+            actionStartSucceeded = startService(actionIntent) != null
         } catch (e: Exception) {
-            hsBootstrapInProgress = false
-            Log.e("HS_BOOTSTRAP", "Failed to start HS SplashActivity", e)
+            Log.w("HS_BOOTSTRAP", "warmupDecodeService action exception reason=$reason", e)
+        }
+
+        if (actionStartSucceeded) {
+            return
+        }
+
+        try {
+            Log.i("HS_BOOTSTRAP", "warmupDecodeService explicit start reason=$reason")
+            val explicitIntent = Intent().setClassName(
+                "com.hs.scanservice",
+                "com.hs.scanservice.DecodeService"
+            )
+            val explicitStartSucceeded = startService(explicitIntent) != null
+            if (!explicitStartSucceeded) {
+                Log.e("HS_BOOTSTRAP", "warmupDecodeService failed reason=$reason")
+            }
+        } catch (e: Exception) {
+            Log.e("HS_BOOTSTRAP", "warmupDecodeService failed reason=$reason", e)
         }
     }
 
@@ -2201,8 +2187,8 @@ when {
                         modifier = Modifier.fillMaxSize(),
                         onCameraDisposed = {
                             activity?.notifyQrCameraReleased(reason = "qr_screen_disposed")
-                            val reason = pendingQrScannerRestoreReason ?: return@QrScanScreen
-                            activity?.requestScannerVendorBootstrap(reason = reason, withDelayMs = 250L)
+                            pendingQrScannerRestoreReason ?: return@QrScanScreen
+                            activity?.requestScannerVendorBootstrap(reason = "camera_released", withDelayMs = 1500L)
                             pendingQrScannerRestoreReason = null
                         },
                         onCodeScanned = { raw ->
