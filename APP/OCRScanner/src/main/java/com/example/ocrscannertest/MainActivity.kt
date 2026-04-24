@@ -487,6 +487,7 @@ class MainActivity : ComponentActivity() {
     private var hsTriggerWatchdogRunnable: Runnable? = null
     private var hsLastHardwareTriggerAtMs = 0L
     private var hsLastBarcodeSendAtMs = 0L
+    private var hsLastCameraRestoreScheduleAtMs = 0L
     private var scannerOwnerState: ScannerOwnerState = ScannerOwnerState.IDLE
     private var cameraReleaseCallback: (() -> Unit)? = null
     private var cameraRestoreCallback: (() -> Unit)? = null
@@ -571,10 +572,14 @@ class MainActivity : ComponentActivity() {
                 hsTriggerWatchdogRunnable?.let { scannerBootstrapHandler.removeCallbacks(it) }
                 hsTriggerWatchdogRunnable = null
 
-                scheduleReturnToCameraMode(
-                    reason = "barcode_received_$action",
-                    delayMs = cameraRestoreDelayAfterBarcodeMs
-                )
+                val now = System.currentTimeMillis()
+                if (now - hsLastCameraRestoreScheduleAtMs > 300L) {
+                    hsLastCameraRestoreScheduleAtMs = now
+                    scheduleReturnToCameraMode(
+                        reason = "barcode_received_$action",
+                        delayMs = cameraRestoreDelayAfterBarcodeMs
+                    )
+                }
             }
             val extraKeys = extras?.keySet().orEmpty()
             val extrasDump = extraKeys.joinToString(separator = ", ") { key ->
@@ -779,12 +784,16 @@ class MainActivity : ComponentActivity() {
             if (noBarcodeAfterTrigger) {
                 Log.i(
                     "HS_BOOTSTRAP",
-                    "no BARCODE_SEND after hardware trigger, request warmup keyCode=$keyCode"
+                    "no BARCODE_SEND after hardware trigger; schedule camera restore keyCode=$keyCode"
                 )
-                scheduleReturnToCameraMode(
-                    reason = "no_barcode_after_trigger",
-                    delayMs = cameraRestoreDelayAfterTimeoutMs
-                )
+                val now = System.currentTimeMillis()
+                if (now - hsLastCameraRestoreScheduleAtMs > 300L) {
+                    hsLastCameraRestoreScheduleAtMs = now
+                    scheduleReturnToCameraMode(
+                        reason = "barcode_received_$action",
+                        delayMs = cameraRestoreDelayAfterBarcodeMs
+                    )
+                }
             }
         }
         scannerBootstrapHandler.postDelayed(hsTriggerWatchdogRunnable!!, hsBootstrapThrottleMs)
@@ -5869,6 +5878,31 @@ fun BarcodeScanScreen(
     var liveScanner by remember { mutableStateOf<com.google.mlkit.vision.barcode.BarcodeScanner?>(null) }
     var boundCameraProvider by remember { mutableStateOf<ProcessCameraProvider?>(null) }
     var cameraRestoreTick by remember { mutableStateOf(0) }
+
+    DisposableEffect(Unit) {
+        val activity = context as? MainActivity
+
+        activity?.setScannerCameraCallbacks(
+            releaseCamera = {
+                liveAnalysis?.clearAnalyzer()
+                liveAnalysis = null
+                liveScanner?.close()
+                liveScanner = null
+                boundCameraProvider?.unbindAll()
+                camera = null
+                Log.i("HS_BOOTSTRAP", "CameraX unbindAll from scanner state machine")
+            },
+            restoreCamera = {
+                cameraRestoreTick++
+                Log.i("HS_BOOTSTRAP", "CameraX restore tick=$cameraRestoreTick")
+            }
+        )
+
+        onDispose {
+            activity?.setScannerCameraCallbacks(null, null)
+        }
+    }
+    var cameraRestoreTick by remember { mutableStateOf(0) }
     val barcodeOptions = remember {
         BarcodeScannerOptions.Builder()
             .setBarcodeFormats(
@@ -6038,7 +6072,7 @@ fun BarcodeScanScreen(
         }
     }
 
-    LaunchedEffect(hasCameraPermission) {
+    LaunchedEffect(hasCameraPermission, cameraRestoreTick) {
         if (!hasCameraPermission) return@LaunchedEffect
         DisposableEffect(Unit) {
             val activity = context as? MainActivity
@@ -6345,7 +6379,26 @@ fun OcrScanScreen(
 
     var liveAnalysis by remember { mutableStateOf<ImageAnalysis?>(null) }
     var boundCameraProvider by remember { mutableStateOf<ProcessCameraProvider?>(null) }
+    var cameraRestoreTick by remember { mutableStateOf(0) }
 
+    DisposableEffect(Unit) {
+        val activity = context as? MainActivity
+
+        activity?.setScannerCameraCallbacks(
+            releaseCamera = {
+                boundCameraProvider?.unbindAll()
+                Log.i("HS_BOOTSTRAP", "CameraX unbindAll from scanner state machine")
+            },
+            restoreCamera = {
+                cameraRestoreTick++
+                Log.i("HS_BOOTSTRAP", "CameraX restore tick=$cameraRestoreTick")
+            }
+        )
+
+        onDispose {
+            activity?.setScannerCameraCallbacks(null, null)
+        }
+    }
     fun processRecognizedText(fullText: String) {
         scope.launch {
             try {
@@ -6456,7 +6509,7 @@ fun OcrScanScreen(
         }
     }
 
-    LaunchedEffect(hasCameraPermission) {
+    LaunchedEffect(hasCameraPermission, cameraRestoreTick) {
         if (hasCameraPermission) {
             startCamera()
         }
