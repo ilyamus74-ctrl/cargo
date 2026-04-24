@@ -503,7 +503,12 @@ class MainActivity : ComponentActivity() {
         cameraRestoreCallback = restoreCamera
         Log.i("HS_BOOTSTRAP", "scanner camera callbacks registered release=${releaseCamera != null} restore=${restoreCamera != null}")
     }
+    fun enterCameraMode(reason: String) {
+        if (scannerOwnerState == ScannerOwnerState.CAMERA_MODE) return
 
+        Log.i("HS_BOOTSTRAP", "state ${scannerOwnerState} -> CAMERA_MODE reason=$reason")
+        scannerOwnerState = ScannerOwnerState.CAMERA_MODE
+    }
     private fun enterHardwareScanMode(reason: String) {
         if (scannerOwnerState == ScannerOwnerState.HARDWARE_SCAN_MODE) {
             Log.i("HS_BOOTSTRAP", "already HARDWARE_SCAN_MODE reason=$reason")
@@ -779,26 +784,29 @@ class MainActivity : ComponentActivity() {
 
         hsLastHardwareTriggerAtMs = System.currentTimeMillis()
         hsTriggerWatchdogRunnable?.let { scannerBootstrapHandler.removeCallbacks(it) }
+
         hsTriggerWatchdogRunnable = Runnable {
             val noBarcodeAfterTrigger = hsLastBarcodeSendAtMs < hsLastHardwareTriggerAtMs
+
             if (noBarcodeAfterTrigger) {
                 Log.i(
                     "HS_BOOTSTRAP",
                     "no BARCODE_SEND after hardware trigger; schedule camera restore keyCode=$keyCode"
                 )
+
                 val now = System.currentTimeMillis()
                 if (now - hsLastCameraRestoreScheduleAtMs > 300L) {
                     hsLastCameraRestoreScheduleAtMs = now
                     scheduleReturnToCameraMode(
-                        reason = "barcode_received_$action",
-                        delayMs = cameraRestoreDelayAfterBarcodeMs
+                        reason = "no_barcode_after_hard_key_$keyCode",
+                        delayMs = cameraRestoreDelayAfterTimeoutMs
                     )
                 }
             }
         }
+
         scannerBootstrapHandler.postDelayed(hsTriggerWatchdogRunnable!!, hsBootstrapThrottleMs)
     }
-
     private fun triggerHardwareAction(callback: (() -> Unit)?): Boolean {
         val action = callback ?: return false
         action.invoke()
@@ -3233,6 +3241,7 @@ fun QrCameraPreview(
                 preview,
                 analysis
             )
+            (context as? MainActivity)?.enterCameraMode("CameraX bindToLifecycle")
         } catch (e: Exception) {
             e.printStackTrace()
         }
@@ -5902,7 +5911,6 @@ fun BarcodeScanScreen(
             activity?.setScannerCameraCallbacks(null, null)
         }
     }
-    var cameraRestoreTick by remember { mutableStateOf(0) }
     val barcodeOptions = remember {
         BarcodeScannerOptions.Builder()
             .setBarcodeFormats(
@@ -6155,6 +6163,7 @@ fun BarcodeScanScreen(
                         }
                 }
                 camera = cameraProvider.bindToLifecycle(lifecycleOwner, selector, preview, imageCapture, analysis)
+                (context as? MainActivity)?.enterCameraMode("CameraX bindToLifecycle")
             } else {
                 camera = cameraProvider.bindToLifecycle(
                     lifecycleOwner,
@@ -6495,6 +6504,7 @@ fun OcrScanScreen(
                         }
                 }
                 camera = cameraProvider.bindToLifecycle(lifecycleOwner, selector, preview, imageCapture, analysis)
+                (context as? MainActivity)?.enterCameraMode("CameraX bindToLifecycle")
             } else {
                 camera = cameraProvider.bindToLifecycle(
                     lifecycleOwner,
