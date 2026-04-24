@@ -4,8 +4,6 @@ package com.example.ocrscannertest
 import android.content.Context
 import android.content.BroadcastReceiver
 import android.content.IntentFilter
-import android.content.ComponentName
-import android.content.ServiceConnection
 import java.io.File
 import androidx.core.content.FileProvider
 import android.provider.MediaStore
@@ -24,7 +22,6 @@ import java.net.URL
 import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Bundle
-import android.os.IBinder
 import android.view.WindowManager
 import android.util.Log
 import androidx.activity.ComponentActivity
@@ -477,12 +474,6 @@ class MainActivity : ComponentActivity() {
     private var hardwareScanFlushRunnable: Runnable? = null
     private val handledHardwareDownKeys = mutableSetOf<Int>()
     private val interceptHardwareTriggerKeys: Boolean = false
-    private val hsBootstrapThrottleMs = 1500L
-    private var hsWarmupInProgress = false
-    private var hsLastWarmupStartedAtMs = 0L
-    private var hsTriggerWatchdogRunnable: Runnable? = null
-    private var hsLastHardwareTriggerAtMs = 0L
-    private var hsLastBarcodeSendAtMs = 0L
 
     fun setInterceptHardwareTriggerKeys(enabled: Boolean) {
         // Intentionally ignored.
@@ -503,11 +494,6 @@ class MainActivity : ComponentActivity() {
 
             val extras = intent?.extras
             val action = intent?.action
-            if (action == "com.android.hs.action.BARCODE_SEND") {
-                hsLastBarcodeSendAtMs = System.currentTimeMillis()
-                hsTriggerWatchdogRunnable?.let { scannerBootstrapHandler.removeCallbacks(it) }
-                hsTriggerWatchdogRunnable = null
-            }
             val extraKeys = extras?.keySet().orEmpty()
             val extrasDump = extraKeys.joinToString(separator = ", ") { key ->
                 "$key=${safeExtraValue(extras?.get(key))}"
@@ -670,29 +656,10 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
-        if (event.action == KeyEvent.ACTION_DOWN && (event.keyCode == 289 || event.keyCode == 290)) {
-            onHardwareTriggerPressed(event.keyCode)
-        }
         if (handleHardwareKeyboardWedge(event)) {
             return true
         }
         return super.dispatchKeyEvent(event)
-    }
-
-    private fun onHardwareTriggerPressed(keyCode: Int) {
-        hsLastHardwareTriggerAtMs = System.currentTimeMillis()
-        hsTriggerWatchdogRunnable?.let { scannerBootstrapHandler.removeCallbacks(it) }
-        hsTriggerWatchdogRunnable = Runnable {
-            val noBarcodeAfterTrigger = hsLastBarcodeSendAtMs < hsLastHardwareTriggerAtMs
-            if (noBarcodeAfterTrigger) {
-                Log.i(
-                    "HS_BOOTSTRAP",
-                    "no BARCODE_SEND after hardware trigger, request warmup keyCode=$keyCode"
-                )
-                requestScannerVendorBootstrap(reason = "no_barcode_after_trigger", withDelayMs = 0L)
-            }
-        }
-        scannerBootstrapHandler.postDelayed(hsTriggerWatchdogRunnable!!, hsBootstrapThrottleMs)
     }
 
     private fun triggerHardwareAction(callback: (() -> Unit)?): Boolean {
@@ -889,77 +856,39 @@ class MainActivity : ComponentActivity() {
                 )
                 return@postDelayed
             }
-            if (hsWarmupInProgress) {
-                Log.i("HS_BOOTSTRAP", "skip warmup reason=$reason inProgress=true")
-                return@postDelayed
-            }
-            val now = System.currentTimeMillis()
-            val elapsed = now - hsLastWarmupStartedAtMs
-            if (elapsed < hsBootstrapThrottleMs) {
-                Log.i(
-                    "HS_BOOTSTRAP",
-                    "skip warmup reason=$reason throttleMs=${hsBootstrapThrottleMs - elapsed}"
-                )
-                return@postDelayed
-            }
-            warmupHsDecodeService(reason = reason)
+            warmupDecodeService(reason = reason)
         }, withDelayMs)
     }
 
 
-    private fun warmupHsDecodeService(reason: String) {
-        hsWarmupInProgress = true
-        hsLastWarmupStartedAtMs = System.currentTimeMillis()
-        Log.i("HS_BOOTSTRAP", "warmup start reason=$reason")
+    fun warmupDecodeService(reason: String) {
+        var actionStartSucceeded = false
 
         try {
+
+            Log.i("HS_BOOTSTRAP", "warmupDecodeService action start reason=$reason")
+            val actionIntent = Intent("com.hs.scanservice.action").setPackage("com.hs.scanservice")
+            actionStartSucceeded = startService(actionIntent) != null
+        } catch (e: Exception) {
+            Log.w("HS_BOOTSTRAP", "warmupDecodeService action exception reason=$reason", e)
+        }
+
+        if (actionStartSucceeded) {
+            return
+        }
+
+        try {
+            Log.i("HS_BOOTSTRAP", "warmupDecodeService explicit start reason=$reason")
             val explicitIntent = Intent().setClassName(
                 "com.hs.scanservice",
                 "com.hs.scanservice.DecodeService"
             )
-            val explicitResult = startService(explicitIntent)
-            if (explicitResult != null) {
-                Log.i("HS_BOOTSTRAP", "warmup explicit startService ok reason=$reason")
-            } else {
-                Log.w("HS_BOOTSTRAP", "warmup explicit startService null reason=$reason")
+            val explicitStartSucceeded = startService(explicitIntent) != null
+            if (!explicitStartSucceeded) {
+                Log.e("HS_BOOTSTRAP", "warmupDecodeService failed reason=$reason")
             }
         } catch (e: Exception) {
-            Log.w("HS_BOOTSTRAP", "warmup explicit startService failed reason=$reason", e)
-        }
-        try {
-            val actionIntent = Intent("com.hs.scanservice.action").apply {
-                setPackage("com.hs.scanservice")
-            }
-            val actionResult = startService(actionIntent)
-            if (actionResult != null) {
-                Log.i("HS_BOOTSTRAP", "warmup action startService ok reason=$reason")
-            } else {
-                Log.w("HS_BOOTSTRAP", "warmup action startService null reason=$reason")
-            }
-        } catch (e: Exception) {
-            Log.w("HS_BOOTSTRAP", "warmup action startService failed reason=$reason", e)
-        }
-        val bindIntent = Intent().setClassName("com.hs.scanservice", "com.hs.scanservice.DecodeService")
-        var bound = false
-        val conn = object : ServiceConnection {
-            override fun onServiceConnected(name: ComponentName?, service: IBinder?) = Unit
-            override fun onServiceDisconnected(name: ComponentName?) = Unit
-        }
-        try {
-            bound = bindService(bindIntent, conn, Context.BIND_AUTO_CREATE)
-            if (bound) {
-                Log.i("HS_BOOTSTRAP", "warmup bindService ok reason=$reason")
-            } else {
-                Log.w("HS_BOOTSTRAP", "warmup bindService failed reason=$reason"
-            }
-        } catch (e: Exception) {
-            Log.e("HS_BOOTSTRAP", "warmup bindService failed reason=$reason", e)
-        } finally {
-            if (bound) {
-                runCatching { unbindService(conn) }
-            }
-            hsWarmupInProgress = false
-            Log.i("HS_BOOTSTRAP", "warmup finished reason=$reason")
+            Log.e("HS_BOOTSTRAP", "warmupDecodeService failed reason=$reason", e)
         }
     }
 
@@ -971,8 +900,6 @@ class MainActivity : ComponentActivity() {
     override fun onDestroy() {
         hardwareScanFlushRunnable?.let { hardwareScanFlushHandler.removeCallbacks(it) }
         hardwareScanFlushRunnable = null
-        hsTriggerWatchdogRunnable?.let { scannerBootstrapHandler.removeCallbacks(it) }
-        hsTriggerWatchdogRunnable = null
         runCatching {
             unregisterReceiver(scanIntentReceiver)
         }
@@ -1070,7 +997,6 @@ fun AppRoot() {
                 }
                 cookieManager.setCookie(base, cookieStr)
                 cookieManager.flush()
-                pendingWebViewBootstrapReason = "qr_login_success"
                 showWebView = true
             } else {
                 Log.i(
@@ -1089,6 +1015,13 @@ fun AppRoot() {
         }
     }
 
+    LaunchedEffect(showWebView, showQrScan, pendingWebViewBootstrapReason) {
+        val reason = pendingWebViewBootstrapReason ?: return@LaunchedEffect
+        if (showWebView && !showQrScan) {
+            activity?.requestScannerVendorBootstrap(reason = reason, withDelayMs = 700L)
+            pendingWebViewBootstrapReason = null
+        }
+    }
     var destConfig by remember { mutableStateOf<List<DestCountryCfg>>(emptyList()) }
 
     var nameDict by remember { mutableStateOf<NameDict?>(null) }
@@ -2254,12 +2187,9 @@ when {
                         modifier = Modifier.fillMaxSize(),
                         onCameraDisposed = {
                             activity?.notifyQrCameraReleased(reason = "qr_screen_disposed")
-                            val shouldRestoreScanner =
-                                (pendingWebViewBootstrapReason ?: pendingQrScannerRestoreReason) != null
-                            if (!shouldRestoreScanner) return@QrScanScreen
-                            activity?.requestScannerVendorBootstrap(reason = "qr_camera_disposed", withDelayMs = 1700L)
+                            pendingQrScannerRestoreReason ?: return@QrScanScreen
+                            activity?.requestScannerVendorBootstrap(reason = "camera_released", withDelayMs = 1500L)
                             pendingQrScannerRestoreReason = null
-                            pendingWebViewBootstrapReason = null
                         },
                         onCodeScanned = { raw ->
                             handleQrLogin(raw = raw, source = "camera")
