@@ -89,7 +89,7 @@ import android.net.Uri
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.Image
 import androidx.compose.ui.res.painterResource
-
+import android.view.Window
 private val INSTALL_MAIN_OBSERVER_JS = """
 (function(){
   if (window.__deviceMainObserverInstalled) return;
@@ -618,6 +618,17 @@ class MainActivity : ComponentActivity() {
         val callback = onHardwareScanData ?: return false
         if (event.action != KeyEvent.ACTION_DOWN) return false
         if (event.keyCode == KeyEvent.KEYCODE_VOLUME_DOWN || event.keyCode == KeyEvent.KEYCODE_VOLUME_UP) return false
+                // TEST: do not let dedicated hardware scan trigger keys enter
+                // our keyboard-wedge path. These keys must be routed by the
+                // vendor scanner stack, not by the app.
+                if (event.keyCode == 289 || event.keyCode == 290) {
+                        Log.i(
+                                "SCAN_QR_DIAG",
+                                "dedicated_scan_key_skip_wedge keyCode=${event.keyCode} action=${event.action}"
+                                    )
+                        return false
+                   }
+
         Log.i(
             "SCAN_QR_DIAG",
             "wedge_key keyCode=${event.keyCode} unicode=${event.unicodeChar} buffer='${hardwareScanBuffer}'"
@@ -670,12 +681,18 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
-        if (event.action == KeyEvent.ACTION_DOWN && (event.keyCode == 289 || event.keyCode == 290)) {
-            onHardwareTriggerPressed(event.keyCode)
+        if (event.keyCode == 289 || event.keyCode == 290) {
+            Log.i(
+                "SCAN_QR_DIAG",
+                "dedicated_scan_key_return_false keyCode=${event.keyCode} action=${event.action}"
+            )
+            return false
         }
+
         if (handleHardwareKeyboardWedge(event)) {
             return true
         }
+
         return super.dispatchKeyEvent(event)
     }
 
@@ -799,6 +816,15 @@ class MainActivity : ComponentActivity() {
 
         // экран не гаснет — поведение киоска
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        // TEST: do not let Activity become an IME/text-input target.
+        // Some HS scanner stacks route hardware trigger differently when
+        // the foreground app owns input focus.
+        window.setFlags(
+            WindowManager.LayoutParams.FLAG_ALT_FOCUSABLE_IM,
+            WindowManager.LayoutParams.FLAG_ALT_FOCUSABLE_IM
+        )
+
+        Log.i("HS_BOOTSTRAP", "ALT_FOCUSABLE_IM enabled")
         enableEdgeToEdge()
 
         window.setSoftInputMode(
