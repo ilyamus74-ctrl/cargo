@@ -488,21 +488,47 @@ class MainActivity : ComponentActivity() {
     private var hsLastHardwareTriggerAtMs = 0L
     private var hsLastBarcodeSendAtMs = 0L
     private var scannerOwnerState: ScannerOwnerState = ScannerOwnerState.IDLE
-    private var cameraReleaseCallback: (() -> Unit)? = null
-    private var cameraRestoreCallback: (() -> Unit)? = null
+    private val cameraReleaseCallbacks = linkedMapOf<String, () -> Unit>()
+    private val cameraRestoreCallbacks = linkedMapOf<String, () -> Unit>()
     private var restoreCameraAfterHardwareScanRunnable: Runnable? = null
     private val cameraRestoreDelayAfterBarcodeMs = 900L
     private val cameraRestoreDelayAfterTimeoutMs = 1800L
     private var lastHardwareScanValue: String? = null
     private var lastHardwareScanAtMs: Long = 0L
     private val hardwareScanDedupWindowMs = 800L
+
+
     fun setScannerCameraCallbacks(
+        owner: String,
         releaseCamera: (() -> Unit)?,
         restoreCamera: (() -> Unit)?
     ) {
-        cameraReleaseCallback = releaseCamera
-        cameraRestoreCallback = restoreCamera
-        Log.i("HS_BOOTSTRAP", "scanner camera callbacks registered release=${releaseCamera != null} restore=${restoreCamera != null}")
+        if (releaseCamera == null && restoreCamera == null) {
+            cameraReleaseCallbacks.remove(owner)
+            cameraRestoreCallbacks.remove(owner)
+            Log.i(
+                "HS_BOOTSTRAP",
+                "scanner camera callbacks unregistered owner=$owner releaseCount=${cameraReleaseCallbacks.size} restoreCount=${cameraRestoreCallbacks.size}"
+            )
+            return
+        }
+
+        if (releaseCamera != null) {
+            cameraReleaseCallbacks[owner] = releaseCamera
+        } else {
+            cameraReleaseCallbacks.remove(owner)
+        }
+
+        if (restoreCamera != null) {
+            cameraRestoreCallbacks[owner] = restoreCamera
+        } else {
+            cameraRestoreCallbacks.remove(owner)
+        }
+
+        Log.i(
+            "HS_BOOTSTRAP",
+            "scanner camera callbacks registered owner=$owner releaseCount=${cameraReleaseCallbacks.size} restoreCount=${cameraRestoreCallbacks.size}"
+        )
     }
     fun enterCameraMode(reason: String) {
         if (scannerOwnerState == ScannerOwnerState.CAMERA_MODE) return
@@ -525,9 +551,21 @@ class MainActivity : ComponentActivity() {
         scannerOwnerState = ScannerOwnerState.HARDWARE_SCAN_MODE
 
         runCatching {
-            val hasReleaseCallback = cameraReleaseCallback != null
-            Log.i("HS_BOOTSTRAP", "camera release callback present=$hasReleaseCallback reason=$reason")
-            cameraReleaseCallback?.invoke()
+            val callbacks = cameraReleaseCallbacks.toMap()
+            Log.i(
+                "HS_BOOTSTRAP",
+                "camera release callbacks count=${callbacks.size} owners=${callbacks.keys} reason=$reason"
+            )
+
+            callbacks.forEach { (owner, callback) ->
+                runCatching {
+                    Log.i("HS_BOOTSTRAP", "camera release invoke owner=$owner reason=$reason")
+                    callback.invoke()
+                }.onFailure { t ->
+                    Log.e("HS_BOOTSTRAP", "camera release failed owner=$owner reason=$reason", t)
+                }
+            }
+
             Log.i("HS_BOOTSTRAP", "camera release requested reason=$reason")
         }.onFailure { t ->
             Log.e("HS_BOOTSTRAP", "camera release failed reason=$reason", t)
@@ -546,7 +584,6 @@ class MainActivity : ComponentActivity() {
 
             runCatching {
                 cameraRestoreCallback?.invoke()
-                Log.i("HS_BOOTSTRAP", "camera restore requested reason=$reason")
             }.onFailure { t ->
                 Log.e("HS_BOOTSTRAP", "camera restore failed reason=$reason", t)
             }
@@ -5894,6 +5931,7 @@ fun BarcodeScanScreen(
         val activity = context as? MainActivity
 
         activity?.setScannerCameraCallbacks(
+            owner = "BarcodeScanScreen",
             releaseCamera = {
                 Log.i(
                     "HS_BOOTSTRAP",
@@ -5917,7 +5955,7 @@ fun BarcodeScanScreen(
         )
 
         onDispose {
-            activity?.setScannerCameraCallbacks(null, null)
+            activity?.setScannerCameraCallbacks("BarcodeScanScreen", null, null)
         }
     }
     val barcodeOptions = remember {
@@ -6370,6 +6408,7 @@ fun OcrScanScreen(
         val activity = context as? MainActivity
 
         activity?.setScannerCameraCallbacks(
+            owner = "OcrScanScreen",
             releaseCamera = {
                 Log.i(
                     "HS_BOOTSTRAP",
@@ -6391,8 +6430,7 @@ fun OcrScanScreen(
         )
 
         onDispose {
-            activity?.setScannerCameraCallbacks(null, null)
-        }
+            activity?.setScannerCameraCallbacks("OcrScanScreen", null, null)        }
     }
     fun processRecognizedText(fullText: String) {
         scope.launch {
