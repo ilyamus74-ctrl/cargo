@@ -1101,3 +1101,194 @@ state machine включается;
 
 Следующая задача — не трогать vendor services, а исправить регистрацию setScannerCameraCallbacks(...) в активных camera composable screens.
 
+
+---
+
+## 2026-04-25 — Вывод после reboot test, cam-scan и hard laser scan
+
+### Что проверили
+
+После reboot Android laser scan внутри `OCRScanner` заработал при отправке vendor action:
+
+```text
+com.hs.dcsservice.action
+action=open
+noAddScanApp=1
+permission=com.honeywell.decode.permission.DECODE
+
+В рабочем логе видно:
+
+HS_BOOTSTRAP: sent com.hs.dcsservice.action open noAddScanApp=1 reason=hard_key_289
+OemScanDemo: onKeepGoingCallback
+OemScanDemo: g_bKeepGoing = true
+
+Это подтвердило, что noAddScanApp=1 реально влияет на vendor stack и не даёт сразу добавить наше приложение в noScanApp.
+Что происходит после cam-scan
+
+После входа через camera scan vendor stack останавливает decode thread:
+
+OemScanDemo: onPause
+OemScanDemo: stop scanning++
+OemScanDemo: stop scanning--
+OemScanDemo: onStop++
+OemScanDemo: !!!!! DECODE THREAD HAS STOPPED RUNNING !!!!!
+OemScanDemo: m_Decoder null++
+OemScanDemo: m_Decoder null--
+
+После этого vendor stack видит наше приложение как foreground:
+
+D/xc: 当前应用:com.example.ocrscannertest
+D/xc: 当前应用ShortClassName:.MainActivity
+
+Дальше он сам снова делает open:
+
+OemScanDemo: open
+OemScanDemo: Configure preferences based on user settings...
+OemScanDemo: ***** DECODE THREAD IS RUNNING *****
+
+Но после этого hard laser scan внутри нашего приложения всё равно может не дать decode success и BARCODE_SEND.
+Вывод по blacklist
+
+В vendor code найдена простая blacklist-логика:
+
+String noScanApp = MMKVUtils.getString("noScanApp", "");
+String foregroundTaskPackageName = getAppPackageName(getApplicationContext());
+
+if (!foregroundTaskPackageName.contains("com.mediatek.camera")
+        && !noScanApp.contains(foregroundTaskPackageName)) {
+    ...
+}
+
+Также найдена логика сохранения short class:
+
+String ShortClassName = NewFloatWindowService.getShortClassName(...)
+MMKVUtils.put("noScanShortClass", ShortClassName);
+
+Runtime подтверждает, что после camera flow vendor stack видит:
+
+com.example.ocrscannertest
+com.example.ocrscannertest.MainActivity
+
+Текущий вывод:
+
+    проблема не только в noScanApp;
+
+    вероятно, после cam-scan vendor stack меняет внутреннее состояние по foreground package / short class / scan state;
+
+    noAddScanApp=1 помогает после reboot, но не всегда восстанавливает laser scan после camera flow.
+
+Почему одного open недостаточно
+
+Текущий код отправляет:
+
+action=open
+noAddScanApp=1
+
+При этом в логах после нерабочего состояния видно:
+
+HS_BOOTSTRAP: sent com.hs.dcsservice.action open noAddScanApp=1 reason=hard_key_289
+
+Но дальше нет стабильного:
+
+OemScanDemo: decode success
+com.android.hs.action.BARCODE_SEND
+
+Значит open поднимает/будит vendor stack, но не всегда сбрасывает его состояние после camera scan.
+Следующая рабочая гипотеза
+
+Перед аппаратным laser scan нужно делать controlled reset vendor scanner state:
+
+pause → stop → open
+
+Не через startService / startForegroundService, а через тот же публичный broadcast endpoint:
+
+com.hs.dcsservice.action
+permission=com.honeywell.decode.permission.DECODE
+
+Рекомендуемая последовательность:
+
+sendHsDcsAction("pause", reason)
+delay 80 ms
+sendHsDcsAction("stop", reason)
+delay 220 ms
+sendHsDcsAction("open", reason, noAddScanApp = true)
+
+Ожидаемый лог:
+
+HS_BOOTSTRAP: sent com.hs.dcsservice.action action=pause noAddScanApp=1 reason=hard_key_289
+HS_BOOTSTRAP: sent com.hs.dcsservice.action action=stop noAddScanApp=1 reason=hard_key_289
+HS_BOOTSTRAP: sent com.hs.dcsservice.action action=open noAddScanApp=1 reason=hard_key_289
+OemScanDemo: open
+OemScanDemo: Configure preferences based on user settings...
+OemScanDemo: ***** DECODE THREAD IS RUNNING *****
+
+После этого при успешном scan должно появиться:
+
+OemScanDemo: waitForDecodeTwo returned
+OemScanDemo: decode success!
+ActivityManager: Sending non-protected broadcast com.android.hs.action.BARCODE_SEND
+SCAN_QR_DIAG: intent_path action=com.android.hs.action.BARCODE_SEND
+SCAN_QR_DIAG: dispatchHardwareScan source=hardware_intent
+
+Время восстановления
+
+По текущим логам vendor open после camera flow занимает примерно 1 секунду до:
+
+OemScanDemo: ***** DECODE THREAD IS RUNNING *****
+
+Поэтому pause → stop → open не должен быть долгим как перезапуск приложения. Это не запуск UI APK, а сброс vendor scanner service state через broadcast commands.
+
+Ориентировочно:
+
+pause/stop/open command chain: 300–500 ms
+vendor open + configure: около 1 сек
+
+Для UX это приемлемо, если делать reset только перед hard scan или после camera scan, а не постоянно в фоне.
+Запрещённые пути
+
+Не использовать:
+
+startForegroundService(com.hs.scanservice/.DecodeService)
+startService(com.hs.scanservice/.DecodeService)
+
+Причина уже подтверждена ранее:
+
+ANR in com.hs.scanservice
+Context.startForegroundService() did not then call Service.startForeground()
+
+Также не использовать как основное решение:
+
+FLAG_NOT_FOCUSABLE
+ручной запуск vendor UI
+имитацию com.hs.touchDown / com.hs.touchUp из нашего приложения
+
+Текущий технический вывод
+
+На данный момент наиболее вероятная причина:
+
+После CameraX / cam-scan vendor scanner stack остаётся в состоянии, где DcsService/OemScanDemo формально открыт,
+но trigger/decode state для foreground com.example.ocrscannertest не восстановлен.
+
+Поэтому следующий патч должен быть не про Kotlin key handling, а про vendor state reset:
+
+hard key 289
+→ enterHardwareScanMode()
+→ release CameraX callbacks, если они есть
+→ send pause
+→ send stop
+→ send open noAddScanApp=1
+→ ждать BARCODE_SEND
+→ если BARCODE_SEND пришёл, restore camera позже
+→ если не пришёл, watchdog restore camera
+
+Главная цель следующего теста:
+
+    После reboot проверить, что laser scan всё ещё работает.
+
+    Войти через cam-scan.
+
+    Нажать hard scan.
+
+    Убедиться, что в логах есть pause → stop → open.
+
+    Проверить, вернулся ли decode success / BARCODE_SEND.

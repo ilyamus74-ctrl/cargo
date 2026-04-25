@@ -835,23 +835,99 @@ class MainActivity : ComponentActivity() {
 
         return super.dispatchKeyEvent(event)
     }
-    private fun kickHsDcsServiceAction(reason: String) {
+    private fun sendHsDcsServiceAction(
+        action: String,
+        reason: String,
+        noAddScanApp: Boolean = true
+    ) {
         runCatching {
             val intent = Intent("com.hs.dcsservice.action").apply {
                 setPackage("com.hs.dcsservice")
                 addCategory(Intent.CATEGORY_DEFAULT)
-                putExtra("action", "open")
-                putExtra("noAddScanApp", 1)
+                putExtra("action", action)
+                if (noAddScanApp) {
+                    putExtra("noAddScanApp", 1)
+                }
             }
 
             sendBroadcast(intent, "com.honeywell.decode.permission.DECODE")
 
             Log.i(
                 "HS_BOOTSTRAP",
-                "sent com.hs.dcsservice.action open noAddScanApp=1 reason=$reason permission=com.honeywell.decode.permission.DECODE"
+                "sent com.hs.dcsservice.action action=$action noAddScanApp=${if (noAddScanApp) 1 else 0} reason=$reason permission=com.honeywell.decode.permission.DECODE"
             )
         }.onFailure { t ->
-            Log.e("HS_BOOTSTRAP", "failed to send com.hs.dcsservice.action reason=$reason", t)
+            Log.e(
+                "HS_BOOTSTRAP",
+                "failed to send com.hs.dcsservice.action action=$action reason=$reason",
+                t
+            )
+        }
+    }
+
+    private fun kickHsDcsServiceAction(reason: String) {
+        scannerBootstrapHandler.post {
+            sendHsDcsServiceAction(
+                action = "pause",
+                reason = reason,
+                noAddScanApp = true
+            )
+        }
+
+        scannerBootstrapHandler.postDelayed({
+            sendHsDcsServiceAction(
+                action = "stop",
+                reason = reason,
+                noAddScanApp = true
+            )
+        }, 80L)
+
+        scannerBootstrapHandler.postDelayed({
+            sendHsDcsServiceAction(
+                action = "open",
+                reason = reason,
+                noAddScanApp = true
+            )
+        }, 300L)
+
+        scannerBootstrapHandler.postDelayed({
+            kickHsScanService(reason)
+        }, 450L)
+    }
+    private fun kickHsScanService(reason: String) {
+        runCatching {
+            val intent = Intent("com.hs.scanservice.getsetting.action").apply {
+                setPackage("com.hs.scanservice")
+                addCategory(Intent.CATEGORY_DEFAULT)
+            }
+
+            sendBroadcast(intent, "com.honeywell.decode.permission.DECODE")
+
+            Log.i(
+                "HS_BOOTSTRAP",
+                "sent com.hs.scanservice.getsetting.action reason=$reason permission=com.honeywell.decode.permission.DECODE"
+            )
+        }.onFailure { t ->
+            Log.e("HS_BOOTSTRAP", "failed to send com.hs.scanservice.getsetting.action reason=$reason", t)
+        }
+
+        runCatching {
+            val serviceIntent = Intent().apply {
+                component = ComponentName(
+                    "com.hs.scanservice",
+                    "com.hs.scanservice.DecodeService"
+                )
+            }
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                startForegroundService(serviceIntent)
+            } else {
+                startService(serviceIntent)
+            }
+
+            Log.i("HS_BOOTSTRAP", "started com.hs.scanservice.DecodeService reason=$reason")
+        }.onFailure { t ->
+            Log.e("HS_BOOTSTRAP", "failed to start com.hs.scanservice.DecodeService reason=$reason", t)
         }
     }
     private fun onHardwareTriggerPressed(keyCode: Int) {
