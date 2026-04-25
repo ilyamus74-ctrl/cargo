@@ -798,3 +798,306 @@ scanner camera callbacks registered owner=OcrScanScreen releaseCount=1 restoreCo
 
 
 По текущим логам диагноз жёсткий: **мы построили state machine, но она не управляет CameraX, потому что callback не зарегистрирован**.
+
+
+---
+
+## 2026-04-24 — Vendor APK reverse findings
+
+### Что проверили
+
+С устройства были вытянуты vendor APK:
+
+```bash
+adb pull /system/app/dcsservice/dcsservice.apk
+adb pull /system/app/scanservice/scanservice.apk
+adb pull /system/app/scantool/scantool.apk
+
+Пути на устройстве:
+
+/system/app/dcsservice/dcsservice.apk
+/system/app/scanservice/scanservice.apk
+/system/app/scantool/scantool.apk
+
+После декомпиляции через jadx были проверены:
+
+/tmp/hs_reverse/jadx/dcsservice
+/tmp/hs_reverse/jadx/scanservice
+/tmp/hs_reverse/jadx/scantool
+
+Главный вывод
+
+Рабочий laser scan генерирует не прямой вызов com.hs.scanservice/.DecodeService.
+
+Основная рабочая цепочка такая:
+
+hardware key
+→ com.hs.dcsservice / OemScanDemo / DcsService
+→ waitForDecodeTwo()
+→ decode success
+→ com.android.hs.action.BARCODE_SEND
+→ OCRScanner получает broadcast
+
+То есть dcsservice является главным producer результата скана.
+
+scanservice больше похож на secondary/proxy service и consumer события BARCODE_SEND.
+dcsservice.apk
+
+Ключевой файл:
+
+/tmp/hs_reverse/jadx/dcsservice/sources/com/hs/dcsservice/DcsService.java
+
+В нём найдена рабочая логика:
+
+waitForDecodeTwo(...)
+decode success
+intent.setAction("com.android.hs.action.BARCODE_SEND")
+intent.putExtra("scanner_result", ...)
+intent.putExtra("scanner_result_byte", ...)
+sendBroadcast(intent, "com.honeywell.decode.permission.DECODE")
+
+Подтверждение из runtime log:
+
+OemScanDemo: waitForDecodeTwo returned
+OemScanDemo: decode success!
+ActivityManager: Sending non-protected broadcast com.android.hs.action.BARCODE_SEND
+SCAN_QR_DIAG: intent_path action=com.android.hs.action.BARCODE_SEND ... extracted=...
+SCAN_QR_DIAG: dispatchHardwareScan source=hardware_intent ...
+
+Также приходит дополнительный action:
+
+com.android.giec.action.BARCODE_FOCAL
+
+Вывод:
+
+    DcsService реально запускает decode loop;
+
+    DcsService формирует BARCODE_SEND;
+
+    основные поля результата: scanner_result, scanner_result_byte;
+
+    permission: com.honeywell.decode.permission.DECODE.
+
+scanservice.apk
+
+Ключевой файл:
+
+/tmp/hs_reverse/jadx/scanservice/sources/com/hs/scanservice/DecodeService.java
+
+Найдено:
+
+registerReceiver(... "com.android.hs.action.BARCODE_SEND" ...)
+
+Вывод:
+
+    DecodeService слушает результат от dcsservice;
+
+    прямой startService/startForegroundService для него не является командой “начать сканирование”;
+
+    ранее подтверждённый ANR после startForegroundService() делает этот путь запрещённым.
+
+Запрещено использовать как рабочий путь:
+
+startForegroundService(com.hs.scanservice/.DecodeService)
+startService(com.hs.scanservice/.DecodeService)
+
+bindService можно оставлять только как диагностику, но он не запускает laser scan.
+scantool.apk
+
+Ключевые файлы:
+
+/tmp/hs_reverse/jadx/scantool/sources/com/hs/scantool/MainActivity.java
+/tmp/hs_reverse/jadx/scantool/sources/com/hs/scantool/NewMainActivity.java
+
+Найдено:
+
+registerReceiver(... "com.android.hs.action.BARCODE_SEND" ...)
+
+Вывод:
+
+    vendor ScanTool тоже работает как consumer BARCODE_SEND;
+
+    значит для нашего приложения правильный путь — слушать broadcast output;
+
+    не надо имитировать ScanTool через невидимое окно как основное решение.
+
+Vendor output settings
+
+В dcsservice найдены настройки:
+
+isFocus
+isBroadcast
+BroadcastTransmission
+BroadcastBarcodeString
+BroadcastBarcode
+
+В res/xml/scan_setting.xml найдены:
+
+isBroadcast
+isFocus
+scan_switch
+BroadcastBarcode
+BroadcastBarcodeString
+BroadcastTransmission
+
+Вывод:
+
+    vendor stack поддерживает focus output и broadcast output;
+
+    broadcast output подтверждён логами;
+
+    OCRScanner должен продолжать слушать:
+
+com.android.hs.action.BARCODE_SEND
+com.android.giec.action.BARCODE_FOCAL
+
+2026-04-24 — Текущий точный диагноз
+
+По актуальным логам state machine уже работает:
+
+SCAN_QR_DIAG: dedicated_scan_key_passthrough dispatch keyCode=289 action=0
+HS_BOOTSTRAP: state IDLE -> HARDWARE_SCAN_MODE reason=hard_key_289
+
+Но registry callbacks пустой:
+
+HS_BOOTSTRAP: camera release callbacks count=0 owners=[] reason=hard_key_289
+HS_BOOTSTRAP: camera restore callbacks count=0 owners=[] reason=no_barcode_after_hard_key_289
+
+Это означает:
+
+    hard key 289 до приложения доходит;
+
+    enterHardwareScanMode() вызывается;
+
+    watchdog работает;
+
+    переходы IDLE/CAMERA_MODE -> HARDWARE_SCAN_MODE -> CAMERA_MODE работают;
+
+    но активный CameraX screen не зарегистрировал release/restore callback;
+
+    state machine нечем освобождать CameraX.
+
+Главный blocker сейчас:
+
+setScannerCameraCallbacks(...) не зарегистрирован активным BarcodeScanScreen/OcrScanScreen
+
+или callback регистрируется, но снимается через onDispose раньше, чем нажимается hard scan.
+Почему laser scan не стартует после camera scan
+
+Вероятная причина — конкуренция за camera/imager resource:
+
+CameraX активен / некорректно освобождён
+→ vendor scanner HAL не получает ресурс
+→ hard key виден
+→ touchDown/touchUp есть
+→ но нет decode success
+→ нет BARCODE_SEND
+
+Ожидаемый рабочий лог должен выглядеть так:
+
+HS_BOOTSTRAP: scanner camera callbacks registered owner=BarcodeScanScreen releaseCount=1 restoreCount=1
+HS_BOOTSTRAP: state CAMERA_MODE -> HARDWARE_SCAN_MODE reason=hard_key_289
+HS_BOOTSTRAP: camera release callbacks count=1 owners=[BarcodeScanScreen] reason=hard_key_289
+HS_BOOTSTRAP: camera release invoke owner=BarcodeScanScreen reason=hard_key_289
+HS_BOOTSTRAP: CameraX released by scanner state machine
+OemScanDemo: decode success!
+SCAN_QR_DIAG: intent_path action=com.android.hs.action.BARCODE_SEND ... extracted=...
+HS_BOOTSTRAP: schedule camera restore reason=barcode_received_com.android.hs.action.BARCODE_SEND delay=900ms
+HS_BOOTSTRAP: camera restore invoke owner=BarcodeScanScreen reason=...
+
+Сейчас вместо этого:
+
+camera release callbacks count=0 owners=[]
+
+Следующий точный шаг
+
+В MainActivity.kt проверить все вызовы:
+
+grep -n "setScannerCameraCallbacks" MainActivity.kt
+
+Новая сигнатура должна использовать owner:
+
+setScannerCameraCallbacks(
+    owner = "BarcodeScanScreen",
+    releaseCamera = {
+        liveAnalysis?.clearAnalyzer()
+        liveAnalysis = null
+        liveScanner?.close()
+        liveScanner = null
+        boundCameraProvider?.unbindAll()
+        camera = null
+        Log.i("HS_BOOTSTRAP", "CameraX released owner=BarcodeScanScreen")
+    },
+    restoreCamera = {
+        cameraRestoreTick++
+        Log.i("HS_BOOTSTRAP", "CameraX restore tick=$cameraRestoreTick owner=BarcodeScanScreen")
+    }
+)
+
+Снятие callback:
+
+setScannerCameraCallbacks(
+    owner = "BarcodeScanScreen",
+    releaseCamera = null,
+    restoreCamera = null
+)
+
+Для OCR screen аналогично:
+
+setScannerCameraCallbacks(
+    owner = "OcrScanScreen",
+    releaseCamera = {
+        liveAnalysis?.clearAnalyzer()
+        liveAnalysis = null
+        boundCameraProvider?.unbindAll()
+        camera = null
+        Log.i("HS_BOOTSTRAP", "CameraX released owner=OcrScanScreen")
+    },
+    restoreCamera = {
+        cameraRestoreTick++
+        Log.i("HS_BOOTSTRAP", "CameraX restore tick=$cameraRestoreTick owner=OcrScanScreen")
+    }
+)
+
+Снятие:
+
+setScannerCameraCallbacks(
+    owner = "OcrScanScreen",
+    releaseCamera = null,
+    restoreCamera = null
+)
+
+Перед дальнейшими laser scan тестами нужно добиться одного из логов:
+
+HS_BOOTSTRAP: scanner camera callbacks registered owner=BarcodeScanScreen releaseCount=1 restoreCount=1
+
+или:
+
+HS_BOOTSTRAP: scanner camera callbacks registered owner=OcrScanScreen releaseCount=1 restoreCount=1
+
+Без этого state machine не управляет CameraX.
+Что больше не считать перспективным
+
+Не тратить время на:
+
+startForegroundService(com.hs.scanservice/.DecodeService)
+startService(com.hs.scanservice/.DecodeService)
+бесконечные DecodeService warmup loops
+невидимые окна
+FLAG_NOT_FOCUSABLE как постоянное решение
+SettingActivity kick как основное решение
+
+Эти подходы уже проверялись и не дают стабильного решения.
+Короткий итог
+
+На текущем этапе диагноз такой:
+
+vendor broadcast path рабочий;
+dcsservice является producer BARCODE_SEND;
+hard key до приложения доходит;
+state machine включается;
+но CameraX callbacks не зарегистрированы;
+поэтому CameraX не освобождается перед hard scan.
+
+Следующая задача — не трогать vendor services, а исправить регистрацию setScannerCameraCallbacks(...) в активных camera composable screens.
+
