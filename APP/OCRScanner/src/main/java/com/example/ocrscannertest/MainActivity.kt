@@ -840,13 +840,15 @@ class MainActivity : ComponentActivity() {
             val intent = Intent("com.hs.dcsservice.action").apply {
                 setPackage("com.hs.dcsservice")
                 addCategory(Intent.CATEGORY_DEFAULT)
+                putExtra("action", "open")
+                putExtra("noAddScanApp", 1)
             }
 
             sendBroadcast(intent, "com.honeywell.decode.permission.DECODE")
 
             Log.i(
                 "HS_BOOTSTRAP",
-                "sent com.hs.dcsservice.action reason=$reason permission=com.honeywell.decode.permission.DECODE"
+                "sent com.hs.dcsservice.action open noAddScanApp=1 reason=$reason permission=com.honeywell.decode.permission.DECODE"
             )
         }.onFailure { t ->
             Log.e("HS_BOOTSTRAP", "failed to send com.hs.dcsservice.action reason=$reason", t)
