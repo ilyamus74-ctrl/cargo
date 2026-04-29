@@ -484,6 +484,10 @@ class MainActivity : ComponentActivity() {
     private val interceptHardwareTriggerKeys: Boolean = false
     private val p1KeyCode = 298
     private val p2KeyCode = 297
+
+    private val p2LongHoldMs = 3000L
+    private var p2LongHoldRunnable: Runnable? = null
+    private var p2LongHoldFired = false
     private val hsBootstrapThrottleMs = 1500L
     private var hsWarmupInProgress = false
     private var hsLastWarmupStartedAtMs = 0L
@@ -970,7 +974,185 @@ class MainActivity : ComponentActivity() {
         hardwareScanFlushHandler.postDelayed(hardwareScanFlushRunnable!!, hardwareScanTimeoutMs + 100L)
         return true
     }
+    private fun runItemInP2HardClearFallback(reason: String) {
+        val webView = activeWebViewProvider?.invoke()
+        if (webView == null) {
+            Log.i("SCAN_QR_DIAG", "p2_hard_clear_skip no_active_webview reason=$reason")
+            return
+        }
 
+        Log.i("SCAN_QR_DIAG", "p2_hard_clear_run reason=$reason")
+
+        val js = """
+        (function () {
+            function fire(el) {
+                if (!el) return;
+                el.dispatchEvent(new Event('input', { bubbles: true }));
+                el.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+
+            function focusTrack() {
+                setTimeout(function () {
+                    var el = document.getElementById('trackingNo');
+                    if (el) {
+                        el.focus();
+                        if (typeof el.select === 'function') el.select();
+                    }
+                }, 120);
+            }
+
+            var form = document.getElementById('item-in-modal-form');
+            if (!form) {
+                focusTrack();
+                return 'FORM_NOT_FOUND';
+            }
+
+            Array.prototype.forEach.call(
+                form.querySelectorAll('input, textarea, select'),
+                function (el) {
+                    if (!el) return;
+
+                    if (el.name === 'batch_uid') return;
+
+                    if (el.type === 'checkbox' || el.type === 'radio') {
+                        el.checked = false;
+                        fire(el);
+                        return;
+                    }
+
+                    if (el.tagName === 'SELECT') {
+                        el.selectedIndex = 0;
+                        fire(el);
+                        return;
+                    }
+
+                    if (el.type === 'file') {
+                        el.value = '';
+                        fire(el);
+                        return;
+                    }
+
+                    el.value = '';
+                    fire(el);
+                }
+            );
+
+            var quickCells = document.getElementById('receiverAddressQuickCells');
+            if (quickCells) quickCells.innerHTML = '';
+
+            var labelInfo = document.getElementById('warehouseStockLabelPhotoInfo');
+            if (labelInfo) labelInfo.textContent = '';
+
+            var boxInfo = document.getElementById('warehouseStockBoxPhotoInfo');
+            if (boxInfo) boxInfo.textContent = '';
+
+            var addonsJson = document.getElementById('warehouseStockAddonsJson');
+            if (addonsJson) addonsJson.value = '';
+
+            var addonsDebug = document.getElementById('warehouseStockAddonsDebug');
+            if (addonsDebug) addonsDebug.value = '';
+
+            focusTrack();
+            return 'HARD_CLEARED';
+        })();
+    """.trimIndent()
+
+        runOnUiThread {
+            webView.evaluateJavascript(js) { result ->
+                Log.i("SCAN_QR_DIAG", "p2_hard_clear_result reason=$reason result=$result")
+            }
+        }
+    }
+    private fun runItemInP2SingleFallback() {
+        val webView = activeWebViewProvider?.invoke()
+        if (webView == null) {
+            Log.i("SCAN_QR_DIAG", "p2_single_fallback_skip no_active_webview")
+            return
+        }
+
+        Log.i("SCAN_QR_DIAG", "p2_single_fallback_run")
+
+        val js = """
+        (function () {
+            function focusTrack() {
+                setTimeout(function () {
+                    var el = document.getElementById('trackingNo');
+                    if (el) {
+                        el.focus();
+                        if (typeof el.select === 'function') el.select();
+                    }
+                }, 120);
+            }
+
+            var clearBtn = document.getElementById('itemInClearBtn');
+            if (clearBtn) {
+                clearBtn.click();
+                focusTrack();
+                return 'CLEAR_CLICKED';
+            }
+
+            var form = document.getElementById('item-in-modal-form');
+            if (form) {
+                Array.prototype.forEach.call(form.querySelectorAll('input, textarea, select'), function (el) {
+                    if (el.type === 'hidden') return;
+                    if (el.id === 'receiverCountry' || el.id === 'receiverCompany' || el.id === 'standDevice') return;
+                    if (el.tagName === 'SELECT') el.selectedIndex = 0;
+                    else el.value = '';
+                    el.dispatchEvent(new Event('input', { bubbles: true }));
+                    el.dispatchEvent(new Event('change', { bubbles: true }));
+                });
+            }
+
+            focusTrack();
+            return 'FORM_CLEARED';
+        })();
+    """.trimIndent()
+
+        runOnUiThread {
+            webView.evaluateJavascript(js) { result ->
+                Log.i("SCAN_QR_DIAG", "p2_single_fallback_result=$result")
+            }
+        }
+    }
+
+    private fun runItemInP2DoubleFallback() {
+        val webView = activeWebViewProvider?.invoke()
+        if (webView == null) {
+            Log.i("SCAN_QR_DIAG", "p2_double_fallback_skip no_active_webview")
+            return
+        }
+
+        Log.i("SCAN_QR_DIAG", "p2_double_fallback_run")
+
+        val js = """
+        (function () {
+            function focusTrack() {
+                setTimeout(function () {
+                    var el = document.getElementById('trackingNo');
+                    if (el) {
+                        el.focus();
+                        if (typeof el.select === 'function') el.select();
+                    }
+                }, 350);
+            }
+
+            var addBtn = document.querySelector('[data-core-action="add_new_item_in"]');
+            if (addBtn) {
+                addBtn.click();
+                focusTrack();
+                return 'ADD_ITEM_CLICKED';
+            }
+
+            return 'ADD_BUTTON_NOT_FOUND';
+        })();
+    """.trimIndent()
+
+        runOnUiThread {
+            webView.evaluateJavascript(js) { result ->
+                Log.i("SCAN_QR_DIAG", "p2_double_fallback_result=$result")
+            }
+        }
+    }
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         if (event.keyCode == 289 || event.keyCode == 290) {
             val now = System.currentTimeMillis()
@@ -1002,7 +1184,18 @@ class MainActivity : ComponentActivity() {
             )
 
             if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
-                onP1Single?.invoke()
+                val ocrCameraActive = cameraReleaseCallbacks.containsKey("OcrScanScreen")
+
+                if (ocrCameraActive) {
+                    Log.i("SCAN_QR_DIAG", "p1_key routed_as_vol_down_inside_ocr")
+                    volumeButtonDispatcher.onVolumeDown(
+                        single = { onVolDownSingle?.invoke() },
+                        double = { onVolDownDouble?.invoke() }
+                    )
+                } else {
+                    Log.i("SCAN_QR_DIAG", "p1_key routed_as_p1_single")
+                    onP1Single?.invoke()
+                }
             }
 
             return true
@@ -1015,10 +1208,71 @@ class MainActivity : ComponentActivity() {
             )
 
             if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
-                p2ButtonDispatcher.onVolumeDown(
-                    single = { onP2Single?.invoke() },
-                    double = { onP2Double?.invoke() }
+                p2LongHoldFired = false
+
+                p2LongHoldRunnable?.let {
+                    scannerBootstrapHandler.removeCallbacks(it)
+                }
+
+                p2LongHoldRunnable = Runnable {
+                    p2LongHoldFired = true
+                    Log.i("SCAN_QR_DIAG", "p2_long_hold_3s_dispatch")
+                    runItemInP2HardClearFallback("p2_long_hold_3s")
+                }
+
+                scannerBootstrapHandler.postDelayed(
+                    p2LongHoldRunnable!!,
+                    p2LongHoldMs
                 )
+
+                Log.i(
+                    "SCAN_QR_DIAG",
+                    "p2_key down callbacks single=${onP2Single != null} double=${onP2Double != null} longHoldMs=$p2LongHoldMs"
+                )
+
+                return true
+            }
+
+            if (event.action == KeyEvent.ACTION_UP) {
+                p2LongHoldRunnable?.let {
+                    scannerBootstrapHandler.removeCallbacks(it)
+                }
+                p2LongHoldRunnable = null
+
+                if (p2LongHoldFired) {
+                    Log.i("SCAN_QR_DIAG", "p2_key up ignored after long hold")
+                    p2LongHoldFired = false
+                    return true
+                }
+
+                p2ButtonDispatcher.onVolumeDown(
+                    single = {
+                        Log.i(
+                            "SCAN_QR_DIAG",
+                            "p2_single_dispatch callback=${onP2Single != null}"
+                        )
+
+                        if (onP2Single != null) {
+                            onP2Single?.invoke()
+                        } else {
+                            runItemInP2SingleFallback()
+                        }
+                    },
+                    double = {
+                        Log.i(
+                            "SCAN_QR_DIAG",
+                            "p2_double_dispatch callback=${onP2Double != null}"
+                        )
+
+                        if (onP2Double != null) {
+                            onP2Double?.invoke()
+                        } else {
+                            runItemInP2DoubleFallback()
+                        }
+                    }
+                )
+
+                return true
             }
 
             return true
@@ -2440,6 +2694,9 @@ fun AppRoot() {
 
                 MainActivity.onP1Single = { dispatchContextFlowAction("p1_single") }
                 MainActivity.onP2Single = { dispatchContextFlowAction("p2_single") }
+                MainActivity.onP2Double = {
+                    Log.i("SCAN_QR_DIAG", "onP2Double invoke")
+                }
             }
 
             hasButtonMappings && (showWebView || showBarcodeScan || showOcr) && !hasFlow -> {
