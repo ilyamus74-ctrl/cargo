@@ -482,6 +482,8 @@ class MainActivity : ComponentActivity() {
     private var hardwareScanFlushRunnable: Runnable? = null
     private val handledHardwareDownKeys = mutableSetOf<Int>()
     private val interceptHardwareTriggerKeys: Boolean = false
+    private val p1KeyCode = 298
+    private val p2KeyCode = 297
     private val hsBootstrapThrottleMs = 1500L
     private var hsWarmupInProgress = false
     private var hsLastWarmupStartedAtMs = 0L
@@ -900,6 +902,13 @@ class MainActivity : ComponentActivity() {
         val callback = onHardwareScanData ?: return false
         if (event.action != KeyEvent.ACTION_DOWN) return false
         if (event.keyCode == KeyEvent.KEYCODE_VOLUME_DOWN || event.keyCode == KeyEvent.KEYCODE_VOLUME_UP) return false
+        if (event.keyCode == p1KeyCode || event.keyCode == p2KeyCode) {
+            Log.i(
+                "SCAN_QR_DIAG",
+                "p_key_skip_wedge keyCode=${event.keyCode} action=${event.action}"
+            )
+            return false
+        }
                 // TEST: do not let dedicated hardware scan trigger keys enter
                 // our keyboard-wedge path. These keys must be routed by the
                 // vendor scanner stack, not by the app.
@@ -986,7 +995,34 @@ class MainActivity : ComponentActivity() {
 
             return super.dispatchKeyEvent(event)
         }
+        if (event.keyCode == p1KeyCode) {
+            Log.i(
+                "SCAN_QR_DIAG",
+                "p1_key dispatch keyCode=${event.keyCode} action=${event.action} repeat=${event.repeatCount}"
+            )
 
+            if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
+                onP1Single?.invoke()
+            }
+
+            return true
+        }
+
+        if (event.keyCode == p2KeyCode) {
+            Log.i(
+                "SCAN_QR_DIAG",
+                "p2_key dispatch keyCode=${event.keyCode} action=${event.action} repeat=${event.repeatCount}"
+            )
+
+            if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
+                p2ButtonDispatcher.onVolumeDown(
+                    single = { onP2Single?.invoke() },
+                    double = { onP2Double?.invoke() }
+                )
+            }
+
+            return true
+        }
         if (handleHardwareKeyboardWedge(event)) {
             return true
         }
