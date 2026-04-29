@@ -822,13 +822,12 @@ class MainActivity : ComponentActivity() {
         if (event.keyCode == 289 || event.keyCode == 290) {
             Log.i(
                 "SCAN_QR_DIAG",
-                "dedicated_scan_key_passthrough dispatch keyCode=${event.keyCode} action=${event.action}"
+                "dedicated_scan_key_vendor_only dispatch keyCode=${event.keyCode} action=${event.action} repeat=${event.repeatCount}"
             )
 
-            if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
-                onHardwareTriggerPressed(event.keyCode)
-            }
-
+            // TEST MODE:
+            // Do not run our state machine here.
+            // Let vendor scanner stack handle the physical trigger cleanly.
             return super.dispatchKeyEvent(event)
         }
 
@@ -881,7 +880,7 @@ class MainActivity : ComponentActivity() {
     private fun startHsDcsService(reason: String) {
         Log.i("HS_BOOTSTRAP", "startHsDcsService disabled reason=$reason")
     }
-    
+
     private fun kickHsScanService(reason: String) {
         runCatching {
             val intent = Intent("com.hs.scanservice.getsetting.action").apply {
@@ -1116,6 +1115,10 @@ class MainActivity : ComponentActivity() {
                 AppRoot()
             }
         }
+        scannerBootstrapHandler.postDelayed({
+            Log.i("HS_BOOTSTRAP", "pre-arm dcsservice open reason=app_started")
+            kickHsDcsServiceAction("app_started")
+        }, 700L)
 
         val filter = IntentFilter().apply {
             scanIntentActions.forEach { addAction(it) }
@@ -1174,6 +1177,10 @@ class MainActivity : ComponentActivity() {
                 "HS_BOOTSTRAP",
                 "skip vendor open on hard key armed after qr close until=$skipVendorOpenOnHardKeyUntilMs"
             )
+            scannerBootstrapHandler.postDelayed({
+                Log.i("HS_BOOTSTRAP", "pre-arm dcsservice open reason=qr_overlay_closed")
+                kickHsDcsServiceAction("qr_overlay_closed")
+            }, 700L)
         }
     }
 
