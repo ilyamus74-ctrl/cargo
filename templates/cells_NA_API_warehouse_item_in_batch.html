@@ -267,8 +267,10 @@
     "vol_down_double": "confirm",
     "vol_up_single":   "clear",
     "vol_up_double":   "reset",
+
     "p1_single":       "ocr_scan",
     "p2_single":       "reset",
+    "p2_double":       "add_item",
 
     "scan_left_single":   "scan",
     "scan_right_single":  "scan",
@@ -296,7 +298,8 @@
           "ocr_scan":[ { "op":"open_scanner", "mode":"ocr" }, { "op":"set_step", "to":"measure" } ],
           "clear":   [ { "op":"web", "name":"clear_tracking" } ],
           "reset":   [ { "op":"web", "name":"clear_all" }, { "op":"set_step", "to":"barcode" } ],
-          "confirm": [ { "op":"noop" } ]
+          "confirm": [ { "op":"noop" } ],
+          "add_item": [ { "op":"web","name":"add_new_item" }, { "op":"web","name":"clear_all" }, { "op":"set_step", "to":"barcode" } ]
         }
       },
 
@@ -307,7 +310,8 @@
           "ocr_scan":[ { "op":"open_scanner", "mode":"ocr" }, { "op":"set_step", "to":"measure" } ],
           "clear":   [ { "op":"web", "name":"clear_except_track" }, { "op":"set_step", "to":"barcode" } ],
           "reset":   [ { "op":"web", "name":"clear_all" }, { "op":"set_step", "to":"barcode" } ],
-          "confirm": [ { "op":"noop" } ]
+          "confirm": [ { "op":"noop" } ],
+          "add_item": [ { "op":"web","name":"add_new_item" }, { "op":"web","name":"clear_all" }, { "op":"set_step", "to":"barcode" } ]
         }
       },
 
@@ -317,7 +321,8 @@
           "ocr_scan":[ { "op":"open_scanner", "mode":"ocr" }, { "op":"set_step", "to":"measure" } ],
           "clear":   [ { "op":"web", "name":"clear_measurements" }, { "op":"set_step", "to":"ocr" } ],
           "reset":   [ { "op":"web", "name":"clear_all" }, { "op":"set_step", "to":"barcode" } ],
-          "confirm": [ { "op":"noop" } ]
+          "confirm": [ { "op":"noop" } ],
+          "add_item": [ { "op":"web","name":"add_new_item" }, { "op":"web","name":"clear_all" }, { "op":"set_step", "to":"barcode" } ]
         }
       },
 
@@ -328,7 +333,8 @@
           "ocr_scan":[ { "op":"open_scanner", "mode":"ocr" }, { "op":"set_step", "to":"measure" } ],
           "confirm": [ { "op":"web","name":"add_new_item" }, { "op":"set_step","to":"barcode" } ],
           "clear":   [ { "op":"web","name":"clear_measurements" }, { "op":"set_step", "to":"measure" } ],
-          "reset":   [ { "op":"web","name":"clear_all" }, { "op":"set_step", "to":"barcode" } ]
+          "reset":   [ { "op":"web","name":"clear_all" }, { "op":"set_step", "to":"barcode" } ],
+          "add_item": [ { "op":"web","name":"add_new_item" }, { "op":"web","name":"clear_all" }, { "op":"set_step", "to":"barcode" } ]
         }
       }
     }
@@ -368,7 +374,14 @@
 
     if (!config.buttons || typeof config.buttons !== 'object') return;
 
-    var allowedActions = { scan: true, confirm: true, clear: true, reset: true, ocr_scan: true };
+    var allowedActions = {
+      scan: true,
+      confirm: true,
+      clear: true,
+      reset: true,
+      ocr_scan: true,
+      add_item: true
+    };
     if (rawOverride && typeof rawOverride === 'object') {
       Object.keys(rawOverride).forEach(function (eventName) {
         var action = rawOverride[eventName];
@@ -384,6 +397,39 @@
       if (!config.buttons.scan_pistol_single) config.buttons.scan_pistol_single = 'scan';
     }
     configNode.textContent = JSON.stringify(config, null, 2);
+  })();
+</script>
+
+<script>
+  (function () {
+    function focusTrackingNoSoon() {
+      setTimeout(function () {
+        var el = document.getElementById('trackingNo');
+        if (!el) return;
+        el.focus();
+        if (typeof el.select === 'function') {
+          el.select();
+        }
+      }, 80);
+    }
+
+    document.addEventListener('click', function (e) {
+      var target = e.target;
+      if (!target) return;
+
+      if (target.id === 'itemInClearBtn') {
+        focusTrackingNoSoon();
+      }
+
+      if (
+        target.matches &&
+        target.matches('[data-core-action="add_new_item_in"]')
+      ) {
+        focusTrackingNoSoon();
+      }
+    }, true);
+
+    window.warehouseItemInFocusTrackingNo = focusTrackingNoSoon;
   })();
 </script>
 

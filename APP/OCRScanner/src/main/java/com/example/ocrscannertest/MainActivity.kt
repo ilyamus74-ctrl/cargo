@@ -468,12 +468,13 @@ class MainActivity : ComponentActivity() {
         var onScanTopSingle: (() -> Unit)? = null
         var onP1Single: (() -> Unit)? = null
         var onP2Single: (() -> Unit)? = null
+        var onP2Double: (() -> Unit)? = null
         var activeWebViewProvider: (() -> WebView?)? = null
         var onHardwareScanData: ((String, String) -> Unit)? = null
     }
 
     private lateinit var volumeButtonDispatcher: VolumeButtonDispatcher
-
+    private lateinit var p2ButtonDispatcher: VolumeButtonDispatcher
     private val hardwareScanBuffer = StringBuilder()
     private var hardwareScanLastCharTs: Long = 0L
     private val hardwareScanTimeoutMs = 250L
@@ -1256,7 +1257,7 @@ class MainActivity : ComponentActivity() {
 
         // init volume dispatcher with context (for Toast)
         volumeButtonDispatcher = VolumeButtonDispatcher(this)
-
+        p2ButtonDispatcher = VolumeButtonDispatcher(this)
        // экран не гаснет — поведение киоска
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         window.addFlags(WindowManager.LayoutParams.FLAG_ALT_FOCUSABLE_IM)
