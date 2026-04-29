@@ -507,6 +507,35 @@ class MainActivity : ComponentActivity() {
     private var lastHardwareScanAtMs: Long = 0L
     private val hardwareScanDedupWindowMs = 800L
 
+    private fun recoverVendorScannerAfterCameraScreen(owner: String, reason: String) {
+        if (owner != "BarcodeScanScreen" && owner != "OcrScanScreen") {
+            return
+        }
+
+        hsHardKeyBlockedUntilMs =
+            System.currentTimeMillis() + hsHardKeyBlockAfterCameraCloseMs
+
+        Log.i(
+            "HS_BOOTSTRAP",
+            "vendor scanner recovery after camera screen owner=$owner reason=$reason hardKeyBlockedUntil=$hsHardKeyBlockedUntilMs"
+        )
+
+        scannerBootstrapHandler.postDelayed({
+            Log.i(
+                "HS_BOOTSTRAP",
+                "vendor scanner recovery immediate owner=$owner reason=$reason"
+            )
+            kickHsDcsServiceAction("camera_screen_closed_${owner}_immediate", force = true)
+        }, 50L)
+
+        scannerBootstrapHandler.postDelayed({
+            Log.i(
+                "HS_BOOTSTRAP",
+                "vendor scanner recovery late owner=$owner reason=$reason"
+            )
+            kickHsDcsServiceAction("camera_screen_closed_${owner}_late", force = true)
+        }, 1300L)
+    }
 
     fun setScannerCameraCallbacks(
         owner: String,
@@ -516,10 +545,17 @@ class MainActivity : ComponentActivity() {
         if (releaseCamera == null && restoreCamera == null) {
             cameraReleaseCallbacks.remove(owner)
             cameraRestoreCallbacks.remove(owner)
+
             Log.i(
                 "HS_BOOTSTRAP",
                 "scanner camera callbacks unregistered owner=$owner releaseCount=${cameraReleaseCallbacks.size} restoreCount=${cameraRestoreCallbacks.size}"
             )
+
+            recoverVendorScannerAfterCameraScreen(
+                owner = owner,
+                reason = "scanner_camera_callbacks_unregistered"
+            )
+
             return
         }
 
