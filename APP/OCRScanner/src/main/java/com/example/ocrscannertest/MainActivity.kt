@@ -487,6 +487,9 @@ class MainActivity : ComponentActivity() {
     private var hsTriggerWatchdogRunnable: Runnable? = null
     private var hsLastHardwareTriggerAtMs = 0L
     private var hsLastBarcodeSendAtMs = 0L
+
+    private var skipVendorOpenOnHardKeyUntilMs = 0L
+    private val skipVendorOpenAfterQrCloseMs = 3500L
     private var scannerOwnerState: ScannerOwnerState = ScannerOwnerState.IDLE
     private val cameraReleaseCallbacks = linkedMapOf<String, () -> Unit>()
     private val cameraRestoreCallbacks = linkedMapOf<String, () -> Unit>()
@@ -874,27 +877,11 @@ class MainActivity : ComponentActivity() {
             )
         }
     }
-    
+
     private fun startHsDcsService(reason: String) {
-        runCatching {
-            val intent = Intent().apply {
-                component = ComponentName(
-                    "com.hs.dcsservice",
-                    "com.hs.dcsservice.DcsService"
-                )
-            }
-
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                startForegroundService(intent)
-            } else {
-                startService(intent)
-            }
-
-            Log.i("HS_BOOTSTRAP", "started com.hs.dcsservice.DcsService reason=$reason")
-        }.onFailure { t ->
-            Log.e("HS_BOOTSTRAP", "failed to start com.hs.dcsservice.DcsService reason=$reason", t)
-        }
+        Log.i("HS_BOOTSTRAP", "startHsDcsService disabled reason=$reason")
     }
+    
     private fun kickHsScanService(reason: String) {
         runCatching {
             val intent = Intent("com.hs.scanservice.getsetting.action").apply {
@@ -933,8 +920,16 @@ class MainActivity : ComponentActivity() {
     }
     private fun onHardwareTriggerPressed(keyCode: Int) {
         enterHardwareScanMode(reason = "hard_key_$keyCode")
-        kickHsDcsServiceAction(reason = "hard_key_$keyCode")
+        val now = System.currentTimeMillis()
 
+        if (now < skipVendorOpenOnHardKeyUntilMs) {
+            Log.i(
+                "HS_BOOTSTRAP",
+                "skip dcsservice open on hard key keyCode=$keyCode reason=qr_recently_closed now=$now until=$skipVendorOpenOnHardKeyUntilMs"
+            )
+        } else {
+            kickHsDcsServiceAction("hard_key_$keyCode")
+        }
         hsLastHardwareTriggerAtMs = System.currentTimeMillis()
         hsTriggerWatchdogRunnable?.let { scannerBootstrapHandler.removeCallbacks(it) }
 
@@ -1172,6 +1167,13 @@ class MainActivity : ComponentActivity() {
             Log.i("HS_BOOTSTRAP", "qr flow active reason=$reason")
         } else {
             Log.i("HS_BOOTSTRAP", "qr flow inactive reason=$reason released=$qrCameraReleased")
+            skipVendorOpenOnHardKeyUntilMs =
+                System.currentTimeMillis() + skipVendorOpenAfterQrCloseMs
+
+            Log.i(
+                "HS_BOOTSTRAP",
+                "skip vendor open on hard key armed after qr close until=$skipVendorOpenOnHardKeyUntilMs"
+            )
         }
     }
 
