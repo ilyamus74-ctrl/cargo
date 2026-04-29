@@ -493,6 +493,10 @@ class MainActivity : ComponentActivity() {
 
     private var hsLastVendorArmAtMs = 0L
     private val hsVendorArmThrottleMs = 800L
+
+    private var hsHardKeyBlockedUntilMs = 0L
+    private val hsHardKeyBlockAfterCameraCloseMs = 1800L
+
     private var scannerOwnerState: ScannerOwnerState = ScannerOwnerState.IDLE
     private val cameraReleaseCallbacks = linkedMapOf<String, () -> Unit>()
     private val cameraRestoreCallbacks = linkedMapOf<String, () -> Unit>()
@@ -923,14 +927,26 @@ class MainActivity : ComponentActivity() {
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         if (event.keyCode == 289 || event.keyCode == 290) {
+            val now = System.currentTimeMillis()
+
+            if (now < hsHardKeyBlockedUntilMs) {
+                Log.i(
+                    "SCAN_QR_DIAG",
+                    "dedicated_scan_key_blocked_vendor_warmup keyCode=${event.keyCode} action=${event.action} repeat=${event.repeatCount} now=$now until=$hsHardKeyBlockedUntilMs"
+                )
+
+                if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
+                    kickHsDcsServiceAction("hard_key_during_vendor_warmup", force = true)
+                }
+
+                return true
+            }
+
             Log.i(
                 "SCAN_QR_DIAG",
                 "dedicated_scan_key_vendor_only dispatch keyCode=${event.keyCode} action=${event.action} repeat=${event.repeatCount}"
             )
 
-            // TEST MODE:
-            // Do not run our state machine here.
-            // Let vendor scanner stack handle the physical trigger cleanly.
             return super.dispatchKeyEvent(event)
         }
 
@@ -1321,10 +1337,17 @@ class MainActivity : ComponentActivity() {
                 "HS_BOOTSTRAP",
                 "skip vendor open on hard key armed after qr close until=$skipVendorOpenOnHardKeyUntilMs"
             )
+            hsHardKeyBlockedUntilMs =
+                System.currentTimeMillis() + hsHardKeyBlockAfterCameraCloseMs
+
+            Log.i(
+                "HS_BOOTSTRAP",
+                "hard key blocked while vendor scanner warms up until=$hsHardKeyBlockedUntilMs"
+            )
             scannerBootstrapHandler.postDelayed({
                 Log.i("HS_BOOTSTRAP", "pre-arm vendor scanner reason=qr_overlay_closed")
                 kickHsDcsServiceAction("qr_overlay_closed", force = true)
-            }, 150L)
+            }, 50L)
         }
     }
 
