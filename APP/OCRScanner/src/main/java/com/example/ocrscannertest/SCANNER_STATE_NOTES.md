@@ -1292,3 +1292,465 @@ hard key 289
     Убедиться, что в логах есть pause → stop → open.
 
     Проверить, вернулся ли decode success / BARCODE_SEND.
+
+
+
+
+---
+
+## 2026-04-25 — Промежуточный итог перед паузой
+
+### Главная цель
+
+Добиться стабильной работы двух режимов в `OCRScanner`:
+
+1. CameraX / MLKit scan через камеру приложения.
+2. Hardware laser scan через vendor scanner stack.
+
+Критично: после входа через camera QR / после OCR / после любого CameraX-сценария физическая кнопка сканера должна снова запускать laser scan без ребута Android и без ручного открытия ScannerTools.
+
+---
+
+## Что уже точно выяснено
+
+### 1. Hardware key физически работает
+
+Физическая кнопка даёт события:
+
+```text
+com.hs.touchDown
+com.hs.touchUp
+SCAN_QR_DIAG: dedicated_scan_key_passthrough dispatch keyCode=289 action=0
+SCAN_QR_DIAG: dedicated_scan_key_passthrough dispatch keyCode=289 action=1
+
+Значит проблема не в кнопке и не в том, что Android вообще не видит событие.
+2. Vendor scanner stack физически работает
+
+После ребута Android или в рабочем состоянии vendor stack показывает:
+
+OemScanDemo: onKeepGoingCallback
+OemScanDemo: g_bKeepGoing = true
+OemScanDemo: waitForDecodeTwo returned
+
+При успешном decode должен приходить broadcast:
+
+com.android.hs.action.BARCODE_SEND
+
+Иногда также используется:
+
+com.android.giec.action.BARCODE_FOCAL
+
+3. Наша app имеет обычный app UID, не system UID
+
+Текущее состояние com.example.ocrscannertest:
+
+userId=10159
+codePath=/data/app/...
+flags=[ DEBUGGABLE HAS_CODE ALLOW_CLEAR_USER_DATA ALLOW_BACKUP ]
+
+Vendor services:
+
+com.hs.dcsservice userId=1000 sharedUser=android.uid.system
+com.hs.scanservice userId=1000 sharedUser=android.uid.system
+
+Вывод:
+
+    наша app не system app;
+
+    она не uid=1000;
+
+    она не имеет sharedUser=android.uid.system;
+
+    простое добавление permissions в manifest не делает её системной;
+
+    установка в /system/priv-app без platform/system подписи тоже не даст uid=1000.
+
+4. Permissions частично выданы, но это не решило trigger/decode
+
+В manifest добавлены:
+
+<uses-permission android:name="com.hs.scanbutton.permission.DECODE" />
+<uses-permission android:name="com.honeywell.decode.permission.DECODE" />
+<uses-permission android:name="com.hs.decode.permission.DECODE" />
+
+Фактически granted:
+
+com.hs.scanbutton.permission.DECODE: granted=true
+com.honeywell.decode.permission.DECODE: granted=true
+
+Но:
+
+com.hs.decode.permission.DECODE
+
+как отдельный package/declared permission не найден через dumpsys package.
+
+Вывод:
+
+    com.hs.scanbutton.permission.DECODE и com.honeywell.decode.permission.DECODE реально существуют;
+
+    com.hs.decode.permission.DECODE в текущей системе не найден как declared permission;
+
+    проблема не только в manifest permissions.
+
+Что показал reverse vendor APK
+
+Были декомпилированы:
+
+/system/app/dcsservice/dcsservice.apk
+/system/app/scanservice/scanservice.apk
+/system/app/scantool/scantool.apk
+
+Основные пути jadx:
+
+/tmp/hs_reverse/jadx/dcsservice
+/tmp/hs_reverse/jadx/scanservice
+/tmp/hs_reverse/jadx/scantool
+
+dcsservice — главный producer результата скана
+
+Ключевой файл:
+
+/tmp/hs_reverse/jadx/dcsservice/sources/com/hs/dcsservice/DcsService.java
+
+Найдена логика успешного результата:
+
+intent.setAction("com.android.hs.action.BARCODE_SEND");
+intent.putExtra("scanner_result", ...);
+intent.putExtra("scanner_result_byte", ...);
+sendBroadcast(intent, "com.honeywell.decode.permission.DECODE");
+
+Вывод:
+
+    com.hs.dcsservice / OemScanDemo — главный источник результата;
+
+    именно он делает BARCODE_SEND;
+
+    наша app должна продолжать слушать BARCODE_SEND.
+
+scanservice — не команда “начать скан”
+
+Ключевой файл:
+
+/tmp/hs_reverse/jadx/scanservice/sources/com/hs/scanservice/DecodeService.java
+
+Найдено, что DecodeService слушает:
+
+com.android.hs.action.BARCODE_SEND
+
+Ранее тестировали:
+
+startForegroundService(...)
+startService(...)
+bindService(...)
+
+Вывод:
+
+    bindService технически проходит, но scan не запускает;
+
+    startForegroundService() вызывает ANR, потому что vendor service не вызывает startForeground();
+
+    startService() / startForegroundService() для com.hs.scanservice/.DecodeService запрещены как рабочее решение.
+
+Blacklist / noScanApp
+
+В NewFloatWindowService.java найдена логика:
+
+String noScanApp = MMKVUtils.getString("noScanApp", "");
+String foregroundTaskPackageName = getAppPackageName(...);
+
+if (!foregroundTaskPackageName.contains("com.mediatek.camera")
+    && !noScanApp.contains(foregroundTaskPackageName)) {
+    ...
+}
+
+Также найдена логика добавления foreground app в blacklist:
+
+MMKVUtils.put("noScanApp", foregroundTaskPackageName);
+MMKVUtils.put("noScanShortClass", ShortClassName);
+
+И очистка:
+
+MMKVUtils.put("noScanApp", "");
+MMKVUtils.put("noScanShortClass", "");
+
+Важный момент:
+
+Intent action = "com.hs.scanservice.getsetting.action"
+
+В receiver есть логика, которая может очищать noScanApp/noScanShortClass, если foreground activity/class изменился.
+
+Текущий вывод:
+
+    blacklist-гипотеза остаётся вероятной;
+
+    после camera scan vendor stack мог добавить com.example.ocrscannertest в noScanApp;
+
+    после ребута Android laser scan снова работал, что похоже на сброс vendor state;
+
+    прямого доступа к MMKV storage нет, потому что app data vendor services недоступна без root.
+
+Почему “сделать app системной” пока не основной путь
+
+Чтобы app реально стала system-level как vendor services, недостаточно просто поставить APK в /system/app или /system/priv-app.
+
+Нужно одновременно:
+
+1. root/remount или кастомная прошивка;
+2. установка APK в /system/priv-app или /system/app;
+3. подпись platform/system certificate;
+4. возможно sharedUserId="android.uid.system";
+5. совпадение подписи с системным ключом прошивки.
+
+На текущем устройстве:
+
+adb root
+adbd cannot run as root in production builds
+
+Значит простого adb root/remount пути нет.
+
+Вывод:
+
+    без root или кастомной прошивки системной app мы её сейчас не сделаем;
+
+    даже priv-app без platform signature не станет uid=1000;
+
+    это крайний путь, не текущий быстрый фикс.
+
+Текущий рабочий вектор: broadcast output mode
+
+В vendor коде найдены настройки:
+
+isFocus
+isBroadcast
+BroadcastTransmission
+BroadcastBarcodeString
+BroadcastBarcode
+
+В DcsService.java логика такая:
+
+if (MMKVUtils.getBoolean("isBroadcast", false)
+    && !MMKVUtils.getString("BroadcastTransmission", "").isEmpty()) {
+
+    intent.setAction(MMKVUtils.getString("BroadcastTransmission", ""));
+
+    if (!MMKVUtils.getString("BroadcastBarcodeString", "").isEmpty()) {
+        intent.putExtra(
+            MMKVUtils.getString("BroadcastBarcodeString", ""),
+            intent.getStringExtra("original_result")
+        );
+    }
+
+    if (!MMKVUtils.getString("BroadcastBarcode", "").isEmpty()) {
+        intent.putExtra(
+            MMKVUtils.getString("BroadcastBarcode", ""),
+            intent.getByteArrayExtra("scanner_result_byte")
+        );
+    }
+
+    sendBroadcast(intent);
+}
+
+Важное уточнение
+
+BroadcastBarcode=raw — это не фиксированная vendor-настройка.
+
+Это означает:
+
+BroadcastBarcode = имя extra для byte array
+
+Например можно задать:
+
+BroadcastBarcode = raw
+
+Тогда vendor broadcast отправит byte array extra с именем raw.
+
+Для нас важнее строковый вариант:
+
+BroadcastTransmission = com.example.ocrscannertest.SCAN_RESULT
+BroadcastBarcodeString = data
+BroadcastBarcode = raw
+
+Минимально достаточно:
+
+BroadcastTransmission = com.example.ocrscannertest.SCAN_RESULT
+BroadcastBarcodeString = data
+
+Следующий точный план
+Шаг 1. Добавить custom broadcast action в OCRScanner
+
+В MainActivity.kt в scanIntentActions добавить первым:
+
+"com.example.ocrscannertest.SCAN_RESULT",
+
+Итог:
+
+private val scanIntentActions = listOf(
+    "com.example.ocrscannertest.SCAN_RESULT",
+    "com.honeywell.decode.intent.action.SCAN_RESULT",
+    "com.datalogic.decodewedge.decode_action",
+    "android.intent.ACTION_DECODE_DATA",
+    "nlscan.action.SCANNER_RESULT",
+    "com.sunmi.scanner.ACTION_DATA_CODE_RECEIVED",
+    "com.android.hs.action.BARCODE_SEND",
+    "com.android.giec.action.BARCODE_FOCAL"
+)
+
+Шаг 2. Расширить список extra keys
+
+В extractScanPayload() добавить явные ключи:
+
+"original_result",
+"scanner_result",
+"scanner_result_byte",
+"raw",
+
+data уже есть, но оставить его первым.
+
+Пример блока keys:
+
+val keys = listOf(
+    "data",
+    "original_result",
+    "scanner_result",
+    "scanner_result_byte",
+    "raw",
+    "scanData",
+    "SCAN_BARCODE1",
+    "com.symbol.datawedge.data_string",
+    "barcode_string",
+    "decode_data",
+    "code",
+    "value",
+    "BARCODE",
+    "barcode",
+    "result",
+    "text",
+    "message",
+    "decode_rslt",
+    "scannerdata",
+    "barcodeData",
+    "dataBytes",
+    "aimId",
+    "charset"
+)
+
+Шаг 3. Через ScannerTools найти broadcast output settings
+
+Нужно найти экран, где задаются:
+
+isBroadcast
+BroadcastTransmission
+BroadcastBarcodeString
+BroadcastBarcode
+
+В UI это может называться не дословно. Возможные названия:
+
+Broadcast
+Broadcast Output
+Output Mode
+Data Output
+Transmission
+Intent Action
+Barcode String
+Barcode Data
+Focus / Broadcast
+Keyboard / Broadcast
+
+Поставить:
+
+Output mode = Broadcast
+BroadcastTransmission = com.example.ocrscannertest.SCAN_RESULT
+BroadcastBarcodeString = data
+BroadcastBarcode = raw
+
+Если BroadcastBarcode не видно — пропустить. Главное:
+
+BroadcastTransmission
+BroadcastBarcodeString
+
+Шаг 4. Проверить logcat
+
+Команда:
+
+adb logcat -c
+adb logcat -v time | grep -i -E "SCAN_QR_DIAG|intent_path|SCAN_RESULT|BARCODE_SEND|BARCODE_FOCAL|original_result|scanner_result|scanner_result_byte|data|raw"
+
+Ожидаемый успешный лог:
+
+SCAN_QR_DIAG: intent_path action=com.example.ocrscannertest.SCAN_RESULT extrasKeys=[data] extracted=...
+SCAN_QR_DIAG: dispatchHardwareScan source=hardware_intent raw='...' normalized='...'
+
+Или старый vendor action:
+
+SCAN_QR_DIAG: intent_path action=com.android.hs.action.BARCODE_SEND extrasKeys=[scanner_result, scanner_result_byte] extracted=...
+
+Что НЕ делать дальше
+
+Не возвращаться к этим путям как к основному решению:
+
+startForegroundService(com.hs.scanservice/.DecodeService)
+startService(com.hs.scanservice/.DecodeService)
+FLAG_NOT_FOCUSABLE
+ручной запуск vendor SplashActivity как постоянный workaround
+бесконечные warmup/retry/restart циклы
+
+Причины:
+
+    startForegroundService ломает vendor service через ANR;
+
+    bindService не запускает decode;
+
+    window focus hacks ломают UX/WebView;
+
+    vendor UI kick нестабилен;
+
+    retries не меняют trigger policy.
+
+Альтернативный путь, если broadcast mode не найдём в UI
+
+Если ScannerTools UI не даёт выставить BroadcastTransmission/BroadcastBarcodeString, следующий шаг — исследовать vendor setProperties.
+
+В reverse найден action:
+
+com.hs.dcsservice.action
+action = setProperties
+properties = Serializable Map<String, Object>
+
+Из scanservice/h.java:
+
+intent2.setAction("com.hs.dcsservice.action");
+intent2.putExtra("action", "setProperties");
+intent2.putExtra("properties", (Serializable) map);
+sendBroadcast(intent2, "com.honeywell.decode.permission.DECODE");
+
+Потенциально можно отправить map:
+
+mapOf(
+    "isBroadcast" to true,
+    "isFocus" to false,
+    "BroadcastTransmission" to "com.example.ocrscannertest.SCAN_RESULT",
+    "BroadcastBarcodeString" to "data",
+    "BroadcastBarcode" to "raw"
+)
+
+Но это следующий тест, не первый. Сначала пробуем UI.
+Текущий статус на паузу
+
+    Hardware key виден.
+
+    Vendor scanner физически живой.
+
+    После ребута laser scan может оживать.
+
+    После camera scan / QR login laser scan снова может отваливаться.
+
+    noScanApp blacklist-гипотеза остаётся сильной.
+
+    Manifest permissions частично granted, но не решают всё.
+
+    System app путь сейчас небыстрый, потому что нет adb root и нет platform signature.
+
+    Главный следующий путь: перевести vendor output в Broadcast mode и принимать custom action в OCRScanner.
+
+
+Перед дорогой главное запомнить коротко: **не трогаем больше startService/foregroundService, ищем Broadcast output в ScannerTools, а в app добавляем `com.example.ocrscannertest.SCAN_RESULT` и extra keys.**

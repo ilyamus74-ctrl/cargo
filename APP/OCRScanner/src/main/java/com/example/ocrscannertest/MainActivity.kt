@@ -868,31 +868,32 @@ class MainActivity : ComponentActivity() {
     private fun kickHsDcsServiceAction(reason: String) {
         scannerBootstrapHandler.post {
             sendHsDcsServiceAction(
-                action = "pause",
-                reason = reason,
-                noAddScanApp = true
-            )
-        }
-
-        scannerBootstrapHandler.postDelayed({
-            sendHsDcsServiceAction(
-                action = "stop",
-                reason = reason,
-                noAddScanApp = true
-            )
-        }, 80L)
-
-        scannerBootstrapHandler.postDelayed({
-            sendHsDcsServiceAction(
                 action = "open",
                 reason = reason,
                 noAddScanApp = true
             )
-        }, 300L)
+        }
+    }
+    
+    private fun startHsDcsService(reason: String) {
+        runCatching {
+            val intent = Intent().apply {
+                component = ComponentName(
+                    "com.hs.dcsservice",
+                    "com.hs.dcsservice.DcsService"
+                )
+            }
 
-        scannerBootstrapHandler.postDelayed({
-            kickHsScanService(reason)
-        }, 450L)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                startForegroundService(intent)
+            } else {
+                startService(intent)
+            }
+
+            Log.i("HS_BOOTSTRAP", "started com.hs.dcsservice.DcsService reason=$reason")
+        }.onFailure { t ->
+            Log.e("HS_BOOTSTRAP", "failed to start com.hs.dcsservice.DcsService reason=$reason", t)
+        }
     }
     private fun kickHsScanService(reason: String) {
         runCatching {
