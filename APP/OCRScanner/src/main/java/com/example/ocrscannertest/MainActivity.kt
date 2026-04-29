@@ -866,14 +866,41 @@ class MainActivity : ComponentActivity() {
             )
         }
     }
+    private fun clearHsNoScanApp(reason: String) {
+        runCatching {
+            val intent = Intent("com.android.systemui.SCANCODE_CHANGE.ACTION").apply {
+                component = ComponentName(
+                    "com.hs.dcsservice",
+                    "com.hs.scanbutton.receiver.BootCompleteReceiver"
+                )
+                addCategory(Intent.CATEGORY_DEFAULT)
+            }
 
+            sendBroadcast(intent)
+
+            Log.i(
+                "HS_BOOTSTRAP",
+                "sent clear noScanApp via BootCompleteReceiver reason=$reason"
+            )
+        }.onFailure { t ->
+            Log.e(
+                "HS_BOOTSTRAP",
+                "failed to clear noScanApp via BootCompleteReceiver reason=$reason",
+                t
+            )
+        }
+    }
     private fun kickHsDcsServiceAction(reason: String) {
         scannerBootstrapHandler.post {
-            sendHsDcsServiceAction(
-                action = "open",
-                reason = reason,
-                noAddScanApp = true
-            )
+            clearHsNoScanApp(reason)
+
+            scannerBootstrapHandler.postDelayed({
+                sendHsDcsServiceAction(
+                    action = "open",
+                    reason = reason,
+                    noAddScanApp = true
+                )
+            }, 150L)
         }
     }
 
