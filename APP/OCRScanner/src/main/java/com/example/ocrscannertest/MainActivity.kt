@@ -490,6 +490,9 @@ class MainActivity : ComponentActivity() {
 
     private var skipVendorOpenOnHardKeyUntilMs = 0L
     private val skipVendorOpenAfterQrCloseMs = 3500L
+
+    private var hsLastVendorArmAtMs = 0L
+    private val hsVendorArmThrottleMs = 800L
     private var scannerOwnerState: ScannerOwnerState = ScannerOwnerState.IDLE
     private val cameraReleaseCallbacks = linkedMapOf<String, () -> Unit>()
     private val cameraRestoreCallbacks = linkedMapOf<String, () -> Unit>()
@@ -729,7 +732,97 @@ class MainActivity : ComponentActivity() {
 
         return candidates
     }
+    private fun injectHardwareScanIntoActiveWebView(value: String, source: String): Boolean {
+        val webView = activeWebViewProvider?.invoke()
 
+        if (webView == null) {
+            Log.i(
+                "SCAN_QR_DIAG",
+                "webview_inject_skip reason=no_active_webview value='$value' source=$source"
+            )
+            return false
+        }
+
+        val quotedValue = JSONObject.quote(value)
+
+        val js = """
+        (function(value) {
+            function isEditable(el) {
+                if (!el) return false;
+                var tag = (el.tagName || '').toUpperCase();
+                return tag === 'INPUT' || tag === 'TEXTAREA' || el.isContentEditable;
+            }
+
+            var el = document.activeElement;
+
+            if (!isEditable(el)) {
+                var ids = [
+                    'warehouse-move-search',
+                    'warehouse-move-batch-search',
+                    'warehouse-item-out-search',
+                    'barcode',
+                    'scan',
+                    'search',
+                    'login',
+                    'username',
+                    'password'
+                ];
+
+                for (var i = 0; i < ids.length; i++) {
+                    var candidate = document.getElementById(ids[i]);
+                    if (isEditable(candidate)) {
+                        el = candidate;
+                        break;
+                    }
+                }
+            }
+
+            if (!isEditable(el)) {
+                return 'NO_EDITABLE_TARGET';
+            }
+
+            el.focus();
+
+            if ('value' in el) {
+                el.value = value;
+                el.dispatchEvent(new Event('input', { bubbles: true }));
+                el.dispatchEvent(new Event('change', { bubbles: true }));
+            } else {
+                el.textContent = value;
+                el.dispatchEvent(new Event('input', { bubbles: true }));
+            }
+
+            el.dispatchEvent(new KeyboardEvent('keydown', {
+                key: 'Enter',
+                code: 'Enter',
+                keyCode: 13,
+                which: 13,
+                bubbles: true
+            }));
+
+            el.dispatchEvent(new KeyboardEvent('keyup', {
+                key: 'Enter',
+                code: 'Enter',
+                keyCode: 13,
+                which: 13,
+                bubbles: true
+            }));
+
+            return 'OK';
+        })($quotedValue);
+    """.trimIndent()
+
+        runOnUiThread {
+            webView.evaluateJavascript(js) { result ->
+                Log.i(
+                    "SCAN_QR_DIAG",
+                    "webview_inject_result source=$source value='$value' result=$result"
+                )
+            }
+        }
+
+        return true
+    }
     private fun dispatchHardwareScan(raw: String, source: String) {
         val normalized = normalizeHardwareScanPayload(raw)
         Log.i("SCAN_QR_DIAG", "dispatchHardwareScan source=$source raw='$raw' normalized='$normalized'")
@@ -745,9 +838,19 @@ class MainActivity : ComponentActivity() {
         lastHardwareScanAtMs = now
 
         runOnUiThread {
-            val hasCallback = onHardwareScanData != null
-            Log.i("SCAN_QR_DIAG", "dispatchHardwareScan source=$source invokeCallback=$hasCallback")
-            onHardwareScanData?.invoke(normalized, source)
+            val callback = onHardwareScanData
+            val hasCallback = callback != null
+
+            Log.i(
+                "SCAN_QR_DIAG",
+                "dispatchHardwareScan source=$source invokeCallback=$hasCallback value='$normalized'"
+            )
+
+            if (hasCallback) {
+                callback?.invoke(normalized, source)
+            } else {
+                injectHardwareScanIntoActiveWebView(normalized, source)
+            }
         }
     }
     private fun normalizeHardwareScanPayload(raw: String?): String? = normalizeHardwareScanPayloadShared(raw)
@@ -890,8 +993,22 @@ class MainActivity : ComponentActivity() {
             )
         }
     }
-    private fun kickHsDcsServiceAction(reason: String) {
+    private fun kickHsDcsServiceAction(reason: String, force: Boolean = false) {
         scannerBootstrapHandler.post {
+            val now = System.currentTimeMillis()
+
+            if (!force && now - hsLastVendorArmAtMs < hsVendorArmThrottleMs) {
+                Log.i(
+                    "HS_BOOTSTRAP",
+                    "skip vendor arm reason=$reason throttle now=$now last=$hsLastVendorArmAtMs"
+                )
+                return@post
+            }
+
+            hsLastVendorArmAtMs = now
+
+            Log.i("HS_BOOTSTRAP", "vendor arm start reason=$reason force=$force")
+
             clearHsNoScanApp(reason)
 
             scannerBootstrapHandler.postDelayed({
@@ -1143,9 +1260,9 @@ class MainActivity : ComponentActivity() {
             }
         }
         scannerBootstrapHandler.postDelayed({
-            Log.i("HS_BOOTSTRAP", "pre-arm dcsservice open reason=app_started")
-            kickHsDcsServiceAction("app_started")
-        }, 700L)
+            Log.i("HS_BOOTSTRAP", "pre-arm vendor scanner reason=app_started")
+            kickHsDcsServiceAction("app_started", force = true)
+        }, 500L)
 
         val filter = IntentFilter().apply {
             scanIntentActions.forEach { addAction(it) }
@@ -1205,9 +1322,9 @@ class MainActivity : ComponentActivity() {
                 "skip vendor open on hard key armed after qr close until=$skipVendorOpenOnHardKeyUntilMs"
             )
             scannerBootstrapHandler.postDelayed({
-                Log.i("HS_BOOTSTRAP", "pre-arm dcsservice open reason=qr_overlay_closed")
-                kickHsDcsServiceAction("qr_overlay_closed")
-            }, 700L)
+                Log.i("HS_BOOTSTRAP", "pre-arm vendor scanner reason=qr_overlay_closed")
+                kickHsDcsServiceAction("qr_overlay_closed", force = true)
+            }, 150L)
         }
     }
 
@@ -1340,6 +1457,11 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+
+        scannerBootstrapHandler.postDelayed({
+            Log.i("HS_BOOTSTRAP", "pre-arm vendor scanner reason=activity_resumed")
+            kickHsDcsServiceAction("activity_resumed")
+        }, 400L)
     }
 
     override fun onDestroy() {
