@@ -90,6 +90,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.Image
 import androidx.compose.ui.res.painterResource
 import android.view.Window
+import android.view.inputmethod.InputMethodManager
 private val INSTALL_MAIN_OBSERVER_JS = """
 (function(){
   if (window.__deviceMainObserverInstalled) return;
@@ -368,6 +369,42 @@ private enum class ScannerOwnerState {
     HARDWARE_SCAN_MODE
 }
 private const val VOLUME_DOUBLE_TAP_WINDOW_MS = 650L
+
+private val INSTALL_MANUAL_INPUT_KEYBOARD_JS = """
+(function () {
+  if (window.__manualKeyboardBridgeInstalled) return;
+  window.__manualKeyboardBridgeInstalled = true;
+  var lastTapAt = 0;
+  var DOUBLE_TAP_MS = 450;
+
+  function isEditable(el) {
+    if (!el) return false;
+    if (el.tagName === "TEXTAREA") return true;
+    if (el.tagName === "INPUT") {
+      var type = (el.type || "text").toLowerCase();
+      return ["text","search","email","number","tel","url","password"].indexOf(type) !== -1;
+    }
+    return !!el.isContentEditable;
+  }
+
+  function notify(openKeyboard, reason) {
+    try {
+      if (window.DeviceApp && window.DeviceApp.onManualInputFocus) {
+        window.DeviceApp.onManualInputFocus(openKeyboard ? "open:" + reason : "focus:" + reason);
+      }
+    } catch (_) {}
+  }
+
+  document.addEventListener("touchend", function (ev) {
+    var target = ev.target;
+    if (!isEditable(target)) return;
+    var now = Date.now();
+    var isDoubleTap = (now - lastTapAt) <= DOUBLE_TAP_MS;
+    lastTapAt = now;
+    notify(true, isDoubleTap ? "double_tap" : "single_tap");
+  }, true);
+})();
+"""
 private var debugToastsEnabled = false
 
 private fun debugToast(context: Context, message: String, length: Int = Toast.LENGTH_SHORT) {
@@ -4874,7 +4911,8 @@ fun DeviceWebViewScreen(
                         }
                         // ВАЖНО: всегда инжектим, потому что при реальном reload JS улетает
                         view?.evaluateJavascript(INSTALL_MAIN_OBSERVER_JS, null)
-
+                        view?.evaluateJavascript(INSTALL_MANUAL_INPUT_KEYBOARD_JS, null)
+                        
                         val base = normalizeServerUrl(config.serverUrl)
                         if (!url.isNullOrBlank() && base.isNotBlank()) {
                             val u = Uri.parse(url)
