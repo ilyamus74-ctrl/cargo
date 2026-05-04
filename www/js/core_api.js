@@ -4823,56 +4823,14 @@ function initWarehouseStockAddons() {
     }
 
 
-    var categoryPriority = [
-        'vitamins',
-        'clothing',
-        'electrical equipment',
-        'auto parts',
-        'bag',
-        'household appliances',
-        'tools',
-        'game console',
-        'shoes',
-        'toys and sports equipment',
-        'sunglasses',
-        'jewelry',
-        'cd/ dvd'
-    ];
-    var categoryPriorityIndex = {};
-    categoryPriority.forEach(function (name, idx) {
-        categoryPriorityIndex[name] = idx;
-    });
-
-    function normalizeCategoryLabel(raw) {
-        return String(raw || '')
-            .toLowerCase()
-            .replace(/\u00a0/g, ' ')
-            .replace(/\s+/g, ' ')
-            .trim();
-    }
-
     function sortedOptionEntries(addonKey, optionsMap) {
-        var entries = Object.keys(optionsMap || {}).map(function (valueKey) {
+        return Object.keys(optionsMap || {}).map(function (valueKey) {
             return {
                 value: String(valueKey),
                 label: String(optionsMap[valueKey])
             };
         });
 
-        if (String(addonKey || '').toLowerCase() !== 'category') {
-            return entries;
-        }
-
-        entries.sort(function (a, b) {
-            var aNorm = normalizeCategoryLabel(a.label);
-            var bNorm = normalizeCategoryLabel(b.label);
-            var aRank = Object.prototype.hasOwnProperty.call(categoryPriorityIndex, aNorm) ? categoryPriorityIndex[aNorm] : Number.MAX_SAFE_INTEGER;
-            var bRank = Object.prototype.hasOwnProperty.call(categoryPriorityIndex, bNorm) ? categoryPriorityIndex[bNorm] : Number.MAX_SAFE_INTEGER;
-            if (aRank !== bRank) return aRank - bRank;
-            return a.label.localeCompare(b.label);
-        });
-
-        return entries;
     }
 
     function persist() {
