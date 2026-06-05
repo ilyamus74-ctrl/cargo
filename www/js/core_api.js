@@ -1196,7 +1196,8 @@ const CoreAPI = {
             }
         },
         'delete_item_in': (data) => {
-            alert(data.message || 'Посылка удалена');
+            CoreAPI.ui.playAcceptSound();
+            CoreAPI.ui.showToast(data.message || 'Посылка удалена', 'success');
             if (data.html) {
                 const modalBody = document.querySelector('#fullscreenModal .modal-body');
                 if (modalBody) {
