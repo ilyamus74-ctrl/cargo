@@ -26,19 +26,7 @@
         <span class="badge bg-light text-dark">{$item.warehouse_state|default:'—'|escape}</span>
       {/if}
     </td>
-    <td>
-      {if $item.stock_item_id}
-        <button type="button"
-                class="btn btn-link p-0 js-core-link"
-                data-core-action="open_item_stock_modal"
-                data-item-id="{$item.stock_item_id|escape}">
-          {$item.parcel_uid|default:'—'|escape}
-        </button>
-      {else}
-        {$item.parcel_uid|default:'—'|escape}
-      {/if}
-    </td>
-    <td>{$item.tracking_no|default:'—'|escape}</td>
+    <td>{$item.tracking_no|default:$item.parcel_uid|default:'—'|escape}</td>
     <td>
       {$item.receiver_name|default:'—'|escape}
       {if $item.receiver_company}
@@ -72,7 +60,6 @@
        <div class="small text-muted mt-1">{$item.forwarder_registered_at|escape}</div>
       {/if}
     </td>
-    <td>{$item.forwarder_registered_at|default:'—'|escape}</td>
     <td title="{$item.forwarder_registration_message|default:''|escape}">
       {$item.forwarder_registration_message_short|default:'—'|escape}
     </td>
@@ -128,6 +115,6 @@
 {/foreach}
 {if !$warehouse_items_registry && $show_empty}
   <tr>
-    <td colspan="12" class="text-center text-muted">Нет посылок по выбранным фильтрам</td>
+    <td colspan="11" class="text-center text-muted">Нет посылок по выбранным фильтрам</td>
   </tr>
 {/if}

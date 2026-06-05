@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-06-05 15:21:09
+/* Smarty version 5.3.1, created on 2026-06-05 15:32:17
   from 'file:cells_NA_API_warehouse_items_registry_rows.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_6a22e965dfaaa8_65345165',
+  'unifunc' => 'content_6a22ec014761a0_88998604',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '5719b2534251f42d51041f5b3281907475d4be41' => 
     array (
       0 => 'cells_NA_API_warehouse_items_registry_rows.html',
-      1 => 1780672864,
+      1 => 1780673528,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_6a22e965dfaaa8_65345165 (\Smarty\Template $_smarty_tpl) {
+function content_6a22ec014761a0_88998604 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 $_from = $_smarty_tpl->getSmarty()->getRuntime('Foreach')->init($_smarty_tpl, $_smarty_tpl->getValue('warehouse_items_registry'), 'item');
 $foreach0DoElse = true;
@@ -56,22 +56,7 @@ $foreach0DoElse = false;
 </span>
       <?php }?>
     </td>
-    <td>
-      <?php if ($_smarty_tpl->getValue('item')['stock_item_id']) {?>
-        <button type="button"
-                class="btn btn-link p-0 js-core-link"
-                data-core-action="open_item_stock_modal"
-                data-item-id="<?php echo htmlspecialchars((string)$_smarty_tpl->getValue('item')['stock_item_id'], ENT_QUOTES, 'UTF-8', true);?>
-">
-          <?php echo htmlspecialchars((string)(($tmp = $_smarty_tpl->getValue('item')['parcel_uid'] ?? null)===null||$tmp==='' ? '—' ?? null : $tmp), ENT_QUOTES, 'UTF-8', true);?>
-
-        </button>
-      <?php } else { ?>
-        <?php echo htmlspecialchars((string)(($tmp = $_smarty_tpl->getValue('item')['parcel_uid'] ?? null)===null||$tmp==='' ? '—' ?? null : $tmp), ENT_QUOTES, 'UTF-8', true);?>
-
-      <?php }?>
-    </td>
-    <td><?php echo htmlspecialchars((string)(($tmp = $_smarty_tpl->getValue('item')['tracking_no'] ?? null)===null||$tmp==='' ? '—' ?? null : $tmp), ENT_QUOTES, 'UTF-8', true);?>
+    <td><?php echo htmlspecialchars((string)(($tmp = (($tmp = $_smarty_tpl->getValue('item')['tracking_no'] ?? null)===null||$tmp==='' ? $_smarty_tpl->getValue('item')['parcel_uid'] ?? null : $tmp) ?? null)===null||$tmp==='' ? '—' ?? null : $tmp), ENT_QUOTES, 'UTF-8', true);?>
 </td>
     <td>
       <?php echo htmlspecialchars((string)(($tmp = $_smarty_tpl->getValue('item')['receiver_name'] ?? null)===null||$tmp==='' ? '—' ?? null : $tmp), ENT_QUOTES, 'UTF-8', true);?>
@@ -115,8 +100,6 @@ echo htmlspecialchars((string)$_smarty_tpl->getValue('item')['cell_address'], EN
 </div>
       <?php }?>
     </td>
-    <td><?php echo htmlspecialchars((string)(($tmp = $_smarty_tpl->getValue('item')['forwarder_registered_at'] ?? null)===null||$tmp==='' ? '—' ?? null : $tmp), ENT_QUOTES, 'UTF-8', true);?>
-</td>
     <td title="<?php echo htmlspecialchars((string)(($tmp = $_smarty_tpl->getValue('item')['forwarder_registration_message'] ?? null)===null||$tmp==='' ? '' ?? null : $tmp), ENT_QUOTES, 'UTF-8', true);?>
 ">
       <?php echo htmlspecialchars((string)(($tmp = $_smarty_tpl->getValue('item')['forwarder_registration_message_short'] ?? null)===null||$tmp==='' ? '—' ?? null : $tmp), ENT_QUOTES, 'UTF-8', true);?>
@@ -180,7 +163,7 @@ echo htmlspecialchars((string)$_smarty_tpl->getValue('item')['cell_address'], EN
 $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);
 if (!$_smarty_tpl->getValue('warehouse_items_registry') && $_smarty_tpl->getValue('show_empty')) {?>
   <tr>
-    <td colspan="12" class="text-center text-muted">Нет посылок по выбранным фильтрам</td>
+    <td colspan="11" class="text-center text-muted">Нет посылок по выбранным фильтрам</td>
   </tr>
 <?php }
 }

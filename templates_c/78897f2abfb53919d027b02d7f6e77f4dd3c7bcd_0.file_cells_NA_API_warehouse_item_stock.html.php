@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-06-05 15:21:09
+/* Smarty version 5.3.1, created on 2026-06-05 15:32:17
   from 'file:cells_NA_API_warehouse_item_stock.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_6a22e965c32ad6_39460564',
+  'unifunc' => 'content_6a22ec012ac371_46597056',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '78897f2abfb53919d027b02d7f6e77f4dd3c7bcd' => 
     array (
       0 => 'cells_NA_API_warehouse_item_stock.html',
-      1 => 1780672668,
+      1 => 1780673461,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_6a22e965c32ad6_39460564 (\Smarty\Template $_smarty_tpl) {
+function content_6a22ec012ac371_46597056 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>
     <div class="pagetitle">
@@ -122,7 +122,6 @@ $_smarty_current_dir = '/home/cells/web/templates';
                     <tr>
                       <th scope="col">Источник</th>
                       <th scope="col">Состояние</th>
-                      <th scope="col">Посылка</th>
                       <th scope="col">Трек</th>
                       <th scope="col">Получатель</th>
                       <th scope="col">Форвард</th>
@@ -136,7 +135,7 @@ $_smarty_current_dir = '/home/cells/web/templates';
                   </thead>
                   <tbody id="warehouse-items-registry-tbody">
                     <tr>
-                      <td colspan="12" class="text-center text-muted">Загрузка...</td>
+                      <td colspan="11" class="text-center text-muted">Загрузка...</td>
                     </tr>
                   </tbody>
                 </table>
