@@ -1,0 +1,83 @@
+TIME: 2025-12-10T11:55:07+01:00
+IP:   88.155.70.42
+========================================
+RAW BODY (php://input):
+raw_text=From%0APZ63%0ADHL+PAKET%0AInditex+%28Zara%29%0APoststrasse+510%0A14641+B%C3%B6nicke%0AGERMANY%0ATo+Hafis+COLIBRI+EXPRESS+-+Metiraliyev+C135444%0AStarkenburgstra%C3%9Fe+10%0A64546+M%C3%B6rfelden-VWalldorf%0AGermany%0ABilling+No%3A%0AWeight.%0AShipment+No%3A%0AShipment+Ref.%3A%0ADeutsche+Post+DHL%0A70001110350192%0A2%2C00+kg%0A458354449927%0A25011120777800100039%0A477%0ADay%0A1%2F1%0AVon+PZ+63%0ACT+54%0ATime
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => From
+PZ63
+DHL PAKET
+Inditex (Zara)
+Poststrasse 510
+14641 Bönicke
+GERMANY
+To Hafis COLIBRI EXPRESS - Metiraliyev C135444
+Starkenburgstraße 10
+64546 Mörfelden-VWalldorf
+Germany
+Billing No:
+Weight.
+Shipment No:
+Shipment Ref.:
+Deutsche Post DHL
+70001110350192
+2,00 kg
+458354449927
+25011120777800100039
+477
+Day
+1/1
+Von PZ 63
+CT 54
+Time
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+From
+PZ63
+DHL PAKET
+Inditex (Zara)
+Poststrasse 510
+14641 Bönicke
+GERMANY
+To Hafis COLIBRI EXPRESS - Metiraliyev C135444
+Starkenburgstraße 10
+64546 Mörfelden-VWalldorf
+Germany
+Billing No:
+Weight.
+Shipment No:
+Shipment Ref.:
+Deutsche Post DHL
+70001110350192
+2,00 kg
+458354449927
+25011120777800100039
+477
+Day
+1/1
+Von PZ 63
+CT 54
+Time
+
+
+<form>
+file_name: sample_20251210_115507_a53a40.txt
+tracking_no: 
+receiver_country_code: AZB
+receiver_forwarder_code: COLIBRI
+receiver_company: Colibri Express
+receiver_cell_code: C135444
+receiver_name: Metiraliyev
+label_type: DHL
+</form>

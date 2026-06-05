@@ -1,0 +1,67 @@
+TIME: 2025-12-10T11:46:03+01:00
+IP:   88.155.70.42
+========================================
+RAW BODY (php://input):
+raw_text=Deutsche+Post+WARENPOST%0AVon%3A+stuff+%26+style%0AChristian+Zeischold%0AKirchgasse+10%0A06679+Hohenm%C3%B6lsen%0AGERMANY%0AAn%3A+Colibri+Express%0AAleksandr+Rehimov%0AStarkenburgstra+%C3%9Fe+10c%0A64546+M%C3%B6rfelden-Walldorf%0AGERMANY%0AAbrechnungsnr.%3A+625225671+28201%0AReferenznr.%3A+OR-2024-7+183%0ASendungsnr.%3A+0034+0435081023443813%0AChristia%0AAeksa%0AGawicht%3A%0A0.99+k
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => Deutsche Post WARENPOST
+Von: stuff & style
+Christian Zeischold
+Kirchgasse 10
+06679 Hohenmölsen
+GERMANY
+An: Colibri Express
+Aleksandr Rehimov
+Starkenburgstra ße 10c
+64546 Mörfelden-Walldorf
+GERMANY
+Abrechnungsnr.: 625225671 28201
+Referenznr.: OR-2024-7 183
+Sendungsnr.: 0034 0435081023443813
+Christia
+Aeksa
+Gawicht:
+0.99 k
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+Deutsche Post WARENPOST
+Von: stuff & style
+Christian Zeischold
+Kirchgasse 10
+06679 Hohenmölsen
+GERMANY
+An: Colibri Express
+Aleksandr Rehimov
+Starkenburgstra ße 10c
+64546 Mörfelden-Walldorf
+GERMANY
+Abrechnungsnr.: 625225671 28201
+Referenznr.: OR-2024-7 183
+Sendungsnr.: 0034 0435081023443813
+Christia
+Aeksa
+Gawicht:
+0.99 k
+
+
+<form>
+file_name: sample_20251210_114603_bdd10e.txt
+tracking_no: 00340435081023443813
+receiver_country_code: AZB
+receiver_forwarder_code: COLIBRI
+receiver_company: Colibri Express
+receiver_cell_code: 
+receiver_name: Aleksandr Rehimov
+label_type: 
+</form>

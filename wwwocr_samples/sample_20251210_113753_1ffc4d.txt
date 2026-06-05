@@ -1,0 +1,68 @@
+TIME: 2025-12-10T11:37:53+01:00
+IP:   88.155.70.42
+========================================
+RAW BODY (php://input):
+raw_text=1%2F1%0A1041040437977%0AFremdbarcode%0AD810187862%0AHERIMES+-e+D0CO%0AWE+DO%21%0ADeutschland%0A64546+M%C3%B6rfelden-Walldorf%0AFremdbarcode%0AStarkenburgstr.+10C%0ACOLIBRI+EXPRESS+-C181583%0ACOLIBRI+EXPRESS+Emil+Zeynalov%0ADE%0AHHermes%0A34+-+01%0AMAINZ%0A44+D%0AH162456257S989901044%0AZAL+DEU
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => 1/1
+1041040437977
+Fremdbarcode
+D810187862
+HERIMES -e D0CO
+WE DO!
+Deutschland
+64546 Mörfelden-Walldorf
+Fremdbarcode
+Starkenburgstr. 10C
+COLIBRI EXPRESS -C181583
+COLIBRI EXPRESS Emil Zeynalov
+DE
+HHermes
+34 - 01
+MAINZ
+44 D
+H162456257S989901044
+ZAL DEU
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+1/1
+1041040437977
+Fremdbarcode
+D810187862
+HERIMES -e D0CO
+WE DO!
+Deutschland
+64546 Mörfelden-Walldorf
+Fremdbarcode
+Starkenburgstr. 10C
+COLIBRI EXPRESS -C181583
+COLIBRI EXPRESS Emil Zeynalov
+DE
+HHermes
+34 - 01
+MAINZ
+44 D
+H162456257S989901044
+ZAL DEU
+
+<form>
+file_name: sample_20251210_113753_1ffc4d.txt
+tracking_no: 1041040437977
+receiver_country_code: AZB
+receiver_forwarder_code: COLIBRI
+receiver_company: Colibri Express
+receiver_cell_code: C181583
+receiver_name: Emil Zeynalov
+label_type: HERMES
+</form>

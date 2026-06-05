@@ -1,0 +1,49 @@
+TIME: 2025-12-10T11:47:40+01:00
+IP:   88.155.70.42
+========================================
+RAW BODY (php://input):
+raw_text=TO+GERMAN%3AY%0A64546+Morfelden-Wallde%3Af%0AStarkenburgstrasse+10c%0A0.09%0AKG%0ACOBRIl+EXPRESS%0ATO%0A7957624502%0ACustomer+Reference%3A
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => TO GERMAN:Y
+64546 Morfelden-Wallde:f
+Starkenburgstrasse 10c
+0.09
+KG
+COBRIl EXPRESS
+TO
+7957624502
+Customer Reference:
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+TO GERMAN:Y
+64546 Morfelden-Wallde:f
+Starkenburgstrasse 10c
+0.09
+KG
+COBRIl EXPRESS
+TO
+7957624502
+Customer Reference:
+
+
+<form>
+file_name: sample_20251210_114740_eb3ed2.txt
+tracking_no: 
+receiver_country_code: AZB
+receiver_forwarder_code: COLIBRI
+receiver_company: Colibri Express
+receiver_cell_code: 
+receiver_name: 
+label_type: 
+</form>

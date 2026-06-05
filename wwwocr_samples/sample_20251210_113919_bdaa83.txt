@@ -1,0 +1,79 @@
+TIME: 2025-12-10T11:39:19+01:00
+IP:   88.155.70.42
+========================================
+RAW BODY (php://input):
+raw_text=PL3500+23+0e.12.2025+08%3A03+830.75+k+001%2F+001+RTG+05122025%0ADE%0A356123317686%0A64546%0AContacto%0ANota%0ANota%0AKunden+-Nr.+35002033%0ARef.+Nr.+2000258655%0A168031+-BLK+36%0AP%0ACOLIBRI+EXPRESS+-Mehebbet+Movsumog%0A86-041%0ACOLIBRI+EXPRESS+Starkenburgstr.+10CE%0AMortelden-+Walldorf%0AInformationen+zur+GL8-Datenschutzrichtlinie+unter%0Agls-group.eu%2Fdat+aprotection%0AZarzecze+bb%0AZARZECZE%0AF2+000%0AVereender%0AButyjana+Sp+zo.0.%0ANr+Cli.%0A616hme
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => PL3500 23 0e.12.2025 08:03 830.75 k 001/ 001 RTG 05122025
+DE
+356123317686
+64546
+Contacto
+Nota
+Nota
+Kunden -Nr. 35002033
+Ref. Nr. 2000258655
+168031 -BLK 36
+P
+COLIBRI EXPRESS -Mehebbet Movsumog
+86-041
+COLIBRI EXPRESS Starkenburgstr. 10CE
+Mortelden- Walldorf
+Informationen zur GL8-Datenschutzrichtlinie unter
+gls-group.eu/dat aprotection
+Zarzecze bb
+ZARZECZE
+F2 000
+Vereender
+Butyjana Sp zo.0.
+Nr Cli.
+616hme
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+PL3500 23 0e.12.2025 08:03 830.75 k 001/ 001 RTG 05122025
+DE
+356123317686
+64546
+Contacto
+Nota
+Nota
+Kunden -Nr. 35002033
+Ref. Nr. 2000258655
+168031 -BLK 36
+P
+COLIBRI EXPRESS -Mehebbet Movsumog
+86-041
+COLIBRI EXPRESS Starkenburgstr. 10CE
+Mortelden- Walldorf
+Informationen zur GL8-Datenschutzrichtlinie unter
+gls-group.eu/dat aprotection
+Zarzecze bb
+ZARZECZE
+F2 000
+Vereender
+Butyjana Sp zo.0.
+Nr Cli.
+616hme
+
+
+<form>
+file_name: sample_20251210_113919_bdaa83.txt
+tracking_no: 
+receiver_country_code: AZB
+receiver_forwarder_code: COLIBRI
+receiver_company: Colibri Express
+receiver_cell_code: 
+receiver_name: Mehebbet Movsumog
+label_type: GLS
+</form>

@@ -1,0 +1,62 @@
+TIME: 2025-12-10T11:54:09+01:00
+IP:   88.155.70.42
+========================================
+RAW BODY (php://input):
+raw_text=DHL+PARCEL+cONNECT%0ACMR%0AVeepee+C%2Fo+Deutsche+Post+DHL+Hub%0ADr.+Georg-Schaeffler-Str.+378+Lahr+77933+Germany%0AAQIL+QULIYEV+-+C125443+-+AQIL+QULIYEV%0AStarkenburgstra%C3%9Fe%2C+10c+COLIBRI%0AEXPRESS+-A.Qullyev-C1+25443%0A64546+M%C3%B6rfelden-Walldorf%0AGermany%0ATime%3A%0ADay%3A%0APiece%3A%0ACreated%3A%0A1%2F1%0A27-11-2025%0AVP513249045
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => DHL PARCEL cONNECT
+CMR
+Veepee C/o Deutsche Post DHL Hub
+Dr. Georg-Schaeffler-Str. 378 Lahr 77933 Germany
+AQIL QULIYEV - C125443 - AQIL QULIYEV
+Starkenburgstraße, 10c COLIBRI
+EXPRESS -A.Qullyev-C1 25443
+64546 Mörfelden-Walldorf
+Germany
+Time:
+Day:
+Piece:
+Created:
+1/1
+27-11-2025
+VP513249045
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+DHL PARCEL cONNECT
+CMR
+Veepee C/o Deutsche Post DHL Hub
+Dr. Georg-Schaeffler-Str. 378 Lahr 77933 Germany
+AQIL QULIYEV - C125443 - AQIL QULIYEV
+Starkenburgstraße, 10c COLIBRI
+EXPRESS -A.Qullyev-C1 25443
+64546 Mörfelden-Walldorf
+Germany
+Time:
+Day:
+Piece:
+Created:
+1/1
+27-11-2025
+VP513249045
+
+<form>
+file_name: sample_20251210_115409_ecbcef.txt
+tracking_no: 
+receiver_country_code: AZB
+receiver_forwarder_code: COLIBRI
+receiver_company: Colibri Express
+receiver_cell_code: C125443
+receiver_name: AQIL QULIYEV
+label_type: DHL
+</form>

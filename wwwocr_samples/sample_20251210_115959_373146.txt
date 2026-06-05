@@ -1,0 +1,79 @@
+TIME: 2025-12-10T11:59:59+01:00
+IP:   88.155.70.42
+========================================
+RAW BODY (php://input):
+raw_text=DHL+PAKET%0AVon%3A+parfumdreams%0ATrianel%0AStr.+5%0A59071+Hamm%0AGoGreen%0AWir+kormiperisrarn%0AStarkenburgstr.+10G+223756%0AAser+Cargo+expresS%0A64546+M%C3%B6rtelden-Walldorf%0AAser+Cargo+Express%0ADeutschland%0AAn%3A%0AAnzahl%3A%0A1%2F1%0AGewicht%3A%0A1.00+kg%0A63433654910105%0A00340434764511073730%0APDRDEO154349447%0AAbrechnungsnr.%3A%0AReferenznr.%3A%0ASendungsnr.%0A%28403%29+27664546+%2B+99000900000000
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => DHL PAKET
+Von: parfumdreams
+Trianel
+Str. 5
+59071 Hamm
+GoGreen
+Wir kormiperisrarn
+Starkenburgstr. 10G 223756
+Aser Cargo expresS
+64546 Mörtelden-Walldorf
+Aser Cargo Express
+Deutschland
+An:
+Anzahl:
+1/1
+Gewicht:
+1.00 kg
+63433654910105
+00340434764511073730
+PDRDEO154349447
+Abrechnungsnr.:
+Referenznr.:
+Sendungsnr.
+(403) 27664546 + 99000900000000
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+DHL PAKET
+Von: parfumdreams
+Trianel
+Str. 5
+59071 Hamm
+GoGreen
+Wir kormiperisrarn
+Starkenburgstr. 10G 223756
+Aser Cargo expresS
+64546 Mörtelden-Walldorf
+Aser Cargo Express
+Deutschland
+An:
+Anzahl:
+1/1
+Gewicht:
+1.00 kg
+63433654910105
+00340434764511073730
+PDRDEO154349447
+Abrechnungsnr.:
+Referenznr.:
+Sendungsnr.
+(403) 27664546 + 99000900000000
+
+
+<form>
+file_name: sample_20251210_115959_373146.txt
+tracking_no: 4032766454699000900000000
+receiver_country_code: AZB
+receiver_forwarder_code: ASER
+receiver_company: AserCargo
+receiver_cell_code: AS223756
+receiver_name: 
+label_type: DHL
+</form>

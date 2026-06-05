@@ -1,0 +1,70 @@
+TIME: 2025-12-09T21:04:59+01:00
+IP:   84.166.213.45
+========================================
+RAW BODY (php://input):
+raw_text=21%3A04+D+MMB%E2%80%A2%0AVon%3A%0AH%26M+Hennes+%26+Mauritz+GBC+AB%0A08102+Neum+ark%0AGERMANY%0AAn%3A+COLIBRI+EXPRESS+-rafiq+memmedov+C138517%0Arafiq+C138517+Memmedov+colibri+exp%0ADHL+PAKET%0AStarkenburgstr.+1%0A64546+M%C3%B6rfelden-Walldort%0AGERMANY%0AAbrechnungsnr.%3A%0APefererznr%3A%0ASendungsnr.%3A%0A5004288487+01+08%0A85104228994%0AO03404347311997261+22%0A4062+%25%0AAb
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => 21:04 D MMB•
+Von:
+H&M Hennes & Mauritz GBC AB
+08102 Neum ark
+GERMANY
+An: COLIBRI EXPRESS -rafiq memmedov C138517
+rafiq C138517 Memmedov colibri exp
+DHL PAKET
+Starkenburgstr. 1
+64546 Mörfelden-Walldort
+GERMANY
+Abrechnungsnr.:
+Pefererznr:
+Sendungsnr.:
+5004288487 01 08
+85104228994
+O03404347311997261 22
+4062 %
+Ab
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+21:04 D MMB•
+Von:
+H&M Hennes & Mauritz GBC AB
+08102 Neum ark
+GERMANY
+An: COLIBRI EXPRESS -rafiq memmedov C138517
+rafiq C138517 Memmedov colibri exp
+DHL PAKET
+Starkenburgstr. 1
+64546 Mörfelden-Walldort
+GERMANY
+Abrechnungsnr.:
+Pefererznr:
+Sendungsnr.:
+5004288487 01 08
+85104228994
+O03404347311997261 22
+4062 %
+Ab
+
+
+
+<form>
+file_name: sample_20251209_210459_424a55.txt
+tracking_no: 50042884870108
+receiver_country_code: AZB
+receiver_forwarder_code: COLIBRI
+receiver_company: Colibri Express
+receiver_cell_code: C138517
+receiver_name: Rafiq Memmedov
+label_type: DHL
+</form>

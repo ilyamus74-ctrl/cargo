@@ -1,0 +1,75 @@
+TIME: 2025-12-10T12:02:36+01:00
+IP:   88.155.70.42
+========================================
+RAW BODY (php://input):
+raw_text=DHL+PAKET%0AAbsender+Telefon%3A%0AVon%3A%0AHM%0AH%26M+Hennes+%26+Mauritz+GBC+AB%0A08102+Neum+ark%0AGERMANY%0AAn.+Camex-SEVDA+Farzaliyeva+A198763%0AStarkenburgstr+1OA%0A64546+M%C3%B6rfelden-Walldorf%0AGERMANY%0AZeit%0ATag%0A5004268487+01+08%0AAbrechnungsr%3A%0A1%2F1%0AGewicht%3A%0A0%2C61+kg%0A85858949164%0AO040434731206546671%0APeferezir%0ASendungs.
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => DHL PAKET
+Absender Telefon:
+Von:
+HM
+H&M Hennes & Mauritz GBC AB
+08102 Neum ark
+GERMANY
+An. Camex-SEVDA Farzaliyeva A198763
+Starkenburgstr 1OA
+64546 Mörfelden-Walldorf
+GERMANY
+Zeit
+Tag
+5004268487 01 08
+Abrechnungsr:
+1/1
+Gewicht:
+0,61 kg
+85858949164
+O040434731206546671
+Peferezir
+Sendungs.
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+DHL PAKET
+Absender Telefon:
+Von:
+HM
+H&M Hennes & Mauritz GBC AB
+08102 Neum ark
+GERMANY
+An. Camex-SEVDA Farzaliyeva A198763
+Starkenburgstr 1OA
+64546 Mörfelden-Walldorf
+GERMANY
+Zeit
+Tag
+5004268487 01 08
+Abrechnungsr:
+1/1
+Gewicht:
+0,61 kg
+85858949164
+O040434731206546671
+Peferezir
+Sendungs.
+
+
+<form>
+file_name: sample_20251210_120236_6b4043.txt
+tracking_no: 0040434731206546671
+receiver_country_code: AZB
+receiver_forwarder_code: CAMEX
+receiver_company: Camex
+receiver_cell_code: A198763
+receiver_name: Sevda Farzaliyeva
+label_type: DHL
+</form>

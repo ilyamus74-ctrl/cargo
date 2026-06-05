@@ -1,0 +1,50 @@
+TIME: 2025-12-10T11:38:44+01:00
+IP:   88.155.70.42
+========================================
+RAW BODY (php://input):
+raw_text=GHermnes%0AEPG+ONE%3A+ISS-2.13.0%0A1-635772719%0ALeyla+Yusifova%0ACOLIBRI+EXPRESS+-C178507%0AStarkenburgstr.+Hessen+10c%0A64546+M%C3%B6rtelden-Walldort%0ADeutschland%0Ane%0Afe
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => GHermnes
+EPG ONE: ISS-2.13.0
+1-635772719
+Leyla Yusifova
+COLIBRI EXPRESS -C178507
+Starkenburgstr. Hessen 10c
+64546 Mörtelden-Walldort
+Deutschland
+ne
+fe
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+GHermnes
+EPG ONE: ISS-2.13.0
+1-635772719
+Leyla Yusifova
+COLIBRI EXPRESS -C178507
+Starkenburgstr. Hessen 10c
+64546 Mörtelden-Walldort
+Deutschland
+ne
+fe
+
+<form>
+file_name: sample_20251210_113844_1322d2.txt
+tracking_no: 
+receiver_country_code: AZB
+receiver_forwarder_code: COLIBRI
+receiver_company: Colibri Express
+receiver_cell_code: C178507
+receiver_name: Leyla Yusifova
+label_type: HERMES
+</form>

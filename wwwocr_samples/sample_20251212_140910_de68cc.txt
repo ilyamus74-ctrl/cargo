@@ -1,0 +1,54 @@
+TIME: 2025-12-12T14:09:10+01:00
+IP:   84.166.213.45
+========================================
+RAW BODY (php://input):
+raw_text=PARCEL%0AInfo+trattamento+datl+pereonali+wwww.gle-Italy.som%2Fprivacydeyw%0APostlink+PLO0760%0AFaiq+Verdiyev+Verd%0AStarkenburgstr+10H+N-A%0AHessen.+Moerfelden-Walldorf+DE%0APostlink+PLO0760+Faiq+Verdiyev+Verdiyev%0AWW+665632428+01+0+ww+01%2F01GLS.%0AAZIENDA+31%0A8%0AO.3%0A11%3A39
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => PARCEL
+Info trattamento datl pereonali wwww.gle-Italy.som/privacydeyw
+Postlink PLO0760
+Faiq Verdiyev Verd
+Starkenburgstr 10H N-A
+Hessen. Moerfelden-Walldorf DE
+Postlink PLO0760 Faiq Verdiyev Verdiyev
+WW 665632428 01 0 ww 01/01GLS.
+AZIENDA 31
+8
+O.3
+11:39
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+PARCEL
+Info trattamento datl pereonali wwww.gle-Italy.som/privacydeyw
+Postlink PLO0760
+Faiq Verdiyev Verd
+Starkenburgstr 10H N-A
+Hessen. Moerfelden-Walldorf DE
+Postlink PLO0760 Faiq Verdiyev Verdiyev
+WW 665632428 01 0 ww 01/01GLS.
+AZIENDA 31
+8
+O.3
+11:39
+
+<form>
+file_name: sample_20251212_140910_de68cc.txt
+tracking_no: 
+receiver_country_code: AZB
+receiver_forwarder_code: POSTLINK
+receiver_company: Postlink
+receiver_cell_code: PL00760
+receiver_name: Faiq Verdiyev Verd
+label_type: GLS
+</form>

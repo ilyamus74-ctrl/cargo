@@ -1,0 +1,85 @@
+TIME: 2025-12-10T12:02:19+01:00
+IP:   88.155.70.42
+========================================
+RAW BODY (php://input):
+raw_text=Osterreich%2FAustria%0A1160+Wien%0AO+WIEN%0ATCN%2FAUBTRIA%0AF2000%0AVesender%0AINDTEX-+Swarzedz+-Zara%0ACust+D%0ACamEx+-+Saida+Schuschali%3B+A76227%0ASaida+Schuschali%0A-Liefern+an%0A276031uas%0A64546+M%C3%B6rfelden-Walldorf%0AStarkenburgstr+10A%0ADeutschland%0Acted+as+per+SP+A123%0Acted+as+per+SP+A199%0A276345e3%2Fw%0ARef.+Nr.%0A06910646033900100039-54067775941%0Aletormationen+z0r+GLS-0atarscrwtzCbtlinie+uater%0Agls-grbup+eudalaproteclien%0AGLS+service_flexdelivery%0ADE%0ADE+GLS+STD%0A08.12.2025%0ATO
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => Osterreich/Austria
+1160 Wien
+O WIEN
+TCN/AUBTRIA
+F2000
+Vesender
+INDTEX- Swarzedz -Zara
+Cust D
+CamEx - Saida Schuschali; A76227
+Saida Schuschali
+-Liefern an
+276031uas
+64546 Mörfelden-Walldorf
+Starkenburgstr 10A
+Deutschland
+cted as per SP A123
+cted as per SP A199
+276345e3/w
+Ref. Nr.
+06910646033900100039-54067775941
+letormationen z0r GLS-0atarscrwtzCbtlinie uater
+gls-grbup eudalaproteclien
+GLS service_flexdelivery
+DE
+DE GLS STD
+08.12.2025
+TO
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+Osterreich/Austria
+1160 Wien
+O WIEN
+TCN/AUBTRIA
+F2000
+Vesender
+INDTEX- Swarzedz -Zara
+Cust D
+CamEx - Saida Schuschali; A76227
+Saida Schuschali
+-Liefern an
+276031uas
+64546 Mörfelden-Walldorf
+Starkenburgstr 10A
+Deutschland
+cted as per SP A123
+cted as per SP A199
+276345e3/w
+Ref. Nr.
+06910646033900100039-54067775941
+letormationen z0r GLS-0atarscrwtzCbtlinie uater
+gls-grbup eudalaproteclien
+GLS service_flexdelivery
+DE
+DE GLS STD
+08.12.2025
+TO
+
+
+<form>
+file_name: sample_20251210_120219_77acf8.txt
+tracking_no: 0691064603390010003954067775941
+receiver_country_code: AZB
+receiver_forwarder_code: CAMEX
+receiver_company: Camex
+receiver_cell_code: A76227
+receiver_name: Saida Schuschali
+label_type: GLS
+</form>

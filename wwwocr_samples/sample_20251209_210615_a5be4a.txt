@@ -1,0 +1,74 @@
+TIME: 2025-12-09T21:06:15+01:00
+IP:   84.166.213.45
+========================================
+RAW BODY (php://input):
+raw_text=VOn%27%0Aan%3A%0AAbrec+4D%0ARetere+AINZ%0ASend%0ARoutingc%0AZAL+DEU%0ADE%0AH1024551146567501044%0A4-+01%0AHHermnes%0ACeyhun+Mehtiyev%0ACOLIBRI+EXPRESS+C145621%0AStarkenburgstr.+10C%0A64546+Hessen%0ADeutschland%0AFremdbarcode%0A0891951172%0AFremdbarcode%0AWE+DO%21%0A1E409S03686
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => VOn'
+an:
+Abrec 4D
+Retere AINZ
+Send
+Routingc
+ZAL DEU
+DE
+H1024551146567501044
+4- 01
+HHermnes
+Ceyhun Mehtiyev
+COLIBRI EXPRESS C145621
+Starkenburgstr. 10C
+64546 Hessen
+Deutschland
+Fremdbarcode
+0891951172
+Fremdbarcode
+WE DO!
+1E409S03686
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+VOn'
+an:
+Abrec 4D
+Retere AINZ
+Send
+Routingc
+ZAL DEU
+DE
+H1024551146567501044
+4- 01
+HHermnes
+Ceyhun Mehtiyev
+COLIBRI EXPRESS C145621
+Starkenburgstr. 10C
+64546 Hessen
+Deutschland
+Fremdbarcode
+0891951172
+Fremdbarcode
+WE DO!
+1E409S03686
+
+<form>
+file_name: sample_20251209_210615_a5be4a.txt
+tracking_no: H1024551146567501044
+receiver_country_code: AZB
+receiver_forwarder_code: COLIBRI
+receiver_company: Colibri Express
+receiver_cell_code: C145621
+receiver_name: Ceyhun Mehtiyev
+label_type: HERMES
+</form>
+
+

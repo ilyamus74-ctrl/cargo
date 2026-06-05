@@ -1,0 +1,105 @@
+TIME: 2025-12-10T11:32:37+01:00
+IP:   88.155.70.42
+========================================
+RAW BODY (php://input):
+raw_text=NST+1%0A020692+64546%0ADE%0AKontakt%0APostieitzah%0ASTARKENBURGSTR.+10E%0ANotiz%0ANotiz%0AFROO14+03+D8.12.2025+14%3A30%3A42+8.85+ka+001+%2F001+RTG+05122025+F2.00.0%0AK14096+TAULAN+SHAKHANOV%0ACAMARAKG+K14096%0ARef.+Nr.%0A64546%0AIhre+GLS+Track-D%0A925949279531%0AZWLJ7LU9%0AKunden-NE.%0AInturinatiunen+Zur+L6-Datenschutzrichtlinie+unter%0Agls-pruup.eu%3Bdatauruteztlun%0ADE+621%0AGLS+France+Track+ID%0AOV01655949_01%0AMORFELDEN-WALLDORF%0A108416-%3BOV01655949+01%0AF%0AFR%0A14500%0A%7CRUE+GUY+DEGRENNE%0AEGuy%0ADegrenne+BloG%0A3Versender%0AVIRE%0ACunt%29%0A2500058605%0AConi0%0A2506049401%0AGLS.
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => NST 1
+020692 64546
+DE
+Kontakt
+Postieitzah
+STARKENBURGSTR. 10E
+Notiz
+Notiz
+FROO14 03 D8.12.2025 14:30:42 8.85 ka 001 /001 RTG 05122025 F2.00.0
+K14096 TAULAN SHAKHANOV
+CAMARAKG K14096
+Ref. Nr.
+64546
+Ihre GLS Track-D
+925949279531
+ZWLJ7LU9
+Kunden-NE.
+Inturinatiunen Zur L6-Datenschutzrichtlinie unter
+gls-pruup.eu;datauruteztlun
+DE 621
+GLS France Track ID
+OV01655949_01
+MORFELDEN-WALLDORF
+108416-;OV01655949 01
+F
+FR
+14500
+|RUE GUY DEGRENNE
+EGuy
+Degrenne BloG
+3Versender
+VIRE
+Cunt)
+2500058605
+Coni0
+2506049401
+GLS.
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+NST 1
+020692 64546
+DE
+Kontakt
+Postieitzah
+STARKENBURGSTR. 10E
+Notiz
+Notiz
+FROO14 03 D8.12.2025 14:30:42 8.85 ka 001 /001 RTG 05122025 F2.00.0
+K14096 TAULAN SHAKHANOV
+CAMARAKG K14096
+Ref. Nr.
+64546
+Ihre GLS Track-D
+925949279531
+ZWLJ7LU9
+Kunden-NE.
+Inturinatiunen Zur L6-Datenschutzrichtlinie unter
+gls-pruup.eu;datauruteztlun
+DE 621
+GLS France Track ID
+OV01655949_01
+MORFELDEN-WALLDORF
+108416-;OV01655949 01
+F
+FR
+14500
+|RUE GUY DEGRENNE
+EGuy
+Degrenne BloG
+3Versender
+VIRE
+Cunt)
+2500058605
+Coni0
+2506049401
+GLS.
+
+
+<form>
+file_name: sample_20251210_113237_f95d26.txt
+tracking_no: 925949279531
+receiver_country_code: KG
+receiver_forwarder_code: CAMARATC
+receiver_company: Camaratc
+receiver_cell_code: K14096
+receiver_name: TAULAN SHAKHANOV
+label_type:GLS
+</form>

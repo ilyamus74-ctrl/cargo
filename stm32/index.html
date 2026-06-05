@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>PanTilt Gamepad</title>
+  <style>
+    body{font-family:system-ui,Arial;margin:16px}
+    .row{margin:8px 0}
+    .ok{color:#0a0}.bad{color:#a00}
+    code{background:#eee;padding:2px 6px;border-radius:6px}
+  </style>
+</head>
+<body>
+  <h3>Gamepad → WebSocket → STM32</h3>
+
+  <div class="row">WS: <span id="ws" class="bad">DISCONNECTED</span> (<code id="wsurl"></code>)</div>
+  <div class="row">Gamepad: <span id="gp" class="bad">NOT FOUND</span></div>
+  <div class="row">Axes: <span id="axes">-</span></div>
+  <div class="row">Buttons: <span id="btns">-</span></div>
+  <div class="row">TX: <code id="tx">-</code></div>
+  <div class="row">ERR: <code id="err">-</code></div>
+
+  <div class="row">
+    Deadzone: <input id="dead" type="number" step="0.01" value="0.20" style="width:80px">
+    Rate Hz: <input id="hz" type="number" step="1" value="15" style="width:80px">
+    Step/tick: <input id="step" type="number" step="1" value="20" style="width:80px">
+  </div>
+  <div class="row">
+    <button id="center">CENTER (SCENTER)</button>
+    <button id="home">HOME</button>
+    <button id="stop">STOP</button>
+  </div>
+
+  <script>
+    // ===== настрой тут =====
+    const WS_URL = `ws://${location.hostname}:8765/ws`;
+
+    const AXIS_PAN  = 0;  // H
+    const AXIS_TILT = 1;  // V
+    const INV_PAN  = false;
+    const INV_TILT = true;
+
+    const BTN_OUT1 = 0;  // A
+    const BTN_OUT2 = 1;  // B
+    const BTN_S1P  = 4;  // LB
+    const BTN_S1M  = 6;  // LT
+    const BTN_S2P  = 5;  // RB
+    const BTN_S2M  = 7;  // RT
+    // ======================
+
+    const elWS = document.getElementById('ws');
+    const elWSURL = document.getElementById('wsurl');
+    const elGP = document.getElementById('gp');
+    const elAxes = document.getElementById('axes');
+    const elBtns = document.getElementById('btns');
+    const elTX = document.getElementById('tx');
+    const elERR = document.getElementById('err');
+
+    const deadInp = document.getElementById('dead');
+    const hzInp = document.getElementById('hz');
+    const stepInp = document.getElementById('step');
+
+    elWSURL.textContent = WS_URL;
+
+    window.onerror = (msg, src, line, col) => {
+      elERR.textContent = `${msg} @${line}:${col}`;
+    };
+
+    let ws = null;
+    let out1 = 0, out2 = 0;
+    let lastBtn = {};
+    let wasMoving = false;
+
+    function wsConnect() {
+      ws = new WebSocket(WS_URL);
+      ws.onopen = () => { elWS.textContent = 'CONNECTED'; elWS.className='ok'; };
+      ws.onclose = () => { elWS.textContent = 'DISCONNECTED'; elWS.className='bad'; setTimeout(wsConnect, 800); };
+      ws.onerror = () => {};
+      ws.onmessage = () => {};
+    }
+
+    function sendLine(line) {
+      if (!ws || ws.readyState !== 1) return;
+      elTX.textContent = line;
+      ws.send(line + "\n");
+    }
+
+    function deadzone(v, dz) {
+      if (Math.abs(v) < dz) return 0;
+      const sign = v < 0 ? -1 : 1;
+      return sign * (Math.abs(v) - dz) / (1 - dz);
+    }
+
+    function buttonPressed(gp, idx) {
+      const b = gp.buttons[idx];
+      return !!(b && (b.pressed || b.value > 0.5));
+    }
+
+    function edgeTrigger(key, pressed) {
+      const prev = !!lastBtn[key];
+      lastBtn[key] = pressed;
+      return pressed && !prev;
+    }
+
+    function loopTick() {
+      const pads = navigator.getGamepads ? navigator.getGamepads() : [];
+      const gp = pads && (pads.find(p => p) || null);
+
+      if (!gp) {
+        elGP.textContent = 'NOT FOUND (нажми кнопку на геймпаде)';
+        elGP.className = 'bad';
+        return;
+      }
+
+      elGP.textContent = gp.id;
+      elGP.className = 'ok';
+
+      const dz = parseFloat(deadInp.value || "0.20");
+      const stepPerTick = parseInt(stepInp.value || "20", 10);
+
+      let pan = gp.axes[AXIS_PAN] || 0;
+      let tilt = gp.axes[AXIS_TILT] || 0;
+      if (INV_PAN) pan = -pan;
+      if (INV_TILT) tilt = -tilt;
+
+      pan = deadzone(pan, dz);
+      tilt = deadzone(tilt, dz);
+
+      const dH = Math.trunc(pan * stepPerTick);
+      const dV = Math.trunc(tilt * stepPerTick);
+
+      elAxes.textContent =
+        `axes=[${gp.axes.map(v=>v.toFixed(2)).join(", ")}] ` +
+        `pan(a${AXIS_PAN})=${pan.toFixed(2)} tilt(a${AXIS_TILT})=${tilt.toFixed(2)} -> dH=${dH} dV=${dV}`;
+
+      // движение + стоп в нуле
+      const moving = (dH !== 0) || (dV !== 0);
+      if (moving) {
+        if (dH !== 0) sendLine(`H ${dH}`);
+        if (dV !== 0) sendLine(`V ${dV}`);
+        wasMoving = true;
+      } else {
+        if (wasMoving) {
+          sendLine(`STOP`);
+          wasMoving = false;
+        }
+      }
+
+      // OUT toggles by edge
+      const pOut1 = buttonPressed(gp, BTN_OUT1);
+      const pOut2 = buttonPressed(gp, BTN_OUT2);
+      if (edgeTrigger('out1', pOut1)) { out1 = out1 ? 0 : 1; sendLine(`OUT1 ${out1}`); }
+      if (edgeTrigger('out2', pOut2)) { out2 = out2 ? 0 : 1; sendLine(`OUT2 ${out2}`); }
+
+      // servo trim (кнопка удерживается -> много команд)
+      if (buttonPressed(gp, BTN_S1P)) sendLine(`S1ADD 5`);
+      if (buttonPressed(gp, BTN_S1M)) sendLine(`S1ADD -5`);
+      if (buttonPressed(gp, BTN_S2P)) sendLine(`S2ADD 5`);
+      if (buttonPressed(gp, BTN_S2M)) sendLine(`S2ADD -5`);
+
+      elBtns.textContent = `OUT1=${out1} OUT2=${out2}`;
+    }
+
+    document.getElementById('center').onclick = () => sendLine('SCENTER');
+    document.getElementById('home').onclick   = () => sendLine('HOME');
+    document.getElementById('stop').onclick   = () => sendLine('STOP');
+
+    wsConnect();
+
+    let timer;
+    function startTimer() {
+      if (timer) clearInterval(timer);
+      const hz = Math.max(5, Math.min(60, parseInt(hzInp.value || "15", 10)));
+      timer = setInterval(loopTick, Math.trunc(1000 / hz));
+    }
+    hzInp.onchange = startTimer;
+    startTimer();
+
+    window.addEventListener("gamepadconnected", () => {});
+  </script>
+</body>
+</html>

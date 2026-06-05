@@ -1,0 +1,71 @@
+TIME: 2025-12-10T11:40:28+01:00
+IP:   88.155.70.42
+========================================
+RAW BODY (php://input):
+raw_text=Auferh+nicht+erkennbare+Schader+m%C3%BCssen+DPD+innermalb+7+Tage+nach+Ablieferung%0ASchifch+gemeldet+werden.%2F+Damage+not+recogrizable+on+the+outside+has+to+be%0Afeponed+in+wrting+to+DPD+wIthun+T+days+after+delivery.%0AEmplag%0AEmin+Eliyev%0ACOUBRI+EXPRESS+-C146789%0AStarkenburgstr.+10c%0ADE-64546+M%C3%B6rfelden-Walldorf%0ARelerenz+1%0ALActo+Blau%0AReferenz+2%0ALelenung%0A1%2F1%0AGowicht%0A0%2C90+kg%0AJAm+Eichbaum5e%0ADE%0AE-65428+ROssetsheirn+am+Main%2C%0AZiegler+Nutritbn+UG%0AAbsonder
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => Auferh nicht erkennbare Schader müssen DPD innermalb 7 Tage nach Ablieferung
+Schifch gemeldet werden./ Damage not recogrizable on the outside has to be
+feponed in wrting to DPD wIthun T days after delivery.
+Emplag
+Emin Eliyev
+COUBRI EXPRESS -C146789
+Starkenburgstr. 10c
+DE-64546 Mörfelden-Walldorf
+Relerenz 1
+LActo Blau
+Referenz 2
+Lelenung
+1/1
+Gowicht
+0,90 kg
+JAm Eichbaum5e
+DE
+E-65428 ROssetsheirn am Main,
+Ziegler Nutritbn UG
+Absonder
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+Auferh nicht erkennbare Schader müssen DPD innermalb 7 Tage nach Ablieferung
+Schifch gemeldet werden./ Damage not recogrizable on the outside has to be
+feponed in wrting to DPD wIthun T days after delivery.
+Emplag
+Emin Eliyev
+COUBRI EXPRESS -C146789
+Starkenburgstr. 10c
+DE-64546 Mörfelden-Walldorf
+Relerenz 1
+LActo Blau
+Referenz 2
+Lelenung
+1/1
+Gowicht
+0,90 kg
+JAm Eichbaum5e
+DE
+E-65428 ROssetsheirn am Main,
+Ziegler Nutritbn UG
+Absonder
+
+
+<form>
+file_name: sample_20251210_114028_e1a9f2.txt
+tracking_no: 
+receiver_country_code: AZB
+receiver_forwarder_code: COLIBRI
+receiver_company: Colibri Express
+receiver_cell_code: C146789
+receiver_name: Emin Eliyev
+label_type: 
+</form>

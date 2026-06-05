@@ -1,0 +1,56 @@
+TIME: 2025-12-10T11:35:37+01:00
+IP:   88.155.70.42
+========================================
+RAW BODY (php://input):
+raw_text=Rel+A109240093%0A05.+12.2025%0AC%26A+Online+Shop%0AH101900043504600+1044%0A44+D%0AMAINZ%0AKoliexpress+Aysubayramzade%0AKI399656+Koli%0ASlarkenburgstr.+10B%0A64546+Mortelden-+Walldorf%0A34--01%0AHHermes%0AWE+DO%21
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => Rel A109240093
+05. 12.2025
+C&A Online Shop
+H101900043504600 1044
+44 D
+MAINZ
+Koliexpress Aysubayramzade
+KI399656 Koli
+Slarkenburgstr. 10B
+64546 Mortelden- Walldorf
+34--01
+HHermes
+WE DO!
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+Rel A109240093
+05. 12.2025
+C&A Online Shop
+H101900043504600 1044
+44 D
+MAINZ
+Koliexpress Aysubayramzade
+KI399656 Koli
+Slarkenburgstr. 10B
+64546 Mortelden- Walldorf
+34--01
+HHermes
+WE DO!
+
+<form>
+file_name: sample_20251210_113537_a0cdb6.txt
+tracking_no: H1019000435046001044
+receiver_country_code: AZB
+receiver_forwarder_code: KOLLI
+receiver_company: Kolli MMC
+receiver_cell_code: KI399656
+receiver_name: Aysubayramzade
+label_type: HERMES
+</form>

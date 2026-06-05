@@ -1,0 +1,79 @@
+<div class="warehouse-item-history">
+  <div class="mb-3">
+    <h5 class="mb-1">История посылки</h5>
+    <div class="small text-muted">
+      {$item.tracking_no|default:$item.tuid|escape}
+      · {$item.receiver_name|default:'—'|escape}
+      · {$item.receiver_company|default:'—'|escape}
+      · {$item.receiver_address|default:'—'|escape}
+    </div>
+  </div>
+
+  <div class="card mb-3">
+    <div class="card-body py-2">
+      <div class="row g-2 small">
+        <div class="col-6 col-md-3"><span class="text-muted">ID:</span> {$item.id|default:'—'|escape}</div>
+        <div class="col-6 col-md-3"><span class="text-muted">TUID:</span> {$item.tuid|default:'—'|escape}</div>
+        <div class="col-12 col-md-6"><span class="text-muted">Трек:</span> {$item.tracking_no|default:'—'|escape}</div>
+        <div class="col-12 col-md-6"><span class="text-muted">Получатель:</span> {$item.receiver_name|default:'—'|escape}</div>
+        <div class="col-12 col-md-6"><span class="text-muted">Форвард:</span> {$item.receiver_company|default:'—'|escape}</div>
+        <div class="col-12"><span class="text-muted">Адрес:</span> {$item.receiver_address|default:'—'|escape}</div>
+        <div class="col-12 col-md-6"><span class="text-muted">Статус регистрации у форварда:</span> {$item.forwarder_registration_status|default:'—'|escape}</div>
+        <div class="col-12 col-md-6"><span class="text-muted">Дата регистрации:</span> {$item.forwarder_registered_at|default:'—'|escape}</div>
+        {if $item.forwarder_registration_message}
+          <div class="col-12"><span class="text-muted">Сообщение:</span> {$item.forwarder_registration_message|escape}</div>
+        {/if}
+      </div>
+    </div>
+  </div>
+
+  <div class="mb-3">
+    <button type="button"
+            class="btn btn-sm btn-outline-primary js-core-link"
+            data-core-action="warehouse_stock_history_forwarder_reports"
+            data-item-id="{$item.id|escape}">
+      Загрузить репорты форварда
+    </button>
+    <div class="form-text">
+      Репорты форварда загружаются отдельно, чтобы не тормозить открытие истории.
+    </div>
+  </div>
+
+  <div id="warehouse-stock-history-forwarder-reports"></div>
+
+  {if !$timeline}
+    <div class="alert alert-secondary">История по посылке не найдена.</div>
+  {else}
+    <div class="list-group">
+      {foreach $timeline as $event}
+        <div class="list-group-item">
+          <div class="d-flex justify-content-between gap-2">
+            <div>
+              <div class="fw-semibold">
+                {$event.title|default:'Событие'|escape}
+              </div>
+              <div class="small text-muted">
+                {$event.source_label|escape}
+                {if $event.actor_name} · {$event.actor_name|escape}{/if}
+              </div>
+            </div>
+            <div class="small text-muted text-nowrap">
+              {$event.event_time|default:'—'|escape}
+            </div>
+          </div>
+
+          {if $event.description}
+            <div class="mt-2">{$event.description|escape}</div>
+          {/if}
+
+          {if $event.details_json}
+            <details class="mt-2">
+              <summary class="small text-muted">JSON / детали</summary>
+              <pre class="small bg-light border rounded p-2 mt-2 mb-0" style="white-space: pre-wrap;">{$event.details_json|escape}</pre>
+            </details>
+          {/if}
+        </div>
+      {/foreach}
+    </div>
+  {/if}
+</div>

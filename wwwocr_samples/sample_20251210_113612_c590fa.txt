@@ -1,0 +1,56 @@
+TIME: 2025-12-10T11:36:12+01:00
+IP:   88.155.70.42
+========================================
+RAW BODY (php://input):
+raw_text=4531307581901844%0A1%0AKoliExpress+Ofeliya+Shiriyeva+Shiriyev%0AKL379300+Koli%2C+Deutschland%2C+Hessen%0AStarkenburgstra%C3%9Fe+10k+KL379300+Koli%0A64546+M%C3%B6rfelden-+Walldorf%0ADeutschland%0AFremdbarcode%0A9810977647%0AWE+DO%21%0AFremdbarcode%0A1040978372367567%0A1%2F1
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => 4531307581901844
+1
+KoliExpress Ofeliya Shiriyeva Shiriyev
+KL379300 Koli, Deutschland, Hessen
+Starkenburgstraße 10k KL379300 Koli
+64546 Mörfelden- Walldorf
+Deutschland
+Fremdbarcode
+9810977647
+WE DO!
+Fremdbarcode
+1040978372367567
+1/1
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+4531307581901844
+1
+KoliExpress Ofeliya Shiriyeva Shiriyev
+KL379300 Koli, Deutschland, Hessen
+Starkenburgstraße 10k KL379300 Koli
+64546 Mörfelden- Walldorf
+Deutschland
+Fremdbarcode
+9810977647
+WE DO!
+Fremdbarcode
+1040978372367567
+1/1
+
+<form>
+file_name: sample_20251210_113612_c590fa.txt
+tracking_no: 1040978372367567
+receiver_country_code: AZB
+receiver_forwarder_code: KOLLI
+receiver_company: Kolli MMC
+receiver_cell_code: KL379300
+receiver_name: Ofeliya Shiriyeva
+label_type: 
+</form>

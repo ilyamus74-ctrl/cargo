@@ -1,0 +1,83 @@
+TIME: 2025-12-10T11:36:01+01:00
+IP:   88.155.70.42
+========================================
+RAW BODY (php://input):
+raw_text=WE+DOU%0AEnpagers%0ATurkan+Aliyeva%2C+KoliExpress%0AStarkenburgstra%C3%9Fe+10k+KL4%0A18167+Koli%0A64546+M%C3%B6rfelden-Walldorf%0AGevontin+kg%0ADatum%0AKundenneterenz%0AKundeneterenz%0A045%0A2025-12-05%0A44%0AIHS54340034+00%0A543400340-0%0AMAINZ%0A34-01%0AD%0AHernes%0AH+102247+01398145+01+044%0ARetourenadresse%3A%0AIHB544003400%0AiHerb%0AAuto+Malf+Dr+2660%0AUS+60124+Sigin%0A63.122026
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => WE DOU
+Enpagers
+Turkan Aliyeva, KoliExpress
+Starkenburgstraße 10k KL4
+18167 Koli
+64546 Mörfelden-Walldorf
+Gevontin kg
+Datum
+Kundenneterenz
+Kundeneterenz
+045
+2025-12-05
+44
+IHS54340034 00
+543400340-0
+MAINZ
+34-01
+D
+Hernes
+H 102247 01398145 01 044
+Retourenadresse:
+IHB544003400
+iHerb
+Auto Malf Dr 2660
+US 60124 Sigin
+63.122026
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+WE DOU
+Enpagers
+Turkan Aliyeva, KoliExpress
+Starkenburgstraße 10k KL4
+18167 Koli
+64546 Mörfelden-Walldorf
+Gevontin kg
+Datum
+Kundenneterenz
+Kundeneterenz
+045
+2025-12-05
+44
+IHS54340034 00
+543400340-0
+MAINZ
+34-01
+D
+Hernes
+H 102247 01398145 01 044
+Retourenadresse:
+IHB544003400
+iHerb
+Auto Malf Dr 2660
+US 60124 Sigin
+63.122026
+
+
+<form>
+file_name: sample_20251210_113601_577162.txt
+tracking_no: H1022470139814501044
+receiver_country_code: AZB
+receiver_forwarder_code: KOLLI
+receiver_company: Kolli MMC
+receiver_cell_code: KL418167
+receiver_name: Turkan Aliyeva
+label_type: HERMES
+</form>

@@ -1,0 +1,239 @@
+<?php
+declare(strict_types=1);
+
+require_once __DIR__ . '/bootstrap.php';
+require_once __DIR__ . '/api/core_helpers.php';
+
+// все эти операции только для залогиненных
+auth_require_login();
+
+header('Content-Type: application/json; charset=utf-8');
+
+$action = $_POST['action'] ?? $_GET['action'] ?? '';
+$user = auth_current_user();
+
+// Маппинг action → файл обработчика
+$routes = [
+    // ========== USERS ==========
+    'view_users'          => 'api/users/user_standard_actions.php',
+    'form_new_user'       => 'api/users/user_standard_actions.php',
+    'form_edit_user'      => 'api/users/user_standard_actions.php',
+    'save_user'           => 'api/users/user_standard_actions.php',
+    'users_regen_qr'      => 'api/users/user_qr_actions.php',
+    'get_user_info'       => 'api/users/user_settings_actions.php',
+    'set_lang'            => 'api/users/user_settings_actions.php',
+    'get_user_panel_html' => 'api/users/user_settings_actions.php',
+
+    // ========== ROLES & PERMISSIONS ==========
+    'view_role_permissions' => 'api/users/roles_permissions_actions.php',
+    'save_permission'       => 'api/users/roles_permissions_actions.php',
+    'delete_permission'     => 'api/users/roles_permissions_actions.php',
+    'toggle_role_permission'=> 'api/users/roles_permissions_actions.php',
+    'save_menu_group'       => 'api/users/roles_permissions_actions.php',
+    'delete_menu_group'     => 'api/users/roles_permissions_actions.php',
+    'save_menu_item'        => 'api/users/roles_permissions_actions.php',
+    'delete_menu_item'      => 'api/users/roles_permissions_actions.php',
+
+
+    // ========== SYSTEM TASKS ==========
+    'system_tasks'          => 'api/system/system_tasks_actions.php',
+    'save_system_task'      => 'api/system/system_tasks_actions.php',
+    'delete_system_task'    => 'api/system/system_tasks_actions.php',
+    'run_system_tasks_now'  => 'api/system/system_tasks_actions.php',
+
+    // ========== CONNECTORS ==========
+    'view_connectors'       => 'api/connectors/connector_actions.php',
+    'form_new_connector'    => 'api/connectors/connector_actions.php',
+    'form_edit_connector'   => 'api/connectors/connector_actions.php',
+    'save_connector'        => 'api/connectors/connector_actions.php',
+    'test_connector'        => 'api/connectors/connector_actions.php',
+    'manual_confirm_connector' => 'api/connectors/connector_actions.php',
+    'manual_confirm_puppeteer' => 'api/connectors/connector_actions.php',
+    'manual_confirm_extension' => 'api/connectors/connector_actions.php',
+    'form_connector_operations' => 'api/connectors/connector_actions.php',
+    'save_connector_operations' => 'api/connectors/connector_actions.php',
+    'save_connector_addons' => 'api/connectors/connector_actions.php',
+    'test_connector_operations' => 'api/connectors/connector_actions.php',
+    'departures'            => 'api/departures/departures_actions.php',
+    'flight_list'           => 'api/departures/departures_actions.php',
+    'view_departures'       => 'api/departures/departures_actions.php',
+    'departures_flights'    => 'api/departures/departures_actions.php',
+    'departures_compare_payload' => 'api/departures/departures_actions.php',
+    'departures_delete_local_flight' => 'api/departures/departures_actions.php',
+    'departures_container_action' => 'api/departures/departures_actions.php',
+    // ========== FORWARDER ==========
+    'forwarder_scan_test'   => 'api/forwarder/forwarder_actions.php',
+    'forwarder_scan'        => 'api/forwarder/forwarder_actions.php',
+    // ========== CONNECTORS (meta) ==========
+    'get_module_actions_registry' => '@internal/module_actions_registry',
+
+    // ========== TOOLS ==========
+    'view_tools_stock'     => 'api/tools/tool_standard_actions.php',
+    'tools_stock'          => 'api/tools/tool_standard_actions.php',
+    'tools_management'     => 'api/tools/tools_management_actions.php',
+    'tools_management_search' => 'api/tools/tools_management_actions.php',
+    'tools_management_open_modal' => 'api/tools/tools_management_actions.php',
+    'tools_management_open_user_modal' => 'api/tools/tools_management_actions.php',
+    'tools_management_open_cell_modal' => 'api/tools/tools_management_actions.php',
+    'tools_management_save_move' => 'api/tools/tools_management_actions.php',
+    'form_new_tool_stock'  => 'api/tools/tool_standard_actions.php',
+    'form_edit_tool_stock' => 'api/tools/tool_standard_actions.php',
+    'save_tool'            => 'api/tools/tool_standard_actions.php',
+    'upload_tool_photo'    => 'api/tools/tool_photo_actions.php',
+
+    // ========== DEVICES ==========
+    'view_devices'         => 'api/devices/device_standard_actions.php',
+    'form_edit_device'     => 'api/devices/device_standard_actions.php',
+    'save_device'          => 'api/devices/device_standard_actions.php',
+    'activate_device'      => 'api/devices/device_activation_actions.php',
+
+    // ========== WAREHOUSE - Cells ==========
+    'setting_cells'        => 'api/warehouse/warehouse_cells_actions.php',
+    'add_new_cells'        => 'api/warehouse/warehouse_cells_actions.php',
+    'delete_cell'          => 'api/warehouse/warehouse_cells_actions.php',
+    'form_edit_cell'       => 'api/warehouse/warehouse_cells_actions.php',
+    'save_cell'            => 'api/warehouse/warehouse_cells_actions.php',
+    // ========== WAREHOUSE - Item In ==========
+    'warehouse_item_in'       => 'api/warehouse/warehouse_item_in_actions.php',
+    'item_in'                 => 'api/warehouse/warehouse_item_in_actions.php',
+    'open_item_in_batch'      => 'api/warehouse/warehouse_item_in_actions.php',
+    'add_new_item_in'         => 'api/warehouse/warehouse_item_in_actions.php',
+    'check_item_in_duplicate' => 'api/warehouse/warehouse_item_in_actions.php',
+    'save_item_in_draft'      => 'api/warehouse/warehouse_item_in_actions.php',
+    'clear_item_in_draft'     => 'api/warehouse/warehouse_item_in_actions.php',
+    'upload_item_in_photo'    => 'api/warehouse/warehouse_item_in_actions.php',
+    'delete_item_in_photo'    => 'api/warehouse/warehouse_item_in_actions.php',
+    'delete_item_in'          => 'api/warehouse/warehouse_item_in_actions.php',
+    'commit_item_in_batch'    => 'api/warehouse/warehouse_item_in_actions.php',
+    // ========== WAREHOUSE - Stock ==========
+    'item_stock'              => 'api/warehouse/warehouse_item_stock_actions.php',
+    'warehouse_items_registry' => 'api/warehouse/warehouse_item_stock_actions.php',
+    'item_stock_without_cells' => 'api/warehouse/warehouse_item_stock_actions.php',
+    'item_stock_without_addons' => 'api/warehouse/warehouse_item_stock_actions.php',
+    'item_stock_in_storage'    => 'api/warehouse/warehouse_item_stock_actions.php',
+    'open_item_stock_modal'    => 'api/warehouse/warehouse_item_stock_actions.php',
+    'save_item_stock'          => 'api/warehouse/warehouse_item_stock_actions.php',
+    'warehouse_stock_register_forwarder' => 'api/warehouse/warehouse_item_stock_actions.php',
+    'warehouse_stock_history_modal' => 'api/warehouse/warehouse_item_stock_actions.php',
+    'warehouse_stock_history_forwarder_reports' => 'api/warehouse/warehouse_item_stock_actions.php',
+    'upload_item_stock_photo'  => 'api/warehouse/warehouse_item_stock_actions.php',
+    'delete_item_stock_photo'  => 'api/warehouse/warehouse_item_stock_actions.php',
+    // ========== WAREHOUSE - Move ==========
+    'warehouse_move'           => 'api/warehouse/warehouse_move.php',
+    'warehouse_move_search'    => 'api/warehouse/warehouse_move.php',
+    'warehouse_move_batch_search' => 'api/warehouse/warehouse_move.php',
+    'warehouse_move_box_items' => 'api/warehouse/warehouse_move.php',
+    'warehouse_move_open_modal' => 'api/warehouse/warehouse_move.php',
+    'warehouse_move_batch_assign' => 'api/warehouse/warehouse_move.php',
+    'warehouse_move_box_assign' => 'api/warehouse/warehouse_move.php',
+    'warehouse_move_save_cell'  => 'api/warehouse/warehouse_move.php',
+    // ========== WAREHOUSE - Sync ==========
+    'warehouse_sync'            => 'api/warehouse/warehouse_sync_actions.php',
+    'warehouse.sync'            => 'api/warehouse/warehouse_sync_actions.php',
+    'warehouse_sync_missing'    => 'api/warehouse/warehouse_sync_actions.php',
+    'warehouse_sync_reports'    => 'api/warehouse/warehouse_sync_actions.php',
+    'warehouse_sync_item'       => 'api/warehouse/warehouse_sync_actions.php',
+    'warehouse_sync_single_check' => 'api/warehouse/warehouse_sync_actions.php',
+    'warehouse_sync_control_plan' => 'api/warehouse/warehouse_sync_actions.php',
+    'warehouse_sync_process_helper' => 'api/warehouse/warehouse_sync_actions.php',
+    'warehouse_sync_history'    => 'api/warehouse/warehouse_sync_actions.php',
+    'warehouse_sync_out_backfill' => 'api/warehouse/warehouse_sync_actions.php',
+    'warehouse_sync_reconcile'  => 'api/warehouse/warehouse_sync_actions.php',
+    'warehouse_sync_batch_enqueue' => 'api/warehouse/warehouse_sync_actions.php',
+    'form_connector_label_template' => 'api/warehouse/warehouse_sync_actions.php',
+    'save_connector_label_template' => 'api/warehouse/warehouse_sync_actions.php',
+    'validate_connector_label_template' => 'api/warehouse/warehouse_sync_actions.php',
+    'test_print_connector_label_template' => 'api/warehouse/warehouse_sync_actions.php',
+    'item_out'                  => 'api/warehouse/warehouse_sync_actions.php',
+    'warehouse_item_out_to_send' => 'api/warehouse/warehouse_sync_actions.php',
+    'warehouse_item_out_lookup'  => 'api/warehouse/warehouse_sync_actions.php',
+    'warehouse_item_out_confirm_send' => 'api/warehouse/warehouse_sync_actions.php',
+];
+
+
+function core_api_build_module_actions_registry(array $routes): array
+{
+    $registry = [];
+
+    foreach ($routes as $routeAction => $handlerPath) {
+        if (!is_string($handlerPath) || strpos($handlerPath, 'api/') !== 0) {
+            continue;
+        }
+
+        if (preg_match('#^api/([^/]+)/#', $handlerPath, $matches) !== 1) {
+            continue;
+        }
+
+        $module = trim(strtolower((string)$matches[1]));
+        if ($module === '') {
+            continue;
+        }
+
+        if (!isset($registry[$module])) {
+            $registry[$module] = [];
+        }
+        $registry[$module][] = (string)$routeAction;
+    }
+
+    foreach ($registry as $module => $actions) {
+        $actions = array_values(array_unique($actions));
+        sort($actions, SORT_STRING);
+        $registry[$module] = $actions;
+    }
+
+    ksort($registry, SORT_STRING);
+    return $registry;
+}
+
+if ($action === 'get_module_actions_registry') {
+    $response = [
+        'status' => 'ok',
+        'registry' => core_api_build_module_actions_registry($routes),
+    ];
+    echo json_encode($response, JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
+if (!isset($routes[$action])) {
+    // ВРЕМЕННО: fallback на старую логику для не-users действий
+    // После рефакторинга tools/warehouse этот блок будет удален
+////    require_once __DIR__ . '/core_api.php.backup.20260113';
+    http_response_code(400);
+    echo json_encode([
+        'status' => 'error',
+        'message' => 'Unknown action: ' . $action
+    ], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
+try {
+    $handler = __DIR__ . '/' . $routes[$action];
+        if (!is_file($handler)) {
+        throw new RuntimeException("Handler file not found: {$handler}");
+    }
+    // Подключаем файл — он установит $response
+    require $handler;
+
+    if (!isset($response)) {
+        throw new RuntimeException("Handler did not set \$response variable");
+    }
+    echo json_encode($response, JSON_UNESCAPED_UNICODE);
+} catch (Throwable $e) {
+    error_log('core_api exception: ' . $e->getMessage());
+
+    http_response_code(500);
+
+    $errorResponse = [
+        'status' => 'error',
+        'message' => 'Internal server error'
+    ];
+
+    // Only include debug info if in development mode
+    if (defined('APP_DEBUG') && APP_DEBUG) {
+        $errorResponse['debug'] = $e->getMessage();
+
+    }
+
+    echo json_encode($errorResponse, JSON_UNESCAPED_UNICODE);
+
+}

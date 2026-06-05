@@ -1,0 +1,64 @@
+TIME: 2025-12-10T11:55:21+01:00
+IP:   88.155.70.42
+========================================
+RAW BODY (php://input):
+raw_text=Empfaenger%3A%0ACarl+Roth+GmbH+%2B+Co.+KG%0AG.+-Braun+Stra%C3%9Fe.+22%0AD+76187+Karlsruhe%0ARef.Nr.%0ACAMARATC+B120728%0Afor+L.T.D.+LABEX%0AStarkenburgstr+10B%0ADE-64546+M%C3%B6rfelden-Waildorf%0APaket-Nr.%0A155301%0A04129-938351-155301-49-64546%0ADatum%0A09.12.%0AGe%0Aihr%0AVo
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => Empfaenger:
+Carl Roth GmbH + Co. KG
+G. -Braun Straße. 22
+D 76187 Karlsruhe
+Ref.Nr.
+CAMARATC B120728
+for L.T.D. LABEX
+Starkenburgstr 10B
+DE-64546 Mörfelden-Waildorf
+Paket-Nr.
+155301
+04129-938351-155301-49-64546
+Datum
+09.12.
+Ge
+ihr
+Vo
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+Empfaenger:
+Carl Roth GmbH + Co. KG
+G. -Braun Straße. 22
+D 76187 Karlsruhe
+Ref.Nr.
+CAMARATC B120728
+for L.T.D. LABEX
+Starkenburgstr 10B
+DE-64546 Mörfelden-Waildorf
+Paket-Nr.
+155301
+04129-938351-155301-49-64546
+Datum
+09.12.
+Ge
+ihr
+Vo
+
+<form>
+file_name: sample_20251210_115521_e9d601.txt
+tracking_no: 
+receiver_country_code: TBS
+receiver_forwarder_code: CAMARATC
+receiver_company: Camaratc LLC
+receiver_cell_code: B120728
+receiver_name: 
+label_type: 
+</form>

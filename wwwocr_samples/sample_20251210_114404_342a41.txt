@@ -1,0 +1,72 @@
+TIME: 2025-12-10T11:44:04+01:00
+IP:   88.155.70.42
+========================================
+RAW BODY (php://input):
+raw_text=CRO059+23+o8.12.2028%0AKanan+Hajiyev%0ADE+64546%0AKontakt+Kanan+Hajlyev%0A925950976986%0ANotiz%0ANotiz%0A09+69%3A17+0%2C10+ka+o011%0AGLS+France+Track+ID%0AKunden-+Nr.+304-+4030460-1101904%0A001F+001+RTG+05122025%0A10C+Starkenburgstr.+C149092%2C%0ACOLIBRI+EXPRESS+-+Kanan+Hajiyev%0ACOLIBRI+EXPRESS+Kanan+Hajiyev%0AM%C3%B6rfelden+-+Walldort%0ARef.+Nr.+FBP+aste+lay+8746+%28x2%29%0AInformationen+zur+GLS-Datenschutzrichtlinle+unter%0Agls-group.eu%2Fdataprotection%0A59121%0AT5+Avenue+Mare+Lefranct%29%0AProY
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => CRO059 23 o8.12.2028
+Kanan Hajiyev
+DE 64546
+Kontakt Kanan Hajlyev
+925950976986
+Notiz
+Notiz
+09 69:17 0,10 ka o011
+GLS France Track ID
+Kunden- Nr. 304- 4030460-1101904
+001F 001 RTG 05122025
+10C Starkenburgstr. C149092,
+COLIBRI EXPRESS - Kanan Hajiyev
+COLIBRI EXPRESS Kanan Hajiyev
+Mörfelden - Walldort
+Ref. Nr. FBP aste lay 8746 (x2)
+Informationen zur GLS-Datenschutzrichtlinle unter
+gls-group.eu/dataprotection
+59121
+T5 Avenue Mare Lefranct)
+ProY
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+CRO059 23 o8.12.2028
+Kanan Hajiyev
+DE 64546
+Kontakt Kanan Hajlyev
+925950976986
+Notiz
+Notiz
+09 69:17 0,10 ka o011
+GLS France Track ID
+Kunden- Nr. 304- 4030460-1101904
+001F 001 RTG 05122025
+10C Starkenburgstr. C149092,
+COLIBRI EXPRESS - Kanan Hajiyev
+COLIBRI EXPRESS Kanan Hajiyev
+Mörfelden - Walldort
+Ref. Nr. FBP aste lay 8746 (x2)
+Informationen zur GLS-Datenschutzrichtlinle unter
+gls-group.eu/dataprotection
+59121
+T5 Avenue Mare Lefranct)
+ProY
+
+<form>
+file_name: sample_20251210_114404_342a41.txt
+tracking_no: 
+receiver_country_code: AZB
+receiver_forwarder_code: COLIBRI
+receiver_company: Colibri Express
+receiver_cell_code: C149092
+receiver_name: Kanan Hajiyev
+label_type: GLS
+</form>

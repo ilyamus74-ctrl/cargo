@@ -1,0 +1,83 @@
+TIME: 2025-12-10T11:45:54+01:00
+IP:   88.155.70.42
+========================================
+RAW BODY (php://input):
+raw_text=Au%C3%9Fernsch+nicht+erkennbare+Sch%C3%A0den+m%C3%B9ssen+DPD+innerhalb+von+7+Tage+nach+Ablieferung%0Aschritiksh+gemeldet+werden.%2F+Damage+not+recognizable+on+the+ounside+las+to+be%0Areported+in+writing+to+DPD+within+7+days+after+delivery.%0AEnpf%C3%A4nger%0AFrau%0AIlkin+Akbarli%0ACOLIBRI+EXPRESS+-Ramil+Samadov+C173%0AStarkenburgstr.+10C%0ADE-64546+M%C3%B6rfelden-Walldorf%0AReferenz+1%0A20151713%0ARefeienz+2%0A2%0AK231-004-00004%0ADPD+PARCELLetter%0ALieferung%0A1%2F1%0AGewicht%0A1%2C00+kg%0ATel.+%2B49+89+4200130%0ADE-81829+M%C3%BCnchen%0AMartin-Kollar-Stra%C3%9Fe+5%0A%C3%BCber+direkt+%2B+online+GmbH%0AMerck+Pharma+Femibion%0AAbsender%0ATel.+%2B49-%280%29+81+65-9+42-0
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => Außernsch nicht erkennbare Schàden mùssen DPD innerhalb von 7 Tage nach Ablieferung
+schritiksh gemeldet werden./ Damage not recognizable on the ounside las to be
+reported in writing to DPD within 7 days after delivery.
+Enpfänger
+Frau
+Ilkin Akbarli
+COLIBRI EXPRESS -Ramil Samadov C173
+Starkenburgstr. 10C
+DE-64546 Mörfelden-Walldorf
+Referenz 1
+20151713
+Refeienz 2
+2
+K231-004-00004
+DPD PARCELLetter
+Lieferung
+1/1
+Gewicht
+1,00 kg
+Tel. +49 89 4200130
+DE-81829 München
+Martin-Kollar-Straße 5
+über direkt + online GmbH
+Merck Pharma Femibion
+Absender
+Tel. +49-(0) 81 65-9 42-0
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+Außernsch nicht erkennbare Schàden mùssen DPD innerhalb von 7 Tage nach Ablieferung
+schritiksh gemeldet werden./ Damage not recognizable on the ounside las to be
+reported in writing to DPD within 7 days after delivery.
+Enpfänger
+Frau
+Ilkin Akbarli
+COLIBRI EXPRESS -Ramil Samadov C173
+Starkenburgstr. 10C
+DE-64546 Mörfelden-Walldorf
+Referenz 1
+20151713
+Refeienz 2
+2
+K231-004-00004
+DPD PARCELLetter
+Lieferung
+1/1
+Gewicht
+1,00 kg
+Tel. +49 89 4200130
+DE-81829 München
+Martin-Kollar-Straße 5
+über direkt + online GmbH
+Merck Pharma Femibion
+Absender
+Tel. +49-(0) 81 65-9 42-0
+
+
+<form>
+file_name: sample_20251210_114554_fd4581.txt
+tracking_no: 
+receiver_country_code: AZB
+receiver_forwarder_code: COLIBRI
+receiver_company: Colibri Express
+receiver_cell_code: C173
+receiver_name: Ramil Samadov
+label_type: DPD
+</form>

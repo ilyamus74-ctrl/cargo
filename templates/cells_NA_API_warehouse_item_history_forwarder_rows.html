@@ -1,0 +1,42 @@
+{if !$events}
+  <div class="alert alert-secondary mb-3">
+    Репорты форварда не найдены{if $report_table} в {$report_table|escape}{/if}.
+    Проверено строк: {$scanned_rows|escape}.
+  </div>
+{else}
+  <div class="mb-2 small text-muted">
+    Репорты форварда{if $report_table} из {$report_table|escape}{/if}. Проверено строк: {$scanned_rows|escape}.
+  </div>
+  <div class="list-group mb-3">
+    {foreach $events as $event}
+      <div class="list-group-item">
+        <div class="d-flex justify-content-between gap-2">
+          <div>
+            <div class="fw-semibold">
+              {$event.title|default:'Репорт форварда'|escape}
+            </div>
+            <div class="small text-muted">
+              {$event.source_label|escape}
+              {if $event.source_file} · {$event.source_file|escape}{/if}
+              {if $event.report_row_id} · #{$event.report_row_id|escape}{/if}
+            </div>
+          </div>
+          <div class="small text-muted text-nowrap">
+            {$event.event_time|default:'—'|escape}
+          </div>
+        </div>
+
+        {if $event.description}
+          <div class="mt-2">{$event.description|escape}</div>
+        {/if}
+
+        {if $event.details_json}
+          <details class="mt-2">
+            <summary class="small text-muted">JSON / детали</summary>
+            <pre class="small bg-light border rounded p-2 mt-2 mb-0" style="white-space: pre-wrap;">{$event.details_json|escape}</pre>
+          </details>
+        {/if}
+      </div>
+    {/foreach}
+  </div>
+{/if}

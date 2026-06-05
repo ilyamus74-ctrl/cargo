@@ -1,0 +1,77 @@
+TIME: 2025-12-10T11:57:30+01:00
+IP:   88.155.70.42
+========================================
+RAW BODY (php://input):
+raw_text=D45%2F895011%0AFax+045%2F5481+I1%0ATei%0ASeRVICE%0AXD%0AFARHACOSHO+SPA%0ASente%0ANP%0A07+kg%0ADeiivery+Address%0AWeight%0A1+of+1%0APackages%0A67+17+114096%0ARelerences%0APhone+4961033767299%0AContsct+KoliExpress+Ayxan+Musayev%0A11OERFELDEN-MALLDORF%0ADE-64546%0ASTARK+ENBLURGSTRASSE+10K+KL417968+KOL%0AKOLIEXPRESS+AYXAN+MUSAYEV%0Ahas+to+be+submitted+to+DPD+within+7+days+i+writfen%0AdpNoificatlon+on+damages+whieh+is+not+recognizahia+from+the
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => D45/895011
+Fax 045/5481 I1
+Tei
+SeRVICE
+XD
+FARHACOSHO SPA
+Sente
+NP
+07 kg
+Deiivery Address
+Weight
+1 of 1
+Packages
+67 17 114096
+Relerences
+Phone 4961033767299
+Contsct KoliExpress Ayxan Musayev
+11OERFELDEN-MALLDORF
+DE-64546
+STARK ENBLURGSTRASSE 10K KL417968 KOL
+KOLIEXPRESS AYXAN MUSAYEV
+has to be submitted to DPD within 7 days i writfen
+dpNoificatlon on damages whieh is not recognizahia from the
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+D45/895011
+Fax 045/5481 I1
+Tei
+SeRVICE
+XD
+FARHACOSHO SPA
+Sente
+NP
+07 kg
+Deiivery Address
+Weight
+1 of 1
+Packages
+67 17 114096
+Relerences
+Phone 4961033767299
+Contsct KoliExpress Ayxan Musayev
+11OERFELDEN-MALLDORF
+DE-64546
+STARK ENBLURGSTRASSE 10K KL417968 KOL
+KOLIEXPRESS AYXAN MUSAYEV
+has to be submitted to DPD within 7 days i writfen
+dpNoificatlon on damages whieh is not recognizahia from the
+
+
+<form>
+file_name: sample_20251210_115730_48fe82.txt
+tracking_no: 
+receiver_country_code: AZB
+receiver_forwarder_code: KOLLI
+receiver_company: Kolli MMC
+receiver_cell_code: KL417968
+receiver_name: AYXAN MUSAYEV
+label_type: 
+</form>

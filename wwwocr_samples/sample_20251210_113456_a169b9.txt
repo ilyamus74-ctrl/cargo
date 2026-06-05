@@ -1,0 +1,95 @@
+TIME: 2025-12-10T11:34:56+01:00
+IP:   88.155.70.42
+========================================
+RAW BODY (php://input):
+raw_text=NST+1%0A020697+64546%0ADE+64546%0AKontakt%0APostleitzahl%0ANotiz%0ANotiz%0ADE+120+03+08.12+2025+10%3A59%3A011.13+kg+001%2F001+RTG+05122025+F2+00.0%0AKoliExpress+Chinare+Salamanzade+Salmanza%0ARef.+Nr.%0AIhre+GLS+Track-1D%0AStarkenburgstra%C3%9Fe+10+KL418475+Koli%0AM%C3%B6rtelden-Walldort%0Agls-group.eu%2Fdatapr+otectien%0AYVMHRROV%0A121120283032%0AIetormationen+zur+GL8+0atensch7ichtlinie+uatar%0ADE%0AKunde-Nr.%0A06911869751000100037-54494896658%0AF%0A621%0A62-020%0ARherus+WS+Polska+Sp+z+o.o+Rabowicka+67%0Ap%0ASwarzdz%0AVersender%0A%7CINDITEX+-+Swarzecz+-+Zara%0ACust.ID%0A2760319870%0ACon+ID%0A276a45e3Yw
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => NST 1
+020697 64546
+DE 64546
+Kontakt
+Postleitzahl
+Notiz
+Notiz
+DE 120 03 08.12 2025 10:59:011.13 kg 001/001 RTG 05122025 F2 00.0
+KoliExpress Chinare Salamanzade Salmanza
+Ref. Nr.
+Ihre GLS Track-1D
+Starkenburgstraße 10 KL418475 Koli
+Mörtelden-Walldort
+gls-group.eu/datapr otectien
+YVMHRROV
+121120283032
+Ietormationen zur GL8 0atensch7ichtlinie uatar
+DE
+Kunde-Nr.
+06911869751000100037-54494896658
+F
+621
+62-020
+Rherus WS Polska Sp z o.o Rabowicka 67
+p
+Swarzdz
+Versender
+|INDITEX - Swarzecz - Zara
+Cust.ID
+2760319870
+Con ID
+276a45e3Yw
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+NST 1
+020697 64546
+DE 64546
+Kontakt
+Postleitzahl
+Notiz
+Notiz
+DE 120 03 08.12 2025 10:59:011.13 kg 001/001 RTG 05122025 F2 00.0
+KoliExpress Chinare Salamanzade Salmanza
+Ref. Nr.
+Ihre GLS Track-1D
+Starkenburgstraße 10 KL418475 Koli
+Mörtelden-Walldort
+gls-group.eu/datapr otectien
+YVMHRROV
+121120283032
+Ietormationen zur GL8 0atensch7ichtlinie uatar
+DE
+Kunde-Nr.
+06911869751000100037-54494896658
+F
+621
+62-020
+Rherus WS Polska Sp z o.o Rabowicka 67
+p
+Swarzdz
+Versender
+|INDITEX - Swarzecz - Zara
+Cust.ID
+2760319870
+Con ID
+276a45e3Yw
+
+
+<form>
+file_name: sample_20251210_113456_a169b9.txt
+tracking_no: 0691186975100010003754494896658
+receiver_country_code: AZB
+receiver_forwarder_code: KOLLI
+receiver_company: Kolli MMC
+receiver_cell_code: KL418475
+receiver_name: Chinare Salamanzade
+label_type: GLS
+</form>

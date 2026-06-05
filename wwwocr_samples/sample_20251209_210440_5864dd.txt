@@ -1,0 +1,70 @@
+TIME: 2025-12-09T21:04:40+01:00
+IP:   84.166.213.45
+========================================
+RAW BODY (php://input):
+raw_text=21%3A04+D+M+M%0AZAL+DEU%0AH1024551151941201g44%0AD%0AAINZ%0A4-+01%0ADE%0AHermnes%0ADonara+colibri+Huseynova%0ADonara+Huseynova+C163361%0AStarkenburgstr.+10C%0A64546+M%C3%B6rfeldenWalldorf%0ADeutschland%0AFremdbarcode%0AWE+DO%21%0A0893813408%0AFremdbarcode%0A1041030434844751%0A1%2F1
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => 21:04 D M M
+ZAL DEU
+H1024551151941201g44
+D
+AINZ
+4- 01
+DE
+Hermnes
+Donara colibri Huseynova
+Donara Huseynova C163361
+Starkenburgstr. 10C
+64546 MörfeldenWalldorf
+Deutschland
+Fremdbarcode
+WE DO!
+0893813408
+Fremdbarcode
+1041030434844751
+1/1
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+21:04 D M M
+ZAL DEU
+H1024551151941201g44
+D
+AINZ
+4- 01
+DE
+Hermnes
+Donara colibri Huseynova
+Donara Huseynova C163361
+Starkenburgstr. 10C
+64546 MörfeldenWalldorf
+Deutschland
+Fremdbarcode
+WE DO!
+0893813408
+Fremdbarcode
+1041030434844751
+1/1
+
+
+<form>
+file_name: sample_20251209_210440_5864dd.txt
+tracking_no: H1024551151941201944
+receiver_country_code: AZB
+receiver_forwarder_code: COLIBRI
+receiver_company: Colobri Express
+receiver_cell_code: C163361
+receiver_name: Donara Huseynova
+label_type: HERMES
+</form>
+

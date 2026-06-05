@@ -1,0 +1,57 @@
+TIME: 2025-12-10T11:56:11+01:00
+IP:   88.155.70.42
+========================================
+RAW BODY (php://input):
+raw_text=REF+2%3A+0490969467%0AREF+1%3A+0027517849%0AUPS+STANDARD%0AGERMANY%0A64546+HESSEN%0ASTARKENBURGSTR.%0A10C%0A10C%0AU3%0A490969467%0ATO%3A%0ASHIP+COLIBRIEXPRESS+VITALIY+PUSTOVALOV%0Argece
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => REF 2: 0490969467
+REF 1: 0027517849
+UPS STANDARD
+GERMANY
+64546 HESSEN
+STARKENBURGSTR.
+10C
+10C
+U3
+490969467
+TO:
+SHIP COLIBRIEXPRESS VITALIY PUSTOVALOV
+rgece
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+REF 2: 0490969467
+REF 1: 0027517849
+UPS STANDARD
+GERMANY
+64546 HESSEN
+STARKENBURGSTR.
+10C
+10C
+U3
+490969467
+TO:
+SHIP COLIBRIEXPRESS VITALIY PUSTOVALOV
+rgece
+
+
+<form>
+file_name: sample_20251210_115611_78cc79.txt
+tracking_no: 
+receiver_country_code: AZB
+receiver_forwarder_code: COLIBRI
+receiver_company: Colibri Express
+receiver_cell_code: 
+receiver_name:  VITALIY PUSTOVALOV
+label_type: UPS
+</form>

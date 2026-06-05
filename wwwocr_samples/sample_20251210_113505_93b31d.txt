@@ -1,0 +1,93 @@
+TIME: 2025-12-10T11:35:05+01:00
+IP:   88.155.70.42
+========================================
+RAW BODY (php://input):
+raw_text=4546%0AXO-B2C%0APL+ieutschiond%0ABarreiesereeg+20%0AE-34281+Gusensberg%0Adp%0Ashop-otheke+co%0ARoserder%0AE4159+Mncheoioech%0A328-0E-R4EA%0AL9208%0ADE-DPD-0265%0A0%2C63+kg%0AGeicht%0A1+1%0A0944+7509+9931+356%0A328-0%25%0A33A535%0AD165%0Aag%0ATrack%0AS%0AIE-64546+NHArfelden-Wal+ldorf%0AA14189123+898%0AS+tar+enburgstr.+10k%0AKolil+xpress+Sesdet+Eliyeva+KL415532%0ATel.+0%0ASeadet+Eliyeva%0Ating+t8+within+%C3%A0ys+after%22+deTiver%0ASngae+not+cecoomize+n+the%0Aabelich+nicht+grkemre+Sten
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => 4546
+XO-B2C
+PL ieutschiond
+Barreiesereeg 20
+E-34281 Gusensberg
+dp
+shop-otheke co
+Roserder
+E4159 Mncheoioech
+328-0E-R4EA
+L9208
+DE-DPD-0265
+0,63 kg
+Geicht
+1 1
+0944 7509 9931 356
+328-0%
+33A535
+D165
+ag
+Track
+S
+IE-64546 NHArfelden-Wal ldorf
+A14189123 898
+S tar enburgstr. 10k
+Kolil xpress Sesdet Eliyeva KL415532
+Tel. 0
+Seadet Eliyeva
+ting t8 within àys after" deTiver
+Sngae not cecoomize n the
+abelich nicht grkemre Sten
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+4546
+XO-B2C
+PL ieutschiond
+Barreiesereeg 20
+E-34281 Gusensberg
+dp
+shop-otheke co
+Roserder
+E4159 Mncheoioech
+328-0E-R4EA
+L9208
+DE-DPD-0265
+0,63 kg
+Geicht
+1 1
+0944 7509 9931 356
+328-0%
+33A535
+D165
+ag
+Track
+S
+IE-64546 NHArfelden-Wal ldorf
+A14189123 898
+S tar enburgstr. 10k
+Kolil xpress Sesdet Eliyeva KL415532
+Tel. 0
+Seadet Eliyeva
+ting t8 within àys after" deTiver
+Sngae not cecoomize n the
+abelich nicht grkemre Sten
+
+
+<form>
+file_name: sample_20251210_113505_93b31d.txt
+tracking_no: 094475099931356
+receiver_country_code: AZB
+receiver_forwarder_code: KOLLI
+receiver_company: Kolli MMC
+receiver_cell_code: KL415532
+receiver_name: Sesdet Eliyeva
+label_type: DPD
+</form>

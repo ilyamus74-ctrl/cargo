@@ -1,0 +1,70 @@
+TIME: 2025-12-12T14:08:50+01:00
+IP:   84.166.213.45
+========================================
+RAW BODY (php://input):
+raw_text=Von%3A%0AAn%3A%0AAPO+Pharmaoy+B.V.%0Aapodiscounter.de%0A44803+Bochum%0AGrete-Sohlckedanz-Str.+500%0APostlink+PLOO725+Sema+Zeynalova+ZeyE%0AStarkenburgstr.+108%0A64546+M%C3%B6rtelden-Walldort%0AAbrechnungsnr.%3A+6328177313+01+14%0AReferenznr.%3A%0ASendungsnr.%3A%0AFilial-Routing%0ADHL+PAKET%0AEngfinger+unsekannt%0AflalUmiaitung%29%0AK16734330%0A00340434659258114849%0AGewich%0A1%2C27+kg
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => Von:
+An:
+APO Pharmaoy B.V.
+apodiscounter.de
+44803 Bochum
+Grete-Sohlckedanz-Str. 500
+Postlink PLOO725 Sema Zeynalova ZeyE
+Starkenburgstr. 108
+64546 Mörtelden-Walldort
+Abrechnungsnr.: 6328177313 01 14
+Referenznr.:
+Sendungsnr.:
+Filial-Routing
+DHL PAKET
+Engfinger unsekannt
+flalUmiaitung)
+K16734330
+00340434659258114849
+Gewich
+1,27 kg
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+Von:
+An:
+APO Pharmaoy B.V.
+apodiscounter.de
+44803 Bochum
+Grete-Sohlckedanz-Str. 500
+Postlink PLOO725 Sema Zeynalova ZeyE
+Starkenburgstr. 108
+64546 Mörtelden-Walldort
+Abrechnungsnr.: 6328177313 01 14
+Referenznr.:
+Sendungsnr.:
+Filial-Routing
+DHL PAKET
+Engfinger unsekannt
+flalUmiaitung)
+K16734330
+00340434659258114849
+Gewich
+1,27 kg
+
+<form>
+file_name: sample_20251212_140850_da14c3.txt
+tracking_no: 00340434659258114849
+receiver_country_code: AZB
+receiver_forwarder_code: POSTLINK
+receiver_company: Postlink
+receiver_cell_code: PL00725
+receiver_name: Sema Zeynalova
+label_type: DHL
+</form>

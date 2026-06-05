@@ -1,0 +1,71 @@
+TIME: 2025-12-10T11:54:38+01:00
+IP:   88.155.70.42
+========================================
+RAW BODY (php://input):
+raw_text=UPS+S+TANDARD%0ATRACKING%23+1Z379W996800457793%0AED%0ADEU+651+2-39%0AGERMANY%0A64546+MORFELDEN+ALLDORF+06%0ASTARKENBURGSTR.+10C+DLIBRI%0AEXPRES%0ATO%3A%0ASHIP%0A%2B+4961033767290%0AGULZAR+GULZAR%0A15u6c+LSCATE+%28M%0AOF+1%0A3FAPCo+S.R.%0A15+KG%0Aene+Ce%0A13%0ANI+C%0ANON
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => UPS S TANDARD
+TRACKING# 1Z379W996800457793
+ED
+DEU 651 2-39
+GERMANY
+64546 MORFELDEN ALLDORF 06
+STARKENBURGSTR. 10C DLIBRI
+EXPRES
+TO:
+SHIP
++ 4961033767290
+GULZAR GULZAR
+15u6c LSCATE (M
+OF 1
+3FAPCo S.R.
+15 KG
+ene Ce
+13
+NI C
+NON
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+UPS S TANDARD
+TRACKING# 1Z379W996800457793
+ED
+DEU 651 2-39
+GERMANY
+64546 MORFELDEN ALLDORF 06
+STARKENBURGSTR. 10C DLIBRI
+EXPRES
+TO:
+SHIP
++ 4961033767290
+GULZAR GULZAR
+15u6c LSCATE (M
+OF 1
+3FAPCo S.R.
+15 KG
+ene Ce
+13
+NI C
+NON
+
+<form>
+file_name: sample_20251210_115438_0e6b56.txt
+tracking_no: 
+receiver_country_code: AZB
+receiver_forwarder_code: COLIBRI
+receiver_company: Colibri Express
+receiver_cell_code:
+receiver_name:  GULZAR GULZAR
+label_type: 
+</form>
+

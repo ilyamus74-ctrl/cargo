@@ -1,0 +1,55 @@
+TIME: 2025-12-10T11:40:16+01:00
+IP:   88.155.70.42
+========================================
+RAW BODY (php://input):
+raw_text=WE+DO%21%0AH1032310280202101g44%0ACOLIBRI+EXPRESS+-C413326%0AStarkenburgstr.+10%0ALalezer+Ezizova%0A64546+M%C3%B6rfelden-+Walldorf%0ADeutschland%0A1%2F1%0A01%0AFremdbarcode%0AD808514140%0AFremdbarcode
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => WE DO!
+H1032310280202101g44
+COLIBRI EXPRESS -C413326
+Starkenburgstr. 10
+Lalezer Ezizova
+64546 Mörfelden- Walldorf
+Deutschland
+1/1
+01
+Fremdbarcode
+D808514140
+Fremdbarcode
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+WE DO!
+H1032310280202101g44
+COLIBRI EXPRESS -C413326
+Starkenburgstr. 10
+Lalezer Ezizova
+64546 Mörfelden- Walldorf
+Deutschland
+1/1
+01
+Fremdbarcode
+D808514140
+Fremdbarcode
+
+
+<form>
+file_name: sample_20251210_114016_680e4a.txt
+tracking_no: H1032310280202101944
+receiver_country_code: AZB
+receiver_forwarder_code: COLIBRI
+receiver_company: Colibri Express
+receiver_cell_code: C413326
+receiver_name: Lalezer Ezizova
+label_type: HERMES
+</form>

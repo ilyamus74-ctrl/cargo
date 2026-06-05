@@ -1,0 +1,77 @@
+TIME: 2025-12-10T12:00:15+01:00
+IP:   88.155.70.42
+========================================
+RAW BODY (php://input):
+raw_text=DHL+PAKET%0ATrianelstra%C3%9Fe+5%0A59071+Hamm%0AVon%3A+Douglas%0AGoGreen%0AWir+kompensieren%0ACO2-Emissionen+mit+DHL%0AYegana+Qas%C4%B1mova%0AASER+AS237707%0AStarkenburgstr.+10G%0AAn%3A%0A64546+M%C3%B6rfelden+-Walldorf%0ADeutschland%0AAnzahl%3A%0A%2F1%0AGewicht%3A%0A0.93+kg%0A63433654910101%0ADGLDEO056506921%0A00340434662862022318%0AAbrechnungsnr.%3A%0AReferenznr.%3A%0ASendungsnr..
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => DHL PAKET
+Trianelstraße 5
+59071 Hamm
+Von: Douglas
+GoGreen
+Wir kompensieren
+CO2-Emissionen mit DHL
+Yegana Qasımova
+ASER AS237707
+Starkenburgstr. 10G
+An:
+64546 Mörfelden -Walldorf
+Deutschland
+Anzahl:
+/1
+Gewicht:
+0.93 kg
+63433654910101
+DGLDEO056506921
+00340434662862022318
+Abrechnungsnr.:
+Referenznr.:
+Sendungsnr..
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+DHL PAKET
+Trianelstraße 5
+59071 Hamm
+Von: Douglas
+GoGreen
+Wir kompensieren
+CO2-Emissionen mit DHL
+Yegana Qasımova
+ASER AS237707
+Starkenburgstr. 10G
+An:
+64546 Mörfelden -Walldorf
+Deutschland
+Anzahl:
+/1
+Gewicht:
+0.93 kg
+63433654910101
+DGLDEO056506921
+00340434662862022318
+Abrechnungsnr.:
+Referenznr.:
+Sendungsnr..
+
+
+<form>
+file_name: sample_20251210_120015_18239d.txt
+tracking_no: 00340434662862022318
+receiver_country_code: AZB
+receiver_forwarder_code: ASER
+receiver_company: AserCargo
+receiver_cell_code: AS237707
+receiver_name: Yegana Qasımova
+label_type: DHL
+</form>

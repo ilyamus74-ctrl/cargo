@@ -1,0 +1,283 @@
+{if $departure_rows|@count > 0}
+  {foreach $departure_rows as $flight}
+    <tr>
+      <td class="text-center">
+        <button type="button"
+                class="btn btn-sm btn-outline-secondary js-departure-toggle"
+                data-target="{$flight.row_uid|escape}"
+                data-open="0"
+                title="Показать контейнеры">
+          <i class="bi bi-chevron-down"></i>
+        </button>
+      </td>
+      <td>
+        <div class="fw-semibold">{$flight.flight_no|default:'—'|escape}</div>
+        <div class="small text-muted">
+          {$flight.name|default:'—'|escape}
+          {if $flight.flight_number} · {$flight.flight_number|escape}{/if}
+          {if $flight.awb} · AWB {$flight.awb|escape}{/if}
+        </div>
+      </td>
+      <td>
+        <div class="fw-semibold">{$flight.forwarder_name|default:'—'|escape}</div>
+        <div class="small text-muted">{$flight.forwarder_countries|default:'—'|escape}</div>
+      </td>
+      <td>
+        <div>{$flight.departure|default:'—'|escape} → {$flight.destination|default:'—'|escape}</div>
+        <div class="small text-muted">{$flight.route|default:'—'|escape}</div>
+      </td>
+      <td>
+        <span class="badge bg-{$flight.status_badge_class|default:'secondary'}">{$flight.status|escape}</span>
+        {if $flight.closed_at}
+          <div class="small text-muted mt-1">Closed: {$flight.closed_at|escape}</div>
+        {/if}
+      </td>
+      <td>
+        <div class="fw-semibold">{$flight.containers_total|default:0}</div>
+        <div class="small text-muted">
+          мест: {$flight.packages_count|default:'—'|escape},
+          вес: {$flight.total_weight|default:'—'|escape}
+        </div>
+      </td>
+      <td>
+        {assign var=syncStatus value=$flight.containers_sync_status|default:'pending'|lower}
+        <span class="badge {if $syncStatus == "synced" || $syncStatus == "matched"}bg-success{elseif $syncStatus == "mismatch" || $syncStatus == "error"}bg-warning text-dark{else}bg-light text-dark border{/if}">{$flight.containers_sync_status|default:'pending'|escape}</span>
+        {if $flight.containers_synced_at}
+          <div class="small text-muted mt-1">{$flight.containers_synced_at|escape}</div>
+        {/if}
+        {if $flight.containers_sync_error}
+          <div class="small text-danger mt-1">{$flight.containers_sync_error|escape}</div>
+        {/if}
+      </td>
+      <td>
+        <div>{$flight.updated_at|default:'—'|escape}</div>
+        {if $flight.flight_time}
+          <div class="small text-muted">{$flight.flight_time|escape}</div>
+        {/if}
+      </td>
+    </tr>
+    <tr id="{$flight.row_uid|escape}" class="d-none table-light">
+      <td colspan="8">
+        <div class="p-2">
+          <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
+            <div class="fw-semibold">Контейнеры рейса {$flight.flight_no|default:'—'|escape}</div>
+            <div class="d-flex flex-wrap align-items-center gap-2">
+              <div class="small text-muted">Всего: {$flight.containers_total|default:0}</div>
+              {if $flight.status|lower == 'open'}
+                <button type="button"
+                        class="btn btn-sm btn-outline-primary js-departure-placeholder-action"
+                        data-operation="add_container_to_flight_php"
+                        data-refresh-operation="flight_list_php"
+                        data-connector-id="{$flight.connector_id|default:0|escape:'htmlattr'}"
+                        data-flight="{$flight.flight_no|default:''|escape:'htmlattr'}"
+                        data-flight-name="{$flight.name|default:$flight.flight_no|default:''|escape:'htmlattr'}"
+                        data-flight-id="{$flight.flight_id|default:''|escape:'htmlattr'}"
+                        data-flight-record-id="{$flight.flight_record_id|default:0|escape:'htmlattr'}"
+                        data-container-name="NEW"
+                        data-status-target="#{$flight.row_uid|escape:'htmlattr'}_status"
+                        data-busy-label="Добавляю контейнер..."
+                        data-success-message="Контейнер добавлен, рейс синхронизирован и список обновлён.">
+                  <span class="js-departure-placeholder-label">Добавить контейнер</span>
+                </button>
+                <button type="button"
+                        class="btn btn-sm btn-outline-secondary js-departure-edit-toggle"
+                        data-target="{$flight.row_uid|escape:'htmlattr'}_edit"
+                        data-open="0"
+                        aria-expanded="false">
+                  Редактировать рейс
+                </button>
+                <button type="button"
+                        class="btn btn-sm btn-outline-warning js-departure-placeholder-action"
+                        data-operation="close_flight_php"
+                        data-entrypoint-mode="php"
+                        data-refresh-operation="flight_list_php"
+                        data-connector-id="{$flight.connector_id|default:0|escape:'htmlattr'}"
+                        data-flight="{$flight.flight_no|default:''|escape:'htmlattr'}"
+                        data-flight-name="{$flight.name|default:$flight.flight_no|default:''|escape:'htmlattr'}"
+                        data-flight-id="{$flight.flight_id|default:''|escape:'htmlattr'}"
+                        data-flight-record-id="{$flight.flight_record_id|default:0|escape:'htmlattr'}"
+                        data-status-target="#{$flight.row_uid|escape:'htmlattr'}_status"
+                        data-busy-label="Закрываю рейс..."
+                        data-success-message="Рейс закрыт, список рейсов обновлён.">
+                  <span class="js-departure-placeholder-label">Закрыть рейс</span>
+                </button>
+                <button type="button"
+                        class="btn btn-sm btn-outline-danger js-departure-placeholder-action"
+                        data-operation="delete_flight_php"
+                        data-refresh-operation="flight_list_php"
+                        data-connector-id="{$flight.connector_id|default:0|escape:'htmlattr'}"
+                        data-flight="{$flight.flight_no|default:''|escape:'htmlattr'}"
+                        data-flight-name="{$flight.name|default:$flight.flight_no|default:''|escape:'htmlattr'}"
+                        data-flight-id="{$flight.flight_id|default:''|escape:'htmlattr'}"
+                        data-flight-record-id="{$flight.flight_record_id|default:0|escape:'htmlattr'}"
+                        data-status-target="#{$flight.row_uid|escape:'htmlattr'}_status"
+                        data-busy-label="Удаляю рейс..."
+                        data-success-message="Рейс удалён, список рейсов обновлён."
+                        {if $flight.containers_total|default:0 > 0}disabled title="Удаление доступно только для рейса без контейнеров."{/if}>
+                  <span class="js-departure-placeholder-label">Удалить рейс</span>
+                </button>
+              {/if}
+            </div>
+          </div>
+          <div id="{$flight.row_uid|escape}_status" class="small text-muted mb-2" aria-live="polite"></div>
+
+          {if $flight.status|lower == 'open'}
+            <div id="{$flight.row_uid|escape}_edit" class="card border border-dashed bg-white d-none mb-3">
+              <div class="card-body py-3">
+                <div class="row g-2 align-items-end">
+                  <div class="col-12 col-md-3">
+                    <label class="form-label small mb-1" for="{$flight.row_uid|escape:'htmlattr'}_date">Новая дата</label>
+                    <input type="date"
+                           id="{$flight.row_uid|escape:'htmlattr'}_date"
+                           class="form-control form-control-sm js-departure-edit-date"
+                           value="{$flight.flight_number|default:''|escape:'htmlattr'}">
+                  </div>
+                  <div class="col-12 col-md-4">
+                    <label class="form-label small mb-1" for="{$flight.row_uid|escape:'htmlattr'}_awb">Новый AWB</label>
+                    <input type="text"
+                           id="{$flight.row_uid|escape:'htmlattr'}_awb"
+                           class="form-control form-control-sm js-departure-edit-awb"
+                           autocomplete="off"
+                           placeholder="50118620604"
+                           value="{$flight.awb|default:''|escape:'htmlattr'}">
+                  </div>
+                  <div class="col-12 col-md-auto d-flex flex-wrap gap-2">
+                    <button type="button"
+                            class="btn btn-sm btn-success js-departure-placeholder-action"
+                            data-operation="edit_flight_php"
+                            data-refresh-operation="flight_list_php"
+                            data-connector-id="{$flight.connector_id|default:0|escape:'htmlattr'}"
+                            data-flight="{$flight.flight_no|default:''|escape:'htmlattr'}"
+                            data-flight-name="{$flight.name|default:$flight.flight_no|default:''|escape:'htmlattr'}"
+                            data-flight-id="{$flight.flight_id|default:''|escape:'htmlattr'}"
+                            data-flight-record-id="{$flight.flight_record_id|default:0|escape:'htmlattr'}"
+                            data-carrier="{$flight.carrier|default:$flight.departure|default:''|escape:'htmlattr'}"
+                            data-departure="{$flight.departure|default:''|escape:'htmlattr'}"
+                            data-destination="{$flight.destination|default:''|escape:'htmlattr'}"
+                            data-flight-time="{$flight.flight_time|default:''|escape:'htmlattr'}"
+                            data-awb-input="#{$flight.row_uid|escape:'htmlattr'}_awb"
+                            data-date-input="#{$flight.row_uid|escape:'htmlattr'}_date"
+                            data-status-target="#{$flight.row_uid|escape:'htmlattr'}_status"
+                            data-busy-label="Сохраняю изменения..."
+                            data-success-message="Изменения рейса сохранены, список рейсов обновлён.">
+                      <span class="js-departure-placeholder-label">Сохранить</span>
+                    </button>
+                    <button type="button"
+                            class="btn btn-sm btn-outline-secondary js-departure-edit-toggle"
+                            data-target="{$flight.row_uid|escape:'htmlattr'}_edit"
+                            data-open="1"
+                            aria-expanded="true">
+                      Отмена
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          {/if}
+
+          {if $flight.containers|@count > 0}
+            <div class="table-responsive">
+              <table class="table table-sm align-middle mb-0">
+                <thead>
+                  <tr>
+                    <th scope="col">Контейнер</th>
+                    <th scope="col">Рейс</th>
+                    <th scope="col">Маршрут</th>
+                    <th scope="col">AWB</th>
+                    <th scope="col">Склад (мест/вес)</th>
+                    <th scope="col">Форвард (мест/вес)</th>
+                    <th scope="col" class="text-end">Действие</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {foreach $flight.containers as $container}
+                    <tr>
+                      <td>
+                        <div class="fw-semibold">{$container.name|default:$container.container_external_id|default:'—'|escape}</div>
+                        {if $container.container_external_id}
+                          <div class="small text-muted">ID: {$container.container_external_id|escape}</div>
+                        {/if}
+                        <button type="button"
+                                class="btn btn-link btn-sm p-0 mt-1 js-departure-compare-open"
+                                data-compare-payload="{$container.compare_modal_payload_json|default:'{}'|escape:'htmlattr'}"
+                                data-connector-id="{$flight.connector_id|default:0|escape:'htmlattr'}"
+                                data-flight-id="{$flight.flight_id|default:''|escape:'htmlattr'}"
+                                data-flight-record-id="{$flight.flight_record_id|default:0|escape:'htmlattr'}"
+                                data-container-id="{$container.container_external_id|default:''|escape:'htmlattr'}"
+                                data-flight-status="{$flight.status|default:''|lower|escape:'htmlattr'}">
+                          Сверка позиций
+                        </button>
+                      </td>
+                      <td>{$container.flight|default:'—'|escape}</td>
+                      <td>{$container.departure|default:'—'|escape} → {$container.destination|default:'—'|escape}</td>
+                      <td>{$container.awb|default:'—'|escape}</td>
+                      <td class="{if $container.compare_status|default:'pending' == 'matched'}table-success{elseif $container.compare_status|default:'pending' == 'mismatch'}table-warning{/if}">
+                        <div>{$container.warehouse_packages_count|default:'—'|escape} / {$container.warehouse_total_weight|default:'—'|escape}</div>
+                      </td>
+                      <td class="{if $container.compare_status|default:'pending' == 'matched'}table-success{elseif $container.compare_status|default:'pending' == 'mismatch'}table-warning{/if}">
+                        <div>{$container.packages_count|default:'—'|escape} / {$container.total_weight|default:'—'|escape}</div>
+                        {if $container.forwarder_packages_synced_at}
+                          <div class="small text-muted">{$container.forwarder_packages_synced_at|escape}</div>
+                        {/if}
+                        {if $container.compared_at}
+                          <div class="small text-muted">Сверка: {$container.compared_at|escape}</div>
+                        {/if}
+                        {if $container.compare_error && $container.compare_status|default:'pending' == 'mismatch'}
+                          <div class="small text-warning-emphasis">{$container.compare_error|escape}</div>
+                        {/if}
+                      </td>
+
+                      <td class="text-end">
+                        <div class="d-inline-flex align-items-center gap-1 me-2">
+                          {if $flight.status|lower == 'open'}
+                            <button type="button"
+                                    class="btn btn-sm btn-outline-primary js-departure-container-action"
+                                    data-operation="sync_forwarder"
+                                    data-connector-id="{$flight.connector_id|default:0|escape:'htmlattr'}"
+                                    data-flight-id="{$flight.flight_id|default:''|escape:'htmlattr'}"
+                                    data-flight-record-id="{$flight.flight_record_id|default:0|escape:'htmlattr'}"
+                                    data-container-id="{$container.container_external_id|escape:'htmlattr'}"
+                                    data-status-target="#{$flight.row_uid|escape:'htmlattr'}_status"
+                                    title="Запросить данные у форварда по контейнеру">
+                              <i class="bi bi-cloud-arrow-down"></i>
+                            </button>
+                          {/if}
+                        </div>
+                        {if $flight.status|lower == 'open' && $container.can_delete_placeholder}
+                          <button type="button"
+                                  class="btn btn-sm btn-outline-danger js-departure-placeholder-action"
+                                  data-operation="delete_container_php"
+                                  data-refresh-operation="flight_list_php"
+                                  data-connector-id="{$flight.connector_id|default:0|escape:'htmlattr'}"
+                                  data-flight="{$flight.flight_no|default:''|escape:'htmlattr'}"
+                                  data-flight-name="{$flight.name|default:$flight.flight_no|default:''|escape:'htmlattr'}"
+                                  data-flight-id="{$flight.flight_id|default:''|escape:'htmlattr'}"
+                                  data-flight-record-id="{$flight.flight_record_id|default:0|escape:'htmlattr'}"
+                                  data-container-id="{$container.container_external_id|escape:'htmlattr'}"
+                                  data-container-name="{$container.name|default:$container.container_external_id|default:'container'|escape:'htmlattr'}"
+                                  data-status-target="#{$flight.row_uid|escape:'htmlattr'}_status"
+                                  data-busy-label="Удаляю контейнер..."
+                                  data-success-message="Пустой контейнер удалён, рейс синхронизирован и список обновлён.">
+                            <span class="js-departure-placeholder-label">Удалить контейнер</span>
+                          </button>
+                        {else}
+                          <span class="text-muted">—</span>
+                        {/if}
+                      </td>
+                    </tr>
+                  {/foreach}
+                </tbody>
+              </table>
+            </div>
+          {else}
+            <div class="text-muted small">Для этого рейса контейнеры пока не найдены.</div>
+          {/if}
+        </div>
+      </td>
+    </tr>
+  {/foreach}
+{else}
+  <tr>
+    <td colspan="8" class="text-center text-muted">Рейсы не найдены по выбранным фильтрам.</td>
+  </tr>
+{/if}

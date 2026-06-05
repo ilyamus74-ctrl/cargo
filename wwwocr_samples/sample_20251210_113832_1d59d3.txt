@@ -1,0 +1,50 @@
+TIME: 2025-12-10T11:38:32+01:00
+IP:   88.155.70.42
+========================================
+RAW BODY (php://input):
+raw_text=MUC3%0A0.86+Kgs10%2F12%0ACOLIBRI+EXPRESS+Nigar+Samadova%0ACOLIBRI+EXPRESS+-C414693%0AStarkenburgstr.+10C%0A64546+M%C3%B6rfelden-+Walldorf%2C+Germany%0ADE5024237638%0ADHE1%0Aa%0ASAME+DAY
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => MUC3
+0.86 Kgs10/12
+COLIBRI EXPRESS Nigar Samadova
+COLIBRI EXPRESS -C414693
+Starkenburgstr. 10C
+64546 Mörfelden- Walldorf, Germany
+DE5024237638
+DHE1
+a
+SAME DAY
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+MUC3
+0.86 Kgs10/12
+COLIBRI EXPRESS Nigar Samadova
+COLIBRI EXPRESS -C414693
+Starkenburgstr. 10C
+64546 Mörfelden- Walldorf, Germany
+DE5024237638
+DHE1
+a
+SAME DAY
+
+<form>
+file_name: sample_20251210_113832_1d59d3.txt
+tracking_no: 
+receiver_country_code: AZB
+receiver_forwarder_code: COLIBRI
+receiver_company: Colibri Express
+receiver_cell_code: C414693
+receiver_name: Nigar Samadova
+label_type: DHL
+</form>

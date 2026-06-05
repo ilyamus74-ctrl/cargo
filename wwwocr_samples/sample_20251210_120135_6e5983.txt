@@ -1,0 +1,89 @@
+TIME: 2025-12-10T12:01:35+01:00
+IP:   88.155.70.42
+========================================
+RAW BODY (php://input):
+raw_text=02069%25+64546%0AStarkenburgstra%C3%9Fe+00%0ADE+64546%0AKontakt%0APostleitzanl%0ANotiz%0ADE+120+03+03.122025+17-44%3A531.31+ka+001%2F001+RTG+02122025+F2+00+0%0ANotiz%0AKoliExpress+Narmin+Gurbanova%0ARef.+Nr%0Agls+group.edatagi+oecten%0AIhre+GLS+Track+iD%0AYVMHQRVM%0A121119827544%0Aelomalion8n+z0r+GL6-0atenscrwZcEtloe+uater%0AKunden-Nr%0AM%C3%B6rfelden-Walldort%0A06911473918800100033-54488994186%0AF%0AP%0A62-020%0ARhenus+WS+Polska+Sp+zo0+Rabowicka+67%0ASwarzdz%0ABDTTEX-Swarzedz2%0A276245e3u%0AVersede%0ACus%0AGon+10%0A2760319870
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => 02069% 64546
+Starkenburgstraße 00
+DE 64546
+Kontakt
+Postleitzanl
+Notiz
+DE 120 03 03.122025 17-44:531.31 ka 001/001 RTG 02122025 F2 00 0
+Notiz
+KoliExpress Narmin Gurbanova
+Ref. Nr
+gls group.edatagi oecten
+Ihre GLS Track iD
+YVMHQRVM
+121119827544
+elomalion8n z0r GL6-0atenscrwZcEtloe uater
+Kunden-Nr
+Mörfelden-Walldort
+06911473918800100033-54488994186
+F
+P
+62-020
+Rhenus WS Polska Sp zo0 Rabowicka 67
+Swarzdz
+BDTTEX-Swarzedz2
+276245e3u
+Versede
+Cus
+Gon 10
+2760319870
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+02069% 64546
+Starkenburgstraße 00
+DE 64546
+Kontakt
+Postleitzanl
+Notiz
+DE 120 03 03.122025 17-44:531.31 ka 001/001 RTG 02122025 F2 00 0
+Notiz
+KoliExpress Narmin Gurbanova
+Ref. Nr
+gls group.edatagi oecten
+Ihre GLS Track iD
+YVMHQRVM
+121119827544
+elomalion8n z0r GL6-0atenscrwZcEtloe uater
+Kunden-Nr
+Mörfelden-Walldort
+06911473918800100033-54488994186
+F
+P
+62-020
+Rhenus WS Polska Sp zo0 Rabowicka 67
+Swarzdz
+BDTTEX-Swarzedz2
+276245e3u
+Versede
+Cus
+Gon 10
+2760319870
+
+
+<form>
+file_name: sample_20251210_120135_6e5983.txt
+tracking_no: 
+receiver_country_code: AZB
+receiver_forwarder_code: KOLLI
+receiver_company: Kolli MMC
+receiver_cell_code: 
+receiver_name: Narmin Gurbanova
+label_type: GLS
+</form>

@@ -1,0 +1,15 @@
+{foreach $sync_reported_items as $item}
+  <tr>
+    <td>{$item.parcel_uid|default:'—'}</td>
+    <td>{$item.receiver_company|default:'—'}</td>
+    <td>{$item.receiver_country_code|default:'—'}</td>
+    <td>{$item.cell_address|default:'—'}</td>
+    <td><code>{$item.report_table|default:'—'}</code></td>
+    <td>{$item.report_created_at|default:'—'}</td>
+  </tr>
+{/foreach}
+{if !$sync_reported_items}
+  <tr>
+    <td colspan="6" class="text-center text-muted">Нет посылок из отчета форварда на складе</td>
+  </tr>
+{/if}

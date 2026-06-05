@@ -1,0 +1,73 @@
+TIME: 2025-12-10T11:38:04+01:00
+IP:   88.155.70.42
+========================================
+RAW BODY (php://input):
+raw_text=e+Paketschein%0A4-01%0At+bereits%0At%0ASendungs-D%3A%0A02341144003006%0AAbsender%3A%0AChristian+Lange%0AGro%C3%9Fe+HirtenstraBe+23%0A44+Empf%C3%A4nger%3A%0A39288+Burg%0ACOLIBRI+EXPRESS+-YULYA+VISHNEV%0ACOLIBRI+150424%0ASTARKENBURGSTR.+10C%0A64546+M%C3%96RFELDEN-WALLDORF%0AHHermes%0ADEUTSCHLAND%0Ain+Kooperation+mit%0Aebay%0Av1.2%0A07.12+2025+10%3A50%3A16
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => e Paketschein
+4-01
+t bereits
+t
+Sendungs-D:
+02341144003006
+Absender:
+Christian Lange
+Große HirtenstraBe 23
+44 Empfänger:
+39288 Burg
+COLIBRI EXPRESS -YULYA VISHNEV
+COLIBRI 150424
+STARKENBURGSTR. 10C
+64546 MÖRFELDEN-WALLDORF
+HHermes
+DEUTSCHLAND
+in Kooperation mit
+ebay
+v1.2
+07.12 2025 10:50:16
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+e Paketschein
+4-01
+t bereits
+t
+Sendungs-D:
+02341144003006
+Absender:
+Christian Lange
+Große HirtenstraBe 23
+44 Empfänger:
+39288 Burg
+COLIBRI EXPRESS -YULYA VISHNEV
+COLIBRI 150424
+STARKENBURGSTR. 10C
+64546 MÖRFELDEN-WALLDORF
+HHermes
+DEUTSCHLAND
+in Kooperation mit
+ebay
+v1.2
+07.12 2025 10:50:16
+
+
+<form>
+file_name: sample_20251210_113804_25db2f.txt
+tracking_no: 
+receiver_country_code: AZB
+receiver_forwarder_code: COLIBRI
+receiver_company: Colibri Express
+receiver_cell_code: C150424
+receiver_name: YULYA VISHNEV
+label_type: HERMES
+</form>

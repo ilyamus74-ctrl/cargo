@@ -1,0 +1,52 @@
+TIME: 2025-12-10T11:45:44+01:00
+IP:   88.155.70.42
+========================================
+RAW BODY (php://input):
+raw_text=PRG2%0A90LL+MB00%0AAnar+Babayev%0A0.12+Kgs+02%2F01%0ACOLIBRI+EXPRESS+-Anar+Babayev+C158697%0AStarkenburgstr.+10C%0A64546+M%C3%B6rfelden-+Walldorf+%2C+Germany%0ADE4073073552%0ADHET%0A80%0ACLE+1
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => PRG2
+90LL MB00
+Anar Babayev
+0.12 Kgs 02/01
+COLIBRI EXPRESS -Anar Babayev C158697
+Starkenburgstr. 10C
+64546 Mörfelden- Walldorf , Germany
+DE4073073552
+DHET
+80
+CLE 1
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+PRG2
+90LL MB00
+Anar Babayev
+0.12 Kgs 02/01
+COLIBRI EXPRESS -Anar Babayev C158697
+Starkenburgstr. 10C
+64546 Mörfelden- Walldorf , Germany
+DE4073073552
+DHET
+80
+CLE 1
+
+<form>
+file_name: sample_20251210_114544_5c8184.txt
+tracking_no: 
+receiver_country_code: AZB
+receiver_forwarder_code: COLIBRI
+receiver_company: Colibri Express
+receiver_cell_code: C158697
+receiver_name: Anar Babayev
+label_type: 
+</form>

@@ -1,0 +1,91 @@
+TIME: 2025-12-10T11:54:21+01:00
+IP:   88.155.70.42
+========================================
+RAW BODY (php://input):
+raw_text=Code%0AB4546%0AS3700%0AD%0AYor+GLS+Track%0AZ7DHMUTS%0A376889923815%0Akg+1I1%0A28.11.202516%3A19+1.00%0A7992_26091665_1%0ADE%0A64546%0AContact%0ACOLIBRI+EXPRESS+-Gunel+Mikayilova%0AStarkenburgstr.+10C%0ARTG27112025+E2%2C006%0ANote%0AES+28912+Aranjuez%0APasen+delDeleite+SN%0ACust.+No..%0ANote%0APhone+0033767290%0AwOMEN+SSrcRET%0AM%C3%B6rfelden-Walldorf%0AID+No.+1211744012%0ACst%0AOust+ID+7240008949Con+ID%0A724329OEM%0AK9%0APOO%3B
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => Code
+B4546
+S3700
+D
+Yor GLS Track
+Z7DHMUTS
+376889923815
+kg 1I1
+28.11.202516:19 1.00
+7992_26091665_1
+DE
+64546
+Contact
+COLIBRI EXPRESS -Gunel Mikayilova
+Starkenburgstr. 10C
+RTG27112025 E2,006
+Note
+ES 28912 Aranjuez
+Pasen delDeleite SN
+Cust. No..
+Note
+Phone 0033767290
+wOMEN SSrcRET
+Mörfelden-Walldorf
+ID No. 1211744012
+Cst
+Oust ID 7240008949Con ID
+724329OEM
+K9
+POO;
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+Code
+B4546
+S3700
+D
+Yor GLS Track
+Z7DHMUTS
+376889923815
+kg 1I1
+28.11.202516:19 1.00
+7992_26091665_1
+DE
+64546
+Contact
+COLIBRI EXPRESS -Gunel Mikayilova
+Starkenburgstr. 10C
+RTG27112025 E2,006
+Note
+ES 28912 Aranjuez
+Pasen delDeleite SN
+Cust. No..
+Note
+Phone 0033767290
+wOMEN SSrcRET
+Mörfelden-Walldorf
+ID No. 1211744012
+Cst
+Oust ID 7240008949Con ID
+724329OEM
+K9
+POO;
+
+
+<form>
+file_name: sample_20251210_115421_8f4ec9.txt
+tracking_no: 
+receiver_country_code: AZB
+receiver_forwarder_code: COLIBRI
+receiver_company: Colibri Express
+receiver_cell_code: 
+receiver_name: Gunel Mikayilova
+label_type: 
+</form>

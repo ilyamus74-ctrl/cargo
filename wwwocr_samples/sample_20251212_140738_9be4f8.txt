@@ -1,0 +1,50 @@
+TIME: 2025-12-12T14:07:38+01:00
+IP:   84.166.213.45
+========================================
+RAW BODY (php://input):
+raw_text=Epfing%0ANaila+Novruzi%0AStarkenburgstr.+10H+10%0ATel.+61S33767290%0ADE-64546+M%C3%B6rfelden-Walldorf%0AYT2532366796168443%0ARutotona2%0AYT2532306796+198443%0A1%2F%0A1%2C13
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => Epfing
+Naila Novruzi
+Starkenburgstr. 10H 10
+Tel. 61S33767290
+DE-64546 Mörfelden-Walldorf
+YT2532366796168443
+Rutotona2
+YT2532306796 198443
+1/
+1,13
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+Epfing
+Naila Novruzi
+Starkenburgstr. 10H 10
+Tel. 61S33767290
+DE-64546 Mörfelden-Walldorf
+YT2532366796168443
+Rutotona2
+YT2532306796 198443
+1/
+1,13
+
+<form>
+file_name: sample_20251212_140738_9be4f8.txt
+tracking_no: 
+receiver_country_code: AZB
+receiver_forwarder_code: POSTLINK
+receiver_company: Postlink
+receiver_cell_code: 
+receiver_name: Naila Novruzi
+label_type: DPD
+</form>

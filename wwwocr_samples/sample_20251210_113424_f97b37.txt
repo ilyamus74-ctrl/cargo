@@ -1,0 +1,71 @@
+TIME: 2025-12-10T11:34:24+01:00
+IP:   88.155.70.42
+========================================
+RAW BODY (php://input):
+raw_text=Tet+4492393208298%0AHars+9%C3%B6ckler-Str.+4%0ADE+S0423+UNNA%0A0159+5299+9965+66+Q%0A5%2C49+kg%0AGew%27cht%0A1%2F1%0ALietutuig%0Aketerenz+2%0A96-3-629625%0AReferenz1%0ADE-64546+M%C3%96RFELDEN-WALLDORF%0AStarkenburgstr+1OE%0AScI%3Ade%0AGulsada+K20374+Kudaibergenova%0AEmpfi+nger%0Aoponct+n+writtng+to+DP%C3%9C+wthm+7+days+after+delvery.%0AChiti+yometdct+wcreh+%2F0naga+trot+rOcUgrizubtu+on+thu+outsfdo+has+to+b%0AA%273artich+nich+ekeinoBr%0Am%C3%A4%26+o11+OPO+inarnaib+7+Tag+naen+Aoiefarunc
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => Tet 4492393208298
+Hars 9öckler-Str. 4
+DE S0423 UNNA
+0159 5299 9965 66 Q
+5,49 kg
+Gew'cht
+1/1
+Lietutuig
+keterenz 2
+96-3-629625
+Referenz1
+DE-64546 MÖRFELDEN-WALLDORF
+Starkenburgstr 1OE
+ScI:de
+Gulsada K20374 Kudaibergenova
+Empfi nger
+oponct n writtng to DPÜ wthm 7 days after delvery.
+Chiti yometdct wcreh /0naga trot rOcUgrizubtu on thu outsfdo has to b
+A'3artich nich ekeinoBr
+mä& o11 OPO inarnaib 7 Tag naen Aoiefarunc
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+Tet 4492393208298
+Hars 9öckler-Str. 4
+DE S0423 UNNA
+0159 5299 9965 66 Q
+5,49 kg
+Gew'cht
+1/1
+Lietutuig
+keterenz 2
+96-3-629625
+Referenz1
+DE-64546 MÖRFELDEN-WALLDORF
+Starkenburgstr 1OE
+ScI:de
+Gulsada K20374 Kudaibergenova
+Empfi nger
+oponct n writtng to DPÜ wthm 7 days after delvery.
+Chiti yometdct wcreh /0naga trot rOcUgrizubtu on thu outsfdo has to b
+A'3artich nich ekeinoBr
+mä& o11 OPO inarnaib 7 Tag naen Aoiefarunc
+
+
+<form>
+file_name: sample_20251210_113424_f97b37.txt
+tracking_no: 
+receiver_country_code: KG
+receiver_forwarder_code: CAMARATC
+receiver_company: Camaratc
+receiver_cell_code: K20374
+receiver_name: Gulsada Kudaibergenova
+label_type: 
+</form>

@@ -1,0 +1,85 @@
+TIME: 2025-12-10T12:02:43+01:00
+IP:   88.155.70.42
+========================================
+RAW BODY (php://input):
+raw_text=PHL%0ADHL+PAKET%0AAbsender+Telefon%3A%0ACOS%0ACHO+GXO+SUPPLY+CHAIN%0ACos%0AVon%3A%0A47308+KREFELD%0AGERMANY%0AEmpf%C3%A4nger+Telefon%3A%0AAn%3A+Orkhan+Malikov%0ACamex+A179202%0AStarkenburgstra%C3%9Fe+10a%0A64545+M%C3%B6rtelden-Walldorf%0AGERMANY%0AZeit%0ATag%0A1%2F1%0AGeicht%3A%0A1%2C47+kg%0A5004268487+01+05%0AAprecriurigsr.%0AE187076071%0APeierenzir%0A00340434729483851991%0ASendurngsr.%3A%0A.4
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => PHL
+DHL PAKET
+Absender Telefon:
+COS
+CHO GXO SUPPLY CHAIN
+Cos
+Von:
+47308 KREFELD
+GERMANY
+Empfänger Telefon:
+An: Orkhan Malikov
+Camex A179202
+Starkenburgstraße 10a
+64545 Mörtelden-Walldorf
+GERMANY
+Zeit
+Tag
+1/1
+Geicht:
+1,47 kg
+5004268487 01 05
+Aprecriurigsr.
+E187076071
+Peierenzir
+00340434729483851991
+Sendurngsr.:
+.4
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+PHL
+DHL PAKET
+Absender Telefon:
+COS
+CHO GXO SUPPLY CHAIN
+Cos
+Von:
+47308 KREFELD
+GERMANY
+Empfänger Telefon:
+An: Orkhan Malikov
+Camex A179202
+Starkenburgstraße 10a
+64545 Mörtelden-Walldorf
+GERMANY
+Zeit
+Tag
+1/1
+Geicht:
+1,47 kg
+5004268487 01 05
+Aprecriurigsr.
+E187076071
+Peierenzir
+00340434729483851991
+Sendurngsr.:
+.4
+
+
+<form>
+file_name: sample_20251210_120243_d4839c.txt
+tracking_no: 00340434729483851991
+receiver_country_code: AZB
+receiver_forwarder_code: CAMEX
+receiver_company: Camex
+receiver_cell_code: A179202
+receiver_name: Orkhan Malikov
+label_type: DHL
+</form>

@@ -1,0 +1,27 @@
+<form id="tool-storage-move-form" class="row g-3">
+  <input type="hidden" name="tool_id" value="{$tool.id|escape}">
+  <input type="hidden" name="user_id" value="{$tool.assigned_user_id|default:''|escape}">
+
+  <div class="col-12">
+    <label class="form-label" for="toolName">Инструмент</label>
+    <input type="text" class="form-control" id="toolName" value="{$tool.name|escape}" disabled>
+  </div>
+
+  <div class="col-12">
+    <label class="form-label" for="toolStorageCell">Ячейка хранения</label>
+    <select class="form-select" id="toolStorageCell" name="cell_id">
+      <option value="">— не выбрано —</option>
+      {foreach $cells as $cell}
+        <option value="{$cell.id|escape}" {if $cell.code == $tool.location}selected{/if}>{$cell.code|escape}</option>
+      {/foreach}
+    </select>
+  </div>
+
+  <div class="col-12">
+    <button type="button"
+            class="btn btn-primary js-core-link"
+            data-core-action="tools_management_save_move">
+      Сохранить
+    </button>
+  </div>
+</form>

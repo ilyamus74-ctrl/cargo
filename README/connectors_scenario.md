@@ -1,0 +1,591 @@
+Классная мысль. И по-человечески — абсолютно правильная.
+
+Ты сейчас предлагаешь перейти от “набор разрозненных настроек” к единому сценарию процесса, где шаги идут последовательно и прозрачно. Это именно то, что обычно резко упрощает сопровождение.
+Коротко: моя оценка
+
+Да, идти этим путем — логично и правильно.
+Особенно потому, что у вас уже есть зачатки этого подхода:
+
+    в модалке уже есть scenario_json как “сценарий входа”;
+
+    операции уже хранятся как JSON-структура (operations_json → report.steps, report.curl_config);
+
+    cURL уже умеет “логин перед скачиванием” через curl_config.login;
+
+То есть база уже есть — надо сделать ее главной моделью, а не набором частичных костылей.
+Почему твоя идея лучше текущего состояния
+
+Сейчас логика размазана по нескольким местам:
+
+    где-то login в scenario_json,
+
+    где-то download steps в report_steps_json,
+
+    где-то cURL config отдельно,
+
+    плюс fallback/ретраи в node.
+
+Из-за этого тебе и сложно видеть “что реально происходит в цепочке”.
+
+Твой подход “единый сценарий = [шаг0, шаг1, шаг2…]” дает:
+
+    Прозрачность — один источник правды.
+
+    Независимость сценариев — каждый форвард живет в своем сценарии.
+
+    Проще отладка — падение всегда на конкретном шаге N.
+
+    Переиспользование движка — один executor для node/curl.
+
+    Контролируемый лог — по шагам, с контекстом.
+
+Как бы я это оформил концептуально (без кода)
+1) Единый формат “workflow scenario”
+
+Один JSON-массив шагов, например:
+
+    goto
+
+    fill
+
+    click
+
+    wait_for
+
+    http_request (для cURL/HTTP шага)
+
+    download
+
+    assert (проверки)
+
+И для каждого шага обязательные поля:
+
+    id (уникальный шаг)
+
+    type
+
+    name
+
+    on_error (stop/continue)
+
+    save (что сохранять в контекст: cookie/csrf/token/filepath и т.д.)
+
+2) Единый runtime context
+
+Контекст, который живет между шагами:
+
+    vars: ${login}, ${password}, ${today}, ${today_minus_2y}, ${date_from}/${test_period_from}, ${date_to}/${test_period_to}
+
+    cookies/token/csrf
+
+    last_response / last_url / last_status
+
+    artifacts (screenshot/html/download file)
+
+3) Единый step-лог в файл
+
+На каждый шаг писать структурированный лог:
+
+    timestamp
+
+    scenario_id
+
+    step_id, step_type
+
+    status (start/success/fail)
+
+    duration_ms
+
+    ключевые данные (http code, selector found/not found, file size)
+
+    ссылки на артефакты (html/screenshot/network dump)
+
+Это ровно то, о чем ты сказал: “чтобы видеть обратную связь”.
+4) Артефакты отладки
+
+ри ошибке на шаге:
+
+    HTML snapshot страницы
+
+    screenshot
+
+    последние cookies/headers (без секретов)
+
+    (опционально) последние N network requests
+
+Что важно учесть заранее (чтобы не утонуть)
+
+    Версионирование формата
+    В JSON должен быть schema_version, иначе потом миграции станут болью.
+
+    Маскирование секретов
+    Логины/пароли/токены не должны улетать в plain logs.
+
+    Идемпотентность шагов
+    Некоторые шаги нельзя повторять бесконечно (submit формы, download). Нужно явное retry-policy per-step.
+
+    Timeout/Retry per-step
+    Глобальный retry — плохо. Лучше на уровне шага.
+
+    Унификация browser/curl
+    Не надо два разных мира. Пусть шаги одинаковые, а исполнитель выбирается по executor: browser|http.
+
+Мой практический вердикт
+
+Твоя идея — не “другая”, а стратегически более правильная.
+Текущее состояние как раз показывает, что точечные фиксы (CDP, retry, login-merge) дают пользу, но не снимают “непонятность” процесса.
+
+---
+
+## По твоему кейсу с записями в БД (как фильтровать и сверять)
+
+Да, тут правильно мыслить не отдельными строками, а **пакетом загрузки (batch)**.
+
+Судя по данным, один и тот же файл (`1771945698496_all_packages.xlsx`) дал несколько строк подряд с почти одинаковым временем вставки — это и есть одна групповая загрузка.
+
+Практическая схема:
+
+1. **Вводим batch_id** для каждой загрузки отчета (лучше UUID), и пишем его в каждую вставленную строку.
+2. Если batch_id пока нет, временно группируем по связке:
+   - `connector_id`
+   - `source_file_name`
+   - `inserted_at` в пределах небольшого окна (например, 1–5 секунд).
+3. Сверку делаем **по последнему успешному batch** конкретного коннектора, а не по “последней строке”.
+4. Для дедупликации внутри batch используем бизнес-ключ (например: `tracking_number + cbr_number`), чтобы одинаковые строки не плодились.
+5. Пустые/служебные строки (где `client_id` пустой и т.п.) отсекаем на этапе нормализации, чтобы в сравнение попадали только валидные отправления.
+
+Итог: да, отправная точка — **группировка по загрузке и времени инсерта**, но лучше как можно раньше перейти на явный `batch_id`.
+
+## По UI: “Операция #1” в модалке
+
+Да, логично оформить это как **Вкладка 1 = отдельный сценарий “Получение отчета”**.
+
+- Вкладка 1: login + шаги получения файла.
+- Следующие вкладки (позже): парсинг/валидация, пост-обработка, сверка, уведомления и т.д.
+
+То есть “Операция #1” — это не просто блок полей, а самостоятельный сценарий в цепочке.
+
+## По крону
+
+Да, отдельный механизм по cron лучше делать отдельным этапом.
+
+Рекомендуемая последовательность:
+
+1. Сначала стабилизировать ручной запуск (из модалки): чтобы сценарий был предсказуем, с нормальными логами и артефактами.
+2. Затем добавить scheduler (cron/queue worker), который запускает **тот же сценарий**, а не другую логику.
+3. Для cron сразу предусмотреть:
+   - блокировку от параллельных запусков одного коннектора;
+   - retry policy;
+   - алерты при падении;
+   - хранение истории запусков (run_id, статус, длительность, batch_id).
+
+Так вы избежите ситуации “вручную работает, по крону — другая магия”.
+
+---
+
+## DEV Colibri: пример browser_steps для `edit_flight`
+
+Для редактирования рейса на `https://dev-backend.colibri.az/collector/flights` есть несколько важных нюансов:
+
+- поиск на странице идёт по колонке `Name`, поэтому в поле поиска лучше передавать `${flight_search_value}` / `${target_flight_name}`, а не `${target_flight_id}`;
+- после выбора строки нужно нажимать **Edit**, а не **Add**;
+- модалка редактирования уже подставляет текущее состояние рейса, поэтому `${set_date}` и `${add_flight}` должны быть уже изменёнными значениями из UI перед нажатием «Сохранить».
+
+Рабочий пример шагов:
+
+```json
+{
+  "page_url": "https://dev-backend.colibri.az/collector/flights",
+  "log_steps": 1,
+  "steps": [
+    { "action": "goto", "url": "https://dev-backend.colibri.az/login" },
+    { "action": "fill", "selector": "input[name=\"username\"]", "value": "${login}" },
+    { "action": "fill", "selector": "input[name=\"password\"]", "value": "${password}" },
+    { "action": "click", "selector": "button[type=\"submit\"]" },
+    { "action": "wait_for", "selector": ".glyphicon.glyphicon-log-out", "timeout_ms": 5000 },
+
+    { "action": "goto", "url": "https://dev-backend.colibri.az/collector/flights" },
+    { "action": "wait_for", "selector": "#search_values", "timeout_ms": 5000 },
+    { "action": "fill", "selector": "#search_values", "value": "${flight_search_value}" },
+    { "action": "click", "selector": "button.search-input.btn.btn-primary" },
+    {
+      "action": "click_by_text",
+      "selector": "table.references-table tbody tr",
+      "text": "${target_flight_name}",
+      "match": "contains",
+      "timeout_ms": 7000
+    },
+
+    {
+      "action": "wait_for",
+      "selector": "a.action-btn[onclick=\"show_update_modal();\"]",
+      "timeout_ms": 5000
+    },
+    { "action": "click", "selector": "a.action-btn[onclick=\"show_update_modal();\"]" },
+    { "action": "wait_for", "selector": "form#form input[name=\"awb\"]", "timeout_ms": 1500 },
+
+    { "action": "fill", "selector": "input[name=\"flight_number\"]", "value": "${set_date}" },
+    { "action": "fill", "selector": "input[name=\"awb\"]", "value": "${add_flight}" },
+    { "action": "click", "selector": "form#form input[type=\"submit\"][value=\"Save\"]" }
+  ]
+}
+```
+
+---
+
+## DEV Colibri: пример browser_steps для `add_container_to_flight`
+
+Это удобный короткий сценарий для страницы `https://dev-backend.colibri.az/collector/containers`, который можно использовать как baseline перед переносом flow в persistent worker.
+
+```json
+{
+  "page_url": "https://dev-backend.colibri.az/collector/containers",
+  "log_steps": 1,
+  "steps": [
+    { "action": "goto", "url": "https://dev-backend.colibri.az/login" },
+    { "action": "fill", "selector": "input[name=\"username\"]", "value": "${login}" },
+    { "action": "fill", "selector": "input[name=\"password\"]", "value": "${password}" },
+    { "action": "click", "selector": "button[type=\"submit\"]" },
+    { "action": "wait_for", "selector": ".glyphicon.glyphicon-log-out", "timeout_ms": 1500 },
+
+    { "action": "goto", "url": "https://dev-backend.colibri.az/collector/containers" },
+    { "action": "wait_for", "selector": "#search_values", "timeout_ms": 1500 },
+    { "action": "fill", "selector": "#count", "value": "1" },
+    { "action": "select", "selector": "#flight_id", "value": "${flight_id}", "match": "value" },
+    { "action": "select", "selector": "#departure_id", "value": "6", "match": "value" },
+    { "action": "select", "selector": "#destination_id", "value": "1", "match": "value" },
+    { "action": "click", "selector": "button[type=\"submit\"], input[type=\"submit\"], .btn-success" },
+    { "action": "wait_for", "selector": "#search_values", "timeout_ms": 3500 }
+  ]
+}
+```
+
+Практический смысл этого сценария:
+
+- он быстро проверяет, что login + открытие формы + submit контейнера работают end-to-end;
+- его удобно гонять как `cold` и `warm` run для сравнения one-shot и persistent session;
+- после него логично строить парный сценарий на удаление контейнера из того же рейса и измерять, не ломается ли состояние между job.
+
+---
+
+## Analyze internal data flow logic
+
+Идея с переводом модалки `cells_NA_API_connector_operations_modal.html` на динамическую модель из БД — очень сильный шаг к унификации.
+
+### Что именно унифицируем
+
+1. **Операция = запись в БД**, а не hardcode вкладки в HTML.
+2. **Вкладки модалки рендерятся ядром** по `SELECT` (id, name, json, active, sort_order).
+3. **JSON операции становится источником правды** для исполнения шага/цепочки шагов.
+4. **Добавление/удаление вкладок через UI** (`+` / `-`) меняет данные, а не шаблон.
+
+### Базовая модель данных (минимум)
+
+- `connector_operation_tabs`
+  - `id`
+  - `connector_id`
+  - `code` (например: `report`, `submission`, `post_process`)
+  - `name`
+  - `operation_json`
+  - `is_active`
+  - `sort_order`
+  - `created_at`, `updated_at`
+
+- `connector_operation_function_library`
+  - `id`
+  - `code` (например: `table_transfer`, `send_data`, `fetch_data`, `required_fields`)
+  - `name`
+  - `schema_json` (валидируемые входные параметры)
+  - `is_active`
+
+### Как исполнять в ядре
+
+1. По `connector_id` вытягиваем активные вкладки по `sort_order`.
+2. Для каждой вкладки валидируем `operation_json` по schema-version.
+3. Выполняем массив действий (`actions[]`) через универсальный executor.
+4. Действия резолвятся через библиотеку функций (`function_code`) + параметры.
+5. Логируем step-by-step: start/success/fail, duration, payload-mask.
+
+### Зачем это лучше текущего hardcode
+
+- Нет привязки к фиксированным “Операция #1/#2/#3”.
+- Один движок на все типы операций и коннекторов.
+- Быстрые изменения без правки шаблонов и деплоя UI.
+- Управляемая активация (`is_active`) для мягкого включения/отключения логики.
+- Возможность дать пользователю редактор операций с контролируемыми шаблонами.
+
+### План миграции без риска
+
+1. Добавить новые таблицы и чтение вкладок из БД рядом с текущим режимом.
+2. Перенести существующие hardcoded операции в БД миграцией (1:1).
+3. Включить feature-flag: dynamic-tabs для тестовых коннекторов.
+4. Добавить JSON schema validation + ошибки в UI до запуска.
+5. После стабилизации удалить hardcode-вкладки из шаблона.
+
+### Обязательные guardrails
+
+- `schema_version` в каждом `operation_json`.
+- Белый список функций (нельзя выполнить произвольный код из JSON).
+- Маскирование секретов в логах.
+- Ограничения retry/timeout на уровне действия.
+- Аудит изменений: кто и когда поменял вкладку/функцию.
+
+### Взаимосвязанные операции (dependency graph)
+
+Отличное развитие идеи: операция может ссылаться на другие операции, которые должны выполняться **до**, **во время** или **в конце** основной операции.
+
+#### Предлагаемый формат в `operation_json`
+
+```json
+{
+  "schema_version": 2,
+  "operation_id": "submission_main",
+  "name": "Отправка данных на сайт форварда",
+  "run_after": ["prepare_payload", "auth_refresh"],
+  "run_with": ["audit_stream"],
+  "run_finally": ["notify_result"],
+  "entrypoint": true,
+  "actions": [
+    { "function_code": "send_data", "params": { "endpoint": "/api/submit" } }
+  ]
+}
+```
+
+Где:
+- `operation_id` — стабильный идентификатор (человекочитаемый, уникальный в рамках connector).
+- `run_after` — список зависимостей, которые должны завершиться до старта операции.
+- `run_with` — операции, которые запускаются параллельно/в рамках той же стадии (для оркестрации, если это разрешено политикой).
+- `run_finally` — операции, которые выполняются в конце (cleanup, уведомления, синхронизация статусов).
+- `entrypoint` — можно использовать как стартовую операцию для запуска цепочки.
+
+Если нужно числовое значение — можно хранить и `id`, но для ссылок в JSON надежнее использовать именно `operation_id` (не ломается при миграциях/копировании).
+
+#### Как исполнять зависимости
+
+1. Пользователь запускает entrypoint-операцию (или системный запуск по коду).
+2. Ядро строит граф и стадии исполнения: `run_after` (before), `run_with` (during), `run_finally` (after).
+3. Проверяет:
+   - отсутствующие ссылки;
+   - циклы (`A -> B -> A`);
+   - неактивные операции в цепочке;
+   - запрет недопустимых параллельных связей для `run_with`.
+4. Делает topological sort для before/after-части и отдельное планирование параллельных during-групп.
+5. Выполняет стадии в порядке: **before -> main(+during) -> finally**, сохраняя `run_id`, `operation_id`, `stage`, `step_id`, статус.
+
+#### Политики отказа (рекомендуемо)
+
+- `on_dependency_fail: "stop" | "skip" | "continue" (для before/during/finally можно переопределять per-stage)` на уровне операции.
+- По умолчанию: `stop` (безопаснее для бизнес-процесса).
+- Возможность `allow_partial_success` для не критичных веток.
+
+#### Что добавить в БД под dependencies
+
+Минимально можно оставить связи внутри `operation_json`. Для аналитики лучше вынести в отдельную таблицу:
+
+- `connector_operation_dependencies`
+  - `id`
+  - `connector_id`
+  - `operation_id`
+  - `depends_on_operation_id`
+  - `is_active`
+
+Тогда проверка графа и поиск проблемных связей делаются SQL-отчетами быстрее.
+
+### План работ на этот этап (операции со ссылками друг на друга)
+
+1. **Спека JSON v2**
+   - Зафиксировать поля: `operation_id`, `run_after`, `run_with`, `run_finally`, `entrypoint`, `on_dependency_fail`.
+
+### JSON v2 (зафиксировано для этапа dependencies)
+
+```json
+{
+  "schema_version": 2,
+  "operation_id": "report",
+  "entrypoint": true,
+  "on_dependency_fail": "stop",
+  "run_after": [],
+  "run_with": [],
+  "run_finally": [],
+  "enabled": 1,
+  "actions": []
+}
+```
+
+Правила для полей v2:
+- `operation_id` — строковый стабильный идентификатор операции внутри коннектора.
+- `run_after` — массив `operation_id`, которые должны завершиться до старта текущей операции.
+- `run_with` — массив `operation_id`, которые запускаются в параллельной стадии вместе с текущей операцией.
+- `run_finally` — массив `operation_id`, которые запускаются в финальной стадии.
+- `entrypoint` — булев флаг, можно ли использовать операцию как точку входа.
+- `on_dependency_fail` — политика `stop|skip|continue` (по умолчанию `stop`).
+
+2. **Валидация**
+   - JSON schema + runtime-проверки ссылок/циклов/неактивных зависимостей.
+-  (например, расширить до полноценного JSON Schema-документа, добавить негативные кейсы/тесты и более строгие правила для run_with)
+
+3. **Планировщик исполнения графа** ✅
+   - Реализовано построение графа зависимостей по `run_after` и топологическая сортировка для стадий `before` и `after` с **deterministic order** (стабильный порядок по исходному списку операций).
+   - Добавлен scheduler для `during`-групп: операции из `run_with` раскладываются по волнам параллельного запуска с учетом внутренних `run_after` между `during`-операциями.
+   - Валидация payload теперь дополнительно строит execution plan для активных entrypoint-операций, чтобы ошибки графа обнаруживались до фактического запуска.
+
+4. **Логи и трассировка**
+   - `run_id` + журнал по операциям и шагам; визуальный статус цепочки в UI.
+
+Что уже сделано частично
+-    run_id и trace_log добавлены, но только в рамках test_connector_operations (тестовый запуск из модалки), а не как общий механизм для всех реальных запусков/крона. 
+-    В UI есть визуализация chain_status и вывод run_id/trace_log/step_log в модалке теста.
+-    Постоянное хранение трассировки
+    Сейчас лог в ответе API, но нет отдельного хранилища истории запусков (run_id, операции, шаги, длительности, статусы) для последующего аудита/поиска.
+-   Покрытие не только тест-ручки
+    Трассировка должна работать и для боевого/cron execution path, а не только test_connector_operations
+-   Фактический runtime-статус цепочки
+    Текущий `chain_status` строится от плана и текущей операции, но не отражает полный реальный прогон стадий `before/during/finally` как отдельные `executed events`.
+    Что нужно сделать:
+    - Логировать каждую выполненную операцию как отдельное runtime-событие: `event_type=operation_executed`, `stage=before|during|main|finally`, `operation_id`, `status`, `started_at`, `finished_at`, `duration_ms`.
+    - Формировать `chain_status` не из расчетного execution plan, а из фактической ленты событий (event stream) текущего `run_id`.
+    - Добавить агрегаты в ответ API: `stages.before.executed/success/failed`, `stages.during...`, `stages.finally...`, плюс `current_event`.
+    - Для UI показывать таймлайн выполнения стадий (не только “текущая операция”), чтобы было видно, что именно реально уже отработало.
+-   UI-поток для операции #1 сейчас затирает отчет
+    После рендера блока отчета вызывается перезагрузка модалки, из-за чего визуальный статус может сразу исчезнуть для report-теста
+    Исправил UI-поток для теста операции #1 (report): после рендера блока report-test-report больше не выполняется повторная загрузка модалки form_connector_operations, из‑за которой статус сразу исчезал. Теперь визуальный отчет остается на экране
+
+
+5. **UI модалки**
+   - Поля “ID операции”, “Before (run_after)”, “During (run_with)”, “After (run_finally)”, “Точка входа”, “Политика при ошибке зависимости”.
+    Да, двигаемся следующим пунктом: добавил в UI модалки полноценный блок для Операции #3 (TrackAndLabelInfo) с нужными полями: ID операции, Before (run_after), During (run_with), After (run_finally), Точка входа, Политика при ошибке зависимости, плюс toggle включения и кнопка сохранения вкладки.
+
+    На backend добавил поддержку track_and_label_info в дефолтной структуре операций (schema v2 + dependency-поля), чтобы UI имел корректные значения даже для новых/пустых коннекторов.
+
+    Добавил decode из operations_json для track_and_label_info, чтобы значения dependency-полей корректно подтягивались обратно в модалку при открытии.
+
+    Расширил сбор payload из POST для save_connector_operations: новые поля операции #3 теперь парсятся, нормализуются и сохраняются в operations_json.
+
+    Изменения закоммичены: e68659d. PR создан через make_pr.
+
+6. **Миграция с текущих операций**
+   - Проставить `operation_id` существующим вкладкам, `run_after=[]`, `entrypoint` для основной операции.
+
+
+    Реализовал миграцию существующих operations_json для шага 6 из connectors_scenario.md: теперь при чтении коннектора автоматически проставляются недостающие operation_id, run_after=[], а также entrypoint для основной операции (по первой включенной, если явного entrypoint нет). Это сделано в новой функции connectors_migrate_operations_payload().
+
+    Добавил безопасную запись мигрированного JSON обратно в БД только при фактических изменениях через connectors_try_migrate_operations_json() (decode → migrate → update).
+
+    Подключил миграцию в connectors_fetch_one(), чтобы она применялась для уже существующих вкладок/операций без отдельного ручного шага миграции: при получении записи из connectors вызывается миграция и возвращается уже нормализованный payload
+по этому пункту можно считать “сделано” — но в формате ленивой миграции при чтении коннектора, а не отдельным SQL-скриптом на все записи сразу.
+
+Что реализовано:
+
+    При загрузке коннектора вызывается миграция operations_json через connectors_try_migrate_operations_json(...) прямо из connectors_fetch_one(...).
+
+    В миграции для существующих вкладок проставляются:
+
+        operation_id (если пустой),
+
+        run_after (если отсутствует/не массив → []),
+
+        entrypoint (если отсутствует; основной включенной операции ставится 1).
+
+    Обновление в БД происходит только если JSON реально изменился (идемпотентно/без лишних апдейтов).
+
+
+
+7. **Feature-flag rollout**
+   - Включить для тестовых коннекторов, собрать ошибки графа, затем раскатать на всех.
+
+Что реализовано для rollout:
+
+- Добавлен feature-flag `connectors_dependency_graph_rollout` в runtime-конфиг коннектора:
+  - `off` — граф зависимостей выключен (legacy execution).
+  - `test_only` — граф включается только для тестовых коннекторов.
+  - `all` — граф включается для всех активных коннекторов.
+- Добавлен признак тестового коннектора `is_test_connector` (флаг в карточке коннектора), чтобы можно было делать безопасный поэтапный запуск без ветвления кода по ID.
+- В execution path добавлен единый gate `connectors_is_dependency_graph_enabled(...)`, чтобы и ручной запуск, и cron использовали одинаковую стратегию включения.
+- Ошибки графа (битые ссылки, циклы, неактивные зависимости) складываются в структурированный список `graph_errors[]` с `run_id`, `connector_id`, `entrypoint`, `error_code`, `details`.
+- Для `test_only`-этапа включен сбор агрегатов по ошибкам графа:
+  - количество запусков с ошибками;
+  - топ `error_code`;
+  - список проблемных `operation_id`.
+
+План раскатки:
+
+- 1. Перевести флаг в `test_only`.
+    В коде rollout-режим берётся из CONNECTORS_DEPENDENCY_GRAPH_ROLLOUT и по умолчанию (fallback) установлен в test_only.
+    Ветка исполнения уже использует gate connectors_is_dependency_graph_enabled(...) и при выключенном графе уходит в legacy-план, то есть механизм переключения реально подключён в runtime.
+    В сценарии этот шаг отдельно отмечен как выполненный.
+
+- 2. Прогнать тестовые коннекторы (ручной запуск + cron), собрать `graph_errors[]` и исправить payload.
+    Выполнено в коде: в ручном запуске (`test_connector_operations`) и в cron (`system_tasks_run_connectors_report_operation_1`) добавлен единый сбор `graph_errors[]` c полями `run_id`, `connector_id`, `entrypoint`, `error_code`, `details`, а также прокидывание этого массива в ответ и в `connector_operation_runs` через `connectors_persist_run_trace`.
+
+    Выполнил пункт 2 в README/connectors_scenario.md: отметил шаг как реализованный и зафиксировал, что сбор graph_errors[] теперь есть и для ручного запуска, и для cron.
+    Добавил в connector_actions.php унифицированные helper-функции для структуры ошибок графа (connectors_build_graph_error) и нормализации error_code (connectors_resolve_graph_error_code).
+    Обновил ручной запуск test_connector_operations: при ошибках построения dependency graph теперь формируется graph_errors[], эти данные возвращаются в response и передаются в connectors_persist_run_trace(...).
+    Обновил cron-путь system_tasks_run_connectors_report_operation_1: добавил проверку/построение execution plan через rollout-gate, сбор graph_errors[] и прокидывание этих данных в trace/persist/details
+
+- 3. Зафиксировать критерий готовности к `all`.
+    Критерий готовности фиксируем так:
+    - Период наблюдения: минимум 7 календарных дней в режиме `test_only`.
+    - Критические ошибки графа: `0` за весь период (к критическим относятся `cycle_detected`, `entrypoint_not_found`, `operation_not_found`, `invalid_dependency_ref`).
+    - Некритические ошибки: не более 1% запусков за период и без роста последние 3 дня.
+    - Покрытие: за период должны быть прогоны и ручного запуска, и cron для тестовых коннекторов.
+    - Формализация: перед переключением в `all` сохраняем короткий rollout-отчет (дата, период, агрегаты, список оставшихся некритических ошибок).
+
+--- 4. Переключить флаг в `all`.
+--- 5. Оставить fallback в `off` как аварийный rollback-переключатель.
+
+Критерий “пункт 7 выполнен”:
+
+- Флаг переведен в `all`.
+- Ошибки графа для активных коннекторов находятся в допустимом пороге.
+- Rollback-путь через `off` проверен и задокументирован.
+
+
+
+### Как работать «по 1 операции в посте» (ваш формат)
+
+Да, ваш подход нормальный: можно идти итеративно, **по одной операции за раз**. Для этого текущего плана достаточно, если держаться простого шаблона каждого шага:
+
+1. Выбираем одну операцию (например `submission_main`).
+2. Фиксируем для нее минимальный JSON (`operation_id`, `actions`, при необходимости `run_after/run_with/run_finally`).
+3. Делаем валидацию + тестовый запуск только этой операции.
+4. Смотрим логи (`run_id`, `stage`, `step_id`) и правим схему/функции.
+5. Только после стабилизации подключаем ее в общую цепочку зависимостей.
+
+Когда стоит просить **более детальный план по каждому пункту**:
+- если начинаются параллельные операции (`run_with`);
+- если появляется много зависимостей и риск циклов;
+- если нужен точный чек-лист по БД-миграции, UI-полям и rollback;
+- если задачу делает несколько разработчиков и нужны четкие зоны ответственности.
+
+Практически: можно стартовать с текущим планом, а от меня отдельно попросить детализацию **пункта 1 → 7 по спринтам/дням** (с DoD и критериями приемки). Это даст меньше риска и проще контроль прогресса.
+
+
+
+“Implementation roadmap: README/connectors_scenario_roadmap.md”.
+
+
+## Обновление UI конструктора операций (v3)
+
+Сделано:
+- вместо жестко зашитых вкладок `Операция #1/#2/#3` форма теперь рендерит вкладки динамически из `operations_v3_json`;
+- добавлена вкладка-кнопка `+ Добавить операцию`;
+- при добавлении создается default-операция:
+  - `display_name = "Новая операция"`
+  - `operation_id = "op_<n>"`
+  - `module = "generic"`
+  - `kind = "browser_steps"`
+  - `enabled = 0`, `entrypoint = 0`
+  - `run_after/run_with/run_finally = []`, `config = {}`
+- перед сохранением выполняются клиентские проверки:
+  - уникальность `operation_id`;
+  - `module != generic` + `kind = api_call` требует `action`;
+  - если `module` пустой, операция автонормализуется в `module=generic`, `kind=browser_steps`;
+  - `run_*` должны быть JSON-массивами существующих `operation_id`;
+  - `config` должен быть JSON-объектом.
+- карточка операции приведена к единой форме с явными секциями:
+  - `Основные`: `display_name`, `operation_id`, `enabled`, `entrypoint`, `on_dependency_fail`;
+  - `Связь с системой`: `module`, `kind`, `action`;
+  - `Зависимости`: `run_after`, `run_with`, `run_finally` (JSON-массивы `operation_id`);
+  - `Параметры`: `config` (JSON-объект).
+- добавлен endpoint `GET/POST /core_api.php?action=get_module_actions_registry`, который возвращает реестр action по module на основе `$routes` в `core_api.php`;
+- в форме операций `module` и `action` стали dropdown-полями: список `action` фильтруется по выбранному `module`, при `module=generic` допустимо пустое `action`.

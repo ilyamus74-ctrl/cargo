@@ -1,0 +1,68 @@
+TIME: 2025-12-10T12:01:48+01:00
+IP:   88.155.70.42
+========================================
+RAW BODY (php://input):
+raw_text=Hermes%0ADEU%0A7AL+I%0AWE+DOI%0AH1024541873396701044%0AKoliExpress+Fatime+Turan%0AStarkenburgstral%C3%9Fe+10k%0AKL390429+Koli%0A44+D%0AMAINZ%0A64546+M%C3%B6rtelden-Walldorf%0ADeutschland%0A34+-+01%0A1%2F1%0AFremdbarcode%0Ad810447817%0AFremdbarcode%0ADE%0A1041040438036889
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => Hermes
+DEU
+7AL I
+WE DOI
+H1024541873396701044
+KoliExpress Fatime Turan
+Starkenburgstralße 10k
+KL390429 Koli
+44 D
+MAINZ
+64546 Mörtelden-Walldorf
+Deutschland
+34 - 01
+1/1
+Fremdbarcode
+d810447817
+Fremdbarcode
+DE
+1041040438036889
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+Hermes
+DEU
+7AL I
+WE DOI
+H1024541873396701044
+KoliExpress Fatime Turan
+Starkenburgstralße 10k
+KL390429 Koli
+44 D
+MAINZ
+64546 Mörtelden-Walldorf
+Deutschland
+34 - 01
+1/1
+Fremdbarcode
+d810447817
+Fremdbarcode
+DE
+1041040438036889
+
+<form>
+file_name: sample_20251210_120148_481603.txt
+tracking_no: H1024541873396701044
+receiver_country_code: AZB
+receiver_forwarder_code: KOLLI
+receiver_company: Kolli MMC
+receiver_cell_code: KL390429
+receiver_name: Fatime Turan
+label_type: HERMES
+</form>

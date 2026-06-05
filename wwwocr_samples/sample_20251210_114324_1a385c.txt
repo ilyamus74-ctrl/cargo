@@ -1,0 +1,82 @@
+TIME: 2025-12-10T11:43:24+01:00
+IP:   88.155.70.42
+========================================
+RAW BODY (php://input):
+raw_text=STD%0ACOLIBRI+EXPRESS+SE2%0A0812.2025%0ADE+GLSSTD%0ADE%0A1OvaC%0AGLS+service+flexdelivery%0ARet.+Nr%0A069116733792001+00036-54486223132%0ATotiz%0Atiotiz%0AKontakt%0ADE+64546%0AStarkenburgstr.+10C%0AM%C3%B6rfelden-Walldorf%0AGonj0%0ACOLIBRI+EXPRESS+-Sona+Qurbanova+C184954%0AKundea-Nr.%0ASwarca%0A2760319870%0A62-020%0AP%0ARhenus+WS+Potska+Sp.+z0+Rabowicka+67%0AINDITEX+-+Swar%0ADE+120+03+05.122025+21%3A40-55+1.29+kg+001%2F001+RTC+05122325+F2000%0A121120106478
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => STD
+COLIBRI EXPRESS SE2
+0812.2025
+DE GLSSTD
+DE
+1OvaC
+GLS service flexdelivery
+Ret. Nr
+069116733792001 00036-54486223132
+Totiz
+tiotiz
+Kontakt
+DE 64546
+Starkenburgstr. 10C
+Mörfelden-Walldorf
+Gonj0
+COLIBRI EXPRESS -Sona Qurbanova C184954
+Kundea-Nr.
+Swarca
+2760319870
+62-020
+P
+Rhenus WS Potska Sp. z0 Rabowicka 67
+INDITEX - Swar
+DE 120 03 05.122025 21:40-55 1.29 kg 001/001 RTC 05122325 F2000
+121120106478
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+STD
+COLIBRI EXPRESS SE2
+0812.2025
+DE GLSSTD
+DE
+1OvaC
+GLS service flexdelivery
+Ret. Nr
+069116733792001 00036-54486223132
+Totiz
+tiotiz
+Kontakt
+DE 64546
+Starkenburgstr. 10C
+Mörfelden-Walldorf
+Gonj0
+COLIBRI EXPRESS -Sona Qurbanova C184954
+Kundea-Nr.
+Swarca
+2760319870
+62-020
+P
+Rhenus WS Potska Sp. z0 Rabowicka 67
+INDITEX - Swar
+DE 120 03 05.122025 21:40-55 1.29 kg 001/001 RTC 05122325 F2000
+121120106478
+
+<form>
+file_name: sample_20251210_114324_1a385c.txt
+tracking_no: 0691167337920010003654486223132
+receiver_country_code: AZB
+receiver_forwarder_code: COLIBRI
+receiver_company: Colibri Express
+receiver_cell_code: C184954
+receiver_name: Sona Qurbanova
+label_type: GLS
+</form>

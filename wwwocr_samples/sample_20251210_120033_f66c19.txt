@@ -1,0 +1,86 @@
+TIME: 2025-12-10T12:00:33+01:00
+IP:   88.155.70.42
+========================================
+RAW BODY (php://input):
+raw_text=Prshbet%0ADHL+PAKET%0AVon%3A+parfumdreams%0ATrianel+Str.+5%0A59071+Hamm%0AGoGreen%0AWir+kompensieren%0ACO2-Emissionen+mit+DHL%0AStarkenburgstr.+10G%0A223756%0AAser+Cargo+express%0A64546+M%C3%B6rfelden%0A-Walldorf%0AAser+Cargo+Express%0ADeutschland%0AAn%3A%0AAnzahl%3A%0A1%2F1%0AGewicht%3A%0A0.78+kg%0A63433654910105%0AO0340434764511172518%0APDRDEO154388487%0AAbrechnungsnr.%3A%0AReferenznr.%3A%0ASendungsnr.%0A%28403%29+27664546+%2B+99000900000000
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => Prshbet
+DHL PAKET
+Von: parfumdreams
+Trianel Str. 5
+59071 Hamm
+GoGreen
+Wir kompensieren
+CO2-Emissionen mit DHL
+Starkenburgstr. 10G
+223756
+Aser Cargo express
+64546 Mörfelden
+-Walldorf
+Aser Cargo Express
+Deutschland
+An:
+Anzahl:
+1/1
+Gewicht:
+0.78 kg
+63433654910105
+O0340434764511172518
+PDRDEO154388487
+Abrechnungsnr.:
+Referenznr.:
+Sendungsnr.
+(403) 27664546 + 99000900000000
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+Prshbet
+DHL PAKET
+Von: parfumdreams
+Trianel Str. 5
+59071 Hamm
+GoGreen
+Wir kompensieren
+CO2-Emissionen mit DHL
+Starkenburgstr. 10G
+223756
+Aser Cargo express
+64546 Mörfelden
+-Walldorf
+Aser Cargo Express
+Deutschland
+An:
+Anzahl:
+1/1
+Gewicht:
+0.78 kg
+63433654910105
+O0340434764511172518
+PDRDEO154388487
+Abrechnungsnr.:
+Referenznr.:
+Sendungsnr.
+(403) 27664546 + 99000900000000
+
+
+
+<form>
+file_name: sample_20251210_120033_f66c19.txt
+tracking_no: 00340434764511172518
+receiver_country_code: AZB
+receiver_forwarder_code: ASER
+receiver_company: AserCargo
+receiver_cell_code: AS223756
+receiver_name: 
+label_type: DHL
+</form>

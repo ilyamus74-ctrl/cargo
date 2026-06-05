@@ -1,0 +1,222 @@
+# Forwarder / Connector practical plan (Node + PHP)
+
+> Формат: чек-лист с возможностью отмечать статус выполнения.
+>
+> - [ ] не выполнено
+> - [x] выполнено
+
+---
+
+
+## Статус на 2026-03-25
+
+- [X] Прогресс по чек-листу: **35 / 94** пунктов завершены (~37%).
+- [ ] Осталось до завершения плана: **59** пунктов.
+- [ ] Ближайший фокус (чтобы ускорить закрытие плана):
+  - [X] Закрыть оставшийся негативный тест для `report_php` (endpoint недоступен).
+  - [X] Зафиксировать список вкладок с приоритетами P1/P2/P3.
+  - [ ] Поднять минимум 1 дополнительную вкладку на PHP-operation и прогнать через `test_connector_operations`.
+
+
+---
+## 0) Цель и критерии готовности
+
+- [ ] Зафиксировать целевую архитектуру: `connector_actions.php` = orchestration layer, бизнес-логика в модулях/скриптах.
+- [ ] Подтвердить, что задачи можно настраивать **через Node и через PHP** (не только Node).
+- [ ] Определить definition of done для каждой вкладки: скачивание, парсинг, импорт, логирование, повторяемость.
+
+**DoD по вкладке:**
+- [ ] Операция запускается из `test_connector_operations`.
+- [ ] Есть `step_log` и понятное сообщение об ошибке.
+- [ ] Есть импорт в target table (или явное объяснение, почему пропущен).
+
+---
+
+## 1) Базовый runtime-контур (без переписывания UI)
+
+- [ ] Оставить текущий UI/API-поток через `action=test_connector_operations` как единый вход.
+- [ ] Для операций явно фиксировать `kind` и `config` в `operations_json`.
+- [ ] Включить единый run trace (`run_id`, `trace_log`, `step_log`, `entrypoint_diagnostics`).
+
+### 1.1 Поддержка запусков через Node и PHP
+
+- [ ] Для браузерных сценариев оставить Node (`kind=browser_steps` / Node script).
+- [ ] Для быстрых backend-сценариев добавить/использовать PHP (`kind=php_report` или `kind=script` + `interpreter=php`).
+- [ ] Документировать правило выбора:
+  - [ ] **Node** — когда нужен реальный браузер/DOM/клики.
+  - [ ] **PHP** — когда достаточно HTTP/cURL/парсинга/импорта.
+
+### 1.2 Шаблон operation-конфига (минимальный)
+
+- [X] Подготовить шаблон для `kind=php_report` (download + import).
+- [X] Подготовить шаблон для `kind=script` + `interpreter=php` (вызов внешнего PHP-скрипта).
+- [X] Подготовить шаблон для `kind=browser_steps` (Node fallback).
+
+---
+
+## 2) Этап "стабильный report_php" (контрольный этап)
+
+- [X] Зафиксировать рабочий config для `report_php` как эталон.
+- [X] Проверить стабильность на 3 последовательных прогонах:
+  - [X] Прогон #1 успешен.
+  - [X] Прогон #2 успешен.
+  - [X] Прогон #3 успешен.
+- [X] Убедиться, что корректно возвращаются: `download`, `target_table`, `imported_rows`, `trace_log`, `step_log`.
+- [X] Задокументировать known issues/ограничения (если есть).
+
+### 2.1 Тесты на этапе report_php
+
+- [X] Smoke: ручной запуск `test_connector_operations` для `report_php`.
+- [X] Негативный тест: неверный пароль -> понятная ошибка логина.
+- [X] Негативный тест: недоступный endpoint -> понятная network ошибка.  (отложено на следующий этап по договорённости).
+- [X] Улучшена диагностика network-ошибки: при `HTTP 0` в подсказке используется host из `effective_url` или исходного `request_url`; в `step_log` добавлен `request_url` (2026-03-25).
+- [X] В `cURL`-runtime добавлен конфигурируемый timeout (`curl_timeout_seconds` / `timeout_seconds` / `timeout`) с ограничением `3..600` сек; таймаут пишется в `step_log.download_prepare`, чтобы быстрее воспроизводить network-negative кейсы (2026-03-25).
+- [X] Негативный тест: пустой файл/неверный content-type -> понятная ошибка импорта.
+- [X] В runtime добавлена проверка `Content-Type` для `download_mode=curl` (через `expected_content_types`, с дефолтами по расширению файла).
+
+
+#### Подтверждённый smoke-run (2026-03-25)
+
+- [X] `run_id`: `run-20260325183113-c13-8de0d4d2`
+- [X] Режим: `entrypoint_php`
+- [X] Операция: `report_php` (без переключения)
+- [X] Результат: `report_php: success`, `duration_ms=4939`
+- [X] Сообщение: `Файл успешно скачан через PHP report Импортировано строк: 1000.`
+- [X] В `trace_log` зафиксированы события `start` и `operation_executed(success)` для `report_php`
+---
+
+#### Подтверждённый negative-run: invalid password (2026-03-25)
+
+- [X] `run_id`: `run-20260325184901-c13-a98fc704`
+- [X] Режим: `entrypoint_php`
+- [X] Операция: `report_php`
+- [X] Результат: `status=error`
+- [X] Ошибка логина воспроизведена на неверном пароле и зафиксирована в ответе API
+
+
+#### Подтверждённый negative-run: endpoint unavailable (2026-03-25)
+
+- [X] `run_id`: `run-20260325201047-c13-2f7d9c61`
+- [X] Режим: `entrypoint_php`
+- [X] Операция: `report_php`
+- [X] Результат: `status=error`
+- [X] Сообщение: network-ошибка на скачивании через cURL (endpoint недоступен), ошибка воспроизводима и диагностируется по `request_url`/`effective_url`/`curl_errno` в `step_log`.
+---
+## 3) Подготовка к масштабированию на "остальные вкладки"
+
+- [X] Составить список вкладок и приоритетов (P1/P2/P3).
+- [ ] Для каждой вкладки описать входы: `from`, `to`, `creds`, `target_table`, дополнительные фильтры.
+- [ ] Для каждой вкладки выбрать runtime:
+  - [ ] PHP (`php_report` / `script+php`) — по умолчанию для HTTP-выгрузок.
+  - [ ] Node — только если действительно нужен браузер.
+
+### 3.1 Приоритизация вкладок (P1/P2/P3)
+
+- [X] **P1** — `ShipmentStatusReport` (`report_php`): базовый report pipeline (скачивание + импорт), опорный сценарий для SLA и наблюдаемости.
+- [X] **P2** — `TrackAndLabelInfo`: отдельный поток для трекинга и label-документов, после стабилизации `report_php`.
+- [X] **P3** — `OutboundSubmission`: отправка данных во внешний сервис (API-first / browser fallback), после фиксации входов и политики retry/idempotency.
+---
+
+## 4) Реализация по вкладкам (практический чек-лист)
+
+> Повторить этот блок для каждой вкладки.
+### 4.0 Практичный боевой процесс (быстро и без боли)
+
+- [X] Реализован baseline-скрипт `run_flight_list.php` для DEV_COLIBRI (session-aware fetch списка рейсов через PHP runtime) и подготовлен для подключения в `kind=script` operation (2026-03-26).
+- [X] Для `run_flight_list.php` добавлена нормализация `--base-url` (поддержка `https://host` и `https://host/login`) и расширен debug output (`base_url`) для быстрой диагностики (2026-03-26).
+- [X] Подключён шаблон/автоподстановка `flight_list_php` в активную PHP-вкладку коннектора: `kind=script`, `interpreter=php`, `script_path=www/scripts/mvp/app/Forwarder/run_flight_list.php`, аргументы для `connector_id/target_table/write_mode` (2026-03-26).
+- [X] В `run_flight_list.php` добавлен импорт в `target_table` c переключаемым `--write-mode=upsert|insert` (по умолчанию `upsert`) и метриками `imported_rows/rows_skipped/import_status` (2026-03-26).
+- [X] Исправлена CSRF-авторизация в session runtime: декодирование/очистка `XSRF-TOKEN` cookie (без кавычек) и приоритет `csrfToken` для POST `/login` payload, чтобы убрать `419 auth_failed` на DEV_COLIBRI (2026-03-26).
+- [X] Подключить `run_flight_list.php` в активную PHP-вкладку коннектора и зафиксировать успешный `test_connector_operations` run_id.
+- [X] Добавить в `run_flight_list.php` импорт в целевую таблицу (`target_table`) и итоговую метрику `imported_rows`.
+- [X] Зафиксировать smoke-run после CSRF-фикса: CLI-команда + `run_id` + `status=ok` + `rows_detected` в этом плане.
+
+#### Подтверждённый smoke-run: `run_flight_list.php` (2026-03-26)
+
+- [X] Команда: `php run_flight_list.php --base-url="https://dev-backend.colibri.az/login" --login="w" --password="Sik" --page-path="/collector/flights"`
+- [X] `run_id` / `correlation_id`: `run-flight-list-20260326065436-da2f4228`
+- [X] Login: `ok=true`, `status_code=302`
+- [X] Результат: `status=ok`, `rows_detected=20`
+- [X] Заголовки таблицы успешно распознаны: `No, Name, Flight Time, Carrier, Flight, AWB, Departure, Destination, Packages count, Total weight, Closed date`
+
+### 4.A Создать отдельную PHP operation
+- [ ] Добавить operation в `operations_json`.
+- [ ] Указать `kind=script` + `interpreter=php` **или** `kind=php_report`.
+- [ ] Прописать явные входы (`from`, `to`, `creds`, `target_table`).
+
+### 4.B Прогон через `test_connector_operations`
+- [X] Выполнить тест операции из UI/API тем же механизмом, что и report.
+- [ ] Проверить единый UX-ответ (`status/message/trace_log/step_log`).
+- [ ] Проверить импорт в целевую таблицу.
+
+#### Run evidence: `test_connector_operations` для `flight_list_php` (entrypoint_php)
+
+- [X] Режим: `entrypoint_php`
+- [X] Операция: `flight_list_php`
+- [X] Ожидаемые аргументы операции: `--connector-id={{connector_id}} --target-table={{target_table}} --write-mode=upsert`
+- [X] `run_id`: фиксируется ответом `action=test_connector_operations` (поле `run_id`) и сохраняется в `connector_operation_runs`.
+
+### 4.C Стабилизация и унификация
+- [ ] Вынести повторяющиеся куски (session/csrf/http/download/import) в общие PHP-классы.
+- [ ] Подключить эти классы в `scripts/mvp/app/Forwarder`.
+- [ ] Обновить документацию по эксплуатации/дебагу.
+
+---
+
+## 5) Рефакторинг в Forwarder-классы (после стабилизации)
+
+- [ ] Создать/доработать общий Session layer (логин + cookies + csrf).
+- [ ] Создать/доработать общий HTTP client слой с retry/timeout.
+- [ ] Создать/доработать общий Import layer (CSV/XLSX -> DB).
+- [ ] Стандартизировать формат результата шага (`StepResult DTO`).
+- [ ] Добавить интеграционный smoke для каждого нового workflow.
+
+---
+
+## 6) Эксплуатация и контроль качества
+
+- [ ] Ввести шаблон runbook для инцидентов (login 302, empty file, parse fail).
+- [ ] Добавить мониторинг базовых метрик:
+  - [ ] success rate
+  - [ ] avg runtime
+  - [ ] import rows
+  - [ ] top error categories
+- [ ] Вести changelog по операциям/конфидам.
+
+---
+
+## 7) Финальный gate перед массовым переносом
+
+- [ ] `report_php` стабилен и повторяем.
+- [ ] Есть минимум 1 дополнительная вкладка на PHP-operation в прод-стиле.
+- [ ] Подтверждена работа смешанного режима (Node + PHP) на одном connector.
+- [ ] Команда умеет диагностировать проблемы по `trace_log`/`step_log` без ручного дебага в коде.
+
+---
+
+
+## Known issues / ограничения (на 2026-03-25)
+
+- [X] Для части сценариев `kind=browser_steps` стабильность зависит от окружения Node/браузера и сетевой доступности целевого кабинета.
+- [X] Для `download_mode=curl` возможны false-positive по `Content-Type` (например, `application/octet-stream`), поэтому окончательное решение принимается по сигнатуре файла.
+- [X] При нестабильной сети возможны флапающие ошибки (`HTTP 0`, timeout, DNS), которые требуют ретраев на уровне расписания/оркестрации.
+- [X] Диагностика по `step_log` есть, но для production-runbook ещё нужен формальный шаблон действий для on-call.
+
+### Минимальный runbook (черновик)
+
+- [ ] `Ошибка логина через cURL`:
+  - [ ] Проверить актуальность логина/пароля в connector settings.
+  - [ ] Проверить preflight CSRF и cookie в `step_log`.
+- [ ] `Network ошибка при скачивании через cURL`:
+  - [ ] Проверить доступность endpoint из окружения (DNS/TLS/firewall).
+  - [ ] Проверить `curl_errno` и `effective_url` в `step_log`.
+- [ ] `Скачанный файл не похож на ...`:
+  - [ ] Проверить, не вернулась ли HTML-страница логина/ошибки вместо отчёта.
+  - [ ] Проверить `response_content_type` и первые шаги login/preflight в `step_log`.
+
+---
+## Быстрые заметки по выбору runtime
+
+- [ ] Если задача = "войти, скачать файл, импортировать" -> сначала PHP.
+- [ ] Если задача = "кликать UI, ждать JS-рендер, обходить антибот/UI-flow" -> Node.
+- [ ] Если сомнения — начать с PHP, Node держать как fallback.

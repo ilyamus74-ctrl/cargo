@@ -1,0 +1,69 @@
+TIME: 2025-12-10T12:04:14+01:00
+IP:   88.155.70.42
+========================================
+RAW BODY (php://input):
+raw_text=CMR%0AThe+Noth+Face%2C+45t+KREUZWa%0A47809+KREFELD+%40rmany%0APARCEL+CONNECT%0AADINO+MUSTEDANAGIC%0ASTARKENBURGSTR+10A%0ACAMEX+LLG+A213261%0A64546+MORFELDEN-WALLDORF%0AGermany%0AREF%3A+EOOW63561521%0ASHIP%3A%0AMRN%3A%0ACamsr+inloraia%3A%0AACCOUNT%3A%0AWEIQHT%3A%0ADATE%3A%0A611043U9%0A1.00+K%0A1%2F1
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => CMR
+The Noth Face, 45t KREUZWa
+47809 KREFELD @rmany
+PARCEL CONNECT
+ADINO MUSTEDANAGIC
+STARKENBURGSTR 10A
+CAMEX LLG A213261
+64546 MORFELDEN-WALLDORF
+Germany
+REF: EOOW63561521
+SHIP:
+MRN:
+Camsr inloraia:
+ACCOUNT:
+WEIQHT:
+DATE:
+611043U9
+1.00 K
+1/1
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+CMR
+The Noth Face, 45t KREUZWa
+47809 KREFELD @rmany
+PARCEL CONNECT
+ADINO MUSTEDANAGIC
+STARKENBURGSTR 10A
+CAMEX LLG A213261
+64546 MORFELDEN-WALLDORF
+Germany
+REF: EOOW63561521
+SHIP:
+MRN:
+Camsr inloraia:
+ACCOUNT:
+WEIQHT:
+DATE:
+611043U9
+1.00 K
+1/1
+
+
+<form>
+file_name: sample_20251210_120414_9477cf.txt
+tracking_no: 
+receiver_country_code: AZB
+receiver_forwarder_code: CAMEX
+receiver_company: Camex
+receiver_cell_code: A213261
+receiver_name: ADINO MUSTEDANAGIC
+label_type: 
+</form>

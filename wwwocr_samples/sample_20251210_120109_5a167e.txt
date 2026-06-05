@@ -1,0 +1,70 @@
+TIME: 2025-12-10T12:01:09+01:00
+IP:   88.155.70.42
+========================================
+RAW BODY (php://input):
+raw_text=1%2F1%0A1948436171687%0AWE+DO%21%0AFremdbarcode%0A1201971%0AFremdbarcode%0ADeutschland%0A64546+M%C3%B6rfelden+-+Walldorf%0AStarkenburgstrasse+10k%2C+Tor+12%0AKL389112%0AKoli+Express+Edvin+Rustemov%0AHernmes%0ABENDER%0ALSOLIA%0A34+-+01%0AMAINZ%0A44+D%0AHi024551165942291044%0AZAL+DEU%0A69L
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => 1/1
+1948436171687
+WE DO!
+Fremdbarcode
+1201971
+Fremdbarcode
+Deutschland
+64546 Mörfelden - Walldorf
+Starkenburgstrasse 10k, Tor 12
+KL389112
+Koli Express Edvin Rustemov
+Hernmes
+BENDER
+LSOLIA
+34 - 01
+MAINZ
+44 D
+Hi024551165942291044
+ZAL DEU
+69L
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+1/1
+1948436171687
+WE DO!
+Fremdbarcode
+1201971
+Fremdbarcode
+Deutschland
+64546 Mörfelden - Walldorf
+Starkenburgstrasse 10k, Tor 12
+KL389112
+Koli Express Edvin Rustemov
+Hernmes
+BENDER
+LSOLIA
+34 - 01
+MAINZ
+44 D
+Hi024551165942291044
+ZAL DEU
+69L
+
+<form>
+file_name: sample_20251210_120109_5a167e.txt
+tracking_no: H1024551165942291044
+receiver_country_code: AZB
+receiver_forwarder_code: KOLLI
+receiver_company: Kolli MMC
+receiver_cell_code: KL389112
+receiver_name: Edvin Rustemov
+label_type: HERMES
+</form>

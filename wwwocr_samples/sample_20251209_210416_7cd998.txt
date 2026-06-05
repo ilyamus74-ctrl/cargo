@@ -1,0 +1,71 @@
+TIME: 2025-12-09T21:04:16+01:00
+IP:   84.166.213.45
+========================================
+RAW BODY (php://input):
+raw_text=itaoeKICHI%0AFlaconi%0AH1025022655510301044%0A44+D%0AMAINZ%0A34-01%0Aalut+beaut%C3%A9.+H%0AEPG+ONE%3A+I8S-2.13.0%0A1-569007849%0AHHermes%0AASER+Express-+Farid+Zeynalli%0AASER+Express-+AS228905%0AStarkenburgstr.+10G+10G%0A64546+M%C3%B6rtelden-Walldort%0ADeutschland%0Ajch%C3%B6n%0ACaiitt%0AVo%0ALTE%0AFind+Your+Beauty
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => itaoeKICHI
+Flaconi
+H1025022655510301044
+44 D
+MAINZ
+34-01
+alut beauté. H
+EPG ONE: I8S-2.13.0
+1-569007849
+HHermes
+ASER Express- Farid Zeynalli
+ASER Express- AS228905
+Starkenburgstr. 10G 10G
+64546 Mörtelden-Walldort
+Deutschland
+jchön
+Caiitt
+Vo
+LTE
+Find Your Beauty
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+itaoeKICHI
+Flaconi
+H1025022655510301044
+44 D
+MAINZ
+34-01
+alut beauté. H
+EPG ONE: I8S-2.13.0
+1-569007849
+HHermes
+ASER Express- Farid Zeynalli
+ASER Express- AS228905
+Starkenburgstr. 10G 10G
+64546 Mörtelden-Walldort
+Deutschland
+jchön
+Caiitt
+Vo
+LTE
+Find Your Beauty
+
+
+<form>
+file_name: sample_20251209_210416_7cd998.txt
+tracking_no: H1025022655510301044
+receiver_country_code: AZ
+receiver_forwarder_code: ASER
+receiver_company: AserCargo
+receiver_cell_code: AS228905
+receiver_name: Farid Zeynalli
+label_type: HERMES
+</form>

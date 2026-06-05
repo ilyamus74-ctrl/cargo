@@ -1,0 +1,70 @@
+TIME: 2025-12-10T12:02:29+01:00
+IP:   88.155.70.42
+========================================
+RAW BODY (php://input):
+raw_text=DHL+PAKET%0AKontakt+Abse+nd%0AVon+Best+Secrel+GimbH%0AParsdorter+Strasse+13%0A85586+Poing%0AGERMANY%0ACamex+180816+Ravil+Huseynov+Starkenburgstrasse+10+A%0A64546+Morfelden-+Walldorf%0AAn+gunay%0AChelebiyeva%0AGERMANY%0A1%2F1%0AAnzahi%3A%0AGewicht%3A%0A1.0+kg%0ASendungsnr.%3A+15.56+0821.347+2%0AAbrechnungsnr.%3A+61840239890113%0AReferenzrnt.%3A%0A2149203552%0A00000LL9tSt9
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => DHL PAKET
+Kontakt Abse nd
+Von Best Secrel GimbH
+Parsdorter Strasse 13
+85586 Poing
+GERMANY
+Camex 180816 Ravil Huseynov Starkenburgstrasse 10 A
+64546 Morfelden- Walldorf
+An gunay
+Chelebiyeva
+GERMANY
+1/1
+Anzahi:
+Gewicht:
+1.0 kg
+Sendungsnr.: 15.56 0821.347 2
+Abrechnungsnr.: 61840239890113
+Referenzrnt.:
+2149203552
+00000LL9tSt9
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+DHL PAKET
+Kontakt Abse nd
+Von Best Secrel GimbH
+Parsdorter Strasse 13
+85586 Poing
+GERMANY
+Camex 180816 Ravil Huseynov Starkenburgstrasse 10 A
+64546 Morfelden- Walldorf
+An gunay
+Chelebiyeva
+GERMANY
+1/1
+Anzahi:
+Gewicht:
+1.0 kg
+Sendungsnr.: 15.56 0821.347 2
+Abrechnungsnr.: 61840239890113
+Referenzrnt.:
+2149203552
+00000LL9tSt9
+
+<form>
+file_name: sample_20251210_120229_3aec3d.txt
+tracking_no: 155608213472
+receiver_country_code: AZB
+receiver_forwarder_code: CAMEX
+receiver_company: Camex
+receiver_cell_code: A180816
+receiver_name: Ravil Huseynov
+label_type: DHL
+</form>

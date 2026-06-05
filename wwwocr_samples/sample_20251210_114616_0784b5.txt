@@ -1,0 +1,77 @@
+TIME: 2025-12-10T11:46:16+01:00
+IP:   88.155.70.42
+========================================
+RAW BODY (php://input):
+raw_text=Saecksendung+at%0AAmanen+EU+Sarl%0AAmazenstrasse+30%0AGraben+85836%0AGerthany%0ACOLIBRI+EXPRESS+-Elnare+Verdiyeva+C166932%0ASTARKENBURGSTR.+10C%0AGew.-+0.14+Ka.%0AE4545+MORFELDEN-WALLDORF%0AGERMANY%0AJHUB%0A0944+6823+9668+08+C%0ATRACK+XDE+-+DPD+-+0262%0A19%2F04%2F24+09-32+24040102-+Amao%0A384-+DE-+6454S%0A9064+546+0944+5623+9668+08+384+270%0ADepot+0010163+DPD+Deutschiand+Gmb+Auhofstr5%0APRIO%0AO0163+Aschattenburg+DE%0ALATE%0APM4%0ASERICE%0A6546
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => Saecksendung at
+Amanen EU Sarl
+Amazenstrasse 30
+Graben 85836
+Gerthany
+COLIBRI EXPRESS -Elnare Verdiyeva C166932
+STARKENBURGSTR. 10C
+Gew.- 0.14 Ka.
+E4545 MORFELDEN-WALLDORF
+GERMANY
+JHUB
+0944 6823 9668 08 C
+TRACK XDE - DPD - 0262
+19/04/24 09-32 24040102- Amao
+384- DE- 6454S
+9064 546 0944 5623 9668 08 384 270
+Depot 0010163 DPD Deutschiand Gmb Auhofstr5
+PRIO
+O0163 Aschattenburg DE
+LATE
+PM4
+SERICE
+6546
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+Saecksendung at
+Amanen EU Sarl
+Amazenstrasse 30
+Graben 85836
+Gerthany
+COLIBRI EXPRESS -Elnare Verdiyeva C166932
+STARKENBURGSTR. 10C
+Gew.- 0.14 Ka.
+E4545 MORFELDEN-WALLDORF
+GERMANY
+JHUB
+0944 6823 9668 08 C
+TRACK XDE - DPD - 0262
+19/04/24 09-32 24040102- Amao
+384- DE- 6454S
+9064 546 0944 5623 9668 08 384 270
+Depot 0010163 DPD Deutschiand Gmb Auhofstr5
+PRIO
+O0163 Aschattenburg DE
+LATE
+PM4
+SERICE
+6546
+
+
+<form>
+file_name: sample_20251210_114616_0784b5.txt
+tracking_no: 
+receiver_country_code: AZB
+receiver_forwarder_code: COLIBRI
+receiver_company: Colibri Express
+receiver_cell_code: C166932
+receiver_name: Elnare Verdiyeva
+label_type: AMAZON
+</form>

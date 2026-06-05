@@ -1,0 +1,48 @@
+TIME: 2025-12-10T11:28:29+01:00
+IP:   88.155.70.42
+========================================
+RAW BODY (php://input):
+raw_text=34-01%0AMAINZ%0A44+D%0AKARGOFLEX+FX382582+Aysu+Jabra%0AStarkenburgstra%C3%9Fe+10%0A64546+M%C3%B6rfelden-Walldorf%0AZARA%0AH1000844721243501044%0AHermes
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => 34-01
+MAINZ
+44 D
+KARGOFLEX FX382582 Aysu Jabra
+Starkenburgstraße 10
+64546 Mörfelden-Walldorf
+ZARA
+H1000844721243501044
+Hermes
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+34-01
+MAINZ
+44 D
+KARGOFLEX FX382582 Aysu Jabra
+Starkenburgstraße 10
+64546 Mörfelden-Walldorf
+ZARA
+H1000844721243501044
+Hermes
+
+<form>
+file_name: sample_20251210_112829_cf6465.txt
+tracking_no: H1000844721243501044
+receiver_country_code: AZB
+receiver_forwarder_code: KARGOFLEX
+receiver_company: KargoFles
+receiver_cell_code: FX382582
+receiver_name: Aysu Jabra
+label_type: HERMES
+</form>

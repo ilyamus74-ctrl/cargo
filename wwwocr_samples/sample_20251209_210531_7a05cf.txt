@@ -1,0 +1,68 @@
+TIME: 2025-12-09T21:05:31+01:00
+IP:   84.166.213.45
+========================================
+RAW BODY (php://input):
+raw_text=DHL+PAKET%0AVon%3A+Asphaltgold+GmbH%0AAn%3A%0AWerner-von-Siemens-Str.+999%0A64319+Pfungstadt%0AGERMANY%0ACOLIBRI+EXPRESS+-Azar+Movsumov+C187%0ADeutschland%2C+Hessen%2C+M%C3%B6rfelden-Wall%0AStarkenburgstr.+10C%0A64546+M%C3%B6rfelden-Walldorf%0AGERMANY%0AAbrechnungsnr.%3A+62065113230101%0ARefererznr.%3A+ASA3402474%0ASendungsnr.%3A+00340434262289037997%0AKontakt+Absender%0AKontakt+Empf%C3%A4nger%0AGewicht%0A0.5+kg
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => DHL PAKET
+Von: Asphaltgold GmbH
+An:
+Werner-von-Siemens-Str. 999
+64319 Pfungstadt
+GERMANY
+COLIBRI EXPRESS -Azar Movsumov C187
+Deutschland, Hessen, Mörfelden-Wall
+Starkenburgstr. 10C
+64546 Mörfelden-Walldorf
+GERMANY
+Abrechnungsnr.: 62065113230101
+Refererznr.: ASA3402474
+Sendungsnr.: 00340434262289037997
+Kontakt Absender
+Kontakt Empfänger
+Gewicht
+0.5 kg
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+DHL PAKET
+Von: Asphaltgold GmbH
+An:
+Werner-von-Siemens-Str. 999
+64319 Pfungstadt
+GERMANY
+COLIBRI EXPRESS -Azar Movsumov C187
+Deutschland, Hessen, Mörfelden-Wall
+Starkenburgstr. 10C
+64546 Mörfelden-Walldorf
+GERMANY
+Abrechnungsnr.: 62065113230101
+Refererznr.: ASA3402474
+Sendungsnr.: 00340434262289037997
+Kontakt Absender
+Kontakt Empfänger
+Gewicht
+0.5 kg
+
+
+
+<form>
+file_name: sample_20251209_210531_7a05cf.txt
+tracking_no: 00340434262289037997
+receiver_country_code: AZB
+receiver_forwarder_code: COLIBRI
+receiver_company: Colibri Express
+receiver_cell_code: C187
+receiver_name: Azar Movsumov
+label_type: DHL
+</form>

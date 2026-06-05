@@ -1,0 +1,65 @@
+TIME: 2025-12-09T21:05:16+01:00
+IP:   84.166.213.45
+========================================
+RAW BODY (php://input):
+raw_text=DHL+PAKET%0AFROM%3A%0ARef.No%2FRec.Ret%3A%0ADate%3A%0AZalando+SE%0A17240+Neustrelitz%0ADeutschland%0A1041040434200590%0A2026-11-21%0A0791439938%0ATo%3A+COLIBRI+EXPRESS+Sevil+Mammadova%0AStarkenburg+str.+10C%0AC152562+COLIBRI+Express%0A64546+M%C3%B6rfelden-Walldorf%0ADeutschland%0A64.546+211.010+00+0%0ADE
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => DHL PAKET
+FROM:
+Ref.No/Rec.Ret:
+Date:
+Zalando SE
+17240 Neustrelitz
+Deutschland
+1041040434200590
+2026-11-21
+0791439938
+To: COLIBRI EXPRESS Sevil Mammadova
+Starkenburg str. 10C
+C152562 COLIBRI Express
+64546 Mörfelden-Walldorf
+Deutschland
+64.546 211.010 00 0
+DE
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+DHL PAKET
+FROM:
+Ref.No/Rec.Ret:
+Date:
+Zalando SE
+17240 Neustrelitz
+Deutschland
+1041040434200590
+2026-11-21
+0791439938
+To: COLIBRI EXPRESS Sevil Mammadova
+Starkenburg str. 10C
+C152562 COLIBRI Express
+64546 Mörfelden-Walldorf
+Deutschland
+64.546 211.010 00 0
+DE
+
+<form>
+file_name: sample_20251209_210516_3dfed2.txt
+tracking_no: 1041040434200590
+receiver_country_code: AZB
+receiver_forwarder_code: COLIBRI
+receiver_company:Colibri Express 
+receiver_cell_code: C152562
+receiver_name: Sevil Mammadova
+label_type: DHL
+</form>
+

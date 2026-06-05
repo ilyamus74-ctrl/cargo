@@ -1,0 +1,59 @@
+TIME: 2025-12-10T12:00:51+01:00
+IP:   88.155.70.42
+========================================
+RAW BODY (php://input):
+raw_text=17240+Neustrelitz%0ADeutschland%0A1040980370232554%0A2025-11-29%0ARef.No%2FRec.Ret%3A%0ADate%3A%0A0701325933%0ATo%3A+Samira+Dadashova%0AStarkenburgstr.+10%0AKARGOFLEX+FX378411+Samira+Dadashova%0A64546+M%C3%B6rfelden+-Walldorf%0ADeutschland%0AL%0A64.546+211.010+00+0
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => 17240 Neustrelitz
+Deutschland
+1040980370232554
+2025-11-29
+Ref.No/Rec.Ret:
+Date:
+0701325933
+To: Samira Dadashova
+Starkenburgstr. 10
+KARGOFLEX FX378411 Samira Dadashova
+64546 Mörfelden -Walldorf
+Deutschland
+L
+64.546 211.010 00 0
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+17240 Neustrelitz
+Deutschland
+1040980370232554
+2025-11-29
+Ref.No/Rec.Ret:
+Date:
+0701325933
+To: Samira Dadashova
+Starkenburgstr. 10
+KARGOFLEX FX378411 Samira Dadashova
+64546 Mörfelden -Walldorf
+Deutschland
+L
+64.546 211.010 00 0
+
+
+<form>
+file_name: sample_20251210_120051_cb3e03.txt
+tracking_no: H1040980370232554
+receiver_country_code: AZB
+receiver_forwarder_code: KARGOFLEX
+receiver_company: KargoFlex
+receiver_cell_code: FX378411
+receiver_name: Samira Dadashova
+label_type: HERMES
+</form>

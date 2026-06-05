@@ -1,0 +1,73 @@
+TIME: 2025-12-10T11:57:38+01:00
+IP:   88.155.70.42
+========================================
+RAW BODY (php://input):
+raw_text=910-300-610%0AVon%3A+Autosevice+Baudisch+GmbH%0AGebrauchtteile+24.de%0ARosenstr.+15%0A19243+Wittenburg%0AGERMANY%0A%7CAn%3A+KoliExpress+Hikmet+Vugarli%0AStarkenburgstr.+10k%0A64546+M%C3%B6rfelden-Walldorf%0AGERMANY%0AAbrechnungsnr.%3A+622071+926801+01%0AReferenznr.%3A+2025277506%0ASendungsnr.%3A+00340434291233046921%0ALeitcode+Routingcode%0ASendungsnummer%0A0.3%0A%28403%2927664546%2B09000900211010%0AKontakt+Empfinger%0AGesictt%0A0.5+kg
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => 910-300-610
+Von: Autosevice Baudisch GmbH
+Gebrauchtteile 24.de
+Rosenstr. 15
+19243 Wittenburg
+GERMANY
+|An: KoliExpress Hikmet Vugarli
+Starkenburgstr. 10k
+64546 Mörfelden-Walldorf
+GERMANY
+Abrechnungsnr.: 622071 926801 01
+Referenznr.: 2025277506
+Sendungsnr.: 00340434291233046921
+Leitcode Routingcode
+Sendungsnummer
+0.3
+(403)27664546+09000900211010
+Kontakt Empfinger
+Gesictt
+0.5 kg
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+910-300-610
+Von: Autosevice Baudisch GmbH
+Gebrauchtteile 24.de
+Rosenstr. 15
+19243 Wittenburg
+GERMANY
+|An: KoliExpress Hikmet Vugarli
+Starkenburgstr. 10k
+64546 Mörfelden-Walldorf
+GERMANY
+Abrechnungsnr.: 622071 926801 01
+Referenznr.: 2025277506
+Sendungsnr.: 00340434291233046921
+Leitcode Routingcode
+Sendungsnummer
+0.3
+(403)27664546+09000900211010
+Kontakt Empfinger
+Gesictt
+0.5 kg
+
+
+<form>
+file_name: sample_20251210_115738_465020.txt
+tracking_no: 00340434291233046921
+receiver_country_code: AZB
+receiver_forwarder_code: COLIBRI
+receiver_company: Colibri Express
+receiver_cell_code: 
+receiver_name: Hikmet Vugarli
+label_type: 
+</form>
+
+

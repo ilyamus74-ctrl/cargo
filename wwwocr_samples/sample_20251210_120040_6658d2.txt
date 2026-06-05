@@ -1,0 +1,63 @@
+TIME: 2025-12-10T12:00:40+01:00
+IP:   88.155.70.42
+========================================
+RAW BODY (php://input):
+raw_text=EPG+ONE%3A+ISS-2.13.0%0A1-637587526%0AH1025022720748201044%0ASemender+Memmedli%0AAS230383%0AStarkenburgstr+10G%0AMAINZ%0A44+D%0A64546+M%C3%B6rtelden+-Walldorf%0ADeutschland%0AFind+Your+Beauty.%0A34-01%0Aekna.+Hello+beautiful.+Sal%0Alallo+Sch%C3%B6nheit.+Witaj+pi%C4%99%0A1.Salut+beaut%C3%A9.+Hao%0A4Wallo+Sc
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => EPG ONE: ISS-2.13.0
+1-637587526
+H1025022720748201044
+Semender Memmedli
+AS230383
+Starkenburgstr 10G
+MAINZ
+44 D
+64546 Mörtelden -Walldorf
+Deutschland
+Find Your Beauty.
+34-01
+ekna. Hello beautiful. Sal
+lallo Schönheit. Witaj pię
+1.Salut beauté. Hao
+4Wallo Sc
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+EPG ONE: ISS-2.13.0
+1-637587526
+H1025022720748201044
+Semender Memmedli
+AS230383
+Starkenburgstr 10G
+MAINZ
+44 D
+64546 Mörtelden -Walldorf
+Deutschland
+Find Your Beauty.
+34-01
+ekna. Hello beautiful. Sal
+lallo Schönheit. Witaj pię
+1.Salut beauté. Hao
+4Wallo Sc
+
+
+<form>
+file_name: sample_20251210_120040_6658d2.txt
+tracking_no: H1025022720748201044
+receiver_country_code: AZB
+receiver_forwarder_code: ASER
+receiver_company: AserCargo
+receiver_cell_code: AS230383
+receiver_name: Semender Memmedli
+label_type: HERMES
+</form>

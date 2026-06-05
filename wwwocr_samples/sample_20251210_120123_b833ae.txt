@@ -1,0 +1,59 @@
+TIME: 2025-12-10T12:01:23+01:00
+IP:   88.155.70.42
+========================================
+RAW BODY (php://input):
+raw_text=324562554185991044%0A01%0AKenan+Koli+Zeynalli%0AHessen%2CDeutschland%2C+KL411466%0AStarkenburgstr.+10%0AFremdbarcode%0A64546+M%C3%B6rfelden-Walldorf%0ADeutschland%0A8805176598%0AWE+DO%21%0AFremdbarcode%0AHERMES-WE-DO.COM%0A10410320436644%0A1%2F1
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => 324562554185991044
+01
+Kenan Koli Zeynalli
+Hessen,Deutschland, KL411466
+Starkenburgstr. 10
+Fremdbarcode
+64546 Mörfelden-Walldorf
+Deutschland
+8805176598
+WE DO!
+Fremdbarcode
+HERMES-WE-DO.COM
+10410320436644
+1/1
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+324562554185991044
+01
+Kenan Koli Zeynalli
+Hessen,Deutschland, KL411466
+Starkenburgstr. 10
+Fremdbarcode
+64546 Mörfelden-Walldorf
+Deutschland
+8805176598
+WE DO!
+Fremdbarcode
+HERMES-WE-DO.COM
+10410320436644
+1/1
+
+
+<form>
+file_name: sample_20251210_120123_b833ae.txt
+tracking_no: 
+receiver_country_code: AZB
+receiver_forwarder_code: KOLLI
+receiver_company: Kolli MMC
+receiver_cell_code: KL411466
+receiver_name: Kenan Zeynalli
+label_type: HERMES
+</form>

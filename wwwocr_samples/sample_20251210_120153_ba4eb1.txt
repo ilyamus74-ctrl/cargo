@@ -1,0 +1,59 @@
+TIME: 2025-12-10T12:01:53+01:00
+IP:   88.155.70.42
+========================================
+RAW BODY (php://input):
+raw_text=0.5+ka%0AStarkenburgstr.+10k%0A%7CAM+KoliExpress+Hikmet+Vuqarli%0AGERMANY%0A64540+MOrtelden-Walldort%0AGERMANY%0A19243+WIttenburg%0AHO6enstr%2C+16%0AVen%3A%0A610+200+610%0AGebrauehtteile24.de%0AAutoservice+Baudisoh+GmbH%0AKontakt+Emptngar%0A-RHL
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => 0.5 ka
+Starkenburgstr. 10k
+|AM KoliExpress Hikmet Vuqarli
+GERMANY
+64540 MOrtelden-Walldort
+GERMANY
+19243 WIttenburg
+HO6enstr, 16
+Ven:
+610 200 610
+Gebrauehtteile24.de
+Autoservice Baudisoh GmbH
+Kontakt Emptngar
+-RHL
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+0.5 ka
+Starkenburgstr. 10k
+|AM KoliExpress Hikmet Vuqarli
+GERMANY
+64540 MOrtelden-Walldort
+GERMANY
+19243 WIttenburg
+HO6enstr, 16
+Ven:
+610 200 610
+Gebrauehtteile24.de
+Autoservice Baudisoh GmbH
+Kontakt Emptngar
+-RHL
+
+
+<form>
+file_name: sample_20251210_120153_ba4eb1.txt
+tracking_no: 
+receiver_country_code: AZB
+receiver_forwarder_code: KOLLI
+receiver_company: Kolli MMC
+receiver_cell_code: 
+receiver_name: Hikmet Vuqarli
+label_type: DHL
+</form>

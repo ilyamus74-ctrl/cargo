@@ -1,0 +1,69 @@
+TIME: 2025-12-10T11:38:23+01:00
+IP:   88.155.70.42
+========================================
+RAW BODY (php://input):
+raw_text=DE+560+www+s+2.00+ka+Y%0AOmar+Pashayev%0AStarkenburgstr+10C+-+Colibri+Express+C17%0AContact+%3AOmar+Pashayev%0ADE+-+64546+M%C3%B6r+fel+den-Walldorf%0APhone%0A56101325164%0ANote1%0ANole2%0ARef.+No%0A001+F00t+RTO+03122025%0AInformationen+zur+GL8-Datenschutzrichtlinie+unter%0Agls-+group.eu%2Fdataprotection%0A42855+Remscheid%0AReth%0ACare+Hol+tger%0AShipper+Cusl.+ID%3A+2760343562%0AGLS%0ADaaDPep
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => DE 560 www s 2.00 ka Y
+Omar Pashayev
+Starkenburgstr 10C - Colibri Express C17
+Contact :Omar Pashayev
+DE - 64546 Mör fel den-Walldorf
+Phone
+56101325164
+Note1
+Nole2
+Ref. No
+001 F00t RTO 03122025
+Informationen zur GL8-Datenschutzrichtlinie unter
+gls- group.eu/dataprotection
+42855 Remscheid
+Reth
+Care Hol tger
+Shipper Cusl. ID: 2760343562
+GLS
+DaaDPep
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+DE 560 www s 2.00 ka Y
+Omar Pashayev
+Starkenburgstr 10C - Colibri Express C17
+Contact :Omar Pashayev
+DE - 64546 Mör fel den-Walldorf
+Phone
+56101325164
+Note1
+Nole2
+Ref. No
+001 F00t RTO 03122025
+Informationen zur GL8-Datenschutzrichtlinie unter
+gls- group.eu/dataprotection
+42855 Remscheid
+Reth
+Care Hol tger
+Shipper Cusl. ID: 2760343562
+GLS
+DaaDPep
+
+
+<form>
+file_name: sample_20251210_113823_09c9b1.txt
+tracking_no: 
+receiver_country_code: AZB
+receiver_forwarder_code: COLIBRI
+receiver_company: Colibri Express
+receiver_cell_code: C17
+receiver_name: Omar Pashayev
+label_type: GLS
+</form>

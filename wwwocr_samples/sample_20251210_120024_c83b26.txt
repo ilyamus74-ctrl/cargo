@@ -1,0 +1,85 @@
+TIME: 2025-12-10T12:00:24+01:00
+IP:   88.155.70.42
+========================================
+RAW BODY (php://input):
+raw_text=seautiful%0Aut%C3%A9.+Halld%0Aeit.+Wita%0AFlaconi%0AH1025022673263201044%0A44+D%0AMAINZ%0Aeautiful%0At%C3%A9.+Hallo%0Aeit.+Witaj%0Aeautiful.%0Aut%C3%A9.+Hallo%0Aeit.+Witaj%0Abeautiful.%0Aut%C3%A9%2C+Hallo+Sch%C3%B6nheit.%0A34-01%0AEPG+ONE%3A+ISS-2.13.0%0A1-634843756%0AVagit+Arazov%0AHermes%0AASER-Vaqit+Arazo+AS233612%0AStarkenburgstr.+10G+10+G%0A64546+M%C3%B6rtelden-Walldort%0ADeutschland%0A%C3%A1%0AHallo+St%0Aif
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => seautiful
+uté. Halld
+eit. Wita
+Flaconi
+H1025022673263201044
+44 D
+MAINZ
+eautiful
+té. Hallo
+eit. Witaj
+eautiful.
+uté. Hallo
+eit. Witaj
+beautiful.
+uté, Hallo Schönheit.
+34-01
+EPG ONE: ISS-2.13.0
+1-634843756
+Vagit Arazov
+Hermes
+ASER-Vaqit Arazo AS233612
+Starkenburgstr. 10G 10 G
+64546 Mörtelden-Walldort
+Deutschland
+á
+Hallo St
+if
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+seautiful
+uté. Halld
+eit. Wita
+Flaconi
+H1025022673263201044
+44 D
+MAINZ
+eautiful
+té. Hallo
+eit. Witaj
+eautiful.
+uté. Hallo
+eit. Witaj
+beautiful.
+uté, Hallo Schönheit.
+34-01
+EPG ONE: ISS-2.13.0
+1-634843756
+Vagit Arazov
+Hermes
+ASER-Vaqit Arazo AS233612
+Starkenburgstr. 10G 10 G
+64546 Mörtelden-Walldort
+Deutschland
+á
+Hallo St
+if
+
+
+<form>
+file_name: sample_20251210_120024_c83b26.txt
+tracking_no: H1025022673263201044
+receiver_country_code: AZB
+receiver_forwarder_code: ASER
+receiver_company: AserCargo
+receiver_cell_code: AS233612
+receiver_name: Vagit Arazov
+label_type: HERMES
+</form>

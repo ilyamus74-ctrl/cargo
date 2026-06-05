@@ -1,0 +1,109 @@
+TIME: 2025-12-10T11:34:36+01:00
+IP:   88.155.70.42
+========================================
+RAW BODY (php://input):
+raw_text=ich+nicht+erkernkare+Sco+den+nssen+DPD+innerhalb+7+Tage+nach+Ab%7C+ieferung%0ASchitich+gen%C4%99+ldet+wecde.+Ddngge+not+necogni+zable+on+the+outs+ide+hos+to+be%0Aepor+ted+in+oriting+to+IPD+within+7%22days+after%22dei+ivery%0ARACK%0AEmpf+nger%0ASeadet+Eliyeva%0AKoliExpress+Seadet+Eliyeva+Kt415532%0AStarkenburgstr.+10k%0ATel.+0%0ADE-64546+MArfel+den-Wal+ldor+t%0AReterenz+1%0AA14169170692%0AReferenz+2%0ATrack%0A3944+7529+9950+59+0%0ALIeterung%0A1%2F1%0A0944+7509+9950+590%0A251C%0AGewicht%0A0%2C19+kg%0ADE-DPD-0265%0A950_N_CACA%0AIE41259+MAncheng+l+adoach%0ADE-DPD-0265%0A10%2F12%2F25+03%3A19+25+120112+DO160%2F1141+LSPC2025.2%0AaO64+546+0944+7509+9950+59+328+276+2%0AAosender%0Ashop-potheke.con%0Adpd%0AIE-34281+Gdensberg%0ABahrwiesenweg+20%0AXD-B2C%0A328-DE-64546+80207%0AX0-B2C%0ASERVICE%0ADPD+%C3%9Ceutschlnd+abH%0ADepot+0134%0AService
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => ich nicht erkernkare Sco den nssen DPD innerhalb 7 Tage nach Ab| ieferung
+Schitich genę ldet wecde. Ddngge not necogni zable on the outs ide hos to be
+epor ted in oriting to IPD within 7"days after"dei ivery
+RACK
+Empf nger
+Seadet Eliyeva
+KoliExpress Seadet Eliyeva Kt415532
+Starkenburgstr. 10k
+Tel. 0
+DE-64546 MArfel den-Wal ldor t
+Reterenz 1
+A14169170692
+Referenz 2
+Track
+3944 7529 9950 59 0
+LIeterung
+1/1
+0944 7509 9950 590
+251C
+Gewicht
+0,19 kg
+DE-DPD-0265
+950_N_CACA
+IE41259 MAncheng l adoach
+DE-DPD-0265
+10/12/25 03:19 25 120112 DO160/1141 LSPC2025.2
+aO64 546 0944 7509 9950 59 328 276 2
+Aosender
+shop-potheke.con
+dpd
+IE-34281 Gdensberg
+Bahrwiesenweg 20
+XD-B2C
+328-DE-64546 80207
+X0-B2C
+SERVICE
+DPD Üeutschlnd abH
+Depot 0134
+Service
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+ich nicht erkernkare Sco den nssen DPD innerhalb 7 Tage nach Ab| ieferung
+Schitich genę ldet wecde. Ddngge not necogni zable on the outs ide hos to be
+epor ted in oriting to IPD within 7"days after"dei ivery
+RACK
+Empf nger
+Seadet Eliyeva
+KoliExpress Seadet Eliyeva Kt415532
+Starkenburgstr. 10k
+Tel. 0
+DE-64546 MArfel den-Wal ldor t
+Reterenz 1
+A14169170692
+Referenz 2
+Track
+3944 7529 9950 59 0
+LIeterung
+1/1
+0944 7509 9950 590
+251C
+Gewicht
+0,19 kg
+DE-DPD-0265
+950_N_CACA
+IE41259 MAncheng l adoach
+DE-DPD-0265
+10/12/25 03:19 25 120112 DO160/1141 LSPC2025.2
+aO64 546 0944 7509 9950 59 328 276 2
+Aosender
+shop-potheke.con
+dpd
+IE-34281 Gdensberg
+Bahrwiesenweg 20
+XD-B2C
+328-DE-64546 80207
+X0-B2C
+SERVICE
+DPD Üeutschlnd abH
+Depot 0134
+Service
+
+<form>
+file_name: sample_20251210_113436_7f3825.txt
+tracking_no: 394475299950590
+receiver_country_code: AZB
+receiver_forwarder_code: KOLLI
+receiver_company: Kolli MMC
+receiver_cell_code: Kt415532
+receiver_name: Seadet Eliyeva
+label_type: DPD
+</form>
+

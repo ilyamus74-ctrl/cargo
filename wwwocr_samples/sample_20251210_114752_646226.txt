@@ -1,0 +1,52 @@
+TIME: 2025-12-10T11:47:52+01:00
+IP:   88.155.70.42
+========================================
+RAW BODY (php://input):
+raw_text=PRG2%0AAbalfas+Huseynov%0A0.15+Kgs+04%2F06%0ACOLIBR%C4%B0+EXP%C5%98ESS+-Abalfas+Huseynov+C159925%0AStarkenburgstr.+10C%0A64546+M%C3%B6rfelden-+Walldorf+%2C+Germany%0ADE3494840090%0ADHE1%0ACYCLE+1%0AU1vbHiCC6%0A1%2F281
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => PRG2
+Abalfas Huseynov
+0.15 Kgs 04/06
+COLIBRİ EXPŘESS -Abalfas Huseynov C159925
+Starkenburgstr. 10C
+64546 Mörfelden- Walldorf , Germany
+DE3494840090
+DHE1
+CYCLE 1
+U1vbHiCC6
+1/281
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+PRG2
+Abalfas Huseynov
+0.15 Kgs 04/06
+COLIBRİ EXPŘESS -Abalfas Huseynov C159925
+Starkenburgstr. 10C
+64546 Mörfelden- Walldorf , Germany
+DE3494840090
+DHE1
+CYCLE 1
+U1vbHiCC6
+1/281
+
+<form>
+file_name: sample_20251210_114752_646226.txt
+tracking_no: 
+receiver_country_code: AZB
+receiver_forwarder_code: COLIBRI
+receiver_company: Colibri Express
+receiver_cell_code: C159925
+receiver_name: Abalfas Huseynov
+label_type: 
+</form>

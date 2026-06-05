@@ -1,0 +1,130 @@
+{foreach $warehouse_items_registry as $item}
+  <tr>
+    <td>
+      {if $item.source_table == 'in'}
+        <span class="badge bg-info text-dark">Приёмка</span>
+      {elseif $item.source_table == 'stock'}
+        <span class="badge bg-primary">Склад</span>
+      {elseif $item.source_table == 'out'}
+        <span class="badge bg-secondary">Отгрузка</span>
+      {else}
+        <span class="badge bg-light text-dark">{$item.source_table|default:'—'|escape}</span>
+      {/if}
+    </td>
+    <td>
+      {if $item.warehouse_state == 'without_cells'}
+        <span class="badge bg-warning text-dark">Без ячейки</span>
+      {elseif $item.warehouse_state == 'to_send'}
+        <span class="badge bg-info text-dark">На отгрузку</span>
+      {elseif $item.warehouse_state == 'in_storage'}
+        <span class="badge bg-success">На складе</span>
+      {elseif $item.warehouse_state == 'sended'}
+        <span class="badge bg-dark">Отправлена</span>
+      {elseif $item.warehouse_state == 'in_progress'}
+        <span class="badge bg-light text-dark">Приёмка</span>
+      {else}
+        <span class="badge bg-light text-dark">{$item.warehouse_state|default:'—'|escape}</span>
+      {/if}
+    </td>
+    <td>
+      {if $item.stock_item_id}
+        <button type="button"
+                class="btn btn-link p-0 js-core-link"
+                data-core-action="open_item_stock_modal"
+                data-item-id="{$item.stock_item_id|escape}">
+          {$item.parcel_uid|default:'—'|escape}
+        </button>
+      {else}
+        {$item.parcel_uid|default:'—'|escape}
+      {/if}
+    </td>
+    <td>{$item.tracking_no|default:'—'|escape}</td>
+    <td>
+      {$item.receiver_name|default:'—'|escape}
+      {if $item.receiver_company}
+        <div class="small text-muted">{$item.receiver_company|escape}</div>
+      {/if}
+      {if $item.user_name}
+        <div class="small text-muted">{$item.user_name|escape}</div>
+      {/if}
+    </td>
+    <td>{$item.forwarder_name|default:'—'|escape}</td>
+    <td>
+      {if $item.cell_address}{$item.cell_address|escape}{else}—{/if}
+      {if $item.container_name}
+        <div class="small text-muted">{$item.container_name|escape}</div>
+      {/if}
+    </td>
+    <td>{$item.out_status|default:'—'|escape}</td>
+    <td>
+      {if $item.forwarder_registration_status == 'ok'}
+        <span class="badge bg-success">ok</span>
+      {elseif $item.forwarder_registration_status == 'validation_error'}
+        <span class="badge bg-warning text-dark">validation_error</span>
+      {elseif $item.forwarder_registration_status == 'error'}
+        <span class="badge bg-danger">error</span>
+      {elseif $item.forwarder_registration_status == 'skipped'}
+        <span class="badge bg-secondary">skipped</span>
+      {else}
+        <span class="badge bg-secondary">—</span>
+      {/if}
+    </td>
+    <td>{$item.forwarder_registered_at|default:'—'|escape}</td>
+    <td title="{$item.forwarder_registration_message|default:''|escape}">
+      {$item.forwarder_registration_message_short|default:'—'|escape}
+    </td>
+    <td class="text-end">
+      {if $item.stock_item_id && $item.source_table != 'in'}
+        <div class="dropdown">
+          <button class="btn btn-sm btn-outline-secondary"
+                  type="button"
+                  data-bs-toggle="dropdown"
+                  aria-expanded="false"
+                  title="Действия">
+            <i class="bi bi-three-dots-vertical"></i>
+          </button>
+
+          <ul class="dropdown-menu dropdown-menu-end">
+            <li>
+              <button type="button"
+                      class="dropdown-item js-core-link"
+                      data-core-action="open_item_stock_modal"
+                      data-item-id="{$item.stock_item_id|escape}">
+                Открыть карточку
+              </button>
+            </li>
+
+            <li>
+              <button type="button"
+                      class="dropdown-item js-core-link"
+                      data-core-action="warehouse_stock_register_forwarder"
+                      data-item-id="{$item.stock_item_id|escape}"
+                      data-force="1">
+                Регистрация у форварда
+              </button>
+            </li>
+
+            <li><hr class="dropdown-divider"></li>
+
+            <li>
+              <button type="button"
+                      class="dropdown-item js-core-link"
+                      data-core-action="warehouse_stock_history_modal"
+                      data-item-id="{$item.stock_item_id|escape}">
+                История
+              </button>
+            </li>
+          </ul>
+        </div>
+      {else}
+        —
+      {/if}
+    </td>
+    <td>{$item.created_at|default:'—'|escape}</td>
+  </tr>
+{/foreach}
+{if !$warehouse_items_registry && $show_empty}
+  <tr>
+    <td colspan="13" class="text-center text-muted">Нет посылок по выбранным фильтрам</td>
+  </tr>
+{/if}

@@ -1,0 +1,76 @@
+TIME: 2025-12-10T11:36:53+01:00
+IP:   88.155.70.42
+========================================
+RAW BODY (php://input):
+raw_text=XUN%0AVon%3A+H%26M%0AAn%3A%0A08102+Neum+ark%0AGERMANY%0AKoliexpress+Nerm+in+Musayeva%0AStarkenburgstr.+10Ok+%2F12%0A64546+M%C3%B6rfelden-Walldorf%0AGERMANY%0AAbrechnungsnr.%0AReferenznr%3A%0ASendungsnr.%3A%0ADHL+KLEINPAKET%0A50042684875202%0A85723537514%0A00340434516725136879%0AW%0ADHL+KLEINPAKET%0ALeitcode%2FPoutingcode%0AAbsender+Telefon%3A%0AGewicht%3A+Anzahl%3A%0A0%2C20kg%0A1%2F1
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => XUN
+Von: H&M
+An:
+08102 Neum ark
+GERMANY
+Koliexpress Nerm in Musayeva
+Starkenburgstr. 10Ok /12
+64546 Mörfelden-Walldorf
+GERMANY
+Abrechnungsnr.
+Referenznr:
+Sendungsnr.:
+DHL KLEINPAKET
+50042684875202
+85723537514
+00340434516725136879
+W
+DHL KLEINPAKET
+Leitcode/Poutingcode
+Absender Telefon:
+Gewicht: Anzahl:
+0,20kg
+1/1
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+XUN
+Von: H&M
+An:
+08102 Neum ark
+GERMANY
+Koliexpress Nerm in Musayeva
+Starkenburgstr. 10Ok /12
+64546 Mörfelden-Walldorf
+GERMANY
+Abrechnungsnr.
+Referenznr:
+Sendungsnr.:
+DHL KLEINPAKET
+50042684875202
+85723537514
+00340434516725136879
+W
+DHL KLEINPAKET
+Leitcode/Poutingcode
+Absender Telefon:
+Gewicht: Anzahl:
+0,20kg
+1/1
+
+<form>
+file_name: sample_20251210_113653_f0a5ca.txt
+tracking_no: 00340434516725136879
+receiver_country_code: AZB
+receiver_forwarder_code: KOLLI
+receiver_company: Kolli MMC
+receiver_cell_code: 
+receiver_name: Nermin Musayeva
+label_type: DHL
+</form>

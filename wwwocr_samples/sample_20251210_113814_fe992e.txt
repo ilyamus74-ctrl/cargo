@@ -1,0 +1,64 @@
+TIME: 2025-12-10T11:38:14+01:00
+IP:   88.155.70.42
+========================================
+RAW BODY (php://input):
+raw_text=1%2F1%0AHERMES+-WE-D0.COM%0A1041030435869795%0AWE+DO%21%0AFremdbarcode%0A0810670901%0ADeutschland%0A64546+M%C3%B6rfelden-+Walldorf%0AStarkenburgstr.+10%0AColibri+%23185978%0AFERID+HUSEYNOV%0AFremdbarcode%0ADE%0A34+-+01%0AMAINZ%0A44+D%0AH1824562579569401044
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => 1/1
+HERMES -WE-D0.COM
+1041030435869795
+WE DO!
+Fremdbarcode
+0810670901
+Deutschland
+64546 Mörfelden- Walldorf
+Starkenburgstr. 10
+Colibri #185978
+FERID HUSEYNOV
+Fremdbarcode
+DE
+34 - 01
+MAINZ
+44 D
+H1824562579569401044
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+1/1
+HERMES -WE-D0.COM
+1041030435869795
+WE DO!
+Fremdbarcode
+0810670901
+Deutschland
+64546 Mörfelden- Walldorf
+Starkenburgstr. 10
+Colibri #185978
+FERID HUSEYNOV
+Fremdbarcode
+DE
+34 - 01
+MAINZ
+44 D
+H1824562579569401044
+
+<form>
+file_name:sample_20251210_113814_fe992e.txt
+tracking_no: H1824562579569401044
+receiver_country_code: AZB
+receiver_forwarder_code: COLIBRI
+receiver_company: Colibri Express
+receiver_cell_code: C185978
+receiver_name: FERID HUSEYNOV
+label_type: HERMES
+</form>

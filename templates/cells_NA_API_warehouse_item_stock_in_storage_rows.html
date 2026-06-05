@@ -1,0 +1,24 @@
+{foreach $parcels_in_storage as $parcel}
+  <tr>
+    <td>
+      <button type="button"
+              class="btn btn-link p-0 js-core-link"
+              data-core-action="open_item_stock_modal"
+              data-item-id="{$parcel.id}">
+        {$parcel.parcel_uid|default:'—'}
+      </button>
+    </td>
+    <td>{$parcel.cell_address|default:'—'}</td>
+    {if $current_user.role == 'ADMIN'}
+      <td>{$parcel.user_name|default:'—'}</td>
+    {/if}
+    <td>{$parcel.stored_at|default:'—'}</td>
+  </tr>
+{/foreach}
+{if !$parcels_in_storage && $show_empty}
+  <tr>
+    <td colspan="{if $current_user.role == 'ADMIN'}4{else}3{/if}" class="text-center text-muted">
+      Нет посылок на складе
+    </td>
+  </tr>
+{/if}

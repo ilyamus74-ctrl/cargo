@@ -1,0 +1,60 @@
+TIME: 2025-12-10T11:59:52+01:00
+IP:   88.155.70.42
+========================================
+RAW BODY (php://input):
+raw_text=DEU%0A45625530789B1044%0A01%0AHermes%0AASER+Siyavush+Gambarli%0AStarkenburgstra%C3%9Fe+10G+AS243007+Ase%0AStarkenburgstr.+10%0AFremdbarcode%0AWE+DO%21%0A64546+M%C3%B6rfelden+-Walldorf%0ADeutschland%0A0804928083%0AHERAES+W+0060M%0AFremdbarcode%0A1%2F1
+----------------------------------------
+$_POST:
+Array
+(
+    [raw_text] => DEU
+45625530789B1044
+01
+Hermes
+ASER Siyavush Gambarli
+Starkenburgstraße 10G AS243007 Ase
+Starkenburgstr. 10
+Fremdbarcode
+WE DO!
+64546 Mörfelden -Walldorf
+Deutschland
+0804928083
+HERAES W 0060M
+Fremdbarcode
+1/1
+)
+
+----------------------------------------
+$_GET:
+Array
+(
+)
+
+----------------------------------------
+raw_text param:
+DEU
+45625530789B1044
+01
+Hermes
+ASER Siyavush Gambarli
+Starkenburgstraße 10G AS243007 Ase
+Starkenburgstr. 10
+Fremdbarcode
+WE DO!
+64546 Mörfelden -Walldorf
+Deutschland
+0804928083
+HERAES W 0060M
+Fremdbarcode
+1/1
+
+<form>
+file_name:sample_20251210_115952_dbcf55.txt 
+tracking_no: 
+receiver_country_code: AZB
+receiver_forwarder_code: ASER
+receiver_company: AserCargo
+receiver_cell_code: AS243007
+receiver_name: Siyavush Gambarli
+label_type: 
+</form>
