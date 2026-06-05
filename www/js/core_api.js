@@ -1184,7 +1184,9 @@ const CoreAPI = {
                         if (typeof initReceiverAddressQuickCells === 'function') {
                             initReceiverAddressQuickCells();
                         }
-
+                        if (typeof initForwarderClientLookup === 'function') {
+                            initForwarderClientLookup();
+                        }
                         if (typeof initItemInScanEntryBehaviour === 'function') {
                             initItemInScanEntryBehaviour();
                         }
@@ -1222,6 +1224,9 @@ const CoreAPI = {
                     }
                     if (typeof initReceiverAddressQuickCells === 'function') {
                         initReceiverAddressQuickCells();
+                    }
+                    if (typeof initForwarderClientLookup === 'function') {
+                        initForwarderClientLookup();
                     }
                     if (typeof initItemInScanEntryBehaviour === 'function') {
                         initItemInScanEntryBehaviour();
@@ -5230,6 +5235,82 @@ function initWarehouseStockAddons() {
     companySelect.addEventListener('change', render);
     companySelect.addEventListener('input', render);
     render();
+}
+
+
+
+function initForwarderClientLookup() {
+    var form = document.getElementById('item-in-modal-form');
+    if (!form || form.__forwarderClientLookupInstalled) return;
+    form.__forwarderClientLookupInstalled = true;
+
+    var addressInput = form.querySelector('#receiverAddress, [name="receiver_address"]');
+    var companyInput = form.querySelector('#receiverCompany, [name="receiver_company"]');
+    var countryInput = form.querySelector('#receiverCountry, [name="receiver_country_code"]');
+    var nameInput = form.querySelector('#receiverName, [name="receiver_name"]');
+    if (!addressInput || !companyInput || !countryInput || !nameInput) return;
+
+    var timer = null;
+    var lastLookupKey = '';
+    var requestSeq = 0;
+
+    function fieldValue(field) {
+        return String(field && field.value ? field.value : '').trim();
+    }
+
+    function showLookupToast(clientName) {
+        var message = 'Получатель уточнён по форварду: ' + clientName;
+        if (CoreAPI && CoreAPI.ui && typeof CoreAPI.ui.showToast === 'function') {
+            CoreAPI.ui.showToast(message, 'success');
+        } else if (typeof showToast === 'function') {
+            showToast(message, 2500);
+        }
+    }
+
+    async function runLookup() {
+        var receiverAddress = fieldValue(addressInput);
+        var receiverCompany = fieldValue(companyInput).toUpperCase();
+        var receiverCountry = fieldValue(countryInput);
+        var lookupKey = [receiverCompany, receiverCountry.toUpperCase(), receiverAddress.toUpperCase()].join('|');
+
+        if (!receiverAddress || !receiverCompany || !receiverCountry) return;
+        if (lookupKey === lastLookupKey) return;
+        lastLookupKey = lookupKey;
+
+        var currentSeq = ++requestSeq;
+        var fd = new FormData();
+        fd.append('action', 'warehouse_lookup_forwarder_client');
+        fd.append('receiver_company', receiverCompany);
+        fd.append('receiver_country_code', receiverCountry);
+        fd.append('receiver_address', receiverAddress);
+
+        try {
+            var data = await CoreAPI.client.call(fd);
+            if (currentSeq !== requestSeq) return;
+            if (data && data.found === true && data.client_name) {
+                nameInput.value = data.client_name;
+                nameInput.dispatchEvent(new Event('input', { bubbles: true }));
+                nameInput.dispatchEvent(new Event('change', { bubbles: true }));
+                showLookupToast(data.client_name);
+            }
+        } catch (err) {
+            console.warn('warehouse_lookup_forwarder_client failed:', err);
+        }
+    }
+
+    function scheduleLookup() {
+        if (timer) {
+            clearTimeout(timer);
+        }
+        timer = setTimeout(runLookup, 300);
+    }
+
+    [addressInput, companyInput, countryInput].forEach(function (field) {
+        field.addEventListener('change', scheduleLookup);
+        field.addEventListener('blur', scheduleLookup);
+    });
+
+    scheduleLookup();
 }
 
 function initReceiverAddressQuickCells() {

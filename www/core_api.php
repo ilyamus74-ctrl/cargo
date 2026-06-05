@@ -105,6 +105,7 @@ $routes = [
     'delete_item_in_photo'    => 'api/warehouse/warehouse_item_in_actions.php',
     'delete_item_in'          => 'api/warehouse/warehouse_item_in_actions.php',
     'commit_item_in_batch'    => 'api/warehouse/warehouse_item_in_actions.php',
+    'warehouse_lookup_forwarder_client' => 'api/warehouse/warehouse_item_in_actions.php',
     // ========== WAREHOUSE - Stock ==========
     'item_stock'              => 'api/warehouse/warehouse_item_stock_actions.php',
     'warehouse_items_registry' => 'api/warehouse/warehouse_item_stock_actions.php',

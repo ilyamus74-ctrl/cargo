@@ -8,6 +8,8 @@ declare(strict_types=1);
 // Доступны: $action, $user, $dbcnx, $smarty
 $response = ['status' => 'error', 'message' => 'Unknown warehouse item in action'];
 
+require_once __DIR__ . '/warehouse_forwarder_client_helpers.php';
+
 
 function warehouse_item_in_ensure_addons_columns(mysqli $dbcnx): void
 {
@@ -1518,6 +1520,86 @@ switch ($action) {
         }
 
         $response = ['status' => 'ok', 'message' => 'Фото удалено', 'json' => ''];
+        break;
+
+    case 'warehouse_lookup_forwarder_client':
+        auth_require_login();
+        $receiverCompany = strtoupper(trim((string)($_POST['receiver_company'] ?? '')));
+        $receiverCountryCode = strtoupper(trim((string)($_POST['receiver_country_code'] ?? '')));
+        $receiverAddress = trim((string)($_POST['receiver_address'] ?? ''));
+
+        if ($receiverCountryCode === 'AZERBAIJAN' || $receiverCountryCode === 'AZE' || $receiverCountryCode === 'AZB') {
+            $receiverCountryCode = 'AZ';
+        }
+
+        $clientId = warehouse_forwarder_extract_numeric_client_id($receiverAddress);
+        if ($clientId === '') {
+            $response = [
+                'status' => 'ok',
+                'found' => false,
+                'reason' => 'no_client_id',
+            ];
+            break;
+        }
+
+        if ($receiverCompany === '' || $receiverCountryCode === '') {
+            $response = [
+                'status' => 'ok',
+                'found' => false,
+                'source' => 'local_cache',
+                'client_id' => $clientId,
+                'reason' => 'missing_forwarder_or_country',
+            ];
+            break;
+        }
+
+        $stmt = $dbcnx->prepare(
+            "SELECT connector_key, forwarder_name, country_code, client_id, client_name, client_email, client_address, updated_at
+               FROM connector_clients
+              WHERE forwarder_name = ?
+                AND country_code = ?
+                AND client_id = ?
+              LIMIT 1"
+        );
+        if (!$stmt) {
+            $response = [
+                'status' => 'ok',
+                'found' => false,
+                'source' => 'local_cache',
+                'client_id' => $clientId,
+                'reason' => 'lookup_unavailable',
+            ];
+            break;
+        }
+
+        $stmt->bind_param('sss', $receiverCompany, $receiverCountryCode, $clientId);
+        $stmt->execute();
+        $res = $stmt->get_result();
+        $row = $res ? $res->fetch_assoc() : null;
+        $stmt->close();
+
+        if (!$row) {
+            $response = [
+                'status' => 'ok',
+                'found' => false,
+                'source' => 'local_cache',
+                'client_id' => $clientId,
+            ];
+            break;
+        }
+
+        $response = [
+            'status' => 'ok',
+            'found' => true,
+            'source' => 'local_cache',
+            'connector_key' => (string)($row['connector_key'] ?? ''),
+            'forwarder_name' => (string)($row['forwarder_name'] ?? ''),
+            'country_code' => (string)($row['country_code'] ?? ''),
+            'client_id' => (string)($row['client_id'] ?? ''),
+            'client_name' => (string)($row['client_name'] ?? ''),
+            'client_email' => $row['client_email'] ?? null,
+            'client_address' => $row['client_address'] ?? null,
+        ];
         break;
     case 'check_item_in_duplicate':
         auth_require_login();
