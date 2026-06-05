@@ -68,6 +68,9 @@
       {else}
         <span class="badge bg-secondary">—</span>
       {/if}
+      {if $item.forwarder_registered_at}
+       <div class="small text-muted mt-1">{$item.forwarder_registered_at|escape}</div>
+      {/if}
     </td>
     <td>{$item.forwarder_registered_at|default:'—'|escape}</td>
     <td title="{$item.forwarder_registration_message|default:''|escape}">
@@ -125,6 +128,6 @@
 {/foreach}
 {if !$warehouse_items_registry && $show_empty}
   <tr>
-    <td colspan="13" class="text-center text-muted">Нет посылок по выбранным фильтрам</td>
+    <td colspan="12" class="text-center text-muted">Нет посылок по выбранным фильтрам</td>
   </tr>
 {/if}

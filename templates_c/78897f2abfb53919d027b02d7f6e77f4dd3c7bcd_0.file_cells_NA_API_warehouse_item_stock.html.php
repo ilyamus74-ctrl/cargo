@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-06-05 14:01:55
+/* Smarty version 5.3.1, created on 2026-06-05 15:21:09
   from 'file:cells_NA_API_warehouse_item_stock.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_6a22d6d3162514_06351564',
+  'unifunc' => 'content_6a22e965c32ad6_39460564',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '78897f2abfb53919d027b02d7f6e77f4dd3c7bcd' => 
     array (
       0 => 'cells_NA_API_warehouse_item_stock.html',
-      1 => 1780667869,
+      1 => 1780672668,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_6a22d6d3162514_06351564 (\Smarty\Template $_smarty_tpl) {
+function content_6a22e965c32ad6_39460564 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>
     <div class="pagetitle">
@@ -129,7 +129,6 @@ $_smarty_current_dir = '/home/cells/web/templates';
                       <th scope="col">Ячейка/Контейнер</th>
                       <th scope="col">Статус отгрузки</th>
                       <th scope="col">Регистрация у форварда</th>
-                      <th scope="col">Дата регистрации</th>
                       <th scope="col">Сообщение</th>
                       <th scope="col" class="text-end">⋮</th>
                       <th scope="col">Создана</th>
@@ -137,7 +136,7 @@ $_smarty_current_dir = '/home/cells/web/templates';
                   </thead>
                   <tbody id="warehouse-items-registry-tbody">
                     <tr>
-                      <td colspan="13" class="text-center text-muted">Загрузка...</td>
+                      <td colspan="12" class="text-center text-muted">Загрузка...</td>
                     </tr>
                   </tbody>
                 </table>
