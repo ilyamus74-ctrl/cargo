@@ -243,6 +243,62 @@ const CoreAPI = {
     // UI - управление интерфейсом
     // ====================================
     ui: {
+        _acceptAudio: null,
+
+        initAcceptSound() {
+            if (this._acceptAudio) return;
+            try {
+                this._acceptAudio = new Audio('/alert_sound/accept.mp3');
+                this._acceptAudio.preload = 'auto';
+                this._acceptAudio.volume = 1.0;
+            } catch (err) {
+                console.warn('accept sound init error:', err);
+            }
+        },
+
+        playAcceptSound() {
+            try {
+                if (!this._acceptAudio) {
+                    this.initAcceptSound();
+                }
+
+                const audio = this._acceptAudio || new Audio('/alert_sound/accept.mp3');
+                audio.currentTime = 0;
+                const p = audio.play();
+                if (p && typeof p.catch === 'function') {
+                    p.catch((err) => console.warn('accept sound blocked:', err));
+                }
+            } catch (err) {
+                console.warn('accept sound error:', err);
+            }
+        },
+
+        showToast(message, type = 'success') {
+            let box = document.getElementById('core-api-toast');
+            if (!box) {
+                box = document.createElement('div');
+                box.id = 'core-api-toast';
+                box.style.position = 'fixed';
+                box.style.right = '16px';
+                box.style.bottom = '16px';
+                box.style.zIndex = '99999';
+                box.style.maxWidth = '320px';
+                document.body.appendChild(box);
+            }
+
+            const item = document.createElement('div');
+            item.className = type === 'success'
+                ? 'alert alert-success shadow-sm mb-2'
+                : 'alert alert-warning shadow-sm mb-2';
+            item.textContent = message || 'Готово';
+
+            box.appendChild(item);
+
+            setTimeout(() => {
+                item.remove();
+            }, 1800);
+        },
+
         /**
          * Универсальная перезагрузка списка
          * @param {string} action - action для загрузки
@@ -1095,7 +1151,8 @@ const CoreAPI = {
             CoreAPI.ui.onModalCloseOnce(() => CoreAPI.ui.reloadList('warehouse_item_in'));
         },
         'add_new_item_in': async (data) => {
-            alert(data.message || 'Посылка добавлена');
+            CoreAPI.ui.playAcceptSound();
+            CoreAPI.ui.showToast(data.message || 'Посылка добавлена', 'success');
             const batchUid = data.batch_uid;
             if (batchUid) {
                 const fd = new FormData();
@@ -4940,6 +4997,9 @@ const CoreAPI = {
     // INIT - инициализация
     // ====================================
     init() {
+        this.ui.initAcceptSound();
+        document.addEventListener('click', () => this.ui.initAcceptSound(), { once: true });
+        document.addEventListener('keydown', () => this.ui.initAcceptSound(), { once: true });
         document.addEventListener('click', this.events.handleClick.bind(this));
         document.addEventListener('change', this.events.handlePhotoUpload.bind(this));
         document.addEventListener('change', this.events.handleWarehouseItemStockPhotoUpload.bind(this));
