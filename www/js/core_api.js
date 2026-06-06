@@ -5273,6 +5273,49 @@ function clearForwarderClientNameLock(receiverName) {
 }
 
 
+
+function looksLikeForwarderClientCode(value) {
+    var v = String(value || '').trim().toUpperCase();
+
+    if (!v) return false;
+    if (/^PSB\d+$/i.test(v)) return false;
+    if (/^CKG\d+$/i.test(v)) return false;
+
+    return (
+        /^\d{3,12}$/.test(v) ||
+        /^C\d{3,12}$/i.test(v) ||
+        /^AS\d{3,12}$/i.test(v)
+    );
+}
+
+function syncReceiverCountryFromForwarder() {
+    var company = document.getElementById('receiverCompany');
+    var country = document.getElementById('receiverCountry');
+
+    if (!company || !country) return;
+
+    var selected = company.options[company.selectedIndex];
+    var countryCode = selected && selected.dataset ? (selected.dataset.country || '') : '';
+
+    if (!countryCode) return;
+
+    var normalized = countryCode.trim().toUpperCase();
+    var option = Array.from(country.options).find(function (opt) {
+        var value = String(opt.value || '').trim().toUpperCase();
+        var text = String(opt.textContent || '').trim().toUpperCase();
+
+        return value === normalized ||
+            text === normalized ||
+            (normalized === 'AZ' && text === 'AZERBAIJAN');
+    });
+
+    if (option) {
+        country.value = option.value;
+        country.dispatchEvent(new Event('input', { bubbles: true }));
+        country.dispatchEvent(new Event('change', { bubbles: true }));
+    }
+}
+
 function initForwarderClientLookup() {
     var form = document.getElementById('item-in-modal-form');
     if (!form || form.__forwarderClientLookupInstalled) return;
@@ -5312,8 +5355,8 @@ function initForwarderClientLookup() {
         var lookupKey = [receiverCompany, receiverCountry.toUpperCase(), receiverAddress.toUpperCase()].join('|');
 
         if (!receiverAddress || !receiverCompany || !receiverCountry) return;
+        if (!looksLikeForwarderClientCode(receiverAddress)) return;
         if (lookupKey === lastLookupKey) return;
-        clearLookupLock();
         lastLookupKey = lookupKey;
 
         var currentSeq = ++requestSeq;
@@ -5326,7 +5369,7 @@ function initForwarderClientLookup() {
         try {
             var data = await CoreAPI.client.call(fd);
             if (currentSeq !== requestSeq) return;
-            if (!data || data.found !== true) {
+            if (!data || data.status !== 'ok' || data.found !== true || !data.client_name) {
                 return;
             }
 
@@ -5357,18 +5400,28 @@ function initForwarderClientLookup() {
         timer = setTimeout(runLookup, 300);
     }
 
-    [addressInput, companyInput, countryInput].forEach(function (field) {
-        field.addEventListener('input', function () {
-            clearLookupLock();
-            scheduleLookup();
-        });
-        field.addEventListener('change', function () {
-            clearLookupLock();
-            scheduleLookup();
-        });
-        field.addEventListener('blur', scheduleLookup);
-    });
+    function clearLockAndScheduleLookup() {
+        clearLookupLock();
+        scheduleLookup();
+    }
 
+    ['input', 'change'].forEach(function (eventName) {
+        addressInput.addEventListener(eventName, clearLockAndScheduleLookup);
+    });
+    addressInput.addEventListener('blur', scheduleLookup);
+
+    companyInput.addEventListener('change', function () {
+        syncReceiverCountryFromForwarder();
+        clearLockAndScheduleLookup();
+    });
+    companyInput.addEventListener('blur', scheduleLookup);
+
+    ['change', 'input'].forEach(function (eventName) {
+        countryInput.addEventListener(eventName, clearLockAndScheduleLookup);
+    });
+    countryInput.addEventListener('blur', scheduleLookup);
+
+    syncReceiverCountryFromForwarder();
     scheduleLookup();
 }
 

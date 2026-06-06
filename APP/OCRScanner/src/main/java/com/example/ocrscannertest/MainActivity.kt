@@ -388,6 +388,30 @@ private enum class ScannerOwnerState {
 }
 private const val VOLUME_DOUBLE_TAP_WINDOW_MS = 650L
 
+private val INSTALL_DEVICE_OCR_JS = """
+(function () {
+  if (window.__deviceOcrHookInstalled) return;
+  window.__deviceOcrHookInstalled = true;
+
+  window.DeviceOcr = window.DeviceOcr || {};
+  window.DeviceOcr.openItemInOcr = function (source) {
+    try {
+      document.dispatchEvent(new CustomEvent('device:p1:ocr', { detail: { source: source || 'web_hook' } }));
+    } catch (e) {}
+
+    try {
+      if (window.DeviceApp && typeof window.DeviceApp.openItemInOcr === 'function') {
+        window.DeviceApp.openItemInOcr(String(source || 'web_hook'));
+        return true;
+      }
+    } catch (e) {}
+
+    return false;
+  };
+})();
+""".trimIndent()
+
+
 private val INSTALL_MANUAL_INPUT_KEYBOARD_JS = """
 (function () {
   if (window.__manualKeyboardBridgeInstalled) return;
@@ -1636,6 +1660,50 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+
+    private fun triggerP1OcrFallback(reason: String): Boolean {
+        Log.i("SCAN_QR_DIAG", "P1 OCR fallback requested reason=$reason")
+
+        val webView = activeWebViewProvider?.invoke()
+
+        if (webView != null) {
+            val js = """
+                (function () {
+                    try {
+                        if (window.DeviceOcr && typeof window.DeviceOcr.openItemInOcr === 'function') {
+                            window.DeviceOcr.openItemInOcr('p1_fallback');
+                            return 'DEVICE_OCR_HOOK_OK';
+                        }
+
+                        var form = document.getElementById('item-in-modal-form');
+                        if (form) {
+                            document.dispatchEvent(new CustomEvent('device:p1:ocr', { detail: { source: 'p1_fallback' } }));
+                            return 'ITEM_IN_FORM_EVENT_SENT';
+                        }
+
+                        return 'NO_ITEM_IN_CONTEXT';
+                    } catch (e) {
+                        return 'ERROR:' + String(e && e.message ? e.message : e);
+                    }
+                })();
+            """.trimIndent()
+
+            runOnUiThread {
+                webView.evaluateJavascript(js) { result ->
+                    Log.i("SCAN_QR_DIAG", "P1 OCR fallback JS result=$result")
+                }
+            }
+        }
+
+        val callback = onP1Single
+        if (callback != null) {
+            callback.invoke()
+            return true
+        }
+
+        return false
+    }
+
     private fun handleHardwareButtonKey(keyCode: Int): Boolean {
 
         when (keyCode) {
@@ -1657,7 +1725,9 @@ class MainActivity : ComponentActivity() {
                 return triggerFirstAvailable(onScanTopSingle, onVolUpDouble)
             }
             KeyEvent.KEYCODE_BUTTON_1, KeyEvent.KEYCODE_F1 -> {
-                return triggerHardwareAction(onP1Single)            }
+                triggerP1OcrFallback("p1_key")
+                return true
+            }
             KeyEvent.KEYCODE_BUTTON_2, KeyEvent.KEYCODE_F2 -> {
 
                 return triggerHardwareAction(onP2Single)
@@ -2039,6 +2109,20 @@ fun AppRoot() {
 
     // новый экран для OCR
     var showOcr by remember { mutableStateOf(false) }
+
+    fun openItemInOcrFromP1(reason: String = "p1_open_ocr") {
+        showOcr = true
+        activity?.hideKeyboardForScannerOverlay(reason)
+        activity?.setQrCameraFlowActive(true, reason = reason)
+    }
+
+    DisposableEffect(Unit) {
+        MainActivity.onP1Single = { openItemInOcrFromP1() }
+
+        onDispose {
+            MainActivity.onP1Single = null
+        }
+    }
 
     // ссылка на WebView
     var webViewRef by remember { mutableStateOf<WebView?>(null) }
@@ -3113,6 +3197,8 @@ fun AppRoot() {
                 MainActivity.onP2Single = null
             }
         }
+
+        MainActivity.onP1Single = { openItemInOcrFromP1() }
     }
 
 
@@ -5039,6 +5125,14 @@ fun DeviceWebViewScreen(
                     }
 
                     @JavascriptInterface
+                    fun openItemInOcr(source: String?) {
+                        Log.i("SCAN_QR_DIAG", "DeviceOcr.openItemInOcr source=$source")
+                        mainHandler.post {
+                            MainActivity.onP1Single?.invoke()
+                        }
+                    }
+
+                    @JavascriptInterface
                     fun onMainContext(payload: String?) {
                         if (payload.isNullOrBlank()) return
                         try {
@@ -5187,7 +5281,8 @@ fun DeviceWebViewScreen(
                         // ВАЖНО: всегда инжектим, потому что при реальном reload JS улетает
                         view?.evaluateJavascript(INSTALL_MAIN_OBSERVER_JS, null)
                         view?.evaluateJavascript(INSTALL_MANUAL_INPUT_KEYBOARD_JS, null)
-
+                        view?.evaluateJavascript(INSTALL_DEVICE_OCR_JS, null)
+                        
                         val base = normalizeServerUrl(config.serverUrl)
                         if (!url.isNullOrBlank() && base.isNotBlank()) {
                             val u = Uri.parse(url)
@@ -8632,7 +8727,7 @@ fun buildMergedOcrParcelDataFromText(
         destConfig = destConfig,
         nameDict = nameDict
     )
-    val return basic.copy(
+    return basic.copy(
     receiverCountryCode = advanced.receiverCountryCode ?: basic.receiverCountryCode,
     receiverCompany = advanced.receiverCompany ?: basic.receiverCompany,
     receiverForwarderCode = advanced.receiverForwarderCode ?: basic.receiverForwarderCode,
