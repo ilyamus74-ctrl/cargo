@@ -5239,40 +5239,6 @@ function initWarehouseStockAddons() {
 
 
 
-function normalizeForwarderClientName(value) {
-    return String(value || '')
-        .trim()
-        .replace(/\s+/g, ' ');
-}
-
-function enforceForwarderClientName(receiverName) {
-    if (!receiverName) return;
-
-    var locked = receiverName.dataset.forwarderLookupLocked === '1';
-    var exactName = normalizeForwarderClientName(receiverName.dataset.forwarderLookupClientName || '');
-
-    if (!locked || !exactName) {
-        return;
-    }
-
-    var current = normalizeForwarderClientName(receiverName.value || '');
-
-    if (current !== exactName) {
-        receiverName.value = exactName;
-        receiverName.dispatchEvent(new Event('input', { bubbles: true }));
-        receiverName.dispatchEvent(new Event('change', { bubbles: true }));
-    }
-}
-
-function clearForwarderClientNameLock(receiverName) {
-    if (!receiverName) return;
-
-    receiverName.dataset.forwarderLookupLocked = '';
-    receiverName.dataset.forwarderLookupClientName = '';
-    receiverName.dataset.forwarderLookupClientId = '';
-}
-
-
 function initForwarderClientLookup() {
     var form = document.getElementById('item-in-modal-form');
     if (!form || form.__forwarderClientLookupInstalled) return;
@@ -5301,10 +5267,6 @@ function initForwarderClientLookup() {
         }
     }
 
-    function clearLookupLock() {
-        clearForwarderClientNameLock(nameInput);
-    }
-
     async function runLookup() {
         var receiverAddress = fieldValue(addressInput);
         var receiverCompany = fieldValue(companyInput).toUpperCase();
@@ -5313,7 +5275,6 @@ function initForwarderClientLookup() {
 
         if (!receiverAddress || !receiverCompany || !receiverCountry) return;
         if (lookupKey === lastLookupKey) return;
-        clearLookupLock();
         lastLookupKey = lookupKey;
 
         var currentSeq = ++requestSeq;
@@ -5326,24 +5287,11 @@ function initForwarderClientLookup() {
         try {
             var data = await CoreAPI.client.call(fd);
             if (currentSeq !== requestSeq) return;
-            if (!data || data.found !== true) {
-                return;
-            }
-
-            var clientName = normalizeForwarderClientName(data.client_name);
-            if (clientName) {
-                nameInput.value = clientName;
-                nameInput.dataset.forwarderLookupLocked = '1';
-                nameInput.dataset.forwarderLookupClientName = clientName;
-                nameInput.dataset.forwarderLookupClientId = String(data.client_id || '');
-                nameInput.title = 'Уточнено по базе клиентов форварда, client_id=' + (data.client_id || '');
+            if (data && data.found === true && data.client_name) {
+                nameInput.value = data.client_name;
                 nameInput.dispatchEvent(new Event('input', { bubbles: true }));
                 nameInput.dispatchEvent(new Event('change', { bubbles: true }));
-                showLookupToast(clientName);
-
-                setTimeout(function () { enforceForwarderClientName(nameInput); }, 100);
-                setTimeout(function () { enforceForwarderClientName(nameInput); }, 500);
-                setTimeout(function () { enforceForwarderClientName(nameInput); }, 1200);
+                showLookupToast(data.client_name);
             }
         } catch (err) {
             console.warn('warehouse_lookup_forwarder_client failed:', err);
@@ -5358,14 +5306,7 @@ function initForwarderClientLookup() {
     }
 
     [addressInput, companyInput, countryInput].forEach(function (field) {
-        field.addEventListener('input', function () {
-            clearLookupLock();
-            scheduleLookup();
-        });
-        field.addEventListener('change', function () {
-            clearLookupLock();
-            scheduleLookup();
-        });
+        field.addEventListener('change', scheduleLookup);
         field.addEventListener('blur', scheduleLookup);
     });
 
