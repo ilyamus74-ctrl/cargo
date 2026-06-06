@@ -1,14 +1,9 @@
-@file:OptIn(
-    androidx.camera.core.ExperimentalGetImage::class,
-    androidx.compose.ui.ExperimentalComposeUiApi::class
-)
+@file:OptIn(androidx.camera.core.ExperimentalGetImage::class)
 
 package com.example.ocrscannertest
 import android.content.Context
 import android.content.BroadcastReceiver
 import android.content.IntentFilter
-import android.content.ComponentName
-import android.content.ServiceConnection
 import java.io.File
 import androidx.core.content.FileProvider
 import android.provider.MediaStore
@@ -27,7 +22,6 @@ import java.net.URL
 import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Bundle
-import android.os.IBinder
 import android.view.WindowManager
 import android.util.Log
 import androidx.activity.ComponentActivity
@@ -92,22 +86,6 @@ import android.net.Uri
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.Image
 import androidx.compose.ui.res.painterResource
-import android.view.Window
-import android.view.inputmethod.InputMethodManager
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.input.pointer.pointerInteropFilter
-import androidx.compose.ui.layout.ContentScale
-import kotlin.math.ceil
-import kotlin.math.floor
-import android.graphics.Bitmap
-import android.graphics.Path
-import android.view.MotionEvent
-import androidx.compose.foundation.Canvas
-import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.input.pointer.pointerInteropFilter
-import androidx.compose.ui.graphics.CompositingStrategy
-import androidx.compose.ui.graphics.graphicsLayer
 
 private val INSTALL_MAIN_OBSERVER_JS = """
 (function(){
@@ -381,90 +359,8 @@ private class ScannerDebugBridge(private val context: Context) {
 }
 
 enum class WarehouseScanStep { BARCODE, OCR, MEASURE, SUBMIT }
-private enum class ScannerOwnerState {
-    IDLE,
-    CAMERA_MODE,
-    HARDWARE_SCAN_MODE
-}
+
 private const val VOLUME_DOUBLE_TAP_WINDOW_MS = 650L
-
-private val INSTALL_MANUAL_INPUT_KEYBOARD_JS = """
-(function () {
-  if (window.__manualKeyboardBridgeInstalled) return;
-  window.__manualKeyboardBridgeInstalled = true;
-
-  var lastTapAt = 0;
-  var DOUBLE_TAP_MS = 450;
-
-  window.__scannerProgrammaticInputUntil = window.__scannerProgrammaticInputUntil || 0;
-
-  function isEditable(el) {
-    if (!el) return false;
-
-    if (el.tagName === "TEXTAREA") return true;
-
-    if (el.tagName === "INPUT") {
-      var type = (el.type || "text").toLowerCase();
-      return ["text", "search", "email", "number", "tel", "url", "password"].indexOf(type) !== -1;
-    }
-
-    return !!el.isContentEditable;
-  }
-
-  function notifyOpenKeyboard(target, reason) {
-    try {
-      if (!target || !isEditable(target)) return;
-
-      if (Date.now() < (window.__scannerProgrammaticInputUntil || 0)) {
-        return;
-      }
-
-      try {
-        target.focus({ preventScroll: true });
-      } catch (_) {
-        try { target.focus(); } catch (_) {}
-      }
-
-      if (window.DeviceApp && window.DeviceApp.onManualInputFocus) {
-        var payload = {
-          reason: reason,
-          id: target.id || "",
-          name: target.name || "",
-          tag: target.tagName || "",
-          type: target.type || ""
-        };
-
-        window.DeviceApp.onManualInputFocus(JSON.stringify(payload));
-      }
-    } catch (_) {}
-  }
-
-  document.addEventListener("touchend", function (ev) {
-    var target = ev.target;
-    if (!isEditable(target)) return;
-
-    var now = Date.now();
-    var isDoubleTap = (now - lastTapAt) <= DOUBLE_TAP_MS;
-    lastTapAt = now;
-
-    notifyOpenKeyboard(target, isDoubleTap ? "double_tap" : "single_tap");
-  }, true);
-
-  document.addEventListener("click", function (ev) {
-    var target = ev.target;
-    if (!isEditable(target)) return;
-
-    notifyOpenKeyboard(target, "click");
-  }, true);
-
-  window.DeviceManualKeyboard = {
-    markProgrammaticInput: function (ms) {
-      window.__scannerProgrammaticInputUntil = Date.now() + (ms || 1000);
-    }
-  };
-})();
-""".trimIndent()
-
 private var debugToastsEnabled = false
 
 private fun debugToast(context: Context, message: String, length: Int = Toast.LENGTH_SHORT) {
@@ -565,13 +461,12 @@ class MainActivity : ComponentActivity() {
         var onScanTopSingle: (() -> Unit)? = null
         var onP1Single: (() -> Unit)? = null
         var onP2Single: (() -> Unit)? = null
-        var onP2Double: (() -> Unit)? = null
         var activeWebViewProvider: (() -> WebView?)? = null
-        var onHardwareScanData: ((String, String) -> Unit)? = null
+        var onHardwareScanData: ((String) -> Unit)? = null
     }
 
     private lateinit var volumeButtonDispatcher: VolumeButtonDispatcher
-    private lateinit var p2ButtonDispatcher: VolumeButtonDispatcher
+
     private val hardwareScanBuffer = StringBuilder()
     private var hardwareScanLastCharTs: Long = 0L
     private val hardwareScanTimeoutMs = 250L
@@ -579,180 +474,6 @@ class MainActivity : ComponentActivity() {
     private var hardwareScanFlushRunnable: Runnable? = null
     private val handledHardwareDownKeys = mutableSetOf<Int>()
     private val interceptHardwareTriggerKeys: Boolean = false
-    private val p1KeyCode = 298
-    private val p2KeyCode = 297
-
-    private val p2LongHoldMs = 3000L
-    private var p2LongHoldRunnable: Runnable? = null
-    private var p2LongHoldFired = false
-    private val hsBootstrapThrottleMs = 1500L
-    private var hsWarmupInProgress = false
-    private var hsLastWarmupStartedAtMs = 0L
-    private var hsTriggerWatchdogRunnable: Runnable? = null
-    private var hsLastHardwareTriggerAtMs = 0L
-    private var hsLastBarcodeSendAtMs = 0L
-
-    private var skipVendorOpenOnHardKeyUntilMs = 0L
-    private val skipVendorOpenAfterQrCloseMs = 3500L
-
-    private var hsLastVendorArmAtMs = 0L
-    private val hsVendorArmThrottleMs = 800L
-
-    private var hsHardKeyBlockedUntilMs = 0L
-    private val hsHardKeyBlockAfterCameraCloseMs = 1800L
-
-    private var scannerOwnerState: ScannerOwnerState = ScannerOwnerState.IDLE
-    private val cameraReleaseCallbacks = linkedMapOf<String, () -> Unit>()
-    private val cameraRestoreCallbacks = linkedMapOf<String, () -> Unit>()
-    private var restoreCameraAfterHardwareScanRunnable: Runnable? = null
-    private val cameraRestoreDelayAfterBarcodeMs = 900L
-    private val cameraRestoreDelayAfterTimeoutMs = 1800L
-    private var lastHardwareScanValue: String? = null
-    private var lastHardwareScanAtMs: Long = 0L
-    private val hardwareScanDedupWindowMs = 800L
-
-    private fun recoverVendorScannerAfterCameraScreen(owner: String, reason: String) {
-        if (owner != "BarcodeScanScreen" && owner != "OcrScanScreen") {
-            return
-        }
-
-        hsHardKeyBlockedUntilMs =
-            System.currentTimeMillis() + hsHardKeyBlockAfterCameraCloseMs
-
-        Log.i(
-            "HS_BOOTSTRAP",
-            "vendor scanner recovery after camera screen owner=$owner reason=$reason hardKeyBlockedUntil=$hsHardKeyBlockedUntilMs"
-        )
-
-        scannerBootstrapHandler.postDelayed({
-            Log.i(
-                "HS_BOOTSTRAP",
-                "vendor scanner recovery immediate owner=$owner reason=$reason"
-            )
-            kickHsDcsServiceAction("camera_screen_closed_${owner}_immediate", force = true)
-        }, 50L)
-
-        scannerBootstrapHandler.postDelayed({
-            Log.i(
-                "HS_BOOTSTRAP",
-                "vendor scanner recovery late owner=$owner reason=$reason"
-            )
-            kickHsDcsServiceAction("camera_screen_closed_${owner}_late", force = true)
-        }, 1300L)
-    }
-
-    fun setScannerCameraCallbacks(
-        owner: String,
-        releaseCamera: (() -> Unit)?,
-        restoreCamera: (() -> Unit)?
-    ) {
-        if (releaseCamera == null && restoreCamera == null) {
-            cameraReleaseCallbacks.remove(owner)
-            cameraRestoreCallbacks.remove(owner)
-
-            Log.i(
-                "HS_BOOTSTRAP",
-                "scanner camera callbacks unregistered owner=$owner releaseCount=${cameraReleaseCallbacks.size} restoreCount=${cameraRestoreCallbacks.size}"
-            )
-
-            recoverVendorScannerAfterCameraScreen(
-                owner = owner,
-                reason = "scanner_camera_callbacks_unregistered"
-            )
-
-            return
-        }
-
-        if (releaseCamera != null) {
-            cameraReleaseCallbacks[owner] = releaseCamera
-        } else {
-            cameraReleaseCallbacks.remove(owner)
-        }
-
-        if (restoreCamera != null) {
-            cameraRestoreCallbacks[owner] = restoreCamera
-        } else {
-            cameraRestoreCallbacks.remove(owner)
-        }
-
-        Log.i(
-            "HS_BOOTSTRAP",
-            "scanner camera callbacks registered owner=$owner releaseCount=${cameraReleaseCallbacks.size} restoreCount=${cameraRestoreCallbacks.size}"
-        )
-    }
-    fun enterCameraMode(reason: String) {
-        if (scannerOwnerState == ScannerOwnerState.CAMERA_MODE) return
-
-        Log.i("HS_BOOTSTRAP", "state ${scannerOwnerState} -> CAMERA_MODE reason=$reason")
-        scannerOwnerState = ScannerOwnerState.CAMERA_MODE
-    }
-    private fun enterHardwareScanMode(reason: String) {
-        restoreCameraAfterHardwareScanRunnable?.let {
-            scannerBootstrapHandler.removeCallbacks(it)
-        }
-        restoreCameraAfterHardwareScanRunnable = null
-
-        if (scannerOwnerState != ScannerOwnerState.HARDWARE_SCAN_MODE) {
-            Log.i("HS_BOOTSTRAP", "state ${scannerOwnerState} -> HARDWARE_SCAN_MODE reason=$reason")
-        } else {
-            Log.i("HS_BOOTSTRAP", "refresh HARDWARE_SCAN_MODE reason=$reason")
-        }
-
-        scannerOwnerState = ScannerOwnerState.HARDWARE_SCAN_MODE
-
-        runCatching {
-            val callbacks = cameraReleaseCallbacks.toMap()
-            Log.i(
-                "HS_BOOTSTRAP",
-                "camera release callbacks count=${callbacks.size} owners=${callbacks.keys} reason=$reason"
-            )
-
-            callbacks.forEach { (owner, callback) ->
-                runCatching {
-                    Log.i("HS_BOOTSTRAP", "camera release invoke owner=$owner reason=$reason")
-                    callback.invoke()
-                }.onFailure { t ->
-                    Log.e("HS_BOOTSTRAP", "camera release failed owner=$owner reason=$reason", t)
-                }
-            }
-
-            Log.i("HS_BOOTSTRAP", "camera release requested reason=$reason")
-        }.onFailure { t ->
-            Log.e("HS_BOOTSTRAP", "camera release failed reason=$reason", t)
-        }
-    }
-
-    private fun scheduleReturnToCameraMode(reason: String, delayMs: Long) {
-        restoreCameraAfterHardwareScanRunnable?.let {
-            scannerBootstrapHandler.removeCallbacks(it)
-        }
-
-        restoreCameraAfterHardwareScanRunnable = Runnable {
-            Log.i("HS_BOOTSTRAP", "state ${scannerOwnerState} -> CAMERA_MODE reason=$reason")
-
-            scannerOwnerState = ScannerOwnerState.CAMERA_MODE
-
-            val callbacks = cameraRestoreCallbacks.toMap()
-            Log.i(
-                "HS_BOOTSTRAP",
-                "camera restore callbacks count=${callbacks.size} owners=${callbacks.keys} reason=$reason"
-            )
-
-            callbacks.forEach { (owner, callback) ->
-                runCatching {
-                    Log.i("HS_BOOTSTRAP", "camera restore invoke owner=$owner reason=$reason")
-                    callback.invoke()
-                }.onFailure { t ->
-                    Log.e("HS_BOOTSTRAP", "camera restore failed owner=$owner reason=$reason", t)
-                }
-            }
-
-            Log.i("HS_BOOTSTRAP", "camera restore requested reason=$reason")
-        }
-
-        Log.i("HS_BOOTSTRAP", "schedule camera restore reason=$reason delay=${delayMs}ms")
-        scannerBootstrapHandler.postDelayed(restoreCameraAfterHardwareScanRunnable!!, delayMs)
-    }
 
     fun setInterceptHardwareTriggerKeys(enabled: Boolean) {
         // Intentionally ignored.
@@ -764,46 +485,12 @@ class MainActivity : ComponentActivity() {
         "com.datalogic.decodewedge.decode_action",
         "android.intent.ACTION_DECODE_DATA",
         "nlscan.action.SCANNER_RESULT",
-        "com.sunmi.scanner.ACTION_DATA_CODE_RECEIVED",
-        "com.android.hs.action.BARCODE_SEND",
-        "com.android.giec.action.BARCODE_FOCAL"
+        "com.sunmi.scanner.ACTION_DATA_CODE_RECEIVED"
     )
     private val scanIntentReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
-
-            val extras = intent?.extras
-            val action = intent?.action
-            if (action == "com.android.hs.action.BARCODE_SEND" || action == "com.android.giec.action.BARCODE_FOCAL") {
-                hsLastBarcodeSendAtMs = System.currentTimeMillis()
-                hsTriggerWatchdogRunnable?.let { scannerBootstrapHandler.removeCallbacks(it) }
-                hsTriggerWatchdogRunnable = null
-
-                scheduleReturnToCameraMode(
-                    reason = "barcode_received_$action",
-                    delayMs = cameraRestoreDelayAfterBarcodeMs
-                )
-            }
-            val extraKeys = extras?.keySet().orEmpty()
-            val extrasDump = extraKeys.joinToString(separator = ", ") { key ->
-                "$key=${safeExtraValue(extras?.get(key))}"
-            }
-            val extracted = extractScanPayload(intent)
-            Log.i(
-                "SCAN_QR_DIAG",
-                "intent_path action=$action extrasKeys=$extraKeys extras=[$extrasDump] extracted=$extracted"
-            )
-            val raw = extracted ?: return
-            dispatchHardwareScan(raw = raw, source = "hardware_intent")
-        }
-    }
-
-    private fun safeExtraValue(value: Any?): String {
-        return when (value) {
-            null -> "null"
-            is ByteArray -> "ByteArray(len=${value.size}, text='${String(value).take(120)}')"
-            is CharArray -> "CharArray(len=${value.size}, text='${String(value).take(120)}')"
-            is Array<*> -> value.joinToString(prefix = "[", postfix = "]") { it?.toString().orEmpty().take(80) }
-            else -> value.toString().take(200)
+            val raw = extractScanPayload(intent) ?: return
+            dispatchHardwareScan(raw)
         }
     }
 
@@ -818,24 +505,20 @@ class MainActivity : ComponentActivity() {
             "barcode_string",
             "decode_data",
             "code",
-            "value",
-            "BARCODE",
-            "barcode",
-            "result",
-            "text",
-            "message",
-            "decode_rslt",
-            "scannerdata",
-            "barcodeData",
-            "dataBytes",
-            "aimId",
-            "charset"
+            "value"
         )
 
         keys.forEach { key ->
-            extractExtraCandidates(extras, key).forEach { candidate ->
-                normalizeHardwareScanPayload(candidate)?.let { return it }
+            val str = extras?.getString(key)
+            normalizeHardwareScanPayload(str)?.let { return it }
+
+            val bytes = extras?.getByteArray(key)
+            if (bytes != null && bytes.isNotEmpty()) {
+                normalizeHardwareScanPayload(String(bytes))?.let { return it }
             }
+
+            val charSeq = extras?.getCharSequence(key)
+            normalizeHardwareScanPayload(charSeq?.toString())?.let { return it }
         }
 
         val fallbackKeys = extras?.keySet().orEmpty()
@@ -857,176 +540,63 @@ class MainActivity : ComponentActivity() {
         return null
     }
 
-    private fun extractExtraCandidates(extras: Bundle?, key: String): List<String> {
-        if (extras == null) return emptyList()
-        val candidates = mutableListOf<String>()
-
-        extras.getString(key)?.let { candidates += it }
-        extras.getCharSequence(key)?.toString()?.let { candidates += it }
-        extras.getByteArray(key)?.takeIf { it.isNotEmpty() }?.let { candidates += String(it) }
-
-        when (val raw = extras.get(key)) {
-            is String -> candidates += raw
-            is CharSequence -> candidates += raw.toString()
-            is ByteArray -> if (raw.isNotEmpty()) candidates += String(raw)
-            is CharArray -> if (raw.isNotEmpty()) candidates += String(raw)
-            is IntArray -> if (raw.isNotEmpty()) candidates += raw.joinToString(separator = "")
-            is Array<*> -> raw.mapNotNull { it?.toString() }.forEach { candidates += it }
+    private fun dispatchHardwareScan(raw: String) {
+        val normalized = normalizeHardwareScanPayload(raw) ?: return
+        runOnUiThread {
+            onHardwareScanData?.invoke(normalized)
         }
-
-        return candidates
     }
-    private fun injectHardwareScanIntoActiveWebView(value: String, source: String): Boolean {
-        val webView = activeWebViewProvider?.invoke()
 
-        if (webView == null) {
-            Log.i(
-                "SCAN_QR_DIAG",
-                "webview_inject_skip reason=no_active_webview value='$value' source=$source"
-            )
-            return false
+
+    private fun normalizeHardwareScanPayload(raw: String?): String? {
+        val base = raw?.trim()?.takeIf { it.isNotBlank() } ?: return null
+
+        fun normalizeCandidate(candidate: String?): String? {
+            val value = candidate?.trim()?.takeIf { it.isNotBlank() } ?: return null
+            val normalized = normalizeScanRawValue(value)
+            if (normalized.isBlank()) return null
+            if (normalized.equals("null", ignoreCase = true) || normalized.equals("undefined", ignoreCase = true)) {
+                return null
+            }
+            return normalized
         }
 
-        val quotedValue = JSONObject.quote(value)
+        normalizeCandidate(base)?.let { direct ->
+            if (!direct.startsWith("{") && !direct.startsWith("[")) return direct
+        }
 
-        val js = """
-        (function(value) {
-        window.__scannerProgrammaticInputUntil = Date.now() + 1200;
-            function isEditable(el) {
-                if (!el) return false;
-                var tag = (el.tagName || '').toUpperCase();
-                return tag === 'INPUT' || tag === 'TEXTAREA' || el.isContentEditable;
-            }
-
-            var el = document.activeElement;
-
-            if (!isEditable(el)) {
-                var ids = [
-                    'warehouse-move-search',
-                    'warehouse-move-batch-search',
-                    'warehouse-item-out-search',
-                    'barcode',
-                    'scan',
-                    'search',
-                    'login',
-                    'username',
-                    'password'
-                ];
-
-                for (var i = 0; i < ids.length; i++) {
-                    var candidate = document.getElementById(ids[i]);
-                    if (isEditable(candidate)) {
-                        el = candidate;
-                        break;
-                    }
+        if (base.startsWith("[")) {
+            runCatching { JSONArray(base) }.getOrNull()?.let { arr ->
+                for (i in 0 until arr.length()) {
+                    normalizeCandidate(arr.opt(i)?.toString())?.let { return it }
                 }
             }
+        }
 
-            if (!isEditable(el)) {
-                return 'NO_EDITABLE_TARGET';
-            }
-
-            el.focus();
-
-            if ('value' in el) {
-                el.value = value;
-                el.dispatchEvent(new Event('input', { bubbles: true }));
-                el.dispatchEvent(new Event('change', { bubbles: true }));
-            } else {
-                el.textContent = value;
-                el.dispatchEvent(new Event('input', { bubbles: true }));
-            }
-
-            el.dispatchEvent(new KeyboardEvent('keydown', {
-                key: 'Enter',
-                code: 'Enter',
-                keyCode: 13,
-                which: 13,
-                bubbles: true
-            }));
-
-            el.dispatchEvent(new KeyboardEvent('keyup', {
-                key: 'Enter',
-                code: 'Enter',
-                keyCode: 13,
-                which: 13,
-                bubbles: true
-            }));
-
-            return 'OK';
-        })($quotedValue);
-    """.trimIndent()
-
-        runOnUiThread {
-            webView.evaluateJavascript(js) { result ->
-                Log.i(
-                    "SCAN_QR_DIAG",
-                    "webview_inject_result source=$source value='$value' result=$result"
-                )
-                hideKeyboardForActiveWebView("hardware_scan_inject")
+        if (base.startsWith("{")) {
+            runCatching { JSONObject(base) }.getOrNull()?.let { obj ->
+                val jsonKeys = listOf("barcode", "qr", "value", "data", "code", "scanData", "raw", "text")
+                jsonKeys.forEach { key ->
+                    normalizeCandidate(obj.optString(key, null))?.let { return it }
+                }
             }
         }
 
-        return true
+        val tokens = base.split(Regex("""[\s\n\r\t;,|]+"""))
+            .mapNotNull(::normalizeCandidate)
+            .filter { token -> token.any(Char::isLetterOrDigit) }
+        if (tokens.isNotEmpty()) {
+            return tokens.maxByOrNull { it.length }
+        }
+
+        return normalizeCandidate(base)
     }
-    private fun dispatchHardwareScan(raw: String, source: String) {
-        val normalized = normalizeHardwareScanPayload(raw)
-        Log.i("SCAN_QR_DIAG", "dispatchHardwareScan source=$source raw='$raw' normalized='$normalized'")
-        if (normalized.isNullOrBlank()) return
 
-        val now = System.currentTimeMillis()
-        if (normalized == lastHardwareScanValue && now - lastHardwareScanAtMs < hardwareScanDedupWindowMs) {
-            Log.i("SCAN_QR_DIAG", "hardware_scan_dedup_skip value='$normalized' source=$source")
-            return
-        }
-
-        lastHardwareScanValue = normalized
-        lastHardwareScanAtMs = now
-
-        runOnUiThread {
-            val callback = onHardwareScanData
-            val hasCallback = callback != null
-
-            Log.i(
-                "SCAN_QR_DIAG",
-                "dispatchHardwareScan source=$source invokeCallback=$hasCallback value='$normalized'"
-            )
-
-            if (hasCallback) {
-                callback?.invoke(normalized, source)
-            } else {
-                injectHardwareScanIntoActiveWebView(normalized, source)
-            }
-        }
-    }
-    private fun normalizeHardwareScanPayload(raw: String?): String? = normalizeHardwareScanPayloadShared(raw)
-    
     private fun handleHardwareKeyboardWedge(event: KeyEvent): Boolean {
         val callback = onHardwareScanData ?: return false
         if (event.action != KeyEvent.ACTION_DOWN) return false
         if (event.keyCode == KeyEvent.KEYCODE_VOLUME_DOWN || event.keyCode == KeyEvent.KEYCODE_VOLUME_UP) return false
-        if (event.keyCode == p1KeyCode || event.keyCode == p2KeyCode) {
-            Log.i(
-                "SCAN_QR_DIAG",
-                "p_key_skip_wedge keyCode=${event.keyCode} action=${event.action}"
-            )
-            return false
-        }
-                // TEST: do not let dedicated hardware scan trigger keys enter
-                // our keyboard-wedge path. These keys must be routed by the
-                // vendor scanner stack, not by the app.
-        if (event.keyCode == 289 || event.keyCode == 290) {
-            Log.i(
-                "SCAN_QR_DIAG",
-                "dedicated_scan_key_skip_wedge keyCode=${event.keyCode} action=${event.action}"
-            )
-            return false
-        }
 
-        Log.i(
-            "SCAN_QR_DIAG",
-            "wedge_key keyCode=${event.keyCode} unicode=${event.unicodeChar} buffer='${hardwareScanBuffer}'"
-        )
         if (
             event.keyCode == KeyEvent.KEYCODE_ENTER ||
             event.keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER ||
@@ -1038,12 +608,8 @@ class MainActivity : ComponentActivity() {
             hardwareScanBuffer.clear()
             hardwareScanLastCharTs = 0L
             val normalizedPayload = normalizeHardwareScanPayload(payload)
-            Log.i(
-                "SCAN_QR_DIAG",
-                "wedge_flush triggerKey=${event.keyCode} payload='$payload' normalized='$normalizedPayload'"
-            )
             if (!normalizedPayload.isNullOrBlank()) {
-                callback(normalizedPayload, "hardware_wedge")
+                callback(normalizedPayload)
                 return true
             }
             return false
@@ -1058,485 +624,28 @@ class MainActivity : ComponentActivity() {
         }
         hardwareScanLastCharTs = now
         hardwareScanBuffer.append(unicodeChar.toChar())
-        Log.i("SCAN_QR_DIAG", "wedge_buffer_appended nowBuffer='${hardwareScanBuffer}'")
+
         hardwareScanFlushRunnable?.let { hardwareScanFlushHandler.removeCallbacks(it) }
         hardwareScanFlushRunnable = Runnable {
             val payload = hardwareScanBuffer.toString().trim()
             hardwareScanBuffer.clear()
             hardwareScanLastCharTs = 0L
             val normalizedPayload = normalizeHardwareScanPayload(payload)
-            Log.i("SCAN_QR_DIAG", "wedge_flush timeout payload='$payload' normalized='$normalizedPayload'")
             if (!normalizedPayload.isNullOrBlank()) {
-                onHardwareScanData?.invoke(normalizedPayload, "hardware_wedge")
+                onHardwareScanData?.invoke(normalizedPayload)
             }
         }
         hardwareScanFlushHandler.postDelayed(hardwareScanFlushRunnable!!, hardwareScanTimeoutMs + 100L)
         return true
     }
-    private fun runItemInP2HardClearFallback(reason: String) {
-        val webView = activeWebViewProvider?.invoke()
-        if (webView == null) {
-            Log.i("SCAN_QR_DIAG", "p2_hard_clear_skip no_active_webview reason=$reason")
-            return
-        }
 
-        Log.i("SCAN_QR_DIAG", "p2_hard_clear_run reason=$reason")
-
-        val js = """
-        (function () {
-            function fire(el) {
-                if (!el) return;
-                el.dispatchEvent(new Event('input', { bubbles: true }));
-                el.dispatchEvent(new Event('change', { bubbles: true }));
-            }
-
-            function focusTrack() {
-                setTimeout(function () {
-                    var el = document.getElementById('trackingNo');
-                    if (el) {
-                        el.focus();
-                        if (typeof el.select === 'function') el.select();
-                    }
-                }, 120);
-            }
-
-            var form = document.getElementById('item-in-modal-form');
-            if (!form) {
-                focusTrack();
-                return 'FORM_NOT_FOUND';
-            }
-
-            Array.prototype.forEach.call(
-                form.querySelectorAll('input, textarea, select'),
-                function (el) {
-                    if (!el) return;
-
-                    if (el.name === 'batch_uid') return;
-
-                    if (el.type === 'checkbox' || el.type === 'radio') {
-                        el.checked = false;
-                        fire(el);
-                        return;
-                    }
-
-                    if (el.tagName === 'SELECT') {
-                        el.selectedIndex = 0;
-                        fire(el);
-                        return;
-                    }
-
-                    if (el.type === 'file') {
-                        el.value = '';
-                        fire(el);
-                        return;
-                    }
-
-                    el.value = '';
-                    fire(el);
-                }
-            );
-
-            var quickCells = document.getElementById('receiverAddressQuickCells');
-            if (quickCells) quickCells.innerHTML = '';
-
-            var labelInfo = document.getElementById('warehouseStockLabelPhotoInfo');
-            if (labelInfo) labelInfo.textContent = '';
-
-            var boxInfo = document.getElementById('warehouseStockBoxPhotoInfo');
-            if (boxInfo) boxInfo.textContent = '';
-
-            var addonsJson = document.getElementById('warehouseStockAddonsJson');
-            if (addonsJson) addonsJson.value = '';
-
-            var addonsDebug = document.getElementById('warehouseStockAddonsDebug');
-            if (addonsDebug) addonsDebug.value = '';
-
-            focusTrack();
-            return 'HARD_CLEARED';
-        })();
-    """.trimIndent()
-
-        runOnUiThread {
-            webView.evaluateJavascript(js) { result ->
-                Log.i("SCAN_QR_DIAG", "p2_hard_clear_result reason=$reason result=$result")
-            }
-        }
-    }
-    private fun runItemInP2SingleFallback() {
-        val webView = activeWebViewProvider?.invoke()
-        if (webView == null) {
-            Log.i("SCAN_QR_DIAG", "p2_single_fallback_skip no_active_webview")
-            return
-        }
-
-        Log.i("SCAN_QR_DIAG", "p2_single_fallback_run")
-
-        val js = """
-        (function () {
-            function focusTrack() {
-                setTimeout(function () {
-                    var el = document.getElementById('trackingNo');
-                    if (el) {
-                        el.focus();
-                        if (typeof el.select === 'function') el.select();
-                    }
-                }, 120);
-            }
-
-            var clearBtn = document.getElementById('itemInClearBtn');
-            if (clearBtn) {
-                clearBtn.click();
-                focusTrack();
-                return 'CLEAR_CLICKED';
-            }
-
-            var form = document.getElementById('item-in-modal-form');
-            if (form) {
-                Array.prototype.forEach.call(form.querySelectorAll('input, textarea, select'), function (el) {
-                    if (el.type === 'hidden') return;
-                    if (el.id === 'receiverCountry' || el.id === 'receiverCompany' || el.id === 'standDevice') return;
-                    if (el.tagName === 'SELECT') el.selectedIndex = 0;
-                    else el.value = '';
-                    el.dispatchEvent(new Event('input', { bubbles: true }));
-                    el.dispatchEvent(new Event('change', { bubbles: true }));
-                });
-            }
-
-            focusTrack();
-            return 'FORM_CLEARED';
-        })();
-    """.trimIndent()
-
-        runOnUiThread {
-            webView.evaluateJavascript(js) { result ->
-                Log.i("SCAN_QR_DIAG", "p2_single_fallback_result=$result")
-            }
-        }
-    }
-
-    private fun runItemInP2DoubleFallback() {
-        val webView = activeWebViewProvider?.invoke()
-        if (webView == null) {
-            Log.i("SCAN_QR_DIAG", "p2_double_fallback_skip no_active_webview")
-            return
-        }
-
-        Log.i("SCAN_QR_DIAG", "p2_double_fallback_run")
-
-        val js = """
-        (function () {
-            function focusTrack() {
-                setTimeout(function () {
-                    var el = document.getElementById('trackingNo');
-                    if (el) {
-                        el.focus();
-                        if (typeof el.select === 'function') el.select();
-                    }
-                }, 350);
-            }
-
-            var addBtn = document.querySelector('[data-core-action="add_new_item_in"]');
-            if (addBtn) {
-                addBtn.click();
-                focusTrack();
-                return 'ADD_ITEM_CLICKED';
-            }
-
-            return 'ADD_BUTTON_NOT_FOUND';
-        })();
-    """.trimIndent()
-
-        runOnUiThread {
-            webView.evaluateJavascript(js) { result ->
-                Log.i("SCAN_QR_DIAG", "p2_double_fallback_result=$result")
-            }
-        }
-    }
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
-        if (event.keyCode == 289 || event.keyCode == 290) {
-            val now = System.currentTimeMillis()
-
-            if (now < hsHardKeyBlockedUntilMs) {
-                Log.i(
-                    "SCAN_QR_DIAG",
-                    "dedicated_scan_key_blocked_vendor_warmup keyCode=${event.keyCode} action=${event.action} repeat=${event.repeatCount} now=$now until=$hsHardKeyBlockedUntilMs"
-                )
-
-                if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
-                    kickHsDcsServiceAction("hard_key_during_vendor_warmup", force = true)
-                }
-
-                return true
-            }
-
-            Log.i(
-                "SCAN_QR_DIAG",
-                "dedicated_scan_key_vendor_only dispatch keyCode=${event.keyCode} action=${event.action} repeat=${event.repeatCount}"
-            )
-
-            return super.dispatchKeyEvent(event)
-        }
-        if (event.keyCode == p1KeyCode) {
-            Log.i(
-                "SCAN_QR_DIAG",
-                "p1_key dispatch keyCode=${event.keyCode} action=${event.action} repeat=${event.repeatCount}"
-            )
-
-            if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
-                val ocrCameraActive = cameraReleaseCallbacks.containsKey("OcrScanScreen")
-
-                if (ocrCameraActive) {
-                    Log.i("SCAN_QR_DIAG", "p1_key routed_as_vol_down_inside_ocr")
-                    hideKeyboardForScannerOverlay("p1_inside_ocr")
-                    volumeButtonDispatcher.onVolumeDown(
-                        single = { onVolDownSingle?.invoke() },
-                        double = { onVolDownDouble?.invoke() }
-                    )
-                } else {
-                    Log.i("SCAN_QR_DIAG", "p1_key routed_as_p1_single")
-                    hideKeyboardForScannerOverlay("p1_open_ocr")
-                    onP1Single?.invoke()
-                }
-            }
-
-            return true
-        }
-
-        if (event.keyCode == p2KeyCode) {
-            Log.i(
-                "SCAN_QR_DIAG",
-                "p2_key dispatch keyCode=${event.keyCode} action=${event.action} repeat=${event.repeatCount}"
-            )
-
-            if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
-                p2LongHoldFired = false
-
-                p2LongHoldRunnable?.let {
-                    scannerBootstrapHandler.removeCallbacks(it)
-                }
-
-                p2LongHoldRunnable = Runnable {
-                    p2LongHoldFired = true
-                    Log.i("SCAN_QR_DIAG", "p2_long_hold_3s_dispatch")
-                    runItemInP2HardClearFallback("p2_long_hold_3s")
-                }
-
-                scannerBootstrapHandler.postDelayed(
-                    p2LongHoldRunnable!!,
-                    p2LongHoldMs
-                )
-
-                Log.i(
-                    "SCAN_QR_DIAG",
-                    "p2_key down callbacks single=${onP2Single != null} double=${onP2Double != null} longHoldMs=$p2LongHoldMs"
-                )
-
-                return true
-            }
-
-            if (event.action == KeyEvent.ACTION_UP) {
-                p2LongHoldRunnable?.let {
-                    scannerBootstrapHandler.removeCallbacks(it)
-                }
-                p2LongHoldRunnable = null
-
-                if (p2LongHoldFired) {
-                    Log.i("SCAN_QR_DIAG", "p2_key up ignored after long hold")
-                    p2LongHoldFired = false
-                    return true
-                }
-
-                p2ButtonDispatcher.onVolumeDown(
-                    single = {
-                        Log.i(
-                            "SCAN_QR_DIAG",
-                            "p2_single_dispatch callback=${onP2Single != null}"
-                        )
-
-                        if (onP2Single != null) {
-                            onP2Single?.invoke()
-                        } else {
-                            runItemInP2SingleFallback()
-                        }
-                    },
-                    double = {
-                        Log.i(
-                            "SCAN_QR_DIAG",
-                            "p2_double_dispatch callback=${onP2Double != null}"
-                        )
-
-                        if (onP2Double != null) {
-                            onP2Double?.invoke()
-                        } else {
-                            runItemInP2DoubleFallback()
-                        }
-                    }
-                )
-
-                return true
-            }
-
-            return true
-        }
         if (handleHardwareKeyboardWedge(event)) {
             return true
         }
-
         return super.dispatchKeyEvent(event)
     }
-    private fun sendHsDcsServiceAction(
-        action: String,
-        reason: String,
-        noAddScanApp: Boolean = true
-    ) {
-        runCatching {
-            val intent = Intent("com.hs.dcsservice.action").apply {
-                setPackage("com.hs.dcsservice")
-                addCategory(Intent.CATEGORY_DEFAULT)
-                putExtra("action", action)
-                if (noAddScanApp) {
-                    putExtra("noAddScanApp", 1)
-                }
-            }
 
-            sendBroadcast(intent, "com.honeywell.decode.permission.DECODE")
-
-            Log.i(
-                "HS_BOOTSTRAP",
-                "sent com.hs.dcsservice.action action=$action noAddScanApp=${if (noAddScanApp) 1 else 0} reason=$reason permission=com.honeywell.decode.permission.DECODE"
-            )
-        }.onFailure { t ->
-            Log.e(
-                "HS_BOOTSTRAP",
-                "failed to send com.hs.dcsservice.action action=$action reason=$reason",
-                t
-            )
-        }
-    }
-    private fun clearHsNoScanApp(reason: String) {
-        runCatching {
-            val intent = Intent("com.android.systemui.SCANCODE_CHANGE.ACTION").apply {
-                component = ComponentName(
-                    "com.hs.dcsservice",
-                    "com.hs.scanbutton.receiver.BootCompleteReceiver"
-                )
-                addCategory(Intent.CATEGORY_DEFAULT)
-            }
-
-            sendBroadcast(intent)
-
-            Log.i(
-                "HS_BOOTSTRAP",
-                "sent clear noScanApp via BootCompleteReceiver reason=$reason"
-            )
-        }.onFailure { t ->
-            Log.e(
-                "HS_BOOTSTRAP",
-                "failed to clear noScanApp via BootCompleteReceiver reason=$reason",
-                t
-            )
-        }
-    }
-    private fun kickHsDcsServiceAction(reason: String, force: Boolean = false) {
-        scannerBootstrapHandler.post {
-            val now = System.currentTimeMillis()
-
-            if (!force && now - hsLastVendorArmAtMs < hsVendorArmThrottleMs) {
-                Log.i(
-                    "HS_BOOTSTRAP",
-                    "skip vendor arm reason=$reason throttle now=$now last=$hsLastVendorArmAtMs"
-                )
-                return@post
-            }
-
-            hsLastVendorArmAtMs = now
-
-            Log.i("HS_BOOTSTRAP", "vendor arm start reason=$reason force=$force")
-
-            clearHsNoScanApp(reason)
-
-            scannerBootstrapHandler.postDelayed({
-                sendHsDcsServiceAction(
-                    action = "open",
-                    reason = reason,
-                    noAddScanApp = true
-                )
-            }, 150L)
-        }
-    }
-
-    private fun startHsDcsService(reason: String) {
-        Log.i("HS_BOOTSTRAP", "startHsDcsService disabled reason=$reason")
-    }
-
-    private fun kickHsScanService(reason: String) {
-        runCatching {
-            val intent = Intent("com.hs.scanservice.getsetting.action").apply {
-                setPackage("com.hs.scanservice")
-                addCategory(Intent.CATEGORY_DEFAULT)
-            }
-
-            sendBroadcast(intent, "com.honeywell.decode.permission.DECODE")
-
-            Log.i(
-                "HS_BOOTSTRAP",
-                "sent com.hs.scanservice.getsetting.action reason=$reason permission=com.honeywell.decode.permission.DECODE"
-            )
-        }.onFailure { t ->
-            Log.e("HS_BOOTSTRAP", "failed to send com.hs.scanservice.getsetting.action reason=$reason", t)
-        }
-
-        runCatching {
-            val serviceIntent = Intent().apply {
-                component = ComponentName(
-                    "com.hs.scanservice",
-                    "com.hs.scanservice.DecodeService"
-                )
-            }
-
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                startForegroundService(serviceIntent)
-            } else {
-                startService(serviceIntent)
-            }
-
-            Log.i("HS_BOOTSTRAP", "started com.hs.scanservice.DecodeService reason=$reason")
-        }.onFailure { t ->
-            Log.e("HS_BOOTSTRAP", "failed to start com.hs.scanservice.DecodeService reason=$reason", t)
-        }
-    }
-    private fun onHardwareTriggerPressed(keyCode: Int) {
-        enterHardwareScanMode(reason = "hard_key_$keyCode")
-        val now = System.currentTimeMillis()
-
-        if (now < skipVendorOpenOnHardKeyUntilMs) {
-            Log.i(
-                "HS_BOOTSTRAP",
-                "skip dcsservice open on hard key keyCode=$keyCode reason=qr_recently_closed now=$now until=$skipVendorOpenOnHardKeyUntilMs"
-            )
-        } else {
-            kickHsDcsServiceAction("hard_key_$keyCode")
-        }
-        hsLastHardwareTriggerAtMs = System.currentTimeMillis()
-        hsTriggerWatchdogRunnable?.let { scannerBootstrapHandler.removeCallbacks(it) }
-
-        hsTriggerWatchdogRunnable = Runnable {
-            val noBarcodeAfterTrigger = hsLastBarcodeSendAtMs < hsLastHardwareTriggerAtMs
-
-            if (noBarcodeAfterTrigger) {
-                Log.i(
-                    "HS_BOOTSTRAP",
-                    "no BARCODE_SEND after hardware trigger; restore camera keyCode=$keyCode"
-                )
-                scheduleReturnToCameraMode(
-                    reason = "no_barcode_after_hard_key_$keyCode",
-                    delayMs = cameraRestoreDelayAfterTimeoutMs
-                )
-            }
-        }
-
-        scannerBootstrapHandler.postDelayed(hsTriggerWatchdogRunnable!!, hsBootstrapThrottleMs)
-    }
     private fun triggerHardwareAction(callback: (() -> Unit)?): Boolean {
         val action = callback ?: return false
         action.invoke()
@@ -1552,90 +661,7 @@ class MainActivity : ComponentActivity() {
         }
         return false
     }
-    private fun isDedicatedScanKey(keyCode: Int): Boolean {
-        return keyCode == 289 ||
-                keyCode == 290 ||
-                keyCode == KeyEvent.KEYCODE_CAMERA ||
-                keyCode == KeyEvent.KEYCODE_FOCUS ||
-                keyCode == KeyEvent.KEYCODE_BUTTON_L1 ||
-                keyCode == KeyEvent.KEYCODE_BUTTON_R1 ||
-                keyCode == KeyEvent.KEYCODE_BUTTON_L2 ||
-                keyCode == KeyEvent.KEYCODE_BUTTON_R2
-    }
 
-    private fun showKeyboardForActiveWebView(reason: String) {
-        val webView = activeWebViewProvider?.invoke()
-
-        if (webView == null) {
-            Log.i("SCAN_QR_DIAG", "manual_keyboard_skip no_active_webview reason=$reason")
-            return
-        }
-
-        runOnUiThread {
-            try {
-                webView.isFocusable = true
-                webView.isFocusableInTouchMode = true
-                webView.requestFocus()
-
-                val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-
-                webView.postDelayed({
-                    val shown = imm.showSoftInput(webView, InputMethodManager.SHOW_IMPLICIT)
-
-                    Log.i(
-                        "SCAN_QR_DIAG",
-                        "manual_keyboard_show reason=$reason shown=$shown"
-                    )
-                }, 80L)
-
-            } catch (t: Throwable) {
-                Log.e("SCAN_QR_DIAG", "manual_keyboard_show_failed reason=$reason", t)
-            }
-        }
-    }
-
-    private fun hideKeyboardForActiveWebView(reason: String) {
-        val webView = activeWebViewProvider?.invoke()
-
-        if (webView == null) {
-            Log.i("SCAN_QR_DIAG", "manual_keyboard_hide_skip no_active_webview reason=$reason")
-            return
-        }
-
-        runOnUiThread {
-            try {
-                val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-                imm.hideSoftInputFromWindow(webView.windowToken, 0)
-
-                Log.i("SCAN_QR_DIAG", "manual_keyboard_hide reason=$reason")
-            } catch (t: Throwable) {
-                Log.e("SCAN_QR_DIAG", "manual_keyboard_hide_failed reason=$reason", t)
-            }
-        }
-    }
-    fun hideKeyboardForScannerOverlay(reason: String) {
-        runOnUiThread {
-            try {
-                val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-
-                activeWebViewProvider?.invoke()?.let { webView ->
-                    webView.clearFocus()
-                    imm.hideSoftInputFromWindow(webView.windowToken, 0)
-                }
-
-                currentFocus?.let { focused ->
-                    focused.clearFocus()
-                    imm.hideSoftInputFromWindow(focused.windowToken, 0)
-                }
-
-                imm.hideSoftInputFromWindow(window.decorView.windowToken, 0)
-
-                Log.i("SCAN_QR_DIAG", "scanner_overlay_keyboard_hide reason=$reason")
-            } catch (t: Throwable) {
-                Log.e("SCAN_QR_DIAG", "scanner_overlay_keyboard_hide_failed reason=$reason", t)
-            }
-        }
-    }
     private fun handleHardwareButtonKey(keyCode: Int): Boolean {
 
         when (keyCode) {
@@ -1648,11 +674,21 @@ class MainActivity : ComponentActivity() {
                 return true
             }
 
-            KeyEvent.KEYCODE_F9 -> {
+            KeyEvent.KEYCODE_BUTTON_L1 -> {
+                if (!interceptHardwareTriggerKeys) return false
+                return triggerFirstAvailable(onScanLeftSingle, onScanPistolSingle, onVolDownSingle)
+
+            }
+            KeyEvent.KEYCODE_BUTTON_R1 -> {
+                if (!interceptHardwareTriggerKeys) return false
+                return triggerFirstAvailable(onScanRightSingle, onScanPistolSingle, onVolDownSingle)
+
+            }
+            KeyEvent.KEYCODE_BUTTON_L2, KeyEvent.KEYCODE_F9 -> {
                 if (!interceptHardwareTriggerKeys) return false
                 return triggerFirstAvailable(onScanPistolSingle, onScanLeftSingle, onScanRightSingle, onVolDownSingle)
             }
-            KeyEvent.KEYCODE_F10 -> {
+            KeyEvent.KEYCODE_BUTTON_R2, KeyEvent.KEYCODE_F10 -> {
                 if (!interceptHardwareTriggerKeys) return false
                 return triggerFirstAvailable(onScanTopSingle, onVolUpDouble)
             }
@@ -1665,6 +701,8 @@ class MainActivity : ComponentActivity() {
 
             // Some Android 11 handheld scanners (including NETUM variants)
             // report trigger keys as camera/focus or F3..F8.
+            KeyEvent.KEYCODE_CAMERA,
+            KeyEvent.KEYCODE_FOCUS,
             KeyEvent.KEYCODE_F3,
             KeyEvent.KEYCODE_F4,
             KeyEvent.KEYCODE_F5,
@@ -1673,6 +711,7 @@ class MainActivity : ComponentActivity() {
             KeyEvent.KEYCODE_F8 -> {
                 if (!interceptHardwareTriggerKeys) return false
                 return triggerFirstAvailable(onScanPistolSingle, onScanLeftSingle, onScanRightSingle, onVolDownSingle)
+
             }
         }
 
@@ -1680,11 +719,6 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
-        if (isDedicatedScanKey(keyCode)) {
-            Log.i("SCAN_QR_DIAG", "dedicated_scan_key_passthrough onKeyDown keyCode=$keyCode")
-            return super.onKeyDown(keyCode, event)
-        }
-
         val repeat = event?.repeatCount ?: 0
 
         // глушим авто-повтор ТОЛЬКО для кнопок громкости
@@ -1696,37 +730,26 @@ class MainActivity : ComponentActivity() {
             handledHardwareDownKeys.add(keyCode)
             return true
         }
-
         return super.onKeyDown(keyCode, event)
     }
 
     override fun onKeyUp(keyCode: Int, event: KeyEvent?): Boolean {
-        if (isDedicatedScanKey(keyCode)) {
-            Log.i("SCAN_QR_DIAG", "dedicated_scan_key_passthrough onKeyUp keyCode=$keyCode")
-            return super.onKeyUp(keyCode, event)
-        }
-
         if (handledHardwareDownKeys.remove(keyCode)) {
             return true
         }
-
         if (handleHardwareButtonKey(keyCode)) {
             return true
         }
-
         return super.onKeyUp(keyCode, event)
     }
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         // init volume dispatcher with context (for Toast)
         volumeButtonDispatcher = VolumeButtonDispatcher(this)
-        p2ButtonDispatcher = VolumeButtonDispatcher(this)
-       // экран не гаснет — поведение киоска
+
+        // экран не гаснет — поведение киоска
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        window.clearFlags(WindowManager.LayoutParams.FLAG_ALT_FOCUSABLE_IM)
-        Log.i("HS_BOOTSTRAP", "window focus normal; FLAG_NOT_FOCUSABLE disabled")
         enableEdgeToEdge()
 
         window.setSoftInputMode(
@@ -1777,10 +800,6 @@ class MainActivity : ComponentActivity() {
                 AppRoot()
             }
         }
-        scannerBootstrapHandler.postDelayed({
-            Log.i("HS_BOOTSTRAP", "pre-arm vendor scanner reason=app_started")
-            kickHsDcsServiceAction("app_started", force = true)
-        }, 500L)
 
         val filter = IntentFilter().apply {
             scanIntentActions.forEach { addAction(it) }
@@ -1792,35 +811,8 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private val scannerFocusPulseHandler = Handler(Looper.getMainLooper())
-    private var scannerFocusPulseRestoreRunnable: Runnable? = null
-
-    private fun pulseWindowNonBlockingForScanner(reason: String = "unknown") {
-        scannerFocusPulseRestoreRunnable?.let {
-            scannerFocusPulseHandler.removeCallbacks(it)
-        }
-
-        try {
-            window.addFlags(WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL)
-            window.addFlags(WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH)
-
-            Log.i("HS_BOOTSTRAP", "scanner focus pulse enabled reason=$reason")
-
-            scannerFocusPulseRestoreRunnable = Runnable {
-                try {
-                    window.clearFlags(WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL)
-                    window.clearFlags(WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH)
-                    Log.i("HS_BOOTSTRAP", "scanner focus pulse restored reason=$reason")
-                } catch (t: Throwable) {
-                    Log.e("HS_BOOTSTRAP", "scanner focus pulse restore failed reason=$reason", t)
-                }
-            }
-
-            scannerFocusPulseHandler.postDelayed(scannerFocusPulseRestoreRunnable!!, 600L)
-        } catch (t: Throwable) {
-            Log.e("HS_BOOTSTRAP", "scanner focus pulse failed reason=$reason", t)
-        }
-    }
+    private var hsBootstrapInProgress = false
+    private var lastHsBootstrapAt = 0L
     private var qrCameraFlowActive = false
     private var qrCameraReleased = true
     private val scannerBootstrapHandler by lazy { Handler(Looper.getMainLooper()) }
@@ -1832,24 +824,6 @@ class MainActivity : ComponentActivity() {
             Log.i("HS_BOOTSTRAP", "qr flow active reason=$reason")
         } else {
             Log.i("HS_BOOTSTRAP", "qr flow inactive reason=$reason released=$qrCameraReleased")
-            skipVendorOpenOnHardKeyUntilMs =
-                System.currentTimeMillis() + skipVendorOpenAfterQrCloseMs
-
-            Log.i(
-                "HS_BOOTSTRAP",
-                "skip vendor open on hard key armed after qr close until=$skipVendorOpenOnHardKeyUntilMs"
-            )
-            hsHardKeyBlockedUntilMs =
-                System.currentTimeMillis() + hsHardKeyBlockAfterCameraCloseMs
-
-            Log.i(
-                "HS_BOOTSTRAP",
-                "hard key blocked while vendor scanner warms up until=$hsHardKeyBlockedUntilMs"
-            )
-            scannerBootstrapHandler.postDelayed({
-                Log.i("HS_BOOTSTRAP", "pre-arm vendor scanner reason=qr_overlay_closed")
-                kickHsDcsServiceAction("qr_overlay_closed", force = true)
-            }, 50L)
         }
     }
 
@@ -1857,150 +831,76 @@ class MainActivity : ComponentActivity() {
         qrCameraReleased = true
         Log.i("HS_BOOTSTRAP", "qr camera released reason=$reason")
     }
+
     fun requestScannerVendorBootstrap(reason: String = "manual", withDelayMs: Long = 350L) {
-        val now = System.currentTimeMillis()
-
-        if (now - hsLastWarmupStartedAtMs < hsBootstrapThrottleMs) {
-            Log.i("HS_BOOTSTRAP", "skip SettingActivity kick throttled reason=$reason")
-            return
-        }
-
-        if (hsWarmupInProgress) {
-            Log.i("HS_BOOTSTRAP", "skip SettingActivity kick already in progress reason=$reason")
-            return
-        }
-
-        hsWarmupInProgress = true
-        hsLastWarmupStartedAtMs = now
-
-        Log.i("HS_BOOTSTRAP", "schedule SettingActivity kick reason=$reason delay=${withDelayMs}ms")
-
         scannerBootstrapHandler.postDelayed({
-            Log.i("HS_BOOTSTRAP", "SettingActivity kick start reason=$reason")
-
-            try {
-                val vendorIntent = Intent("com.hs.dcsservice.action").apply {
-                    setClassName("com.hs.dcsservice", "com.hs.dcsservice.SettingActivity")
-                    addCategory(Intent.CATEGORY_DEFAULT)
-                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                    addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
-                    addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION)
-                    addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
-                }
-
-                startActivity(vendorIntent)
-                Log.i("HS_BOOTSTRAP", "SettingActivity startActivity ok reason=$reason")
-
-                scannerBootstrapHandler.postDelayed({
-                    try {
-                        val backIntent = packageManager.getLaunchIntentForPackage(packageName)?.apply {
-                            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                            addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
-                            addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
-                            addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT)
-                            addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION)
-                        }
-
-                        if (backIntent != null) {
-                            startActivity(backIntent)
-                            Log.i("HS_BOOTSTRAP", "return to app after SettingActivity ok reason=$reason")
-                        } else {
-                            Log.w("HS_BOOTSTRAP", "return to app launch intent is null reason=$reason")
-                        }
-                    } catch (t: Throwable) {
-                        Log.e("HS_BOOTSTRAP", "return to app after SettingActivity failed reason=$reason", t)
-                    } finally {
-                        hsWarmupInProgress = false
-                    }
-                }, 450L)
-            } catch (t: Throwable) {
-                hsWarmupInProgress = false
-                Log.e("HS_BOOTSTRAP", "SettingActivity kick failed reason=$reason", t)
+            if (qrCameraFlowActive || !qrCameraReleased) {
+                Log.i(
+                    "HS_BOOTSTRAP",
+                    "skip bootstrap reason=$reason qrActive=$qrCameraFlowActive qrReleased=$qrCameraReleased"
+                )
+                return@postDelayed
             }
-
-            scannerBootstrapHandler.postDelayed({
-                if (hsWarmupInProgress) {
-                    Log.w("HS_BOOTSTRAP", "SettingActivity kick timeout reason=$reason")
-                    hsWarmupInProgress = false
-                }
-            }, 2500L)
+            bootstrapHsViaSplashActivity(reason = reason)
         }, withDelayMs)
     }
 
-    private fun warmupHsDecodeService(reason: String) {
-        Log.i("HS_BOOTSTRAP", "warmup start reason=$reason")
-
-        val explicitIntent = Intent().apply {
-            setClassName("com.hs.scanservice", "com.hs.scanservice.DecodeService")
-        }
-
-        val actionIntent = Intent("com.hs.scanservice.action").apply {
-            setPackage("com.hs.scanservice")
-        }
-
-        Log.i(
-            "HS_BOOTSTRAP",
-            "warmup startService skipped reason=$reason; using bindService only"
-        )
+    private fun bootstrapHsViaSplashActivity(reason: String) {
+        if (hsBootstrapInProgress) return
+        val now = System.currentTimeMillis()
+        if (now - lastHsBootstrapAt < 1200L) return
+        hsBootstrapInProgress = true
+        lastHsBootstrapAt = now
 
         try {
-            val bindIntent = Intent().apply {
-                setClassName("com.hs.scanservice", "com.hs.scanservice.DecodeService")
+            Log.i("HS_BOOTSTRAP", "start vendor splash reason=$reason")
+            val hsIntent = Intent().apply {
+                setClassName(
+                    "com.hs.dcsservice",
+                    "com.hs.scanbutton.SplashActivity"
+                )
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION)
             }
+            startActivity(hsIntent)
 
-            var connection: ServiceConnection? = null
-
-            connection = object : ServiceConnection {
-                override fun onServiceConnected(name: ComponentName?, service: IBinder?) {
-                    Log.i("HS_BOOTSTRAP", "warmup bindService connected reason=$reason name=$name")
-                }
-
-                override fun onServiceDisconnected(name: ComponentName?) {
-                    Log.i("HS_BOOTSTRAP", "warmup bindService disconnected reason=$reason name=$name")
-                }
-            }
-
-            val bound = bindService(bindIntent, connection, Context.BIND_AUTO_CREATE)
-            Log.i("HS_BOOTSTRAP", "warmup bindService result=$bound reason=$reason")
-
-            if (bound) {
-                scannerBootstrapHandler.postDelayed({
-                    try {
-                        connection?.let { unbindService(it) }
-                        Log.i("HS_BOOTSTRAP", "warmup unbindService ok reason=$reason")
-                    } catch (t: Throwable) {
-                        Log.w("HS_BOOTSTRAP", "warmup unbindService failed reason=$reason", t)
+            scannerBootstrapHandler.postDelayed({
+                try {
+                    val backIntent = packageManager.getLaunchIntentForPackage(packageName)?.apply {
+                        addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                        addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        addFlags(Intent.FLAG_ACTIVITY_NO_ANIMATION)
                     }
-                }, 700L)
-            }
-        } catch (t: Throwable) {
-            Log.w("HS_BOOTSTRAP", "warmup bindService failed reason=$reason", t)
-        }
+                    if (backIntent != null) {
+                        Log.i("HS_BOOTSTRAP", "return to app reason=$reason")
+                        startActivity(backIntent)
+                    }
+                } catch (e: Exception) {
+                    Log.e("HS_BOOTSTRAP", "Failed to return to app", e)
+                } finally {
+                    hsBootstrapInProgress = false
+                    Log.i("HS_BOOTSTRAP", "bootstrap finished reason=$reason")
+                }
+            }, 1200)
 
-        Log.i("HS_BOOTSTRAP", "warmup finished reason=$reason")
+        } catch (e: Exception) {
+            hsBootstrapInProgress = false
+            Log.e("HS_BOOTSTRAP", "Failed to start HS SplashActivity", e)
+        }
     }
+
 
     override fun onResume() {
         super.onResume()
-
-        scannerBootstrapHandler.postDelayed({
-            Log.i("HS_BOOTSTRAP", "pre-arm vendor scanner reason=activity_resumed")
-            kickHsDcsServiceAction("activity_resumed")
-        }, 400L)
     }
 
     override fun onDestroy() {
         hardwareScanFlushRunnable?.let { hardwareScanFlushHandler.removeCallbacks(it) }
         hardwareScanFlushRunnable = null
-        hsTriggerWatchdogRunnable?.let { scannerBootstrapHandler.removeCallbacks(it) }
-        hsTriggerWatchdogRunnable = null
         runCatching {
             unregisterReceiver(scanIntentReceiver)
         }
-        scannerFocusPulseRestoreRunnable?.let {
-            scannerFocusPulseHandler.removeCallbacks(it)
-        }
-        scannerFocusPulseRestoreRunnable = null
         super.onDestroy()
     }
 
@@ -2054,58 +954,7 @@ fun AppRoot() {
     var lastQr by remember { mutableStateOf<String?>(null) }
     var loginError by remember { mutableStateOf<String?>(null) }
     var isLoggingIn by remember { mutableStateOf(false) }
-    var debugLastHardwareRaw by remember { mutableStateOf<String?>(null) }
-    var debugLastHardwareNormalized by remember { mutableStateOf<String?>(null) }
-    var debugLastScannerSource by remember { mutableStateOf<String?>(null) }
-    var debugReachedHandleQrLogin by remember { mutableStateOf(false) }
 
-    // session_id из сервера (по факту сейчас только храним для информации)
-    var sessionId by remember { mutableStateOf<String?>(null) }
-
-    fun handleQrLogin(raw: String, source: String) {
-        debugReachedHandleQrLogin = true
-        debugLastScannerSource = source
-        debugLastHardwareRaw = raw
-        debugLastHardwareNormalized = raw.trim()
-
-        Log.i("SCAN_QR_DIAG", "handleQrLogin source=$source raw='$raw' loginStart=true")
-
-       pendingQrScannerRestoreReason = "qr_scan_completed"
-       showQrScan = false
-       lastQr = raw
-       loginError = null
-       isLoggingIn = true
-
-        scope.launch {
-            val result = qrLoginOnServer(context, config, raw)
-            isLoggingIn = false
-
-            if (result.ok && !result.sessionId.isNullOrBlank()) {
-                Log.i("SCAN_QR_DIAG", "handleQrLogin source=$source loginSuccess=true")
-                sessionId = result.sessionId
-
-                val base = normalizeServerUrl(config.serverUrl)
-                val cookieManager = CookieManager.getInstance()
-                cookieManager.setAcceptCookie(true)
-                val isHttps = base.startsWith("https://", ignoreCase = true)
-
-                val cookieStr = buildString {
-                    append("PHPSESSID=${result.sessionId}; Path=/; SameSite=Lax")
-                    if (isHttps) append("; Secure")
-                }
-                cookieManager.setCookie(base, cookieStr)
-                cookieManager.flush()
-                pendingWebViewBootstrapReason = "qr_login_success"
-                showWebView = true
-            } else {
-                Log.i(
-                    "SCAN_QR_DIAG",
-                    "handleQrLogin source=$source loginSuccess=false error='${result.errorMessage}'"
-                )
-                loginError = result.errorMessage ?: "Ошибка логина по QR"
-            }
-        }
-    }
     LaunchedEffect(showQrScan) {
         if (showQrScan) {
             activity?.setQrCameraFlowActive(true, reason = "qr_overlay_opened")
@@ -2114,9 +963,19 @@ fun AppRoot() {
         }
     }
 
+    LaunchedEffect(showWebView, showQrScan, pendingWebViewBootstrapReason) {
+        val reason = pendingWebViewBootstrapReason ?: return@LaunchedEffect
+        if (showWebView && !showQrScan) {
+            activity?.requestScannerVendorBootstrap(reason = reason, withDelayMs = 700L)
+            pendingWebViewBootstrapReason = null
+        }
+    }
     var destConfig by remember { mutableStateOf<List<DestCountryCfg>>(emptyList()) }
 
     var nameDict by remember { mutableStateOf<NameDict?>(null) }
+
+    // session_id из сервера (по факту сейчас только храним для информации)
+    var sessionId by remember { mutableStateOf<String?>(null) }
 
     var menuExpanded by remember { mutableStateOf(false) }
     var taskConfigJson by remember { mutableStateOf<String?>(null) }
@@ -2869,9 +1728,6 @@ fun AppRoot() {
 
                 MainActivity.onP1Single = { dispatchContextFlowAction("p1_single") }
                 MainActivity.onP2Single = { dispatchContextFlowAction("p2_single") }
-                MainActivity.onP2Double = {
-                    Log.i("SCAN_QR_DIAG", "onP2Double invoke")
-                }
             }
 
             hasButtonMappings && (showWebView || showBarcodeScan || showOcr) && !hasFlow -> {
@@ -3116,76 +1972,43 @@ fun AppRoot() {
     }
 
 
-    val currentShowQrScan by rememberUpdatedState(showQrScan)
-    val currentShowBarcodeScan by rememberUpdatedState(showBarcodeScan)
-    val currentShowWebView by rememberUpdatedState(showWebView)
-    val currentShowOcr by rememberUpdatedState(showOcr)
-    val currentShowSettings by rememberUpdatedState(showSettings)
-    val currentHandleQrLogin by rememberUpdatedState(::handleQrLogin)
-    val currentHandleBarcodeResult by rememberUpdatedState(::handleBarcodeResult)
-
-    LaunchedEffect(Unit) {
-        MainActivity.onHardwareScanData = { raw, source ->
-            val normalizedRaw = raw.trim()
-            val qrActive = currentShowQrScan
-            val barcodeActive = currentShowBarcodeScan
-            val webViewActive = currentShowWebView
-            val ocrActive = currentShowOcr
-            val settingsActive = currentShowSettings
-            val loginStartScreenActive = !webViewActive && !barcodeActive && !ocrActive && !settingsActive
-            Log.i(
-                "HW_LOGIN_DEBUG",
-                "onHardwareScanData source=$source raw=$raw normalized=$normalizedRaw showQrScan=$qrActive showBarcodeScan=$barcodeActive showWebView=$webViewActive showOcr=$ocrActive showSettings=$settingsActive loginStartScreenActive=$loginStartScreenActive"
-            )
-
-when {
-    qrActive || (!webViewActive && !barcodeActive && !ocrActive && !showSettings) -> {
-        debugLastHardwareRaw = raw
-        debugLastHardwareNormalized = normalizedRaw
-        debugLastScannerSource = source
-
-        if (normalizedRaw.isNotBlank()) {
-            currentHandleQrLogin(
-                normalizedRaw,
-                source
-            )
-        } else {
-            Log.w("HW_LOGIN_DEBUG", "hardware QR ignored because normalized raw is blank")
-        }
-    }
-                ocrActive -> {
-                    Log.i("HW_LOGIN_DEBUG", "hardware scan ignored because OCR screen is active")
-                }
-                barcodeActive -> {
-                    currentHandleBarcodeResult(
-                        BarcodeScanResult(
-                            rawValue = normalizedRaw,
-                            format = Barcode.FORMAT_UNKNOWN,
-                            isQr = true
-                        ),
-                        true
-                    )
-                }
-
-                webViewActive -> {
-                    currentHandleBarcodeResult(
-                        BarcodeScanResult(
-                            rawValue = normalizedRaw,
-                            format = Barcode.FORMAT_UNKNOWN,
-                            isQr = true
-                        ),
-                        false
-                    )
+    DisposableEffect(showWebView, showBarcodeScan, showOcr, showSettings, showQrScan) {
+        MainActivity.onHardwareScanData = if (showWebView || showBarcodeScan) {
+            { raw ->
+                when {
+                    showOcr -> {
+                        // OCR остаётся только через фотокамеру.
+                    }
+                    showBarcodeScan -> {
+                        handleBarcodeResult(
+                            result = BarcodeScanResult(
+                                rawValue = raw,
+                                format = Barcode.FORMAT_UNKNOWN,
+                                isQr = true
+                            ),
+                            closeOverlay = true
+                        )
+                    }
+                    showWebView -> {
+                        handleBarcodeResult(
+                            result = BarcodeScanResult(
+                                rawValue = raw,
+                                format = Barcode.FORMAT_UNKNOWN,
+                                isQr = true
+                            ),
+                            closeOverlay = false
+                        )
+                    }
                 }
             }
+        } else {
+            null
         }
-    }
-    DisposableEffect(Unit) {
+
         onDispose {
             MainActivity.onHardwareScanData = null
         }
     }
-
 
     Scaffold(
         topBar = {
@@ -3282,14 +2105,41 @@ when {
                         modifier = Modifier.fillMaxSize(),
                         onCameraDisposed = {
                             activity?.notifyQrCameraReleased(reason = "qr_screen_disposed")
-                            val shouldRestoreScanner =
-                                (pendingWebViewBootstrapReason ?: pendingQrScannerRestoreReason) != null
-                            if (!shouldRestoreScanner) return@QrScanScreen
+                            val reason = pendingQrScannerRestoreReason ?: return@QrScanScreen
+                            activity?.requestScannerVendorBootstrap(reason = reason, withDelayMs = 250L)
                             pendingQrScannerRestoreReason = null
-                            pendingWebViewBootstrapReason = null
                         },
                         onCodeScanned = { raw ->
-                            handleQrLogin(raw = raw, source = "camera")
+                            pendingQrScannerRestoreReason = "qr_scan_completed"
+                            showQrScan = false
+                            lastQr = raw
+                            loginError = null
+                            isLoggingIn = true
+
+                            scope.launch {
+                                val result = qrLoginOnServer(context, config, raw)
+                                isLoggingIn = false
+
+                                if (result.ok && !result.sessionId.isNullOrBlank()) {
+                                    sessionId = result.sessionId
+
+                                    val base = normalizeServerUrl(config.serverUrl)
+                                    val cookieManager = CookieManager.getInstance()
+                                    cookieManager.setAcceptCookie(true)
+                                    // val cookieStr = "PHPSESSID=${result.sessionId}; Path=/; Secure"
+                                    val isHttps = base.startsWith("https://", ignoreCase = true)
+
+                                    val cookieStr = buildString {
+                                        append("PHPSESSID=${result.sessionId}; Path=/; SameSite=Lax")
+                                        if (isHttps) append("; Secure")
+                                    }
+                                    cookieManager.setCookie(base, cookieStr)
+                                    cookieManager.flush()
+                                    showWebView = true
+                                } else {
+                                    loginError = result.errorMessage ?: "Ошибка логина по QR"
+                                }
+                            }
                         },
                         onCancel = {
                             pendingQrScannerRestoreReason = "qr_scan_canceled"
@@ -3369,10 +2219,6 @@ when {
                         lastQr = lastQr,
                         isLoggingIn = isLoggingIn,
                         loginError = loginError,
-                        debugLastHardwareRaw = debugLastHardwareRaw,
-                        debugLastHardwareNormalized = debugLastHardwareNormalized,
-                        debugLastScannerSource = debugLastScannerSource,
-                        debugReachedHandleQrLogin = debugReachedHandleQrLogin,
                         onScanQr = {
                             showWebView = false
                             showQrScan = true
@@ -3765,10 +2611,6 @@ fun LoginReadyScreen(
     lastQr: String?,
     isLoggingIn: Boolean,
     loginError: String?,
-    debugLastHardwareRaw: String?,
-    debugLastHardwareNormalized: String?,
-    debugLastScannerSource: String?,
-    debugReachedHandleQrLogin: Boolean,
     onScanQr: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -3806,25 +2648,6 @@ fun LoginReadyScreen(
             Text("Сканировать QR для входа")
         }
 
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        Text(
-            text = "DEBUG source: ${debugLastScannerSource ?: "-"}",
-            style = MaterialTheme.typography.bodySmall
-        )
-        Text(
-            text = "DEBUG hw raw: ${debugLastHardwareRaw ?: "-"}",
-            style = MaterialTheme.typography.bodySmall
-        )
-        Text(
-            text = "DEBUG hw normalized: ${debugLastHardwareNormalized ?: "-"}",
-            style = MaterialTheme.typography.bodySmall
-        )
-        Text(
-            text = "DEBUG handleQrLogin reached: $debugReachedHandleQrLogin",
-            style = MaterialTheme.typography.bodySmall
-        )
         Spacer(modifier = Modifier.height(24.dp))
 
         if (isLoggingIn) {
@@ -4013,7 +2836,6 @@ fun QrCameraPreview(
     val previewView = remember {
         PreviewView(context).apply {
             scaleType = PreviewView.ScaleType.FILL_CENTER
-            implementationMode = PreviewView.ImplementationMode.COMPATIBLE
         }
     }
 
@@ -4075,7 +2897,6 @@ fun QrCameraPreview(
                 preview,
                 analysis
             )
-            (context as? MainActivity)?.enterCameraMode("CameraX bindToLifecycle")
         } catch (e: Exception) {
             e.printStackTrace()
         }
@@ -4161,108 +2982,6 @@ data class RemoteOcrResult(
     val data: OcrParcelData?,
     val errorMessage: String?
 )
-
-
-data class ForwarderClientLookupResult(
-    val found: Boolean,
-    val clientId: String = "",
-    val clientName: String = "",
-    val source: String = "",
-    val error: String? = null
-)
-
-private fun normalizeLookupCountry(value: String?): String {
-    val v = value.orEmpty().trim().uppercase()
-    return when (v) {
-        "AZERBAIJAN", "AZƏRBAYCAN" -> "AZ"
-        "GERMANY", "DEUTSCHLAND" -> "DE"
-        else -> v
-    }
-}
-
-private suspend fun lookupForwarderClientOnServer(
-    context: Context,
-    config: DeviceConfig,
-    forwarder: String,
-    country: String,
-    receiverAddress: String
-): ForwarderClientLookupResult = withContext(Dispatchers.IO) {
-    val base = normalizeServerUrl(config.serverUrl)
-    if (base.isBlank()) {
-        return@withContext ForwarderClientLookupResult(false, error = "empty_server_url")
-    }
-
-    val f = forwarder.trim()
-    val c = normalizeLookupCountry(country)
-    val addr = receiverAddress.trim()
-
-    if (f.isBlank() || c.isBlank() || addr.isBlank()) {
-        return@withContext ForwarderClientLookupResult(false, error = "missing_lookup_fields")
-    }
-
-    try {
-        val url = URL("$base/core_api.php")
-        val conn = (url.openConnection() as HttpURLConnection).apply {
-            requestMethod = "POST"
-            connectTimeout = 2500
-            readTimeout = 3500
-            doOutput = true
-            setRequestProperty("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8")
-            setRequestProperty("Accept", "application/json")
-
-            val cookies = CookieManager.getInstance().getCookie(base)
-                ?: CookieManager.getInstance().getCookie(url.toString())
-            if (!cookies.isNullOrBlank()) {
-                setRequestProperty("Cookie", cookies)
-            }
-        }
-        applyInsecureSslIfNeeded(conn, config)
-
-        val body = listOf(
-            "action" to "warehouse_lookup_forwarder_client",
-            "receiver_company" to f,
-            "receiver_country_code" to c,
-            "receiver_address" to addr
-        ).joinToString("&") { (k, v) ->
-            java.net.URLEncoder.encode(k, "UTF-8") + "=" +
-                    java.net.URLEncoder.encode(v, "UTF-8")
-        }
-
-        conn.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
-
-        val code = conn.responseCode
-        val stream = if (code in 200..299) conn.inputStream else conn.errorStream
-        val text = stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }.orEmpty()
-
-        val json = JSONObject(text)
-        if (json.optString("status") != "ok") {
-            return@withContext ForwarderClientLookupResult(false, error = json.optString("message", "api_error"))
-        }
-
-        val found = json.optBoolean("found", false)
-        if (!found) {
-            return@withContext ForwarderClientLookupResult(false)
-        }
-
-        val clientName = json.optString("client_name", "").trim().replace(Regex("\\s+"), " ")
-        val clientId = json.optString("client_id", "").trim()
-        val source = json.optString("source", "local_cache")
-
-        if (clientName.isBlank()) {
-            return@withContext ForwarderClientLookupResult(false, clientId = clientId, source = source)
-        }
-
-        ForwarderClientLookupResult(
-            found = true,
-            clientId = clientId,
-            clientName = clientName,
-            source = source
-        )
-    } catch (t: Throwable) {
-        Log.w("OCR_CLIENT_LOOKUP", "lookup failed", t)
-        ForwarderClientLookupResult(false, error = t.message)
-    }
-}
 
 suspend fun callRemoteOcrParse(
     context: Context,
@@ -5002,42 +3721,8 @@ fun DeviceWebViewScreen(
             WebView(ctx).apply {
                 val mainHandler = Handler(Looper.getMainLooper())
                 val scannerDebugBridge = ScannerDebugBridge(ctx.applicationContext)
-                val webViewForIme = this
-
-                isFocusable = true
-                isFocusableInTouchMode = true
-                descendantFocusability = ViewGroup.FOCUS_AFTER_DESCENDANTS
 
                 class DeviceBridge {
-                    @JavascriptInterface
-                    fun onManualInputFocus(payload: String) {
-                        Log.i("SCAN_QR_DIAG", "manual_keyboard_request payload=$payload")
-
-                        mainHandler.post {
-                            try {
-                                webViewForIme.isFocusable = true
-                                webViewForIme.isFocusableInTouchMode = true
-                                webViewForIme.requestFocus()
-
-                                val imm = ctx.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-
-                                webViewForIme.postDelayed({
-                                    val shown = imm.showSoftInput(
-                                        webViewForIme,
-                                        InputMethodManager.SHOW_IMPLICIT
-                                    )
-
-                                    Log.i(
-                                        "SCAN_QR_DIAG",
-                                        "manual_keyboard_show payload=$payload shown=$shown"
-                                    )
-                                }, 80L)
-                            } catch (t: Throwable) {
-                                Log.e("SCAN_QR_DIAG", "manual_keyboard_show_failed payload=$payload", t)
-                            }
-                        }
-                    }
-
                     @JavascriptInterface
                     fun onMainContext(payload: String?) {
                         if (payload.isNullOrBlank()) return
@@ -5186,7 +3871,6 @@ fun DeviceWebViewScreen(
                         }
                         // ВАЖНО: всегда инжектим, потому что при реальном reload JS улетает
                         view?.evaluateJavascript(INSTALL_MAIN_OBSERVER_JS, null)
-                        view?.evaluateJavascript(INSTALL_MANUAL_INPUT_KEYBOARD_JS, null)
 
                         val base = normalizeServerUrl(config.serverUrl)
                         if (!url.isNullOrBlank() && base.isNotBlank()) {
@@ -5409,10 +4093,8 @@ data class OcrParcelData(
 
     // NEW: локальный перевозчик (DHL/GLS/HERMES/UPS/AMAZON) и его трек
     val localCarrierName: String? = null,
-    val localTrackingNo: String? = null,
+    val localTrackingNo: String? = null
 
-    val receiverNameSource: String? = null,
-    val receiverClientId: String? = null
 )
 
 fun escapeJsString(input: String): String =
@@ -6324,51 +5006,6 @@ fun sanitizeBarcodeInput(raw: String): String {
 }
 
 
-private fun normalizeHardwareScanPayloadShared(raw: String?): String? {
-    val base = raw?.trim()?.takeIf { it.isNotBlank() } ?: return null
-
-    fun normalizeCandidate(candidate: String?): String? {
-        val value = candidate?.trim()?.takeIf { it.isNotBlank() } ?: return null
-        val normalized = normalizeScanRawValue(value)
-        if (normalized.isBlank()) return null
-        if (normalized.equals("null", ignoreCase = true) || normalized.equals("undefined", ignoreCase = true)) {
-            return null
-        }
-        return normalized
-    }
-
-    normalizeCandidate(base)?.let { direct ->
-        if (!direct.startsWith("{") && !direct.startsWith("[")) return direct
-    }
-
-    if (base.startsWith("[")) {
-        runCatching { JSONArray(base) }.getOrNull()?.let { arr ->
-            for (i in 0 until arr.length()) {
-                normalizeCandidate(arr.opt(i)?.toString())?.let { return it }
-            }
-        }
-    }
-
-    if (base.startsWith("{")) {
-        runCatching { JSONObject(base) }.getOrNull()?.let { obj ->
-            val jsonKeys = listOf("barcode", "qr", "value", "data", "code", "scanData", "raw", "text")
-            jsonKeys.forEach { key ->
-                normalizeCandidate(obj.optString(key, null))?.let { return it }
-            }
-        }
-    }
-
-    val tokens = base.split(Regex("""[\s\n\r\t;,|]+"""))
-        .mapNotNull(::normalizeCandidate)
-        .filter { token -> token.any(Char::isLetterOrDigit) }
-    if (tokens.isNotEmpty()) {
-        return tokens.maxByOrNull { it.length }
-    }
-
-    return normalizeCandidate(base)
-}
-
-
 fun normalizeScanRawValue(raw: String): String {
     val trimmed = raw.trim()
     if (trimmed.isEmpty()) return trimmed
@@ -6839,7 +5476,6 @@ fun BarcodeScanScreen(
     val previewView = remember {
         PreviewView(context).apply {
             scaleType = PreviewView.ScaleType.FILL_CENTER
-            implementationMode = PreviewView.ImplementationMode.COMPATIBLE
         }
     }
 
@@ -6860,47 +5496,7 @@ fun BarcodeScanScreen(
     var liveAnalysis by remember { mutableStateOf<ImageAnalysis?>(null) }
     var liveScanner by remember { mutableStateOf<com.google.mlkit.vision.barcode.BarcodeScanner?>(null) }
     var boundCameraProvider by remember { mutableStateOf<ProcessCameraProvider?>(null) }
-    var cameraRestoreTick by remember { mutableStateOf(0) }
 
-    DisposableEffect(Unit) {
-        val activity = context as? MainActivity
-
-        activity?.hideKeyboardForScannerOverlay("barcode_screen_opened")
-
-        activity?.setScannerCameraCallbacks(
-            owner = "BarcodeScanScreen",
-            releaseCamera = {
-                Log.i(
-                    "HS_BOOTSTRAP",
-                    "CameraX release callback begin provider=${boundCameraProvider != null} camera=${camera != null} analysis=${liveAnalysis != null}"
-                )
-
-                liveAnalysis?.clearAnalyzer()
-                liveAnalysis = null
-                liveScanner?.close()
-                liveScanner = null
-                boundCameraProvider?.unbindAll()
-                boundCameraProvider = null
-                camera = null
-
-                Log.i("HS_BOOTSTRAP", "CameraX released by scanner state machine")
-            },
-            restoreCamera = {
-                cameraRestoreTick++
-                Log.i("HS_BOOTSTRAP", "CameraX restore tick=$cameraRestoreTick")
-            }
-        )
-
-        onDispose {
-            activity?.hideKeyboardForScannerOverlay("barcode_screen_closed")
-
-            activity?.setScannerCameraCallbacks(
-                owner = "BarcodeScanScreen",
-                releaseCamera = null,
-                restoreCamera = null
-            )
-        }
-    }
     val barcodeOptions = remember {
         BarcodeScannerOptions.Builder()
             .setBarcodeFormats(
@@ -7070,11 +5666,10 @@ fun BarcodeScanScreen(
         }
     }
 
-    LaunchedEffect(hasCameraPermission, cameraRestoreTick) {
+    LaunchedEffect(hasCameraPermission) {
         if (!hasCameraPermission) return@LaunchedEffect
 
         val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
-
         val cameraProvider = cameraProviderFuture.get()
 
         val preview = Preview.Builder()
@@ -7119,7 +5714,6 @@ fun BarcodeScanScreen(
                         }
                 }
                 camera = cameraProvider.bindToLifecycle(lifecycleOwner, selector, preview, imageCapture, analysis)
-                (context as? MainActivity)?.enterCameraMode("CameraX bindToLifecycle")
             } else {
                 camera = cameraProvider.bindToLifecycle(
                     lifecycleOwner,
@@ -7127,7 +5721,6 @@ fun BarcodeScanScreen(
                     preview,
                     imageCapture
                 )
-                (context as? MainActivity)?.enterCameraMode("CameraX bindToLifecycle")
             }
         } catch (e: Exception) {
             errorText = "Не удалось открыть камеру"
@@ -7259,63 +5852,6 @@ fun BarcodeScanScreen(
     }
 }
 
-private data class OcrBrushPoint(
-    val x: Float,
-    val y: Float,
-    val radius: Float
-)
-
-private fun ocrBrushRadiusFromMotionEvent(event: MotionEvent): Float {
-    val pressure: Float = if (event.pressure > 0f) event.pressure else 0.5f
-    val touchSize: Float = if (event.size > 0f) event.size else 0.05f
-
-    return (18f + pressure * 34f + touchSize * 160f).coerceIn(18f, 78f)
-}
-
-private fun buildOcrBrushMaskedBitmap(
-    source: Bitmap,
-    brushPoints: List<OcrBrushPoint>
-): Bitmap? {
-    if (brushPoints.isEmpty()) {
-        return source
-    }
-
-    val left = floor(brushPoints.minOf { it.x - it.radius }).toInt().coerceIn(0, source.width - 1)
-    val top = floor(brushPoints.minOf { it.y - it.radius }).toInt().coerceIn(0, source.height - 1)
-    val right = ceil(brushPoints.maxOf { it.x + it.radius }).toInt().coerceIn(left + 1, source.width)
-    val bottom = ceil(brushPoints.maxOf { it.y + it.radius }).toInt().coerceIn(top + 1, source.height)
-
-    val width = right - left
-    val height = bottom - top
-
-    if (width < 12 || height < 12) {
-        return null
-    }
-
-    val crop = Bitmap.createBitmap(source, left, top, width, height)
-    val output = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-
-    val canvas = android.graphics.Canvas(output)
-    canvas.drawColor(android.graphics.Color.WHITE)
-
-    val clipPath = Path()
-    brushPoints.forEach { point ->
-        clipPath.addCircle(
-            point.x - left,
-            point.y - top,
-            point.radius,
-            Path.Direction.CW
-        )
-    }
-
-    canvas.save()
-    canvas.clipPath(clipPath)
-    canvas.drawBitmap(crop, 0f, 0f, null)
-    canvas.restore()
-
-    return output
-}
-
 @Composable
 fun OcrScanScreen(
     modifier: Modifier = Modifier,
@@ -7377,7 +5913,6 @@ fun OcrScanScreen(
     val previewView = remember {
         PreviewView(context).apply {
             scaleType = PreviewView.ScaleType.FILL_CENTER
-            implementationMode = PreviewView.ImplementationMode.COMPATIBLE
         }
     }
 
@@ -7401,100 +5936,9 @@ fun OcrScanScreen(
     var liveOcrPreview by remember { mutableStateOf<String?>(null) }
     var liveOcrBusy by remember { mutableStateOf(false) }
 
-    var holdMode by remember { mutableStateOf(false) }
-    var frozenOcrBitmap by remember { mutableStateOf<Bitmap?>(null) }
-    var ocrBrushPoints by remember { mutableStateOf<List<OcrBrushPoint>>(emptyList()) }
-
-    val holdOcrPreviewHandler = remember { Handler(Looper.getMainLooper()) }
-    var holdOcrPreviewRunnable by remember { mutableStateOf<Runnable?>(null) }
-    var holdOcrPreviewBusy by remember { mutableStateOf(false) }
-
     var liveAnalysis by remember { mutableStateOf<ImageAnalysis?>(null) }
     var boundCameraProvider by remember { mutableStateOf<ProcessCameraProvider?>(null) }
-    var cameraRestoreTick by remember { mutableStateOf(0) }
 
-    var lastClientLookupKey by remember { mutableStateOf("") }
-    var lastClientLookupResult by remember { mutableStateOf<ForwarderClientLookupResult?>(null) }
-
-    suspend fun applyForwarderClientLookup(data: OcrParcelData): OcrParcelData {
-        val cell = data.receiverCellCode
-            ?.trim()
-            ?.takeIf { it.isNotEmpty() }
-            ?: data.receiverAddress?.trim()?.takeIf { it.isNotEmpty() }
-            ?: return data
-        val forwarder = data.receiverForwarderCode
-            ?.trim()
-            ?.takeIf { it.isNotEmpty() }
-            ?: data.receiverCompany?.let { detectForwarderByText(it) }
-            ?: detectForwarderByCellCode(cell)
-            ?: return data
-        val country = normalizeLookupCountry(data.receiverCountryCode)
-            .takeIf { it.isNotEmpty() }
-            ?: return data
-
-        val lookupKey = "${forwarder.uppercase()}|${country.uppercase()}|${cell.uppercase()}"
-        val lookup = if (lookupKey == lastClientLookupKey && lastClientLookupResult != null) {
-            lastClientLookupResult!!
-        } else {
-            lookupForwarderClientOnServer(
-                context = context,
-                config = config,
-                forwarder = forwarder,
-                country = country,
-                receiverAddress = cell
-            ).also { result ->
-                lastClientLookupKey = lookupKey
-                lastClientLookupResult = result
-            }
-        }
-
-        return if (lookup.found && lookup.clientName.isNotBlank()) {
-            data.copy(
-                receiverName = lookup.clientName,
-                receiverNameSource = "forwarder_client_cache",
-                receiverClientId = lookup.clientId.takeIf { it.isNotBlank() }
-            )
-        } else {
-            data
-        }
-    }
-
-
-    DisposableEffect(Unit) {
-        val activity = context as? MainActivity
-
-        activity?.hideKeyboardForScannerOverlay("ocr_screen_opened")
-
-        activity?.setScannerCameraCallbacks(
-            owner = "OcrScanScreen",
-            releaseCamera = {
-                Log.i(
-                    "HS_BOOTSTRAP",
-                    "CameraX release callback begin provider=${boundCameraProvider != null} camera=${camera != null} analysis=${liveAnalysis != null}"
-                )
-
-                liveAnalysis?.clearAnalyzer()
-                liveAnalysis = null
-                boundCameraProvider?.unbindAll()
-                boundCameraProvider = null
-                camera = null
-
-                Log.i("HS_BOOTSTRAP", "CameraX released by scanner state machine")
-            },
-            restoreCamera = {
-                cameraRestoreTick++
-                Log.i("HS_BOOTSTRAP", "CameraX restore tick=$cameraRestoreTick")
-            }
-        )
-
-        onDispose {
-            activity?.setScannerCameraCallbacks(
-                owner = "OcrScanScreen",
-                releaseCamera = null,
-                restoreCamera = null
-            )
-        }
-    }
     fun processRecognizedText(fullText: String) {
         scope.launch {
             try {
@@ -7505,7 +5949,7 @@ fun OcrScanScreen(
                         val lc = detectLocalCarrierName(fullText)
                         val lt = detectLocalTrackingNo(fullText, lc)
                         val tuid = lt ?: base.trackingNo
-                        onResult(applyForwarderClientLookup(base.copy(tuid = tuid, localCarrierName = lc, localTrackingNo = lt)))
+                        onResult(base.copy(tuid = tuid, localCarrierName = lc, localTrackingNo = lt))
                     } else {
                         val basic = parseOcrText(fullText)
                         val advanced = buildOcrParcelDataFromText(fullText = fullText, trackingNo = basic.trackingNo, destConfig = destConfig, nameDict = nameDict)
@@ -7519,7 +5963,7 @@ fun OcrScanScreen(
                         val lc = detectLocalCarrierName(fullText)
                         val lt = detectLocalTrackingNo(fullText, lc)
                         val tuid = detectTuid(fullText)
-                        onResult(applyForwarderClientLookup(merged.copy(tuid = tuid, localCarrierName = lc, localTrackingNo = lt)))
+                        onResult(merged.copy(tuid = tuid, localCarrierName = lc, localTrackingNo = lt))
                         errorText = remote.errorMessage?.let { "Удалённый парсер не сработал: $it (использован локальный)" }
                     }
                 } else {
@@ -7535,7 +5979,7 @@ fun OcrScanScreen(
                     val lc = detectLocalCarrierName(fullText)
                     val lt = detectLocalTrackingNo(fullText, lc)
                     val tuid = detectTuid(fullText)
-                    onResult(applyForwarderClientLookup(merged.copy(tuid = tuid, localCarrierName = lc, localTrackingNo = lt)))
+                    onResult(merged.copy(tuid = tuid, localCarrierName = lc, localTrackingNo = lt))
                 }
             } finally {
                 isProcessing = false
@@ -7565,9 +6009,8 @@ fun OcrScanScreen(
                 liveAnalysis = analysis
                 analysis.setAnalyzer(executor) { imageProxy ->
                     val mediaImage = imageProxy.image
-                    if (mediaImage == null || liveOcrBusy || isProcessing || holdMode) {
-                        imageProxy.close()
-                        return@setAnalyzer
+                    if (mediaImage == null || liveOcrBusy || isProcessing) {
+                        imageProxy.close(); return@setAnalyzer
                     }
                     liveOcrBusy = true
                     val input = InputImage.fromMediaImage(mediaImage, imageProxy.imageInfo.rotationDegrees)
@@ -7576,24 +6019,11 @@ fun OcrScanScreen(
                             val txt = result.text?.trim().orEmpty()
                             if (txt.isNotEmpty()) {
                                 liveOcrText = txt
-                                val previewData = buildMergedOcrParcelDataFromText(
+                                liveOcrPreview = buildLiveOcrPreview(
                                     fullText = txt,
                                     destConfig = destConfig,
                                     nameDict = nameDict
                                 )
-                                liveOcrPreview = buildLiveOcrPreviewFromData(
-                                    data = previewData,
-                                    fullText = txt
-                                )
-                                scope.launch {
-                                    val correctedData = applyForwarderClientLookup(previewData)
-                                    if (correctedData.receiverName != previewData.receiverName && liveOcrText == txt) {
-                                        liveOcrPreview = buildLiveOcrPreviewFromData(
-                                            data = correctedData,
-                                            fullText = txt
-                                        )
-                                    }
-                                }
                             } else {
                                 liveOcrText = null
                                 liveOcrPreview = null
@@ -7605,7 +6035,6 @@ fun OcrScanScreen(
                         }
                 }
                 camera = cameraProvider.bindToLifecycle(lifecycleOwner, selector, preview, imageCapture, analysis)
-                (context as? MainActivity)?.enterCameraMode("CameraX bindToLifecycle")
             } else {
                 camera = cameraProvider.bindToLifecycle(
                     lifecycleOwner,
@@ -7613,7 +6042,6 @@ fun OcrScanScreen(
                     preview,
                     imageCapture
                 )
-                (context as? MainActivity)?.enterCameraMode("CameraX bindToLifecycle")
             }
         } catch (e: Exception) {
             e.printStackTrace()
@@ -7621,7 +6049,7 @@ fun OcrScanScreen(
         }
     }
 
-    LaunchedEffect(hasCameraPermission, cameraRestoreTick) {
+    LaunchedEffect(hasCameraPermission) {
         if (hasCameraPermission) {
             startCamera()
         }
@@ -7637,174 +6065,11 @@ fun OcrScanScreen(
         activeCamera.cameraControl.setZoomRatio(targetZoom)
     }
 
-    fun enableOcrHold() {
-        val bitmap = previewView.bitmap?.copy(Bitmap.Config.ARGB_8888, false)
-
-        if (bitmap == null) {
-            errorText = "Не удалось заморозить кадр"
-            return
-        }
-
-        frozenOcrBitmap = bitmap
-        ocrBrushPoints = emptyList()
-        holdMode = true
-        liveOcrText = null
-        liveOcrPreview = "Hold OCR: проведи пальцем по нужному тексту"
-
-        (context as? MainActivity)?.hideKeyboardForScannerOverlay("ocr_hold_enabled")
-
-        Log.i(
-            "SCAN_QR_DIAG",
-            "ocr_hold_enabled bitmap=${bitmap.width}x${bitmap.height}"
-        )
-    }
-
-    fun disableOcrHold() {
-        holdOcrPreviewRunnable?.let {
-            holdOcrPreviewHandler.removeCallbacks(it)
-        }
-        holdOcrPreviewRunnable = null
-        holdOcrPreviewBusy = false
-
-        holdMode = false
-        frozenOcrBitmap = null
-        ocrBrushPoints = emptyList()
-        liveOcrText = null
-        liveOcrPreview = null
-
-        Log.i("SCAN_QR_DIAG", "ocr_hold_disabled")
-
-    }
-
-    fun scheduleHoldOcrPreview() {
-        if (!holdMode) return
-
-        val sourceBitmap = frozenOcrBitmap ?: return
-        val pointsSnapshot = ocrBrushPoints.toList()
-
-        if (pointsSnapshot.isEmpty()) {
-            liveOcrPreview = "Hold: выдели нужный текст пальцем"
-            return
-        }
-
-        holdOcrPreviewRunnable?.let {
-            holdOcrPreviewHandler.removeCallbacks(it)
-        }
-
-        val runnable = Runnable {
-            if (holdOcrPreviewBusy) return@Runnable
-
-            val bitmapForOcr = buildOcrBrushMaskedBitmap(
-                source = sourceBitmap,
-                brushPoints = pointsSnapshot
-            )
-
-            if (bitmapForOcr == null) {
-                liveOcrPreview = "Hold: выдели область текста пальцем"
-                return@Runnable
-            }
-
-            holdOcrPreviewBusy = true
-            liveOcrPreview = "Hold OCR: распознаю выделение..."
-
-            Log.i(
-                "SCAN_QR_DIAG",
-                "ocr_hold_preview_start brushPoints=${pointsSnapshot.size} bitmap=${bitmapForOcr.width}x${bitmapForOcr.height}"
-            )
-
-            val inputImage = InputImage.fromBitmap(bitmapForOcr, 0)
-
-            recognizer
-                .process(inputImage)
-                .addOnSuccessListener { result ->
-                    val text = result.text.orEmpty().trim()
-
-                    liveOcrText = text
-
-                    liveOcrPreview =
-                        if (text.isBlank()) {
-                            "Hold OCR: текст не найден. Попробуй выделить шире"
-                        } else {
-                            val previewData = buildMergedOcrParcelDataFromText(
-                                fullText = text,
-                                destConfig = destConfig,
-                                nameDict = nameDict
-                            )
-                            scope.launch {
-                                val correctedData = applyForwarderClientLookup(previewData)
-                                if (correctedData.receiverName != previewData.receiverName && liveOcrText == text) {
-                                    liveOcrPreview = buildLiveOcrPreviewFromData(
-                                        data = correctedData,
-                                        fullText = text
-                                    )
-                                }
-                            }
-                            buildLiveOcrPreviewFromData(
-                                data = previewData,
-                                fullText = text
-                            )
-                        }
-
-                    Log.i(
-                        "SCAN_QR_DIAG",
-                        "ocr_hold_preview_success chars=${text.length}"
-                    )
-
-                    holdOcrPreviewBusy = false
-                }
-                .addOnFailureListener { e ->
-                    liveOcrPreview = "Hold OCR: ошибка распознавания ${e.message}"
-                    Log.e("SCAN_QR_DIAG", "ocr_hold_preview_failed", e)
-                    holdOcrPreviewBusy = false
-                }
-        }
-
-        holdOcrPreviewRunnable = runnable
-        holdOcrPreviewHandler.postDelayed(runnable, 450L)
-    }
-
     fun captureAndRecognize() {
         if (!hasCameraPermission || isProcessing) return
 
         isProcessing = true
         errorText = null
-
-        val frozenBitmapForRecognition = frozenOcrBitmap
-
-        if (holdMode && frozenBitmapForRecognition != null) {
-            val source = frozenBitmapForRecognition
-
-            val bitmapForOcr = buildOcrBrushMaskedBitmap(
-                source = source,
-                brushPoints = ocrBrushPoints
-            )
-
-            if (bitmapForOcr == null) {
-                errorText = "Выдели область текста пальцем"
-                isProcessing = false
-                return
-            }
-
-            Log.i(
-                "SCAN_QR_DIAG",
-                "ocr_hold_recognize brushPoints=${ocrBrushPoints.size} bitmap=${bitmapForOcr.width}x${bitmapForOcr.height}"
-            )
-
-            val inputImage = InputImage.fromBitmap(bitmapForOcr, 0)
-
-            recognizer
-                .process(inputImage)
-                .addOnSuccessListener { result ->
-                    val fullText = result.text ?: ""
-                    processRecognizedText(fullText)
-                }
-                .addOnFailureListener { e ->
-                    errorText = "Не удалось распознать Hold OCR: ${e.message}"
-                    isProcessing = false
-                }
-
-            return
-        }
 
         imageCapture.takePicture(
             executor,
@@ -7849,11 +6114,10 @@ fun OcrScanScreen(
 
 
     // ===== Привязка VOL_DOWN к captureAndRecognize =====
-    DisposableEffect(hasCameraPermission, config.liveScanEnabled, liveOcrText, holdMode, frozenOcrBitmap, ocrBrushPoints) {        if (hasCameraPermission) {
+    DisposableEffect(hasCameraPermission, config.liveScanEnabled, liveOcrText) {
+        if (hasCameraPermission) {
             onBindHardwareTrigger {
-                if (holdMode && frozenOcrBitmap != null) {
-                    captureAndRecognize()
-                } else if (config.liveScanEnabled && !liveOcrText.isNullOrBlank() && !isProcessing) {
+                if (config.liveScanEnabled && !liveOcrText.isNullOrBlank() && !isProcessing) {
                     isProcessing = true
                     processRecognizedText(liveOcrText!!)
                 } else {
@@ -7900,76 +6164,11 @@ fun OcrScanScreen(
                 }
             }
         } else {
-           // PreviewView всегда остаётся в UI, чтобы CameraX Surface не пересоздавался на Hold/Unhold
-            val frozenBitmapForUi = frozenOcrBitmap
-
+            // Превью камеры
             AndroidView(
                 modifier = Modifier.fillMaxSize(),
                 factory = { previewView }
             )
-
-            if (holdMode && frozenBitmapForUi != null) {
-                Image(
-                    bitmap = frozenBitmapForUi.asImageBitmap(),
-                    contentDescription = "Frozen OCR frame",
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.FillBounds
-                )
-            }
-            // Overlay кисти поверх frozen image
-            if (holdMode && frozenBitmapForUi != null) {
-                Canvas(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .graphicsLayer {
-                            alpha = 0.18f
-                            compositingStrategy = CompositingStrategy.Offscreen
-                        }
-                        .pointerInteropFilter { event ->
-                            when (event.actionMasked) {
-                                MotionEvent.ACTION_DOWN,
-                                MotionEvent.ACTION_MOVE -> {
-                                    val radius = ocrBrushRadiusFromMotionEvent(event)
-
-                                    val newPoints = mutableListOf<OcrBrushPoint>()
-
-                                    for (i in 0 until event.historySize) {
-                                        newPoints += OcrBrushPoint(
-                                            x = event.getHistoricalX(i),
-                                            y = event.getHistoricalY(i),
-                                            radius = radius
-                                        )
-                                    }
-
-                                    newPoints += OcrBrushPoint(
-                                        x = event.x,
-                                        y = event.y,
-                                        radius = radius
-                                    )
-
-                                    ocrBrushPoints = ocrBrushPoints + newPoints
-
-                                    liveOcrPreview = "Hold OCR: готовлю распознавание выделения..."
-                                    scheduleHoldOcrPreview()
-
-                                    true
-                                }
-
-                                MotionEvent.ACTION_UP,
-                                MotionEvent.ACTION_CANCEL -> true
-
-                                else -> false
-                            }
-                        }
-                ) {
-                    ocrBrushPoints.forEach { point ->
-                        drawCircle(
-                            color = androidx.compose.ui.graphics.Color(0xFFFFEB3B),                            radius = point.radius,
-                            center = Offset(point.x, point.y)
-                        )
-                    }
-                }
-            }
             val taskLabel = taskConfig?.ui?.stepLabels?.get(scanMode)
                 ?.trim()
                 ?.takeIf { it.isNotEmpty() }
@@ -8033,27 +6232,13 @@ fun OcrScanScreen(
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     OutlinedButton(
                         onClick = onCancel,
                         enabled = !isProcessing
                     ) {
                         Text("Отмена")
-                    }
-
-                    OutlinedButton(
-                        onClick = {
-                            if (holdMode) {
-                                disableOcrHold()
-                            } else {
-                                enableOcrHold()
-                            }
-                        },
-                        enabled = !isProcessing
-                    ) {
-                        Text(if (holdMode) "Unhold" else "Hold")
                     }
 
                     Button(
@@ -8620,11 +6805,12 @@ fun detectForwarderByText(textRaw: String): String? {
 }
 
 
-fun buildMergedOcrParcelDataFromText(
+
+fun buildLiveOcrPreview(
     fullText: String,
     destConfig: List<DestCountryCfg>,
     nameDict: NameDict?
-): OcrParcelData {
+): String {
     val basic = parseOcrText(fullText)
     val advanced = buildOcrParcelDataFromText(
         fullText = fullText,
@@ -8632,35 +6818,31 @@ fun buildMergedOcrParcelDataFromText(
         destConfig = destConfig,
         nameDict = nameDict
     )
-    val return basic.copy(
-    receiverCountryCode = advanced.receiverCountryCode ?: basic.receiverCountryCode,
-    receiverCompany = advanced.receiverCompany ?: basic.receiverCompany,
-    receiverForwarderCode = advanced.receiverForwarderCode ?: basic.receiverForwarderCode,
-    receiverCellCode = advanced.receiverCellCode ?: basic.receiverCellCode,
-    receiverName = advanced.receiverName ?: basic.receiverName
+    val merged = basic.copy(
+        receiverCountryCode = advanced.receiverCountryCode ?: basic.receiverCountryCode,
+        receiverCompany = advanced.receiverCompany ?: basic.receiverCompany,
+        receiverForwarderCode = advanced.receiverForwarderCode ?: basic.receiverForwarderCode,
+        receiverCellCode = advanced.receiverCellCode ?: basic.receiverCellCode,
+        receiverName = advanced.receiverName ?: basic.receiverName
     )
-}
 
-fun buildLiveOcrPreviewFromData(
-    data: OcrParcelData,
-    fullText: String,
-    localCarrier: String? = detectLocalCarrierName(fullText),
-    localTracking: String? = detectLocalTrackingNo(fullText, localCarrier),
-    tuid: String? = detectTuid(fullText)
-): String {
+    val localCarrier = detectLocalCarrierName(fullText)
+    val localTracking = detectLocalTrackingNo(fullText, localCarrier)
+    val tuid = detectTuid(fullText)
+
     val items = mutableListOf<String>()
     fun add(label: String, value: String?) {
         val clean = value?.trim()?.takeIf { it.isNotEmpty() } ?: return
         items += "$label: $clean"
     }
 
-    add("Tracking", data.trackingNo)
+    add("Tracking", merged.trackingNo)
     add("TUID", tuid)
-    add("Country", data.receiverCountryCode)
-    add("Forwarder", data.receiverForwarderCode)
-    add("Company", data.receiverCompany)
-    add("Cell", data.receiverCellCode)
-    add("Name", data.receiverName)
+    add("Country", merged.receiverCountryCode)
+    add("Forwarder", merged.receiverForwarderCode)
+    add("Company", merged.receiverCompany)
+    add("Cell", merged.receiverCellCode)
+    add("Name", merged.receiverName)
     add("Local carrier", localCarrier)
     add("Local tracking", localTracking)
 
@@ -8672,24 +6854,9 @@ fun buildLiveOcrPreviewFromData(
             ?: "данные не распознаны"
     }
 
-    return items.joinToString("\n")
-}
-
-fun buildLiveOcrPreview(
-    fullText: String,
-    destConfig: List<DestCountryCfg>,
-    nameDict: NameDict?
-): String {
-    val merged = buildMergedOcrParcelDataFromText(
-        fullText = fullText,
-        destConfig = destConfig,
-        nameDict = nameDict
-    )
-
-    return buildLiveOcrPreviewFromData(
-        data = merged,
-        fullText = fullText
-    )
+    return items
+        .take(5)
+        .joinToString("\n")
 }
 
 
