@@ -89,6 +89,11 @@ function system_tasks_endpoint_registry(): array
             'name' => 'Коннекторы: операция #1 (репорты)',
             'description' => 'Скачивает и импортирует репорты активных коннекторов.',
         ],
+        'connector_clients_sync' => [
+            'group' => 'connectors',
+            'name' => 'Connector clients sync',
+            'description' => 'Обновляет локальный кэш клиентов connector_clients из connector_report_* таблиц.',
+        ],
         'warehouse_sync_batch_worker' => [
             'group' => 'warehouse',
             'name' => 'Обработчик batch sync',
@@ -156,6 +161,22 @@ function system_tasks_seed_defaults(mysqli $dbcnx): void
             'interval_minutes' => 60,
         ],
         [
+            'code' => 'connector_clients_sync_aser_az_hourly',
+            'name' => 'Connector clients sync: ASER AZ',
+            'description' => 'Обновляет connector_clients из connector_report_aser_az.',
+            'endpoint_action' => 'connector_clients_sync',
+            'payload_json' => '{"table":"connector_report_aser_az","limit":50000}',
+            'interval_minutes' => 60,
+        ],
+        [
+            'code' => 'connector_clients_sync_colibri_az_hourly',
+            'name' => 'Connector clients sync: COLIBRI AZ',
+            'description' => 'Обновляет connector_clients из connector_report_colibri_az.',
+            'endpoint_action' => 'connector_clients_sync',
+            'payload_json' => '{"table":"connector_report_colibri_az","limit":50000}',
+            'interval_minutes' => 60,
+        ],
+        [
             'code' => 'warehouse_sync_batch_worker',
             'name' => 'Обработчик пакетной синхронизации посылок',
             'description' => 'Берет queued/running batch jobs и обрабатывает их в фоне.',
@@ -180,20 +201,22 @@ function system_tasks_seed_defaults(mysqli $dbcnx): void
                 endpoint_action = VALUES(endpoint_action),
                 interval_minutes = VALUES(interval_minutes)";
 */
-    $sql = "INSERT IGNORE INTO system_tasks (code, name, description, endpoint_action, interval_minutes, is_enabled, next_run_at)
-            VALUES (?, ?, ?, ?, ?, 1, NOW())";
+    $sql = "INSERT IGNORE INTO system_tasks (code, name, description, endpoint_action, payload_json, interval_minutes, is_enabled, next_run_at)
+            VALUES (?, ?, ?, ?, ?, ?, 1, NOW())";
     $stmt = $dbcnx->prepare($sql);
     if (!$stmt) {
         throw new RuntimeException('system_tasks seed prepare failed');
     }
 
     foreach ($defaults as $task) {
+        $payloadJson = $task['payload_json'] ?? null;
         $stmt->bind_param(
-            'ssssi',
+            'sssssi',
             $task['code'],
             $task['name'],
             $task['description'],
             $task['endpoint_action'],
+            $payloadJson,
             $task['interval_minutes']
         );
         $stmt->execute();
@@ -313,6 +336,10 @@ function system_tasks_execute(mysqli $dbcnx, array $task, int $systemUserId = 0)
         return system_tasks_run_connectors_report_operation_1($dbcnx, $task);
     }
 
+    if ($action === 'connector_clients_sync') {
+        return system_tasks_run_connector_clients_sync($dbcnx, $task);
+    }
+
     if ($action === 'warehouse_sync_reconcile') {
         return system_tasks_run_warehouse_sync_reconcile($dbcnx, $task, $systemUserId);
     }
@@ -323,6 +350,90 @@ function system_tasks_execute(mysqli $dbcnx, array $task, int $systemUserId = 0)
         'status' => 'error',
 
         'message' => 'Unhandled endpoint_action: ' . $action,
+    ];
+}
+
+
+function system_tasks_run_connector_clients_sync(mysqli $dbcnx, array $task): array
+{
+    $payloadRaw = trim((string)($task['payload_json'] ?? ''));
+    $payload = $payloadRaw !== '' ? json_decode($payloadRaw, true) : [];
+    if (!is_array($payload)) {
+        $payload = [];
+    }
+
+    $table = trim((string)($payload['table'] ?? ''));
+    $limit = max(1, min(200000, (int)($payload['limit'] ?? 50000)));
+    $all = !empty($payload['all']);
+
+    if ($table === '' && !$all) {
+        return [
+            'status' => 'error',
+            'message' => 'connector_clients_sync requires payload.table or payload.all=true',
+            'context' => ['payload' => $payload],
+        ];
+    }
+
+    if ($table !== '' && preg_match('/^connector_report_[a-z0-9_]+$/i', $table) !== 1) {
+        return [
+            'status' => 'error',
+            'message' => 'Unsafe report table name: ' . $table,
+            'context' => ['payload' => $payload],
+        ];
+    }
+
+    $scriptPath = realpath(__DIR__ . '/../../scripts/mvp/app/Forwarder/sync_connector_clients.php');
+    if (!$scriptPath || !is_file($scriptPath)) {
+        return [
+            'status' => 'error',
+            'message' => 'sync_connector_clients.php not found',
+            'context' => [
+                'expected_path' => __DIR__ . '/../../scripts/mvp/app/Forwarder/sync_connector_clients.php',
+            ],
+        ];
+    }
+
+    $phpBinary = PHP_BINARY ?: 'php';
+
+    $cmd = escapeshellarg($phpBinary)
+        . ' ' . escapeshellarg($scriptPath)
+        . ($all ? ' --all' : ' --table=' . escapeshellarg($table))
+        . ' --limit=' . escapeshellarg((string)$limit)
+        . ' --dry-run=0'
+        . ' 2>&1';
+
+    $output = shell_exec($cmd);
+    $outputText = trim((string)$output);
+    $decoded = json_decode($outputText, true);
+
+    if (!is_array($decoded)) {
+        return [
+            'status' => 'error',
+            'message' => 'connector clients sync returned invalid JSON',
+            'context' => [
+                'cmd' => $cmd,
+                'output' => mb_substr($outputText, 0, 4000, 'UTF-8'),
+            ],
+        ];
+    }
+
+    $status = strtolower(trim((string)($decoded['status'] ?? '')));
+    $processed = (int)($decoded['processed'] ?? 0);
+    $upserted = (int)($decoded['upserted'] ?? 0);
+    $skipped = (int)($decoded['skipped'] ?? 0);
+
+    return [
+        'status' => $status === 'ok' ? 'ok' : 'error',
+        'message' => 'connector_clients_sync done'
+            . '; processed=' . $processed
+            . '; upserted=' . $upserted
+            . '; skipped=' . $skipped,
+        'context' => [
+            'table' => $table,
+            'all' => $all,
+            'limit' => $limit,
+            'summary' => $decoded,
+        ],
     ];
 }
 
