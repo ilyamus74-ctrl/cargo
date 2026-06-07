@@ -608,7 +608,8 @@ class MainActivity : ComponentActivity() {
     private var softKeyboardHoldToggleKeyCodeRuntime: Int = 0
     private val p1KeyCode = 298
     private val p2KeyCode = 297
-
+    private val terminalBlackKeyboardToggleKeyCode = 293
+    private val terminalBlackKeyboardToggleScanCode = 229
     private val p2LongHoldMs = 3000L
     private var p2LongHoldRunnable: Runnable? = null
     private var p2LongHoldFired = false
@@ -1280,6 +1281,28 @@ class MainActivity : ComponentActivity() {
         }
     }
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        val keyCode = event.keyCode
+
+        if (isSoftKeyboardHoldToggleKey(keyCode, event)) {
+            Log.i(
+                "SOFT_KBD_HOLD",
+                "dispatch_toggle_key action=${event.action} keyCode=$keyCode scanCode=${event.scanCode} repeat=${event.repeatCount}"
+            )
+
+            if (event.action == KeyEvent.ACTION_DOWN) {
+                handledHardwareDownKeys.add(keyCode)
+                return true
+            }
+
+            if (event.action == KeyEvent.ACTION_UP) {
+                handledHardwareDownKeys.remove(keyCode)
+                toggleSoftKeyboardHold("black_key_dispatch_keyCode_${keyCode}_scanCode_${event.scanCode}")
+                return true
+            }
+
+            return true
+        }
+
         if (event.keyCode == 289 || event.keyCode == 290) {
             val now = System.currentTimeMillis()
 
@@ -1613,6 +1636,14 @@ class MainActivity : ComponentActivity() {
     private fun isSoftKeyboardHoldToggleKey(keyCode: Int, event: KeyEvent?): Boolean {
         val scanCode = event?.scanCode ?: 0
 
+        if (keyCode == terminalBlackKeyboardToggleKeyCode) {
+            return true
+        }
+
+        if (scanCode == terminalBlackKeyboardToggleScanCode) {
+            return true
+        }
+
         if (softKeyboardHoldToggleScanCodeRuntime > 0 &&
             scanCode == softKeyboardHoldToggleScanCodeRuntime
         ) {
@@ -1622,11 +1653,6 @@ class MainActivity : ComponentActivity() {
         if (softKeyboardHoldToggleKeyCodeRuntime > 0 &&
             keyCode == softKeyboardHoldToggleKeyCodeRuntime
         ) {
-            return true
-        }
-
-        // Terminal black key: KEY_KBDILLUMUP
-        if (scanCode == 229) {
             return true
         }
 
@@ -1642,6 +1668,16 @@ class MainActivity : ComponentActivity() {
         )
 
         applySoftKeyboardHoldToActiveWebView("toggle_$reason")
+
+        if (softKeyboardHoldEnabledRuntime) {
+            hideKeyboardForActiveWebView("toggle_on_immediate")
+            window.decorView.postDelayed({
+                hideKeyboardForActiveWebView("toggle_on_delayed_150")
+            }, 150L)
+            window.decorView.postDelayed({
+                hideKeyboardForActiveWebView("toggle_on_delayed_500")
+            }, 500L)
+        }
 
         runOnUiThread {
             Toast.makeText(
@@ -1689,6 +1725,7 @@ class MainActivity : ComponentActivity() {
                                     }
                                     el.setAttribute('inputmode', 'none');
                                     el.setAttribute('autocomplete', 'off');
+                                    el.setAttribute('readonly-softkbd-hold', '1');                                    
                                 } else {
                                     var oldMode = el.getAttribute('data-softkbd-old-inputmode');
                                     if (oldMode !== null) {
@@ -1699,6 +1736,7 @@ class MainActivity : ComponentActivity() {
                                         }
                                         el.removeAttribute('data-softkbd-old-inputmode');
                                     }
+                                    el.removeAttribute('readonly-softkbd-hold');                                
                                 }
                             }
 
@@ -1717,7 +1755,15 @@ class MainActivity : ComponentActivity() {
                                                     window.DeviceApp.hideSoftKeyboard('focusin_hold');
                                                 }
                                             } catch (err) {}
-                                        }, 60);
+                                        }, 0);
+
+                                        setTimeout(function () {
+                                            try {
+                                                if (window.DeviceApp && typeof window.DeviceApp.hideSoftKeyboard === 'function') {
+                                                    window.DeviceApp.hideSoftKeyboard('focusin_hold_late');
+                                                }
+                                            } catch (err) {}
+                                        }, 120);
                                     }
                                 }, true);
                             }
@@ -1740,8 +1786,9 @@ class MainActivity : ComponentActivity() {
 
     private fun showKeyboardForActiveWebView(reason: String) {
         if (softKeyboardHoldEnabledRuntime) {
-            hideKeyboardForActiveWebView("soft_keyboard_hold_manual_show_$reason")
             Log.i("SOFT_KBD_HOLD", "manual_keyboard_show_blocked reason=$reason")
+            hideKeyboardForActiveWebView("manual_show_blocked_$reason")
+            applySoftKeyboardHoldToActiveWebView("manual_show_blocked_$reason")
             return
         }
 
@@ -1761,12 +1808,18 @@ class MainActivity : ComponentActivity() {
                 val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
 
                 webView.postDelayed({
-                    val shown = imm.showSoftInput(webView, InputMethodManager.SHOW_IMPLICIT)
+                    if (softKeyboardHoldEnabledRuntime) {
+                        Log.i("SOFT_KBD_HOLD", "manual_keyboard_show_blocked reason=$reason")
+                        hideKeyboardForActiveWebView("manual_show_blocked_delayed_$reason")
+                        applySoftKeyboardHoldToActiveWebView("manual_show_blocked_delayed_$reason")
+                    } else {
+                        val shown = imm.showSoftInput(webView, InputMethodManager.SHOW_IMPLICIT)
 
-                    Log.i(
-                        "SCAN_QR_DIAG",
-                        "manual_keyboard_show reason=$reason shown=$shown"
-                    )
+                        Log.i(
+                            "SCAN_QR_DIAG",
+                            "manual_keyboard_show reason=$reason shown=$shown"
+                        )
+                    }
                 }, 80L)
 
             } catch (t: Throwable) {
@@ -1951,7 +2004,7 @@ class MainActivity : ComponentActivity() {
 
         if (isSoftKeyboardHoldToggleKey(keyCode, event)) {
             handledHardwareDownKeys.remove(keyCode)
-            toggleSoftKeyboardHold("black_key_scanCode_${event?.scanCode}")
+            toggleSoftKeyboardHold("black_key_keyup_keyCode_${keyCode}_scanCode_${event?.scanCode}")
             return true
         }
 
@@ -5593,8 +5646,10 @@ fun DeviceWebViewScreen(
 
                         mainHandler.post {
                             if (activityForIme?.isSoftKeyboardHoldEnabled() == true) {
-                                activityForIme.hideKeyboardForActiveWebView("soft_keyboard_hold_manual_focus")
                                 Log.i("SOFT_KBD_HOLD", "manual_keyboard_request_blocked payload=$payload")
+                                Log.i("SOFT_KBD_HOLD", "manual_keyboard_show_blocked reason=manual_focus payload=$payload")
+                                activityForIme.hideKeyboardForActiveWebView("manual_show_blocked_manual_focus")
+                                activityForIme.reapplySoftKeyboardHoldToActiveWebView("manual_show_blocked_manual_focus")
                                 return@post
                             }
 
@@ -5606,15 +5661,21 @@ fun DeviceWebViewScreen(
                                 val imm = ctx.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
 
                                 webViewForIme.postDelayed({
-                                    val shown = imm.showSoftInput(
-                                        webViewForIme,
-                                        InputMethodManager.SHOW_IMPLICIT
-                                    )
+                                    if (activityForIme?.isSoftKeyboardHoldEnabled() == true) {
+                                        Log.i("SOFT_KBD_HOLD", "manual_keyboard_show_blocked reason=manual_focus_delayed payload=$payload")
+                                        activityForIme.hideKeyboardForActiveWebView("manual_show_blocked_manual_focus_delayed")
+                                        activityForIme.reapplySoftKeyboardHoldToActiveWebView("manual_show_blocked_manual_focus_delayed")
+                                    } else {
+                                        val shown = imm.showSoftInput(
+                                            webViewForIme,
+                                            InputMethodManager.SHOW_IMPLICIT
+                                        )
 
-                                    Log.i(
-                                        "SCAN_QR_DIAG",
-                                        "manual_keyboard_show payload=$payload shown=$shown"
-                                    )
+                                        Log.i(
+                                            "SCAN_QR_DIAG",
+                                            "manual_keyboard_show payload=$payload shown=$shown"
+                                        )
+                                    }
                                 }, 80L)
                             } catch (t: Throwable) {
                                 Log.e("SCAN_QR_DIAG", "manual_keyboard_show_failed payload=$payload", t)
