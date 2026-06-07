@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-06-05 13:15:30
+/* Smarty version 5.3.1, created on 2026-06-07 14:41:19
   from 'file:cells_NA_API_warehouse_item_stock_modal.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_6a22cbf29e9bf4_68730888',
+  'unifunc' => 'content_6a25830fb6cc94_69645443',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '76c261023c84dc78e924fef3e9010fc442e0a73f' => 
     array (
       0 => 'cells_NA_API_warehouse_item_stock_modal.html',
-      1 => 1780665084,
+      1 => 1780842471,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_6a22cbf29e9bf4_68730888 (\Smarty\Template $_smarty_tpl) {
+function content_6a25830fb6cc94_69645443 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?><form id="item-stock-modal-form" class="row g-3">
   <input type="hidden" name="item_id" value="<?php echo $_smarty_tpl->getValue('item')['id'];?>
@@ -168,24 +168,40 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
 
   <div class="col-md-6">
     <label class="form-label d-block">Фото Лейб</label>
-    <button type="button" class="btn btn-outline-secondary js-core-link" id="warehouseStockTakeLabelPhotoBtn" data-photo-type="label" data-core-action="upload_item_stock_photo">
-      Фото Лейб
+    <button type="button"
+            class="btn btn-outline-secondary js-core-link"
+            id="warehouseStockTakeLabelPhotoBtn"
+            data-photo-type="label"
+            data-core-action="upload_item_stock_photo"
+            data-photo-json='<?php echo htmlspecialchars((string)json_encode($_smarty_tpl->getValue('label_image_paths')), ENT_QUOTES, 'UTF-8', true);?>
+'>
+      <?php if ($_smarty_tpl->getValue('label_image_paths')) {?>Открыть Фото Лейб<?php } else { ?>Фото Лейб<?php }?>
     </button>
     <input type="file" accept="image/*" capture="environment" class="d-none" id="warehouseStockLabelPhotoInput" data-photo-type="label">
     <input type="hidden" id="warehouseStockLabelImageJson" name="label_image" value="<?php echo htmlspecialchars((string)$_smarty_tpl->getValue('item')['label_image'], ENT_QUOTES, 'UTF-8', true);?>
 ">
-    <div class="form-text" id="warehouseStockLabelPhotoInfo"></div>
+    <div class="form-text" id="warehouseStockLabelPhotoInfo">
+      <?php if ($_smarty_tpl->getValue('label_image_paths')) {?>Фото лейбла загружено<?php }?>
+    </div>
   </div>
 
   <div class="col-md-6">
     <label class="form-label d-block">Фото содерж</label>
-    <button type="button" class="btn btn-outline-secondary js-core-link" id="warehouseStockTakeBoxPhotoBtn" data-photo-type="box" data-core-action="upload_item_stock_photo">
-      Фото содерж
+    <button type="button"
+            class="btn btn-outline-secondary js-core-link"
+            id="warehouseStockTakeBoxPhotoBtn"
+            data-photo-type="box"
+            data-core-action="upload_item_stock_photo"
+            data-photo-json='<?php echo htmlspecialchars((string)json_encode($_smarty_tpl->getValue('box_image_paths')), ENT_QUOTES, 'UTF-8', true);?>
+'>
+      <?php if ($_smarty_tpl->getValue('box_image_paths')) {?>Открыть Фото содерж<?php } else { ?>Фото содерж<?php }?>
     </button>
     <input type="file" accept="image/*" capture="environment" class="d-none" id="warehouseStockBoxPhotoInput" data-photo-type="box">
     <input type="hidden" id="warehouseStockBoxImageJson" name="box_image" value="<?php echo htmlspecialchars((string)$_smarty_tpl->getValue('item')['box_image'], ENT_QUOTES, 'UTF-8', true);?>
 ">
-    <div class="form-text" id="warehouseStockBoxPhotoInfo"></div>
+    <div class="form-text" id="warehouseStockBoxPhotoInfo">
+      <?php if ($_smarty_tpl->getValue('box_image_paths')) {?>Фото содержимого загружено<?php }?>
+    </div>
   </div>
 
 
