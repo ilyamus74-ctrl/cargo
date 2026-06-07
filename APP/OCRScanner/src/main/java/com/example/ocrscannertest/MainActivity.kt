@@ -603,6 +603,9 @@ class MainActivity : ComponentActivity() {
     private var hardwareScanFlushRunnable: Runnable? = null
     private val handledHardwareDownKeys = mutableSetOf<Int>()
     private val interceptHardwareTriggerKeys: Boolean = false
+    private var softKeyboardHoldEnabledRuntime: Boolean = false
+    private var softKeyboardHoldToggleScanCodeRuntime: Int = 229
+    private var softKeyboardHoldToggleKeyCodeRuntime: Int = 0
     private val p1KeyCode = 298
     private val p2KeyCode = 297
 
@@ -1587,7 +1590,161 @@ class MainActivity : ComponentActivity() {
                 keyCode == KeyEvent.KEYCODE_BUTTON_R2
     }
 
+
+    fun updateSoftKeyboardHoldRuntime(config: DeviceConfig, reason: String) {
+        softKeyboardHoldEnabledRuntime = config.softKeyboardHoldEnabled
+        softKeyboardHoldToggleScanCodeRuntime = config.softKeyboardHoldToggleScanCode
+        softKeyboardHoldToggleKeyCodeRuntime = config.softKeyboardHoldToggleKeyCode
+
+        Log.i(
+            "SOFT_KBD_HOLD",
+            "runtime_config reason=$reason enabled=$softKeyboardHoldEnabledRuntime scanCode=$softKeyboardHoldToggleScanCodeRuntime keyCode=$softKeyboardHoldToggleKeyCodeRuntime"
+        )
+
+        applySoftKeyboardHoldToActiveWebView(reason)
+    }
+
+    fun isSoftKeyboardHoldEnabled(): Boolean = softKeyboardHoldEnabledRuntime
+
+    fun reapplySoftKeyboardHoldToActiveWebView(reason: String) {
+        applySoftKeyboardHoldToActiveWebView(reason)
+    }
+
+    private fun isSoftKeyboardHoldToggleKey(keyCode: Int, event: KeyEvent?): Boolean {
+        val scanCode = event?.scanCode ?: 0
+
+        if (softKeyboardHoldToggleScanCodeRuntime > 0 &&
+            scanCode == softKeyboardHoldToggleScanCodeRuntime
+        ) {
+            return true
+        }
+
+        if (softKeyboardHoldToggleKeyCodeRuntime > 0 &&
+            keyCode == softKeyboardHoldToggleKeyCodeRuntime
+        ) {
+            return true
+        }
+
+        // Terminal black key: KEY_KBDILLUMUP
+        if (scanCode == 229) {
+            return true
+        }
+
+        return false
+    }
+
+    private fun toggleSoftKeyboardHold(reason: String) {
+        softKeyboardHoldEnabledRuntime = !softKeyboardHoldEnabledRuntime
+
+        Log.i(
+            "SOFT_KBD_HOLD",
+            "soft_keyboard_hold=$softKeyboardHoldEnabledRuntime reason=$reason"
+        )
+
+        applySoftKeyboardHoldToActiveWebView("toggle_$reason")
+
+        runOnUiThread {
+            Toast.makeText(
+                this,
+                if (softKeyboardHoldEnabledRuntime) {
+                    "Android-клавиатура заблокирована"
+                } else {
+                    "Android-клавиатура разрешена"
+                },
+                Toast.LENGTH_SHORT
+            ).show()
+        }
+    }
+
+    private fun applySoftKeyboardHoldToActiveWebView(reason: String) {
+        val webView = activeWebViewProvider?.invoke()
+
+        if (webView == null) {
+            Log.i("SOFT_KBD_HOLD", "apply_skip no_active_webview reason=$reason")
+            return
+        }
+
+        runOnUiThread {
+            try {
+                if (softKeyboardHoldEnabledRuntime) {
+                    hideKeyboardForActiveWebView("soft_keyboard_hold_$reason")
+                }
+
+                val enabledJs = if (softKeyboardHoldEnabledRuntime) "true" else "false"
+
+                val js = """
+                    (function () {
+                        try {
+                            window.__softKeyboardHoldEnabled = $enabledJs;
+
+                            function applySoftKeyboardMode(el) {
+                                if (!el || !el.setAttribute) return;
+
+                                var tag = String(el.tagName || '').toUpperCase();
+                                if (tag !== 'INPUT' && tag !== 'TEXTAREA') return;
+
+                                if (window.__softKeyboardHoldEnabled) {
+                                    if (!el.hasAttribute('data-softkbd-old-inputmode')) {
+                                        el.setAttribute('data-softkbd-old-inputmode', el.getAttribute('inputmode') || '');
+                                    }
+                                    el.setAttribute('inputmode', 'none');
+                                    el.setAttribute('autocomplete', 'off');
+                                } else {
+                                    var oldMode = el.getAttribute('data-softkbd-old-inputmode');
+                                    if (oldMode !== null) {
+                                        if (oldMode) {
+                                            el.setAttribute('inputmode', oldMode);
+                                        } else {
+                                            el.removeAttribute('inputmode');
+                                        }
+                                        el.removeAttribute('data-softkbd-old-inputmode');
+                                    }
+                                }
+                            }
+
+                            document.querySelectorAll('input, textarea').forEach(applySoftKeyboardMode);
+
+                            if (!window.__softKeyboardHoldInstalled) {
+                                window.__softKeyboardHoldInstalled = true;
+
+                                document.addEventListener('focusin', function (e) {
+                                    applySoftKeyboardMode(e.target);
+
+                                    if (window.__softKeyboardHoldEnabled) {
+                                        setTimeout(function () {
+                                            try {
+                                                if (window.DeviceApp && typeof window.DeviceApp.hideSoftKeyboard === 'function') {
+                                                    window.DeviceApp.hideSoftKeyboard('focusin_hold');
+                                                }
+                                            } catch (err) {}
+                                        }, 60);
+                                    }
+                                }, true);
+                            }
+
+                            return 'SOFT_KBD_HOLD_APPLIED:' + window.__softKeyboardHoldEnabled;
+                        } catch (e) {
+                            return 'SOFT_KBD_HOLD_ERROR:' + String(e && e.message ? e.message : e);
+                        }
+                    })();
+                """.trimIndent()
+
+                webView.evaluateJavascript(js) { result ->
+                    Log.i("SOFT_KBD_HOLD", "apply_js_result reason=$reason result=$result")
+                }
+            } catch (t: Throwable) {
+                Log.e("SOFT_KBD_HOLD", "apply_failed reason=$reason", t)
+            }
+        }
+    }
+
     private fun showKeyboardForActiveWebView(reason: String) {
+        if (softKeyboardHoldEnabledRuntime) {
+            hideKeyboardForActiveWebView("soft_keyboard_hold_manual_show_$reason")
+            Log.i("SOFT_KBD_HOLD", "manual_keyboard_show_blocked reason=$reason")
+            return
+        }
+
         val webView = activeWebViewProvider?.invoke()
 
         if (webView == null) {
@@ -1618,7 +1775,7 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun hideKeyboardForActiveWebView(reason: String) {
+    fun hideKeyboardForActiveWebView(reason: String) {
         val webView = activeWebViewProvider?.invoke()
 
         if (webView == null) {
@@ -1750,6 +1907,21 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onKeyDown(keyCode: Int, event: KeyEvent?): Boolean {
+
+        Log.i(
+            "SOFT_KBD_HOLD",
+            "key_down keyCode=$keyCode scanCode=${event?.scanCode} repeat=${event?.repeatCount} deviceId=${event?.deviceId} source=${event?.source}"
+        )
+
+        if (isSoftKeyboardHoldToggleKey(keyCode, event)) {
+            handledHardwareDownKeys.add(keyCode)
+            Log.i(
+                "SOFT_KBD_HOLD",
+                "toggle_key_down consumed keyCode=$keyCode scanCode=${event?.scanCode} repeat=${event?.repeatCount}"
+            )
+            return true
+        }
+
         if (isDedicatedScanKey(keyCode)) {
             Log.i("SCAN_QR_DIAG", "dedicated_scan_key_passthrough onKeyDown keyCode=$keyCode")
             return super.onKeyDown(keyCode, event)
@@ -1771,6 +1943,18 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onKeyUp(keyCode: Int, event: KeyEvent?): Boolean {
+
+        Log.i(
+            "SOFT_KBD_HOLD",
+            "key_up keyCode=$keyCode scanCode=${event?.scanCode} deviceId=${event?.deviceId} source=${event?.source}"
+        )
+
+        if (isSoftKeyboardHoldToggleKey(keyCode, event)) {
+            handledHardwareDownKeys.remove(keyCode)
+            toggleSoftKeyboardHold("black_key_scanCode_${event?.scanCode}")
+            return true
+        }
+
         if (isDedicatedScanKey(keyCode)) {
             Log.i("SCAN_QR_DIAG", "dedicated_scan_key_passthrough onKeyUp keyCode=$keyCode")
             return super.onKeyUp(keyCode, event)
@@ -2052,6 +2236,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        applySoftKeyboardHoldToActiveWebView("on_resume")
 
         scannerBootstrapHandler.postDelayed({
             Log.i("HS_BOOTSTRAP", "pre-arm vendor scanner reason=activity_resumed")
@@ -2087,6 +2272,9 @@ fun AppRoot() {
     val repo = remember { DeviceConfigRepository(context) }
     val scope = rememberCoroutineScope()
     var config by remember { mutableStateOf(repo.load()) }
+    LaunchedEffect(Unit) {
+        activity?.updateSoftKeyboardHoldRuntime(config, "config_loaded")
+    }
     LaunchedEffect(config.debugToasts) {
         debugToastsEnabled = config.debugToasts
     }
@@ -3331,6 +3519,7 @@ when {
                         onConfigChanged = { newCfg ->
                             config = newCfg
                             repo.save(newCfg)
+                            activity?.updateSoftKeyboardHoldRuntime(newCfg, "config_updated")
                         },
                         onEnrollSuccess = { token ->
                             val updated = config.copy(
@@ -3339,11 +3528,13 @@ when {
                             )
                             config = updated
                             repo.save(updated)
+                            activity?.updateSoftKeyboardHoldRuntime(updated, "config_updated")
                             showSettings = false
                         },
                         onUnenroll = {
                             repo.clearEnroll()
                             config = repo.load()
+                            activity?.updateSoftKeyboardHoldRuntime(config, "config_updated")
 
                             val cm = CookieManager.getInstance()
                             cm.removeAllCookies(null)
@@ -3639,6 +3830,9 @@ fun SettingsScreen(
     var ocrSendLabelPhoto by remember { mutableStateOf(config.ocrSendLabelPhoto) }
     var ocrLabelPhotoMaxWidth by remember { mutableStateOf(config.ocrLabelPhotoMaxWidth.toString()) }
     var ocrLabelPhotoJpegQuality by remember { mutableStateOf(config.ocrLabelPhotoJpegQuality.toString()) }
+    var softKeyboardHoldEnabled by remember { mutableStateOf(config.softKeyboardHoldEnabled) }
+    var softKeyboardHoldToggleScanCode by remember { mutableStateOf(config.softKeyboardHoldToggleScanCode.toString()) }
+    var softKeyboardHoldToggleKeyCode by remember { mutableStateOf(config.softKeyboardHoldToggleKeyCode.toString()) }
 
     val scrollState = rememberScrollState()
 
@@ -3798,6 +3992,70 @@ fun SettingsScreen(
             modifier = Modifier.fillMaxWidth()
         ) {
             Checkbox(
+                checked = softKeyboardHoldEnabled,
+                onCheckedChange = { enabled ->
+                    softKeyboardHoldEnabled = enabled
+                    onConfigChanged(
+                        config.copy(
+                            softKeyboardHoldEnabled = enabled,
+                            softKeyboardHoldToggleScanCode = softKeyboardHoldToggleScanCode.toIntOrNull() ?: 229,
+                            softKeyboardHoldToggleKeyCode = softKeyboardHoldToggleKeyCode.toIntOrNull() ?: 0
+                        )
+                    )
+                }
+            )
+            Spacer(Modifier.width(8.dp))
+            Text(
+                "Блокировать Android-клавиатуру",
+                style = MaterialTheme.typography.bodyMedium
+            )
+        }
+
+        Spacer(Modifier.height(8.dp))
+
+        OutlinedTextField(
+            value = softKeyboardHoldToggleScanCode,
+            onValueChange = { value ->
+                softKeyboardHoldToggleScanCode = value.filter(Char::isDigit).take(4)
+                onConfigChanged(
+                    config.copy(
+                        softKeyboardHoldEnabled = softKeyboardHoldEnabled,
+                        softKeyboardHoldToggleScanCode = softKeyboardHoldToggleScanCode.toIntOrNull() ?: 229,
+                        softKeyboardHoldToggleKeyCode = softKeyboardHoldToggleKeyCode.toIntOrNull() ?: 0
+                    )
+                )
+            },
+            label = { Text("Кнопка блокировки клавиатуры scanCode") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        Spacer(Modifier.height(8.dp))
+
+        OutlinedTextField(
+            value = softKeyboardHoldToggleKeyCode,
+            onValueChange = { value ->
+                softKeyboardHoldToggleKeyCode = value.filter(Char::isDigit).take(4)
+                onConfigChanged(
+                    config.copy(
+                        softKeyboardHoldEnabled = softKeyboardHoldEnabled,
+                        softKeyboardHoldToggleScanCode = softKeyboardHoldToggleScanCode.toIntOrNull() ?: 229,
+                        softKeyboardHoldToggleKeyCode = softKeyboardHoldToggleKeyCode.toIntOrNull() ?: 0
+                    )
+                )
+            },
+            label = { Text("Кнопка блокировки клавиатуры keyCode") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        Spacer(Modifier.height(8.dp))
+
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Checkbox(
                 checked = ocrSendLabelPhoto,
                 onCheckedChange = { enabled ->
                     ocrSendLabelPhoto = enabled
@@ -3805,7 +4063,10 @@ fun SettingsScreen(
                         config.copy(
                             ocrSendLabelPhoto = enabled,
                             ocrLabelPhotoMaxWidth = ocrLabelPhotoMaxWidth.toIntOrNull()?.coerceIn(640, 2000) ?: 1280,
-                            ocrLabelPhotoJpegQuality = ocrLabelPhotoJpegQuality.toIntOrNull()?.coerceIn(50, 90) ?: 75
+                            ocrLabelPhotoJpegQuality = ocrLabelPhotoJpegQuality.toIntOrNull()?.coerceIn(50, 90) ?: 75,
+                            softKeyboardHoldEnabled = softKeyboardHoldEnabled,
+                            softKeyboardHoldToggleScanCode = softKeyboardHoldToggleScanCode.toIntOrNull() ?: 229,
+                            softKeyboardHoldToggleKeyCode = softKeyboardHoldToggleKeyCode.toIntOrNull() ?: 0
                         )
                     )
                 }
@@ -3868,7 +4129,10 @@ fun SettingsScreen(
                             cameraModeEnabled = cameraModeEnabled,
                             ocrSendLabelPhoto = ocrSendLabelPhoto,
                             ocrLabelPhotoMaxWidth = ocrLabelPhotoMaxWidth.toIntOrNull()?.coerceIn(640, 2000) ?: 1280,
-                            ocrLabelPhotoJpegQuality = ocrLabelPhotoJpegQuality.toIntOrNull()?.coerceIn(50, 90) ?: 75
+                            ocrLabelPhotoJpegQuality = ocrLabelPhotoJpegQuality.toIntOrNull()?.coerceIn(50, 90) ?: 75,
+                            softKeyboardHoldEnabled = softKeyboardHoldEnabled,
+                            softKeyboardHoldToggleScanCode = softKeyboardHoldToggleScanCode.toIntOrNull() ?: 229,
+                            softKeyboardHoldToggleKeyCode = softKeyboardHoldToggleKeyCode.toIntOrNull() ?: 0
 
                         )
 
@@ -5315,6 +5579,7 @@ fun DeviceWebViewScreen(
             WebView(ctx).apply {
                 val mainHandler = Handler(Looper.getMainLooper())
                 val scannerDebugBridge = ScannerDebugBridge(ctx.applicationContext)
+                val activityForIme = ctx as? MainActivity
                 val webViewForIme = this
 
                 isFocusable = true
@@ -5327,6 +5592,12 @@ fun DeviceWebViewScreen(
                         Log.i("SCAN_QR_DIAG", "manual_keyboard_request payload=$payload")
 
                         mainHandler.post {
+                            if (activityForIme?.isSoftKeyboardHoldEnabled() == true) {
+                                activityForIme.hideKeyboardForActiveWebView("soft_keyboard_hold_manual_focus")
+                                Log.i("SOFT_KBD_HOLD", "manual_keyboard_request_blocked payload=$payload")
+                                return@post
+                            }
+
                             try {
                                 webViewForIme.isFocusable = true
                                 webViewForIme.isFocusableInTouchMode = true
@@ -5348,6 +5619,13 @@ fun DeviceWebViewScreen(
                             } catch (t: Throwable) {
                                 Log.e("SCAN_QR_DIAG", "manual_keyboard_show_failed payload=$payload", t)
                             }
+                        }
+                    }
+
+                    @JavascriptInterface
+                    fun hideSoftKeyboard(reason: String?) {
+                        mainHandler.post {
+                            activityForIme?.hideKeyboardForActiveWebView("js_${reason ?: "unknown"}")
                         }
                     }
 
@@ -5503,12 +5781,14 @@ fun DeviceWebViewScreen(
                         if (!firstPageLoaded && view != null) {
                             firstPageLoaded = true
                             onWebViewReady(view)
+                            activityForIme?.reapplySoftKeyboardHoldToActiveWebView("webview_ready")
                             ////  view.evaluateJavascript(INSTALL_MAIN_OBSERVER_JS, null)
                         }
                         // ВАЖНО: всегда инжектим, потому что при реальном reload JS улетает
                         view?.evaluateJavascript(INSTALL_MAIN_OBSERVER_JS, null)
                         view?.evaluateJavascript(INSTALL_MANUAL_INPUT_KEYBOARD_JS, null)
                         view?.evaluateJavascript(INSTALL_DEVICE_OCR_JS, null)
+                        activityForIme?.reapplySoftKeyboardHoldToActiveWebView("page_finished")
 
                         val base = normalizeServerUrl(config.serverUrl)
                         if (!url.isNullOrBlank() && base.isNotBlank()) {

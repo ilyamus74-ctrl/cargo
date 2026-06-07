@@ -18,8 +18,10 @@ data class DeviceConfig(
     val cameraModeEnabled: Boolean = false, // показывать пресеты зума на экране сканера
     val ocrSendLabelPhoto: Boolean = false, // отправлять фото лейбла после OCR
     val ocrLabelPhotoMaxWidth: Int = 1280,
-    val ocrLabelPhotoJpegQuality: Int = 75
-
+    val ocrLabelPhotoJpegQuality: Int = 75,
+    val softKeyboardHoldEnabled: Boolean = false,
+    val softKeyboardHoldToggleScanCode: Int = 229,
+    val softKeyboardHoldToggleKeyCode: Int = 0
 )
 
 class DeviceConfigRepository(private val context: Context) {
@@ -43,6 +45,9 @@ class DeviceConfigRepository(private val context: Context) {
         val ocrSendLabelPhoto = prefs.getBoolean("ocr_send_label_photo", false)
         val ocrLabelPhotoMaxWidth = prefs.getInt("ocr_label_photo_max_width", 1280).coerceIn(640, 2000)
         val ocrLabelPhotoJpegQuality = prefs.getInt("ocr_label_photo_jpeg_quality", 75).coerceIn(50, 90)
+        val softKeyboardHoldEnabled = prefs.getBoolean("soft_keyboard_hold_enabled", false)
+        val softKeyboardHoldToggleScanCode = prefs.getInt("soft_keyboard_hold_toggle_scan_code", 229)
+        val softKeyboardHoldToggleKeyCode = prefs.getInt("soft_keyboard_hold_toggle_key_code", 0)
 
         return DeviceConfig(
             serverUrl = serverUrl,
@@ -58,7 +63,10 @@ class DeviceConfigRepository(private val context: Context) {
             cameraModeEnabled = cameraModeEnabled,
             ocrSendLabelPhoto = ocrSendLabelPhoto,
             ocrLabelPhotoMaxWidth = ocrLabelPhotoMaxWidth,
-            ocrLabelPhotoJpegQuality = ocrLabelPhotoJpegQuality
+            ocrLabelPhotoJpegQuality = ocrLabelPhotoJpegQuality,
+            softKeyboardHoldEnabled = softKeyboardHoldEnabled,
+            softKeyboardHoldToggleScanCode = softKeyboardHoldToggleScanCode,
+            softKeyboardHoldToggleKeyCode = softKeyboardHoldToggleKeyCode
         )
     }
 
@@ -88,6 +96,9 @@ class DeviceConfigRepository(private val context: Context) {
             .putBoolean("ocr_send_label_photo", cfg.ocrSendLabelPhoto)
             .putInt("ocr_label_photo_max_width", cfg.ocrLabelPhotoMaxWidth.coerceIn(640, 2000))
             .putInt("ocr_label_photo_jpeg_quality", cfg.ocrLabelPhotoJpegQuality.coerceIn(50, 90))
+            .putBoolean("soft_keyboard_hold_enabled", cfg.softKeyboardHoldEnabled)
+            .putInt("soft_keyboard_hold_toggle_scan_code", cfg.softKeyboardHoldToggleScanCode)
+            .putInt("soft_keyboard_hold_toggle_key_code", cfg.softKeyboardHoldToggleKeyCode)
             .apply()
     }
 
