@@ -1428,11 +1428,31 @@ class MainActivity : ComponentActivity() {
 
             return true
         }
-        if (handleHardwareKeyboardWedge(event)) {
+
+        if (softKeyboardHoldEnabledRuntime && event.action == KeyEvent.ACTION_DOWN) {
+            val unicode = event.unicodeChar
+            val scanCode = event.scanCode
+
+            Log.i(
+                "SOFT_KBD_HOLD",
+                "hold_hardware_key_down keyCode=$keyCode scanCode=$scanCode unicode=$unicode"
+            )
+
+            // НЕ consume. Нужно дать физической клавиатуре ввести символ в WebView.
+            scheduleHideSoftKeyboardBecauseHold("hardware_key_down_${keyCode}_${scanCode}")
+        }
+
+        if (!softKeyboardHoldEnabledRuntime && handleHardwareKeyboardWedge(event)) {
             return true
         }
 
-        return super.dispatchKeyEvent(event)
+        val handled = super.dispatchKeyEvent(event)
+
+        if (softKeyboardHoldEnabledRuntime && event.action == KeyEvent.ACTION_UP) {
+            scheduleHideSoftKeyboardBecauseHold("hardware_key_up_${keyCode}_${event.scanCode}")
+        }
+
+        return handled
     }
     private fun sendHsDcsServiceAction(
         action: String,
@@ -1725,6 +1745,8 @@ class MainActivity : ComponentActivity() {
                                     }
                                     el.setAttribute('inputmode', 'none');
                                     el.setAttribute('autocomplete', 'off');
+                                    el.setAttribute('autocorrect', 'off');
+                                    el.setAttribute('spellcheck', 'false');                      
                                     el.setAttribute('readonly-softkbd-hold', '1');                                    
                                 } else {
                                     var oldMode = el.getAttribute('data-softkbd-old-inputmode');
@@ -1740,6 +1762,28 @@ class MainActivity : ComponentActivity() {
                                 }
                             }
 
+                            function requestHideSoftKeyboard(reason) {
+                                try {
+                                    if (
+                                        window.__softKeyboardHoldEnabled &&
+                                        window.DeviceApp &&
+                                        typeof window.DeviceApp.hideSoftKeyboard === 'function'
+                                    ) {
+                                        window.DeviceApp.hideSoftKeyboard(reason);
+                                        setTimeout(function () {
+                                            try {
+                                                window.DeviceApp.hideSoftKeyboard(reason + '_late_80');
+                                            } catch (e) {}
+                                        }, 80);
+                                        setTimeout(function () {
+                                            try {
+                                                window.DeviceApp.hideSoftKeyboard(reason + '_late_220');
+                                            } catch (e) {}
+                                        }, 220);
+                                    }
+                                } catch (e) {}
+                            }
+                            
                             document.querySelectorAll('input, textarea').forEach(applySoftKeyboardMode);
 
                             if (!window.__softKeyboardHoldInstalled) {
@@ -1747,27 +1791,42 @@ class MainActivity : ComponentActivity() {
 
                                 document.addEventListener('focusin', function (e) {
                                     applySoftKeyboardMode(e.target);
+                                    requestHideSoftKeyboard('focusin_hold');
+                                }, true);
+                            }
+                            if (!window.__softKeyboardHoldInputInstalled) {
+                                window.__softKeyboardHoldInputInstalled = true;
 
-                                    if (window.__softKeyboardHoldEnabled) {
-                                        setTimeout(function () {
-                                            try {
-                                                if (window.DeviceApp && typeof window.DeviceApp.hideSoftKeyboard === 'function') {
-                                                    window.DeviceApp.hideSoftKeyboard('focusin_hold');
-                                                }
-                                            } catch (err) {}
-                                        }, 0);
+                                document.addEventListener('keydown', function () {
+                                    requestHideSoftKeyboard('web_keydown_hold');
+                                }, true);
 
-                                        setTimeout(function () {
-                                            try {
-                                                if (window.DeviceApp && typeof window.DeviceApp.hideSoftKeyboard === 'function') {
-                                                    window.DeviceApp.hideSoftKeyboard('focusin_hold_late');
-                                                }
-                                            } catch (err) {}
-                                        }, 120);
-                                    }
+                                document.addEventListener('beforeinput', function () {
+                                    requestHideSoftKeyboard('web_beforeinput_hold');
+                                }, true);
+
+                                document.addEventListener('input', function () {
+                                    requestHideSoftKeyboard('web_input_hold');
+                                }, true);
+
+                                document.addEventListener('keyup', function () {
+                                    requestHideSoftKeyboard('web_keyup_hold');                                        
                                 }, true);
                             }
 
+                            if (!window.__softKeyboardHoldMutationInstalled) {
+                                window.__softKeyboardHoldMutationInstalled = true;
+
+                                var mo = new MutationObserver(function () {
+                                    if (!window.__softKeyboardHoldEnabled) return;
+                                    document.querySelectorAll('input, textarea').forEach(applySoftKeyboardMode);
+                                });
+
+                                mo.observe(document.documentElement || document.body, {
+                                    childList: true,
+                                    subtree: true
+                                });
+                            }
                             return 'SOFT_KBD_HOLD_APPLIED:' + window.__softKeyboardHoldEnabled;
                         } catch (e) {
                             return 'SOFT_KBD_HOLD_ERROR:' + String(e && e.message ? e.message : e);
@@ -1809,17 +1868,18 @@ class MainActivity : ComponentActivity() {
 
                 webView.postDelayed({
                     if (softKeyboardHoldEnabledRuntime) {
-                        Log.i("SOFT_KBD_HOLD", "manual_keyboard_show_blocked reason=$reason")
-                        hideKeyboardForActiveWebView("manual_show_blocked_delayed_$reason")
-                        applySoftKeyboardHoldToActiveWebView("manual_show_blocked_delayed_$reason")
-                    } else {
-                        val shown = imm.showSoftInput(webView, InputMethodManager.SHOW_IMPLICIT)
-
-                        Log.i(
-                            "SCAN_QR_DIAG",
-                            "manual_keyboard_show reason=$reason shown=$shown"
-                        )
+                        Log.i("SOFT_KBD_HOLD", "manual_keyboard_show_blocked_late reason=$reason")
+                        scheduleHideSoftKeyboardBecauseHold("manual_show_blocked_late_$reason")
+                        applySoftKeyboardHoldToActiveWebView("manual_show_blocked_late_$reason")
+                        return@postDelayed
                     }
+
+                    val shown = imm.showSoftInput(webView, InputMethodManager.SHOW_IMPLICIT)
+
+                    Log.i(
+                        "SCAN_QR_DIAG",
+                        "manual_keyboard_show reason=$reason shown=$shown"
+                    )
                 }, 80L)
 
             } catch (t: Throwable) {
@@ -1828,22 +1888,38 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    fun scheduleHideSoftKeyboardBecauseHold(reason: String) {
+        hideKeyboardForActiveWebView(reason)
+
+        window.decorView.postDelayed({
+            hideKeyboardForActiveWebView("${reason}_late_80")
+        }, 80L)
+
+        window.decorView.postDelayed({
+            hideKeyboardForActiveWebView("${reason}_late_220")
+        }, 220L)
+    }
+
     fun hideKeyboardForActiveWebView(reason: String) {
         val webView = activeWebViewProvider?.invoke()
-
-        if (webView == null) {
-            Log.i("SCAN_QR_DIAG", "manual_keyboard_hide_skip no_active_webview reason=$reason")
-            return
-        }
 
         runOnUiThread {
             try {
                 val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-                imm.hideSoftInputFromWindow(webView.windowToken, 0)
 
-                Log.i("SCAN_QR_DIAG", "manual_keyboard_hide reason=$reason")
+                webView?.let {
+                    imm.hideSoftInputFromWindow(it.windowToken, 0)
+                }
+
+                currentFocus?.let {
+                    imm.hideSoftInputFromWindow(it.windowToken, 0)
+                }
+
+                imm.hideSoftInputFromWindow(window.decorView.windowToken, 0)
+
+                Log.i("SOFT_KBD_HOLD", "hide_soft_keyboard reason=$reason")
             } catch (t: Throwable) {
-                Log.e("SCAN_QR_DIAG", "manual_keyboard_hide_failed reason=$reason", t)
+                Log.e("SOFT_KBD_HOLD", "hide_soft_keyboard_failed reason=$reason", t)
             }
         }
     }
@@ -5662,20 +5738,20 @@ fun DeviceWebViewScreen(
 
                                 webViewForIme.postDelayed({
                                     if (activityForIme?.isSoftKeyboardHoldEnabled() == true) {
-                                        Log.i("SOFT_KBD_HOLD", "manual_keyboard_show_blocked reason=manual_focus_delayed payload=$payload")
-                                        activityForIme.hideKeyboardForActiveWebView("manual_show_blocked_manual_focus_delayed")
-                                        activityForIme.reapplySoftKeyboardHoldToActiveWebView("manual_show_blocked_manual_focus_delayed")
-                                    } else {
-                                        val shown = imm.showSoftInput(
-                                            webViewForIme,
-                                            InputMethodManager.SHOW_IMPLICIT
-                                        )
-
-                                        Log.i(
-                                            "SCAN_QR_DIAG",
-                                            "manual_keyboard_show payload=$payload shown=$shown"
-                                        )
+                                        Log.i("SOFT_KBD_HOLD", "manual_keyboard_show_blocked_late reason=manual_focus payload=$payload")
+                                        activityForIme.scheduleHideSoftKeyboardBecauseHold("manual_show_blocked_late_manual_focus")
+                                        activityForIme.reapplySoftKeyboardHoldToActiveWebView("manual_show_blocked_late_manual_focus")
+                                        return@postDelayed
                                     }
+                                    val shown = imm.showSoftInput(
+                                        webViewForIme,
+                                        InputMethodManager.SHOW_IMPLICIT
+                                    )
+
+                                    Log.i(
+                                        "SCAN_QR_DIAG",
+                                        "manual_keyboard_show payload=$payload shown=$shown"
+                                    )
                                 }, 80L)
                             } catch (t: Throwable) {
                                 Log.e("SCAN_QR_DIAG", "manual_keyboard_show_failed payload=$payload", t)
