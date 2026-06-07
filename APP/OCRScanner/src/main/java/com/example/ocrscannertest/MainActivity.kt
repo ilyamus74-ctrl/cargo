@@ -6421,7 +6421,7 @@ fun fillParcelFormInWebView(
 
     val forwarderCode = data.receiverForwarderCode?.trim().takeUnless { it.isNullOrEmpty() }  // CAMEX/KOLLI/...
     val forwarderName = data.receiverCompany?.trim().takeUnless { it.isNullOrEmpty() }       // Camex/KoliExpress/...
-    val cellCodeRaw      = data.receiverCellCode?.trim().takeUnless { it.isNullOrEmpty() }      // A176903
+    val cellCodeRaw = normalizeForwarderClientCellCode(data.receiverCellCode).takeIf { it.isNotEmpty() }      // A176903
     val forwarderCodeForSelect = forwarderCode
         ?: forwarderName?.let { detectForwarderByText(it) }
         ?: cellCodeRaw?.let { detectForwarderByCellCode(it) }
@@ -6445,7 +6445,9 @@ fun fillParcelFormInWebView(
         keys += fwKey
         keys.firstNotNullOfOrNull { defaults?.get(it) }
     } else null
-    val cellCode = cellCodeRaw ?: cellCodeFromConfig
+    val cellCode = (cellCodeRaw ?: cellCodeFromConfig?.let { normalizeForwarderClientCellCode(it) })
+        ?.takeIf { it.isNotEmpty() }
+
 
 
     val localCarrier = data.localCarrierName?.trim()?.takeIf { it.isNotEmpty() }       // DHL/GLS/...
@@ -7739,20 +7741,23 @@ fun OcrScanScreen(
     var lastClientLookupResult by remember { mutableStateOf<ForwarderClientLookupResult?>(null) }
 
     suspend fun applyForwarderClientLookup(data: OcrParcelData): OcrParcelData {
-        val cell = data.receiverCellCode
-            ?.trim()
-            ?.takeIf { it.isNotEmpty() }
-            ?: data.receiverAddress?.trim()?.takeIf { it.isNotEmpty() }
+        val cell = normalizeForwarderClientCellCode(data.receiverCellCode)
+            .takeIf { it.isNotEmpty() }
+            ?: normalizeForwarderClientCellCode(data.receiverAddress).takeIf { it.isNotEmpty() }
             ?: return data
+        val normalizedData = data.copy(
+            receiverCellCode = cell,
+            receiverAddress = data.receiverAddress?.let { cell }
+        )
         val forwarder = data.receiverForwarderCode
             ?.trim()
             ?.takeIf { it.isNotEmpty() }
             ?: data.receiverCompany?.let { detectForwarderByText(it) }
             ?: detectForwarderByCellCode(cell)
-            ?: return data
+            ?: return normalizedData
         val country = normalizeLookupCountry(data.receiverCountryCode)
             .takeIf { it.isNotEmpty() }
-            ?: return data
+            ?: return normalizedData
 
         val lookupKey = "${forwarder.uppercase()}|${country.uppercase()}|${cell.uppercase()}"
         val lookup = if (lookupKey == lastClientLookupKey && lastClientLookupResult != null) {
@@ -7771,13 +7776,13 @@ fun OcrScanScreen(
         }
 
         return if (lookup.found && lookup.clientName.isNotBlank()) {
-            data.copy(
+            normalizedData.copy(
                 receiverName = lookup.clientName,
                 receiverNameSource = "forwarder_client_cache",
                 receiverClientId = lookup.clientId.takeIf { it.isNotBlank() }
             )
         } else {
-            data
+            normalizedData
         }
     }
 
@@ -8148,7 +8153,7 @@ fun OcrScanScreen(
                         .process(inputImage)
                         .addOnSuccessListener { result ->
                             val fullText = result.text ?: ""
-                            
+
                             val labelBitmap = if (config.ocrSendLabelPhoto) {
                                 previewView.bitmap?.copy(Bitmap.Config.ARGB_8888, false)
                             } else {
@@ -8584,8 +8589,17 @@ fun buildOcrParcelDataFromText(
         sizeH                 = null
     )
 }
+
+private fun normalizeForwarderClientCellCode(raw: String?): String {
+    return raw.orEmpty()
+        .trim()
+        .replace(Regex("\\s+"), "")
+        .uppercase()
+        .replace(Regex("^АS"), "AS") // кириллическая А, если OCR даст её
+}
+
 fun sanitizeCellCode(raw: String): String {
-    val upper = raw.uppercase()
+    val upper = normalizeForwarderClientCellCode(raw)
 
     // 1) Частый OCR-ошибочный вариант Postlink: PL"O"xxxx -> PL0xxxx
     Regex("^([A-Z]{2})O(\\d{3,8})$").matchEntire(upper)?.let { m ->
@@ -8624,9 +8638,9 @@ fun detectCellCode(text: String): String? {
 
     val normalized = text.replace("\n", " ")
 
-    // 1) Прямой формат: буквы+цифры
-    Regex("\\b[A-Z]{1,3}\\d{3,8}\\b").find(normalized)?.value?.let {
-        return sanitizeCellCode(it)
+    // 1) Прямой формат: буквы+цифры, включая ручные/OCR варианты вроде "as224633" и "AS 224633"
+    Regex("\\b([A-ZА]{1,3})\\s*(\\d{3,8})\\b", RegexOption.IGNORE_CASE).find(normalized)?.let { m ->
+        return sanitizeCellCode(m.groupValues[1] + m.groupValues[2])
     }
 
     // 2) Формат с '#': пробуем восстановить префикс по форвардеру в строке
@@ -8986,7 +9000,7 @@ fun buildLiveOcrPreviewFromData(
     add("Country", data.receiverCountryCode)
     add("Forwarder", data.receiverForwarderCode)
     add("Company", data.receiverCompany)
-    add("Cell", data.receiverCellCode)
+    add("Cell", normalizeForwarderClientCellCode(data.receiverCellCode).takeIf { it.isNotEmpty() })
     add("Name", data.receiverName)
     add("Local carrier", localCarrier)
     add("Local tracking", localTracking)

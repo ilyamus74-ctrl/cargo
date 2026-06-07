@@ -1596,11 +1596,6 @@ const CoreAPI = {
                 return;
             }
             if (action === 'upload_item_stock_photo') {
-                const existingPhotoType = link.getAttribute('data-photo-type') || 'label';
-                if (typeof openWarehousePhotoViewer === 'function' && openWarehousePhotoViewer(existingPhotoType)) {
-                    return;
-                }
-
                 const stockItemId = document.querySelector('#item-stock-modal-form input[name="item_id"]')?.value || '';
                 const draftItemId = document.getElementById('itemInDraftId')?.value || '';
                 const itemId = stockItemId || draftItemId;
@@ -1797,9 +1792,6 @@ const CoreAPI = {
                 }
                 if (typeof window.setWarehouseItemStockPhotoState === 'function') {
                     window.setWarehouseItemStockPhotoState(photoType, data.path || '', data.json || '');
-                }
-                if (photoType === 'label' && typeof renderWarehouseLabelPhotoPreview === 'function') {
-                    renderWarehouseLabelPhotoPreview(data.json || '');
                 }
             } catch (err) {
                 console.error('core_api upload_item_stock_photo error:', err);
@@ -5280,21 +5272,10 @@ function clearForwarderClientNameLock(receiverName) {
     receiverName.dataset.forwarderLookupClientId = '';
 }
 
-function normalizeForwarderClientCellCode(value) {
-    var v = String(value || '').trim();
 
-    if (!v) return '';
-
-    v = v.replace(/\s+/g, '').toUpperCase();
-
-    // OCR/ручной ввод иногда даёт похожие варианты
-    v = v.replace(/^АS/i, 'AS'); // кириллическая А + S, если попадётся
-
-    return v;
-}
 
 function looksLikeForwarderClientCode(value) {
-    var v = normalizeForwarderClientCellCode(value);
+    var v = String(value || '').trim().toUpperCase();
 
     if (!v) return false;
     if (/^PSB\d+$/i.test(v)) return false;
@@ -5368,22 +5349,13 @@ function initForwarderClientLookup() {
     }
 
     async function runLookup() {
-        var normalizedAddress = normalizeForwarderClientCellCode(addressInput.value);
-
-        if (normalizedAddress && addressInput.value !== normalizedAddress) {
-            addressInput.value = normalizedAddress;
-            addressInput.dispatchEvent(new Event('input', { bubbles: true }));
-            addressInput.dispatchEvent(new Event('change', { bubbles: true }));
-        }
-
-        var receiverAddress = normalizedAddress;
+        var receiverAddress = fieldValue(addressInput);
         var receiverCompany = fieldValue(companyInput).toUpperCase();
         var receiverCountry = fieldValue(countryInput);
+        var lookupKey = [receiverCompany, receiverCountry.toUpperCase(), receiverAddress.toUpperCase()].join('|');
 
         if (!receiverAddress || !receiverCompany || !receiverCountry) return;
         if (!looksLikeForwarderClientCode(receiverAddress)) return;
-
-        var lookupKey = [receiverCompany, receiverCountry.toUpperCase(), receiverAddress.toUpperCase()].join('|');
         if (lookupKey === lastLookupKey) return;
         lastLookupKey = lookupKey;
 
@@ -5433,24 +5405,24 @@ function initForwarderClientLookup() {
         scheduleLookup();
     }
 
-    ['input', 'change', 'blur', 'keyup'].forEach(function (eventName) {
+    ['input', 'change'].forEach(function (eventName) {
         addressInput.addEventListener(eventName, clearLockAndScheduleLookup);
     });
-    ['change', 'input', 'blur'].forEach(function (eventName) {
-        companyInput.addEventListener(eventName, function () {
-            syncReceiverCountryFromForwarder();
-            clearLockAndScheduleLookup();
-            setTimeout(scheduleLookup, 50);
-            setTimeout(scheduleLookup, 300);
-        });
+    addressInput.addEventListener('blur', scheduleLookup);
 
+    companyInput.addEventListener('change', function () {
+        syncReceiverCountryFromForwarder();
+        clearLockAndScheduleLookup();
+    });
+    companyInput.addEventListener('blur', scheduleLookup);
+
+    ['change', 'input'].forEach(function (eventName) {
         countryInput.addEventListener(eventName, clearLockAndScheduleLookup);
     });
+    countryInput.addEventListener('blur', scheduleLookup);
 
     syncReceiverCountryFromForwarder();
     scheduleLookup();
-    setTimeout(scheduleLookup, 50);
-    setTimeout(scheduleLookup, 300);
 }
 
 function initReceiverAddressQuickCells() {
@@ -5958,133 +5930,6 @@ function parseWarehousePhotoJson(jsonValue, fallbackPath) {
     return fallbackPath ? [fallbackPath] : [];
 }
 
-
-function getWarehousePhotoPaths(photoType) {
-    var hiddenId = photoType === 'box'
-        ? 'warehouseStockBoxImageJson'
-        : 'warehouseStockLabelImageJson';
-
-    var input = document.getElementById(hiddenId);
-    var raw = input ? String(input.value || '').trim() : '';
-
-    if (!raw) {
-        var btnId = photoType === 'box'
-            ? 'warehouseStockTakeBoxPhotoBtn'
-            : 'warehouseStockTakeLabelPhotoBtn';
-
-        var btn = document.getElementById(btnId);
-        raw = btn ? String(btn.getAttribute('data-photo-json') || '').trim() : '';
-    }
-
-    if (!raw) return [];
-
-    try {
-        var parsed = JSON.parse(raw);
-        return Array.isArray(parsed) ? parsed.filter(Boolean) : [];
-    } catch (e) {
-        return [];
-    }
-}
-
-function openWarehousePhotoViewer(photoType) {
-    var paths = getWarehousePhotoPaths(photoType);
-    if (!paths.length) return false;
-
-    if (paths.length === 1) {
-        window.open(paths[0], '_blank', 'noopener');
-        return true;
-    }
-
-    var html = '<div class="d-flex flex-wrap gap-2">';
-    paths.forEach(function (path) {
-        var safe = String(path || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-        html += '<a href="' + safe + '" target="_blank" rel="noopener" class="d-inline-block border rounded p-1">'
-              + '<img src="' + safe + '" alt="Фото" style="max-width:180px;max-height:140px;object-fit:contain;">'
-              + '</a>';
-    });
-    html += '</div>';
-
-    if (CoreAPI.ui && typeof CoreAPI.ui.showModal === 'function') {
-        CoreAPI.ui.showModal(
-            '<div class="modal-header">'
-            + '<h5 class="modal-title">Фото посылки</h5>'
-            + '<button type="button" class="btn-close" data-bs-dismiss="modal"></button>'
-            + '</div>'
-            + '<div class="modal-body">' + html + '</div>'
-        );
-    } else {
-        window.open(paths[0], '_blank', 'noopener');
-    }
-
-    return true;
-}
-
-function updateWarehousePhotoButtonState(photoType, jsonRaw) {
-    var isBox = photoType === 'box';
-
-    var btn = document.getElementById(isBox ? 'warehouseStockTakeBoxPhotoBtn' : 'warehouseStockTakeLabelPhotoBtn');
-    var info = document.getElementById(isBox ? 'warehouseStockBoxPhotoInfo' : 'warehouseStockLabelPhotoInfo');
-
-    var paths = [];
-    try {
-        paths = JSON.parse(jsonRaw || '[]');
-    } catch (e) {
-        paths = [];
-    }
-
-    if (btn && Array.isArray(paths) && paths.length > 0) {
-        btn.setAttribute('data-photo-json', JSON.stringify(paths));
-        btn.textContent = isBox ? 'Открыть Фото содерж' : 'Открыть Фото Лейб';
-        btn.classList.remove('opacity-50');
-        btn.disabled = false;
-    } else if (btn) {
-        btn.setAttribute('data-photo-json', '[]');
-        btn.textContent = isBox ? 'Фото содерж' : 'Фото Лейб';
-    }
-
-    if (info && Array.isArray(paths) && paths.length > 0) {
-        info.textContent = isBox ? 'Фото содержимого загружено' : 'Фото лейбла загружено';
-    } else if (info) {
-        info.textContent = '';
-    }
-}
-
-function renderWarehouseLabelPhotoPreview(jsonRaw) {
-    var box = document.getElementById('warehouseStockLabelPhotoPreview');
-    var hidden = document.getElementById('warehouseStockLabelImageJson');
-
-    if (!box) {
-        box = document.createElement('div');
-        box.id = 'warehouseStockLabelPhotoPreview';
-        box.className = 'mt-2 d-flex flex-wrap gap-2';
-
-        var info = document.getElementById('warehouseStockLabelPhotoInfo');
-        if (info && info.parentNode) {
-            info.parentNode.insertBefore(box, info.nextSibling);
-        }
-    }
-
-    var paths = [];
-    try {
-        paths = JSON.parse(jsonRaw || (hidden ? hidden.value : '') || '[]');
-    } catch (e) {
-        paths = [];
-    }
-
-    if (!Array.isArray(paths) || paths.length === 0) {
-        box.innerHTML = '';
-        return;
-    }
-
-    box.innerHTML = paths.map(function (path) {
-        var safe = String(path || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-        return '<a href="' + safe + '" target="_blank" rel="noopener" class="d-inline-block border rounded p-1">'
-             + '<img src="' + safe + '" alt="Фото лейбла" style="max-width:120px;max-height:90px;object-fit:contain;">'
-             + '</a>';
-    }).join('');
-}
-
-
 function deleteWarehouseItemStockPhoto(photoType) {
     var stockItemId = document.querySelector('#item-stock-modal-form input[name="item_id"]')?.value || '';
     var draftItemId = document.getElementById('itemInDraftId')?.value || '';
@@ -6115,7 +5960,37 @@ function deleteWarehouseItemStockPhoto(photoType) {
 }
 
 function renderWarehousePhotoPreviewButtons(photoType, paths) {
-    updateWarehousePhotoButtonState(photoType, Array.isArray(paths) && paths.length ? JSON.stringify(paths) : '');
+    var isLabel = photoType === 'label';
+    var info = document.getElementById(isLabel ? 'warehouseStockLabelPhotoInfo' : 'warehouseStockBoxPhotoInfo');
+    if (!info) return;
+
+    info.innerHTML = '';
+    if (!Array.isArray(paths) || paths.length === 0) return;
+
+    var holder = document.createElement('div');
+    holder.className = 'd-flex flex-wrap gap-2 align-items-center';
+
+    paths.forEach(function (path, index) {
+        var button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'btn btn-sm btn-outline-primary';
+        button.textContent = paths.length > 1 ? ('Открыть фото ' + (index + 1)) : 'Открыть фото';
+        button.addEventListener('click', function () {
+            openWarehousePhotoPreview(path);
+        });
+        holder.appendChild(button);
+    });
+
+    var deleteButton = document.createElement('button');
+    deleteButton.type = 'button';
+    deleteButton.className = 'btn btn-sm btn-outline-danger';
+    deleteButton.textContent = 'Удалить фото';
+    deleteButton.addEventListener('click', function () {
+        deleteWarehouseItemStockPhoto(photoType);
+    });
+    holder.appendChild(deleteButton);
+
+    info.appendChild(holder);
 }
 
 

@@ -1685,7 +1685,8 @@ if ($action === 'open_item_stock_modal') {
         }
         $resAddons->free();
     }
-
+    $smarty->assign('label_image_paths', warehouse_stock_decode_image_paths($item['label_image'] ?? ''));
+    $smarty->assign('box_image_paths', warehouse_stock_decode_image_paths($item['box_image'] ?? ''));
     $smarty->assign('item', $item);
     $smarty->assign('dest_country', $dest_country);
     $smarty->assign('stand_devices', $stand_devices);
