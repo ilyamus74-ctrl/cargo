@@ -20,6 +20,7 @@ data class DeviceConfig(
     val ocrLabelPhotoMaxWidth: Int = 1280,
     val ocrLabelPhotoJpegQuality: Int = 75,
     val softKeyboardHoldEnabled: Boolean = false,
+    val softKeyboardHoldDisableWebKeyboardJs: Boolean = true,
     val softKeyboardHoldToggleScanCode: Int = 229,
     val softKeyboardHoldToggleKeyCode: Int = 0
 )
@@ -46,6 +47,7 @@ class DeviceConfigRepository(private val context: Context) {
         val ocrLabelPhotoMaxWidth = prefs.getInt("ocr_label_photo_max_width", 1280).coerceIn(640, 2000)
         val ocrLabelPhotoJpegQuality = prefs.getInt("ocr_label_photo_jpeg_quality", 75).coerceIn(50, 90)
         val softKeyboardHoldEnabled = prefs.getBoolean("soft_keyboard_hold_enabled", false)
+        val softKeyboardHoldDisableWebKeyboardJs = prefs.getBoolean("soft_keyboard_hold_disable_web_keyboard_js", true)
         val softKeyboardHoldToggleScanCode = prefs.getInt("soft_keyboard_hold_toggle_scan_code", 229)
         val softKeyboardHoldToggleKeyCode = prefs.getInt("soft_keyboard_hold_toggle_key_code", 0)
 
@@ -65,6 +67,7 @@ class DeviceConfigRepository(private val context: Context) {
             ocrLabelPhotoMaxWidth = ocrLabelPhotoMaxWidth,
             ocrLabelPhotoJpegQuality = ocrLabelPhotoJpegQuality,
             softKeyboardHoldEnabled = softKeyboardHoldEnabled,
+            softKeyboardHoldDisableWebKeyboardJs = softKeyboardHoldDisableWebKeyboardJs,
             softKeyboardHoldToggleScanCode = softKeyboardHoldToggleScanCode,
             softKeyboardHoldToggleKeyCode = softKeyboardHoldToggleKeyCode
         )
@@ -97,6 +100,7 @@ class DeviceConfigRepository(private val context: Context) {
             .putInt("ocr_label_photo_max_width", cfg.ocrLabelPhotoMaxWidth.coerceIn(640, 2000))
             .putInt("ocr_label_photo_jpeg_quality", cfg.ocrLabelPhotoJpegQuality.coerceIn(50, 90))
             .putBoolean("soft_keyboard_hold_enabled", cfg.softKeyboardHoldEnabled)
+            .putBoolean("soft_keyboard_hold_disable_web_keyboard_js", cfg.softKeyboardHoldDisableWebKeyboardJs)
             .putInt("soft_keyboard_hold_toggle_scan_code", cfg.softKeyboardHoldToggleScanCode)
             .putInt("soft_keyboard_hold_toggle_key_code", cfg.softKeyboardHoldToggleKeyCode)
             .apply()

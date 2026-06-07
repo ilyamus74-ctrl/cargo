@@ -443,6 +443,10 @@ private val INSTALL_MANUAL_INPUT_KEYBOARD_JS = """
         return;
       }
 
+      if (window.__softKeyboardHoldEnabled && window.__softKeyboardHoldDisableWebKeyboardJs) {
+        return;
+      }
+
       try {
         target.focus({ preventScroll: true });
       } catch (_) {
@@ -604,6 +608,7 @@ class MainActivity : ComponentActivity() {
     private val handledHardwareDownKeys = mutableSetOf<Int>()
     private val interceptHardwareTriggerKeys: Boolean = false
     private var softKeyboardHoldEnabledRuntime: Boolean = false
+    private var softKeyboardHoldDisableWebKeyboardJsRuntime: Boolean = true
     private var lastSoftKeyboardHoldHideAtMs: Long = 0L
     private var softKeyboardHoldToggleScanCodeRuntime: Int = 229
     private var softKeyboardHoldToggleKeyCodeRuntime: Int = 0
@@ -1637,12 +1642,13 @@ class MainActivity : ComponentActivity() {
 
     fun updateSoftKeyboardHoldRuntime(config: DeviceConfig, reason: String) {
         softKeyboardHoldEnabledRuntime = config.softKeyboardHoldEnabled
+        softKeyboardHoldDisableWebKeyboardJsRuntime = config.softKeyboardHoldDisableWebKeyboardJs
         softKeyboardHoldToggleScanCodeRuntime = config.softKeyboardHoldToggleScanCode
         softKeyboardHoldToggleKeyCodeRuntime = config.softKeyboardHoldToggleKeyCode
 
         Log.i(
             "SOFT_KBD_HOLD",
-            "runtime_config reason=$reason enabled=$softKeyboardHoldEnabledRuntime scanCode=$softKeyboardHoldToggleScanCodeRuntime keyCode=$softKeyboardHoldToggleKeyCodeRuntime"
+            "runtime_config reason=$reason enabled=$softKeyboardHoldEnabledRuntime disableWebKeyboardJs=$softKeyboardHoldDisableWebKeyboardJsRuntime scanCode=$softKeyboardHoldToggleScanCodeRuntime keyCode=$softKeyboardHoldToggleKeyCodeRuntime"
         )
 
         applySoftKeyboardHoldToActiveWebView(reason)
@@ -1728,11 +1734,13 @@ class MainActivity : ComponentActivity() {
                 }
 
                 val enabledJs = if (softKeyboardHoldEnabledRuntime) "true" else "false"
+                val disableWebKeyboardJs = if (softKeyboardHoldDisableWebKeyboardJsRuntime) "true" else "false"
 
                 val js = """
                     (function () {
                         try {
                             window.__softKeyboardHoldEnabled = $enabledJs;
+                            window.__softKeyboardHoldDisableWebKeyboardJs = ${'$'}disableWebKeyboardJs;
 
                             function isEditableSoftKbdTarget(el) {
                                 if (!el) return false;
@@ -1776,9 +1784,7 @@ class MainActivity : ComponentActivity() {
                                     el.setAttribute('inputmode', 'none');
                                     el.setAttribute('autocomplete', 'off');
                                     el.setAttribute('autocorrect', 'off');
-                                                                        el.setAttribute('spellcheck', 'false');
-                                    el.setAttribute('readonly-softkbd-hold', '1');
-
+                                    el.setAttribute('spellcheck', 'false');
                                     return;
                                 }
 
@@ -1810,7 +1816,7 @@ class MainActivity : ComponentActivity() {
                                     el.removeAttribute('data-softkbd-temp-readonly');
                                 }
 
-                                el.removeAttribute('readonly-softkbd-hold');
+                                !window.__softKeyboardHoldDisableWebKeyboardJs &&
                             }
                             function requestHideSoftKeyboard(reason) {
                                 try {
@@ -1837,6 +1843,7 @@ class MainActivity : ComponentActivity() {
 
                             function prepareSoftKeyboardHoldFocus(el, reason) {
                                 if (!window.__softKeyboardHoldEnabled) return;
+                                if (window.__softKeyboardHoldDisableWebKeyboardJs) return;
                                 if (!isEditableSoftKbdTarget(el)) return;
 
                                 applySoftKeyboardMode(el);
@@ -1882,7 +1889,7 @@ class MainActivity : ComponentActivity() {
                             }
                             document.querySelectorAll('input, textarea').forEach(applySoftKeyboardMode);
 
-                            if (!window.__softKeyboardHoldPreFocusInstalled) {
+                            if (!window.__softKeyboardHoldDisableWebKeyboardJs && !window.__softKeyboardHoldPreFocusInstalled) {
                                 window.__softKeyboardHoldPreFocusInstalled = true;
 
                                 ['touchstart', 'pointerdown', 'mousedown'].forEach(function (eventName) {
@@ -1928,7 +1935,7 @@ class MainActivity : ComponentActivity() {
                                     }, 150);
                                 }, true);
                             }
-                            if (!window.__softKeyboardHoldInputInstalled) {
+                            if (!window.__softKeyboardHoldDisableWebKeyboardJs && !window.__softKeyboardHoldInputInstalled) {
                                 window.__softKeyboardHoldInputInstalled = true;
 
                                 document.addEventListener('keydown', function () {
@@ -1961,7 +1968,7 @@ class MainActivity : ComponentActivity() {
                                     subtree: true
                                 });
                             }
-                            return 'SOFT_KBD_HOLD_APPLIED:' + window.__softKeyboardHoldEnabled;
+                            return 'SOFT_KBD_HOLD_APPLIED:' + window.__softKeyboardHoldEnabled + ':DISABLE_WEB_JS:' + window.__softKeyboardHoldDisableWebKeyboardJs;                            
                         } catch (e) {
                             return 'SOFT_KBD_HOLD_ERROR:' + String(e && e.message ? e.message : e);
                         }
@@ -4103,6 +4110,7 @@ fun SettingsScreen(
     var ocrLabelPhotoMaxWidth by remember { mutableStateOf(config.ocrLabelPhotoMaxWidth.toString()) }
     var ocrLabelPhotoJpegQuality by remember { mutableStateOf(config.ocrLabelPhotoJpegQuality.toString()) }
     var softKeyboardHoldEnabled by remember { mutableStateOf(config.softKeyboardHoldEnabled) }
+    var softKeyboardHoldDisableWebKeyboardJs by remember { mutableStateOf(config.softKeyboardHoldDisableWebKeyboardJs) }
     var softKeyboardHoldToggleScanCode by remember { mutableStateOf(config.softKeyboardHoldToggleScanCode.toString()) }
     var softKeyboardHoldToggleKeyCode by remember { mutableStateOf(config.softKeyboardHoldToggleKeyCode.toString()) }
 
@@ -4270,6 +4278,7 @@ fun SettingsScreen(
                     onConfigChanged(
                         config.copy(
                             softKeyboardHoldEnabled = enabled,
+                            softKeyboardHoldDisableWebKeyboardJs = softKeyboardHoldDisableWebKeyboardJs,
                             softKeyboardHoldToggleScanCode = softKeyboardHoldToggleScanCode.toIntOrNull() ?: 229,
                             softKeyboardHoldToggleKeyCode = softKeyboardHoldToggleKeyCode.toIntOrNull() ?: 0
                         )
@@ -4285,6 +4294,32 @@ fun SettingsScreen(
 
         Spacer(Modifier.height(8.dp))
 
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Checkbox(
+                checked = softKeyboardHoldDisableWebKeyboardJs,
+                onCheckedChange = { enabled ->
+                    softKeyboardHoldDisableWebKeyboardJs = enabled
+                    onConfigChanged(
+                        config.copy(
+                            softKeyboardHoldEnabled = softKeyboardHoldEnabled,
+                            softKeyboardHoldDisableWebKeyboardJs = enabled,
+                            softKeyboardHoldToggleScanCode = softKeyboardHoldToggleScanCode.toIntOrNull() ?: 229,
+                            softKeyboardHoldToggleKeyCode = softKeyboardHoldToggleKeyCode.toIntOrNull() ?: 0
+                        )
+                    )
+                }
+            )
+            Spacer(Modifier.width(8.dp))
+            Text(
+                "Hold: отключить web JS клавиатуры",
+                style = MaterialTheme.typography.bodyMedium
+            )
+        }
+
+        Spacer(Modifier.height(8.dp))
         OutlinedTextField(
             value = softKeyboardHoldToggleScanCode,
             onValueChange = { value ->
@@ -4292,6 +4327,7 @@ fun SettingsScreen(
                 onConfigChanged(
                     config.copy(
                         softKeyboardHoldEnabled = softKeyboardHoldEnabled,
+                        softKeyboardHoldDisableWebKeyboardJs = softKeyboardHoldDisableWebKeyboardJs,
                         softKeyboardHoldToggleScanCode = softKeyboardHoldToggleScanCode.toIntOrNull() ?: 229,
                         softKeyboardHoldToggleKeyCode = softKeyboardHoldToggleKeyCode.toIntOrNull() ?: 0
                     )
@@ -4311,6 +4347,7 @@ fun SettingsScreen(
                 onConfigChanged(
                     config.copy(
                         softKeyboardHoldEnabled = softKeyboardHoldEnabled,
+                        softKeyboardHoldDisableWebKeyboardJs = softKeyboardHoldDisableWebKeyboardJs,
                         softKeyboardHoldToggleScanCode = softKeyboardHoldToggleScanCode.toIntOrNull() ?: 229,
                         softKeyboardHoldToggleKeyCode = softKeyboardHoldToggleKeyCode.toIntOrNull() ?: 0
                     )
@@ -4337,6 +4374,7 @@ fun SettingsScreen(
                             ocrLabelPhotoMaxWidth = ocrLabelPhotoMaxWidth.toIntOrNull()?.coerceIn(640, 2000) ?: 1280,
                             ocrLabelPhotoJpegQuality = ocrLabelPhotoJpegQuality.toIntOrNull()?.coerceIn(50, 90) ?: 75,
                             softKeyboardHoldEnabled = softKeyboardHoldEnabled,
+                            softKeyboardHoldDisableWebKeyboardJs = softKeyboardHoldDisableWebKeyboardJs,
                             softKeyboardHoldToggleScanCode = softKeyboardHoldToggleScanCode.toIntOrNull() ?: 229,
                             softKeyboardHoldToggleKeyCode = softKeyboardHoldToggleKeyCode.toIntOrNull() ?: 0
                         )
@@ -4403,6 +4441,7 @@ fun SettingsScreen(
                             ocrLabelPhotoMaxWidth = ocrLabelPhotoMaxWidth.toIntOrNull()?.coerceIn(640, 2000) ?: 1280,
                             ocrLabelPhotoJpegQuality = ocrLabelPhotoJpegQuality.toIntOrNull()?.coerceIn(50, 90) ?: 75,
                             softKeyboardHoldEnabled = softKeyboardHoldEnabled,
+                            softKeyboardHoldDisableWebKeyboardJs = softKeyboardHoldDisableWebKeyboardJs,
                             softKeyboardHoldToggleScanCode = softKeyboardHoldToggleScanCode.toIntOrNull() ?: 229,
                             softKeyboardHoldToggleKeyCode = softKeyboardHoldToggleKeyCode.toIntOrNull() ?: 0
 
