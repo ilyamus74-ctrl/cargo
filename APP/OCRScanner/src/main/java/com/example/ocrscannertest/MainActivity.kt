@@ -1824,7 +1824,7 @@ class MainActivity : ComponentActivity() {
                     (function () {
                         try {
                             window.__softKeyboardHoldEnabled = $enabledJs;
-                            window.__softKeyboardHoldDisableWebKeyboardJs = ${'$'}disableWebKeyboardJs;                            
+                            window.__softKeyboardHoldDisableWebKeyboardJs = $disableWebKeyboardJs;
                             window.__softKeyboardHoldActiveElement = window.__softKeyboardHoldActiveElement || null;
 
                             function isEditableSoftKbdTarget(el) {
