@@ -1,0 +1,13 @@
+diff --git a/www/js/core_api.js b/www/js/core_api.js
+--- a/www/js/core_api.js
++++ b/www/js/core_api.js
+@@ -1146,6 +1146,9 @@
+             if (typeof initReceiverAddressQuickCells === 'function') {
+                 initReceiverAddressQuickCells();
+             }
++            if (typeof initForwarderClientLookup === 'function') {
++                initForwarderClientLookup();
++            }
+ 
+             if (typeof initItemInScanEntryBehaviour === 'function') {
+                 initItemInScanEntryBehaviour();

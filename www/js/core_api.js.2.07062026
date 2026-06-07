@@ -1141,9 +1141,6 @@ const CoreAPI = {
             if (typeof initReceiverAddressQuickCells === 'function') {
                 initReceiverAddressQuickCells();
             }
-            if (typeof initForwarderClientLookup === 'function') {
-                initForwarderClientLookup();
-            }
 
             if (typeof initItemInScanEntryBehaviour === 'function') {
                 initItemInScanEntryBehaviour();
