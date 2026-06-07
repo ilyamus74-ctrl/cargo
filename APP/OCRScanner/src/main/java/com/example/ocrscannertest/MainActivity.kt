@@ -1309,6 +1309,29 @@ class MainActivity : ComponentActivity() {
             return true
         }
 
+
+        if (
+            softKeyboardHoldEnabledRuntime &&
+            event.action == KeyEvent.ACTION_DOWN &&
+            isSoftKeyboardHoldInjectableKey(event)
+        ) {
+            Log.i(
+                "SOFT_KBD_HOLD",
+                "manual_key_consume keyCode=$keyCode scanCode=${event.scanCode} unicode=${event.unicodeChar}"
+            )
+
+            injectSoftKeyboardHoldKeyIntoWebView(event)
+            return true
+        }
+
+        if (
+            softKeyboardHoldEnabledRuntime &&
+            event.action == KeyEvent.ACTION_UP &&
+            isSoftKeyboardHoldInjectableKey(event)
+        ) {
+            return true
+        }
+
         if (event.keyCode == 289 || event.keyCode == 290) {
             val now = System.currentTimeMillis()
 
@@ -1435,28 +1458,11 @@ class MainActivity : ComponentActivity() {
             return true
         }
 
-        if (softKeyboardHoldEnabledRuntime && event.action == KeyEvent.ACTION_DOWN) {
-            val unicode = event.unicodeChar
-            val scanCode = event.scanCode
-
-            Log.i(
-                "SOFT_KBD_HOLD",
-                "hold_hardware_key_down keyCode=$keyCode scanCode=$scanCode unicode=$unicode"
-            )
-
-            // НЕ consume. Нужно дать физической клавиатуре ввести символ в WebView.
-            scheduleHideSoftKeyboardBecauseHold("hardware_key_down_${keyCode}_${scanCode}")
-        }
-
         if (!softKeyboardHoldEnabledRuntime && handleHardwareKeyboardWedge(event)) {
             return true
         }
 
         val handled = super.dispatchKeyEvent(event)
-
-        if (softKeyboardHoldEnabledRuntime && event.action == KeyEvent.ACTION_UP) {
-            scheduleHideSoftKeyboardBecauseHold("hardware_key_up_${keyCode}_${event.scanCode}")
-        }
 
         return handled
     }
@@ -1719,6 +1725,84 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+
+    private fun isSoftKeyboardHoldInjectableKey(event: KeyEvent): Boolean {
+        if (!softKeyboardHoldEnabledRuntime) return false
+
+        val keyCode = event.keyCode
+
+        if (isSoftKeyboardHoldToggleKey(keyCode, event)) return false
+
+        return when (keyCode) {
+            KeyEvent.KEYCODE_DEL,
+            KeyEvent.KEYCODE_FORWARD_DEL,
+            KeyEvent.KEYCODE_DPAD_LEFT,
+            KeyEvent.KEYCODE_DPAD_RIGHT,
+            KeyEvent.KEYCODE_MOVE_HOME,
+            KeyEvent.KEYCODE_MOVE_END -> true
+            else -> event.unicodeChar > 0
+        }
+    }
+
+    private fun injectSoftKeyboardHoldKeyIntoWebView(event: KeyEvent): Boolean {
+        val webView = activeWebViewProvider?.invoke() ?: return false
+
+        val unicode = event.unicodeChar
+        val keyCode = event.keyCode
+
+        val keyName = when (keyCode) {
+            KeyEvent.KEYCODE_DEL -> "Backspace"
+            KeyEvent.KEYCODE_FORWARD_DEL -> "Delete"
+            KeyEvent.KEYCODE_DPAD_LEFT -> "ArrowLeft"
+            KeyEvent.KEYCODE_DPAD_RIGHT -> "ArrowRight"
+            KeyEvent.KEYCODE_MOVE_HOME -> "Home"
+            KeyEvent.KEYCODE_MOVE_END -> "End"
+            else -> {
+                if (unicode > 0) {
+                    String(Character.toChars(unicode))
+                } else {
+                    ""
+                }
+            }
+        }
+
+        val payload = org.json.JSONObject().apply {
+            put("key", keyName)
+            put("keyCode", keyCode)
+            put("scanCode", event.scanCode)
+            put("unicode", unicode)
+            put("shift", event.isShiftPressed)
+            put("alt", event.isAltPressed)
+            put("ctrl", event.isCtrlPressed)
+        }
+
+        val js = """
+            (function () {
+                try {
+                    if (typeof window.__softKeyboardHoldInjectKey !== 'function') {
+                        return 'inject_missing';
+                    }
+                    return window.__softKeyboardHoldInjectKey(${payload.toString()});
+                } catch (e) {
+                    return 'inject_error:' + String(e && e.message ? e.message : e);
+                }
+            })();
+        """.trimIndent()
+
+        runOnUiThread {
+            webView.evaluateJavascript(js) { result ->
+                Log.i(
+                    "SOFT_KBD_HOLD",
+                    "manual_key_inject keyCode=$keyCode scanCode=${event.scanCode} unicode=$unicode result=$result"
+                )
+            }
+
+            hideKeyboardForActiveWebView("manual_key_inject_${keyCode}_${event.scanCode}")
+        }
+
+        return true
+    }
+
     private fun applySoftKeyboardHoldToActiveWebView(reason: String) {
         val webView = activeWebViewProvider?.invoke()
 
@@ -1740,22 +1824,21 @@ class MainActivity : ComponentActivity() {
                     (function () {
                         try {
                             window.__softKeyboardHoldEnabled = $enabledJs;
-                            window.__softKeyboardHoldDisableWebKeyboardJs = ${'$'}disableWebKeyboardJs;
+                            window.__softKeyboardHoldDisableWebKeyboardJs = ${'$'}disableWebKeyboardJs;                            
+                            window.__softKeyboardHoldActiveElement = window.__softKeyboardHoldActiveElement || null;
 
                             function isEditableSoftKbdTarget(el) {
                                 if (!el) return false;
 
                                 var tag = String(el.tagName || '').toUpperCase();
                                 
-                                if (tag !== 'INPUT' && tag !== 'TEXTAREA') {
-                                    return false;
+                                return (tag === 'INPUT' || tag === 'TEXTAREA') && !el.disabled;
+                            }                               
+                            function rememberSoftKeyboardHoldTarget(el) {
+                                if (isEditableSoftKbdTarget(el)) {
+                                    window.__softKeyboardHoldActiveElement = el;
                                 }
 
-                                if (el.disabled) {
-                                    return false;
-                                }
-
-                                return true;
                             }
 
                             function applySoftKeyboardMode(el) {
@@ -1764,8 +1847,7 @@ class MainActivity : ComponentActivity() {
                                 if (window.__softKeyboardHoldEnabled) {
                                     if (!el.hasAttribute('data-softkbd-old-inputmode')) {
                                         el.setAttribute('data-softkbd-old-inputmode', el.getAttribute('inputmode') || '');
-                                    }
-                                    
+                                    }                                  
                                     if (!el.hasAttribute('data-softkbd-old-type')) {
                                         el.setAttribute('data-softkbd-old-type', el.getAttribute('type') || '');
                                     }
@@ -1793,11 +1875,11 @@ class MainActivity : ComponentActivity() {
                                     if (oldType) {
                                         el.setAttribute('type', oldType);
                                     } else {
-                                        el.removeAttribute('type');                                
+                                        el.removeAttribute('type');
+                                    }
+                                    el.removeAttribute('data-softkbd-old-type');
                                 }
-                                el.removeAttribute('data-softkbd-old-type');
-                            }
-
+                                
                                 var oldMode = el.getAttribute('data-softkbd-old-inputmode');
                                 if (oldMode !== null) {
                                     if (oldMode) {
@@ -1805,158 +1887,125 @@ class MainActivity : ComponentActivity() {
                                     } else {
                                         el.removeAttribute('inputmode');
                                     }
-
                                     el.removeAttribute('data-softkbd-old-inputmode');
                                 }
 
-                                var oldReadonly = el.getAttribute('data-softkbd-old-readonly');
-                                if (oldReadonly !== null) {
-                                    el.readOnly = oldReadonly === '1';
-                                    el.removeAttribute('data-softkbd-old-readonly');
-                                    el.removeAttribute('data-softkbd-temp-readonly');
+                            }
+
+                            function getSoftKeyboardHoldTarget() {
+                                var el = document.activeElement;
+                                if (isEditableSoftKbdTarget(el)) {
+                                    return el;                               
                                 }
 
-                                !window.__softKeyboardHoldDisableWebKeyboardJs &&
-                            }
-                            function requestHideSoftKeyboard(reason) {
-                                try {
-                                    if (
-                                        window.__softKeyboardHoldEnabled &&
-                                        window.DeviceApp &&
-                                        typeof window.DeviceApp.hideSoftKeyboard === 'function'
-                                    ) {
-                                        window.DeviceApp.hideSoftKeyboard(reason);
-                                        setTimeout(function () {
-                                            try {
-                                                window.DeviceApp.hideSoftKeyboard(reason + '_late_80');
-                                            } catch (e) {}
-                                        }, 80);
-                                        setTimeout(function () {
-                                            try {
-                                                window.DeviceApp.hideSoftKeyboard(reason + '_late_220');
-                                            } catch (e) {}
-                                        }, 220);
-                                    }
-                                } catch (e) {}
-                            }
-                            
+                                el = window.__softKeyboardHoldActiveElement;
 
-                            function prepareSoftKeyboardHoldFocus(el, reason) {
-                                if (!window.__softKeyboardHoldEnabled) return;
-                                if (window.__softKeyboardHoldDisableWebKeyboardJs) return;
-                                if (!isEditableSoftKbdTarget(el)) return;
+                                if (isEditableSoftKbdTarget(el)) {
+                                    return el;
+                                }
+
+                                return null;
+                            }
+
+                            function dispatchSoftKeyboardHoldInputEvents(el) {
+                                el.dispatchEvent(new Event('input', { bubbles: true }));
+                                el.dispatchEvent(new Event('change', { bubbles: true }));                                
+                            }
+
+                            function insertTextIntoSoftKeyboardHoldTarget(text) {
+                                var el = getSoftKeyboardHoldTarget();
+                                if (!el || typeof el.value !== 'string') return false;
 
                                 applySoftKeyboardMode(el);
 
-                                if (!el.hasAttribute('data-softkbd-old-readonly')) {
-                                    el.setAttribute('data-softkbd-old-readonly', el.readOnly ? '1' : '0');
-                                }
+                                var start = typeof el.selectionStart === 'number' ? el.selectionStart : el.value.length;
+                                var end = typeof el.selectionEnd === 'number' ? el.selectionEnd : start;
 
-                                if (!el.readOnly) {
-                                    el.readOnly = true;
-                                    el.setAttribute('data-softkbd-temp-readonly', '1');
-                                }
+                                el.value = el.value.slice(0, start) + text + el.value.slice(end);
 
-                                requestHideSoftKeyboard('prefocus_' + reason);
-
-                                setTimeout(function () {
-                                    try {
-                                        if (el.getAttribute('data-softkbd-temp-readonly') === '1') {
-                                            var oldReadonly = el.getAttribute('data-softkbd-old-readonly');
-
-                                            if (oldReadonly === '1') {
-                                                el.readOnly = true;
-                                            } else {
-                                                el.readOnly = false;
-                                            }
-
-                                            el.removeAttribute('data-softkbd-temp-readonly');
-                                        }
-
-                                        applySoftKeyboardMode(el);
-
-                                        if (document.activeElement !== el && typeof el.focus === 'function') {
-                                            try {
-                                                el.focus({ preventScroll: true });
-                                            } catch (e) {
-                                                el.focus();
-                                            }
-                                        }
-
-                                        requestHideSoftKeyboard('prefocus_release_' + reason);
-                                    } catch (e) {}
-                                }, 90);
+                                var pos = start + text.length;
+                                try {
+                                    el.setSelectionRange(pos, pos);                                    
+                                } catch (e) {}
+                                dispatchSoftKeyboardHoldInputEvents(el);
+                                return true;                                
                             }
-                            document.querySelectorAll('input, textarea').forEach(applySoftKeyboardMode);
+                            function deleteBackwardSoftKeyboardHoldTarget() {
+                                var el = getSoftKeyboardHoldTarget();
+                                if (!el || typeof el.value !== 'string') return false;                            
 
-                            if (!window.__softKeyboardHoldDisableWebKeyboardJs && !window.__softKeyboardHoldPreFocusInstalled) {
-                                window.__softKeyboardHoldPreFocusInstalled = true;
+                                applySoftKeyboardMode(el);
 
-                                ['touchstart', 'pointerdown', 'mousedown'].forEach(function (eventName) {
+                                var start = typeof el.selectionStart === 'number' ? el.selectionStart : el.value.length;
+                                var end = typeof el.selectionEnd === 'number' ? el.selectionEnd : start;
+
+                                if (start === end && start > 0) {
+                                    start -= 1                                
+                                }
+
+                                el.value = el.value.slice(0, start) + el.value.slice(end);                                
+
+                                try {
+                                    el.setSelectionRange(start, start);
+                                } catch (e) {}                                
+
+                                dispatchSoftKeyboardHoldInputEvents(el);
+                                return true;
+                            }                                
+                            function deleteForwardSoftKeyboardHoldTarget() {
+                                var el = getSoftKeyboardHoldTarget();
+                                if (!el || typeof el.value !== 'string') return false;
+                                applySoftKeyboardMode(el);
+                                var start = typeof el.selectionStart === 'number' ? el.selectionStart : el.value.length;
+                                var end = typeof el.selectionEnd === 'number' ? el.selectionEnd : start;
+                                if (start === end && end < el.value.length) {
+                                    end += 1;
+                                }
+
+                                el.value = el.value.slice(0, start) + el.value.slice(end);                           
+                                try {
+                                    el.setSelectionRange(start, start);
+                                } catch (e) {}                                
+                                dispatchSoftKeyboardHoldInputEvents(el);
+                                return true;
+                            }
+                            function moveCaretSoftKeyboardHoldTarget(delta) {
+                                var el = getSoftKeyboardHoldTarget();
+                                if (!el || typeof el.value !== 'string') return false;
+
+                                var pos = typeof el.selectionStart === 'number' ? el.selectionStart : el.value.length;
+                                pos = Math.max(0, Math.min(el.value.length, pos + delta));                                
+
+                                try {
+                                    el.setSelectionRange(pos, pos);
+                                } catch (e) {}                                   
+                                return true;
+                            }
+                            function moveCaretToSoftKeyboardHoldTarget(position) {
+                                var el = getSoftKeyboardHoldTarget();
+                                if (!el || typeof el.value !== 'string') return false;
+                                var pos = position === 'end' ? el.value.length : 0;                                
+                                try {
+                                    el.setSelectionRange(pos, pos);
+                                } catch (e) {}
+                                
+                                return true;
+                            }
+
+                            // Minimal safe apply path only: no hide-spam, readonly, focus workaround,
+                            // preventDefault, or manual focus. Keep this installed even when
+                            // disableWebKeyboardJs=true so type/inputmode is applied early.
+                            if (window.__softKeyboardHoldMinimalApplyVersion !== 2) {
+                                window.__softKeyboardHoldMinimalApplyInstalled = true;
+                                window.__softKeyboardHoldMinimalApplyVersion = 2;
+
+                                ['pointerdown', 'touchstart', 'mousedown', 'focusin'].forEach(function (eventName) {
                                     document.addEventListener(eventName, function (e) {
-                                        var el = e.target;
-
-                                        if (!isEditableSoftKbdTarget(el)) {
-                                            return;
-                                        }
-
-                                        prepareSoftKeyboardHoldFocus(el, eventName);
+                                        rememberSoftKeyboardHoldTarget(e.target);
+                                        if (!window.__softKeyboardHoldEnabled) return;
+                                        applySoftKeyboardMode(e.target);
                                     }, true);
                                 });
-
-                                document.addEventListener('focusin', function (e) {
-                                    var el = e.target;
-
-                                    if (!isEditableSoftKbdTarget(el)) {
-                                        return;
-                                    }
-
-                                    applySoftKeyboardMode(el);
-                                    requestHideSoftKeyboard('focusin_hold');
-                                
-                                    try {
-                                        console.debug('SOFT_KBD_HOLD target', {
-                                            id: el && el.id,
-                                            name: el && el.name,
-                                            type: el && el.getAttribute('type'),
-                                            oldType: el && el.getAttribute('data-softkbd-old-type'),
-                                            inputmode: el && el.getAttribute('inputmode'),
-                                            readonly: el && el.readOnly
-                                        });
-                                    } catch (e) {}
-
-                                    setTimeout(function () {
-                                        applySoftKeyboardMode(el);
-                                        requestHideSoftKeyboard('focusin_reapply_30');
-                                    }, 30);
-
-                                    setTimeout(function () {
-                                        requestHideSoftKeyboard('focusin_late_150');
-                                    }, 150);
-                                }, true);
-                            }
-                            if (!window.__softKeyboardHoldDisableWebKeyboardJs && !window.__softKeyboardHoldInputInstalled) {
-                                window.__softKeyboardHoldInputInstalled = true;
-
-                                document.addEventListener('keydown', function () {
-                                    requestHideSoftKeyboard('web_keydown_hold');
-                                }, true);
-
-                                document.addEventListener('beforeinput', function () {
-                                    requestHideSoftKeyboard('web_beforeinput_hold');
-                                }, true);
-
-                                document.addEventListener('input', function () {
-                                    requestHideSoftKeyboard('web_input_hold');
-                                }, true);
-
-                                document.addEventListener('keyup', function () {
-                                    requestHideSoftKeyboard('web_keyup_hold');                                        
-                                }, true);
-                            }
-
-                            if (!window.__softKeyboardHoldMutationInstalled) {
-                                window.__softKeyboardHoldMutationInstalled = true;
 
                                 var mo = new MutationObserver(function () {
                                     if (!window.__softKeyboardHoldEnabled) return;
@@ -1968,7 +2017,96 @@ class MainActivity : ComponentActivity() {
                                     subtree: true
                                 });
                             }
-                            return 'SOFT_KBD_HOLD_APPLIED:' + window.__softKeyboardHoldEnabled + ':DISABLE_WEB_JS:' + window.__softKeyboardHoldDisableWebKeyboardJs;                            
+
+                            // Manual physical key injection API. Kotlin consumes physical keys
+                            // while hold is ON and calls this function instead of letting WebView
+                            // route the key to the native InputConnection/Gboard path.
+                            window.__softKeyboardHoldInjectKeyVersion = 2;
+                            window.__softKeyboardHoldInjectKey = function (payload) {
+                                try {
+                                    if (!window.__softKeyboardHoldEnabled) {
+                                        return 'hold_disabled';
+                                    }
+
+                                    var el = getSoftKeyboardHoldTarget();
+                                    if (!el) {
+                                        return 'no_target';
+                                    }
+
+                                    applySoftKeyboardMode(el);
+
+                                    var key = String(payload && payload.key ? payload.key : '');
+                                    var unicode = Number(payload && payload.unicode ? payload.unicode : 0);
+                                    var keyCode = Number(payload && payload.keyCode ? payload.keyCode : 0);
+
+                                    var oldType = String(
+                                        el.getAttribute('data-softkbd-old-type') ||
+                                        el.getAttribute('type') ||
+                                        ''
+                                    ).toLowerCase();
+
+                                    if (key === 'Backspace' || keyCode === 67) {
+                                        return deleteBackwardSoftKeyboardHoldTarget() ? 'backspace_ok' : 'backspace_failed';
+                                    }
+
+                                    if (key === 'Delete' || keyCode === 112) {
+                                        return deleteForwardSoftKeyboardHoldTarget() ? 'delete_ok' : 'delete_failed';
+                                    }
+
+                                    if (key === 'ArrowLeft' || keyCode === 21) {
+                                        return moveCaretSoftKeyboardHoldTarget(-1) ? 'left_ok' : 'left_failed';
+                                    }
+
+                                    if (key === 'ArrowRight' || keyCode === 22) {
+                                        return moveCaretSoftKeyboardHoldTarget(1) ? 'right_ok' : 'right_failed';
+                                    }
+
+                                    if (key === 'Home' || keyCode === 122) {
+                                        return moveCaretToSoftKeyboardHoldTarget('home') ? 'home_ok' : 'home_failed';
+                                    }
+
+                                    if (key === 'End' || keyCode === 123) {
+                                        return moveCaretToSoftKeyboardHoldTarget('end') ? 'end_ok' : 'end_failed';
+                                    }
+
+                                    var text = '';
+
+                                    if (key && key.length === 1) {
+                                        text = key;
+                                    } else if (unicode > 0) {
+                                        text = String.fromCharCode(unicode);
+                                    }
+
+                                    if (!text) {
+                                        return 'no_text';
+                                    }
+
+                                    if (oldType === 'number') {
+                                        if (!/^[0-9.,-]$/.test(text)) {
+                                            return 'number_rejected';
+                                        }
+
+                                        if (text === ',') {
+                                            text = '.';
+                                        }
+                                    }
+
+                                    return insertTextIntoSoftKeyboardHoldTarget(text) ? 'insert_ok' : 'insert_failed';
+                                } catch (e) {
+                                    return 'error:' + String(e && e.message ? e.message : e);
+                                }
+                            };
+
+                            var changed = 0;
+
+                            document.querySelectorAll('input, textarea').forEach(function (el) {
+                                applySoftKeyboardMode(el);
+                                changed++;
+                            });
+
+                            return 'SOFT_KBD_HOLD_APPLIED:' + window.__softKeyboardHoldEnabled
+                                + ':disableWebKeyboardJs=' + window.__softKeyboardHoldDisableWebKeyboardJs
+                                + ':changed=' + changed;                            
                         } catch (e) {
                             return 'SOFT_KBD_HOLD_ERROR:' + String(e && e.message ? e.message : e);
                         }
