@@ -15,8 +15,11 @@ data class DeviceConfig(
     val liveScanEnabled: Boolean = false, // live распознавание в превью
     val syncNameDict: Boolean = true,    // тянуть словарь из WebView
     val debugToasts: Boolean = false,    // показать debug toasts
-    val cameraModeEnabled: Boolean = false // показывать пресеты зума на экране сканера
-    //
+    val cameraModeEnabled: Boolean = false, // показывать пресеты зума на экране сканера
+    val ocrSendLabelPhoto: Boolean = false, // отправлять фото лейбла после OCR
+    val ocrLabelPhotoMaxWidth: Int = 1280,
+    val ocrLabelPhotoJpegQuality: Int = 75
+
 )
 
 class DeviceConfigRepository(private val context: Context) {
@@ -37,6 +40,9 @@ class DeviceConfigRepository(private val context: Context) {
         val syncNameDict = prefs.getBoolean("sync_name_dict", true)
         val debugToasts = prefs.getBoolean("debug_toasts", false)
         val cameraModeEnabled = prefs.getBoolean("camera_mode_enabled", false)
+        val ocrSendLabelPhoto = prefs.getBoolean("ocr_send_label_photo", false)
+        val ocrLabelPhotoMaxWidth = prefs.getInt("ocr_label_photo_max_width", 1280).coerceIn(640, 2000)
+        val ocrLabelPhotoJpegQuality = prefs.getInt("ocr_label_photo_jpeg_quality", 75).coerceIn(50, 90)
 
         return DeviceConfig(
             serverUrl = serverUrl,
@@ -49,8 +55,10 @@ class DeviceConfigRepository(private val context: Context) {
             useRemoteOcr = useRemoteOcr,
             syncNameDict = syncNameDict,
             debugToasts = debugToasts,
-            cameraModeEnabled = cameraModeEnabled
-
+            cameraModeEnabled = cameraModeEnabled,
+            ocrSendLabelPhoto = ocrSendLabelPhoto,
+            ocrLabelPhotoMaxWidth = ocrLabelPhotoMaxWidth,
+            ocrLabelPhotoJpegQuality = ocrLabelPhotoJpegQuality
         )
     }
 
@@ -77,6 +85,9 @@ class DeviceConfigRepository(private val context: Context) {
             .putBoolean("sync_name_dict", cfg.syncNameDict)
             .putBoolean("debug_toasts", cfg.debugToasts)
             .putBoolean("camera_mode_enabled", cfg.cameraModeEnabled)
+            .putBoolean("ocr_send_label_photo", cfg.ocrSendLabelPhoto)
+            .putInt("ocr_label_photo_max_width", cfg.ocrLabelPhotoMaxWidth.coerceIn(640, 2000))
+            .putInt("ocr_label_photo_jpeg_quality", cfg.ocrLabelPhotoJpegQuality.coerceIn(50, 90))
             .apply()
     }
 

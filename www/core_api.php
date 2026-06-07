@@ -118,6 +118,7 @@ $routes = [
     'warehouse_stock_history_modal' => 'api/warehouse/warehouse_item_stock_actions.php',
     'warehouse_stock_history_forwarder_reports' => 'api/warehouse/warehouse_item_stock_actions.php',
     'upload_item_stock_photo'  => 'api/warehouse/warehouse_item_stock_actions.php',
+    'upload_ocr_label_photo'    => 'api/warehouse/warehouse_item_stock_actions.php',
     'delete_item_stock_photo'  => 'api/warehouse/warehouse_item_stock_actions.php',
     // ========== WAREHOUSE - Move ==========
     'warehouse_move'           => 'api/warehouse/warehouse_move.php',

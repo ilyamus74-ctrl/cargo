@@ -1,7 +1,4 @@
-@file:OptIn(
-    androidx.camera.core.ExperimentalGetImage::class,
-    androidx.compose.ui.ExperimentalComposeUiApi::class
-)
+@file:OptIn(androidx.camera.core.ExperimentalGetImage::class)
 
 package com.example.ocrscannertest
 import android.content.Context
@@ -93,22 +90,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.foundation.Image
 import androidx.compose.ui.res.painterResource
 import android.view.Window
-import android.view.inputmethod.InputMethodManager
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.input.pointer.pointerInteropFilter
-import androidx.compose.ui.layout.ContentScale
-import kotlin.math.ceil
-import kotlin.math.floor
-import android.graphics.Bitmap
-import android.graphics.Path
-import android.view.MotionEvent
-import androidx.compose.foundation.Canvas
-import androidx.compose.ui.graphics.asImageBitmap
-import androidx.compose.ui.input.pointer.pointerInteropFilter
-import androidx.compose.ui.graphics.CompositingStrategy
-import androidx.compose.ui.graphics.graphicsLayer
-
 private val INSTALL_MAIN_OBSERVER_JS = """
 (function(){
   if (window.__deviceMainObserverInstalled) return;
@@ -387,108 +368,6 @@ private enum class ScannerOwnerState {
     HARDWARE_SCAN_MODE
 }
 private const val VOLUME_DOUBLE_TAP_WINDOW_MS = 650L
-
-private val INSTALL_DEVICE_OCR_JS = """
-(function () {
-  if (window.__deviceOcrHookInstalled) return;
-  window.__deviceOcrHookInstalled = true;
-
-  window.DeviceOcr = window.DeviceOcr || {};
-  window.DeviceOcr.openItemInOcr = function (source) {
-    try {
-      document.dispatchEvent(new CustomEvent('device:p1:ocr', { detail: { source: source || 'web_hook' } }));
-    } catch (e) {}
-
-    try {
-      if (window.DeviceApp && typeof window.DeviceApp.openItemInOcr === 'function') {
-        window.DeviceApp.openItemInOcr(String(source || 'web_hook'));
-        return true;
-      }
-    } catch (e) {}
-
-    return false;
-  };
-})();
-""".trimIndent()
-
-
-private val INSTALL_MANUAL_INPUT_KEYBOARD_JS = """
-(function () {
-  if (window.__manualKeyboardBridgeInstalled) return;
-  window.__manualKeyboardBridgeInstalled = true;
-
-  var lastTapAt = 0;
-  var DOUBLE_TAP_MS = 450;
-
-  window.__scannerProgrammaticInputUntil = window.__scannerProgrammaticInputUntil || 0;
-
-  function isEditable(el) {
-    if (!el) return false;
-
-    if (el.tagName === "TEXTAREA") return true;
-
-    if (el.tagName === "INPUT") {
-      var type = (el.type || "text").toLowerCase();
-      return ["text", "search", "email", "number", "tel", "url", "password"].indexOf(type) !== -1;
-    }
-
-    return !!el.isContentEditable;
-  }
-
-  function notifyOpenKeyboard(target, reason) {
-    try {
-      if (!target || !isEditable(target)) return;
-
-      if (Date.now() < (window.__scannerProgrammaticInputUntil || 0)) {
-        return;
-      }
-
-      try {
-        target.focus({ preventScroll: true });
-      } catch (_) {
-        try { target.focus(); } catch (_) {}
-      }
-
-      if (window.DeviceApp && window.DeviceApp.onManualInputFocus) {
-        var payload = {
-          reason: reason,
-          id: target.id || "",
-          name: target.name || "",
-          tag: target.tagName || "",
-          type: target.type || ""
-        };
-
-        window.DeviceApp.onManualInputFocus(JSON.stringify(payload));
-      }
-    } catch (_) {}
-  }
-
-  document.addEventListener("touchend", function (ev) {
-    var target = ev.target;
-    if (!isEditable(target)) return;
-
-    var now = Date.now();
-    var isDoubleTap = (now - lastTapAt) <= DOUBLE_TAP_MS;
-    lastTapAt = now;
-
-    notifyOpenKeyboard(target, isDoubleTap ? "double_tap" : "single_tap");
-  }, true);
-
-  document.addEventListener("click", function (ev) {
-    var target = ev.target;
-    if (!isEditable(target)) return;
-
-    notifyOpenKeyboard(target, "click");
-  }, true);
-
-  window.DeviceManualKeyboard = {
-    markProgrammaticInput: function (ms) {
-      window.__scannerProgrammaticInputUntil = Date.now() + (ms || 1000);
-    }
-  };
-})();
-""".trimIndent()
-
 private var debugToastsEnabled = false
 
 private fun debugToast(context: Context, message: String, length: Int = Toast.LENGTH_SHORT) {
@@ -589,13 +468,12 @@ class MainActivity : ComponentActivity() {
         var onScanTopSingle: (() -> Unit)? = null
         var onP1Single: (() -> Unit)? = null
         var onP2Single: (() -> Unit)? = null
-        var onP2Double: (() -> Unit)? = null
         var activeWebViewProvider: (() -> WebView?)? = null
         var onHardwareScanData: ((String, String) -> Unit)? = null
     }
 
     private lateinit var volumeButtonDispatcher: VolumeButtonDispatcher
-    private lateinit var p2ButtonDispatcher: VolumeButtonDispatcher
+
     private val hardwareScanBuffer = StringBuilder()
     private var hardwareScanLastCharTs: Long = 0L
     private val hardwareScanTimeoutMs = 250L
@@ -603,28 +481,12 @@ class MainActivity : ComponentActivity() {
     private var hardwareScanFlushRunnable: Runnable? = null
     private val handledHardwareDownKeys = mutableSetOf<Int>()
     private val interceptHardwareTriggerKeys: Boolean = false
-    private val p1KeyCode = 298
-    private val p2KeyCode = 297
-
-    private val p2LongHoldMs = 3000L
-    private var p2LongHoldRunnable: Runnable? = null
-    private var p2LongHoldFired = false
     private val hsBootstrapThrottleMs = 1500L
     private var hsWarmupInProgress = false
     private var hsLastWarmupStartedAtMs = 0L
     private var hsTriggerWatchdogRunnable: Runnable? = null
     private var hsLastHardwareTriggerAtMs = 0L
     private var hsLastBarcodeSendAtMs = 0L
-
-    private var skipVendorOpenOnHardKeyUntilMs = 0L
-    private val skipVendorOpenAfterQrCloseMs = 3500L
-
-    private var hsLastVendorArmAtMs = 0L
-    private val hsVendorArmThrottleMs = 800L
-
-    private var hsHardKeyBlockedUntilMs = 0L
-    private val hsHardKeyBlockAfterCameraCloseMs = 1800L
-
     private var scannerOwnerState: ScannerOwnerState = ScannerOwnerState.IDLE
     private val cameraReleaseCallbacks = linkedMapOf<String, () -> Unit>()
     private val cameraRestoreCallbacks = linkedMapOf<String, () -> Unit>()
@@ -635,35 +497,6 @@ class MainActivity : ComponentActivity() {
     private var lastHardwareScanAtMs: Long = 0L
     private val hardwareScanDedupWindowMs = 800L
 
-    private fun recoverVendorScannerAfterCameraScreen(owner: String, reason: String) {
-        if (owner != "BarcodeScanScreen" && owner != "OcrScanScreen") {
-            return
-        }
-
-        hsHardKeyBlockedUntilMs =
-            System.currentTimeMillis() + hsHardKeyBlockAfterCameraCloseMs
-
-        Log.i(
-            "HS_BOOTSTRAP",
-            "vendor scanner recovery after camera screen owner=$owner reason=$reason hardKeyBlockedUntil=$hsHardKeyBlockedUntilMs"
-        )
-
-        scannerBootstrapHandler.postDelayed({
-            Log.i(
-                "HS_BOOTSTRAP",
-                "vendor scanner recovery immediate owner=$owner reason=$reason"
-            )
-            kickHsDcsServiceAction("camera_screen_closed_${owner}_immediate", force = true)
-        }, 50L)
-
-        scannerBootstrapHandler.postDelayed({
-            Log.i(
-                "HS_BOOTSTRAP",
-                "vendor scanner recovery late owner=$owner reason=$reason"
-            )
-            kickHsDcsServiceAction("camera_screen_closed_${owner}_late", force = true)
-        }, 1300L)
-    }
 
     fun setScannerCameraCallbacks(
         owner: String,
@@ -673,17 +506,10 @@ class MainActivity : ComponentActivity() {
         if (releaseCamera == null && restoreCamera == null) {
             cameraReleaseCallbacks.remove(owner)
             cameraRestoreCallbacks.remove(owner)
-
             Log.i(
                 "HS_BOOTSTRAP",
                 "scanner camera callbacks unregistered owner=$owner releaseCount=${cameraReleaseCallbacks.size} restoreCount=${cameraRestoreCallbacks.size}"
             )
-
-            recoverVendorScannerAfterCameraScreen(
-                owner = owner,
-                reason = "scanner_camera_callbacks_unregistered"
-            )
-
             return
         }
 
@@ -900,99 +726,7 @@ class MainActivity : ComponentActivity() {
 
         return candidates
     }
-    private fun injectHardwareScanIntoActiveWebView(value: String, source: String): Boolean {
-        val webView = activeWebViewProvider?.invoke()
 
-        if (webView == null) {
-            Log.i(
-                "SCAN_QR_DIAG",
-                "webview_inject_skip reason=no_active_webview value='$value' source=$source"
-            )
-            return false
-        }
-
-        val quotedValue = JSONObject.quote(value)
-
-        val js = """
-        (function(value) {
-        window.__scannerProgrammaticInputUntil = Date.now() + 1200;
-            function isEditable(el) {
-                if (!el) return false;
-                var tag = (el.tagName || '').toUpperCase();
-                return tag === 'INPUT' || tag === 'TEXTAREA' || el.isContentEditable;
-            }
-
-            var el = document.activeElement;
-
-            if (!isEditable(el)) {
-                var ids = [
-                    'warehouse-move-search',
-                    'warehouse-move-batch-search',
-                    'warehouse-item-out-search',
-                    'barcode',
-                    'scan',
-                    'search',
-                    'login',
-                    'username',
-                    'password'
-                ];
-
-                for (var i = 0; i < ids.length; i++) {
-                    var candidate = document.getElementById(ids[i]);
-                    if (isEditable(candidate)) {
-                        el = candidate;
-                        break;
-                    }
-                }
-            }
-
-            if (!isEditable(el)) {
-                return 'NO_EDITABLE_TARGET';
-            }
-
-            el.focus();
-
-            if ('value' in el) {
-                el.value = value;
-                el.dispatchEvent(new Event('input', { bubbles: true }));
-                el.dispatchEvent(new Event('change', { bubbles: true }));
-            } else {
-                el.textContent = value;
-                el.dispatchEvent(new Event('input', { bubbles: true }));
-            }
-
-            el.dispatchEvent(new KeyboardEvent('keydown', {
-                key: 'Enter',
-                code: 'Enter',
-                keyCode: 13,
-                which: 13,
-                bubbles: true
-            }));
-
-            el.dispatchEvent(new KeyboardEvent('keyup', {
-                key: 'Enter',
-                code: 'Enter',
-                keyCode: 13,
-                which: 13,
-                bubbles: true
-            }));
-
-            return 'OK';
-        })($quotedValue);
-    """.trimIndent()
-
-        runOnUiThread {
-            webView.evaluateJavascript(js) { result ->
-                Log.i(
-                    "SCAN_QR_DIAG",
-                    "webview_inject_result source=$source value='$value' result=$result"
-                )
-                hideKeyboardForActiveWebView("hardware_scan_inject")
-            }
-        }
-
-        return true
-    }
     private fun dispatchHardwareScan(raw: String, source: String) {
         val normalized = normalizeHardwareScanPayload(raw)
         Log.i("SCAN_QR_DIAG", "dispatchHardwareScan source=$source raw='$raw' normalized='$normalized'")
@@ -1008,19 +742,9 @@ class MainActivity : ComponentActivity() {
         lastHardwareScanAtMs = now
 
         runOnUiThread {
-            val callback = onHardwareScanData
-            val hasCallback = callback != null
-
-            Log.i(
-                "SCAN_QR_DIAG",
-                "dispatchHardwareScan source=$source invokeCallback=$hasCallback value='$normalized'"
-            )
-
-            if (hasCallback) {
-                callback?.invoke(normalized, source)
-            } else {
-                injectHardwareScanIntoActiveWebView(normalized, source)
-            }
+            val hasCallback = onHardwareScanData != null
+            Log.i("SCAN_QR_DIAG", "dispatchHardwareScan source=$source invokeCallback=$hasCallback")
+            onHardwareScanData?.invoke(normalized, source)
         }
     }
     private fun normalizeHardwareScanPayload(raw: String?): String? = normalizeHardwareScanPayloadShared(raw)
@@ -1029,13 +753,6 @@ class MainActivity : ComponentActivity() {
         val callback = onHardwareScanData ?: return false
         if (event.action != KeyEvent.ACTION_DOWN) return false
         if (event.keyCode == KeyEvent.KEYCODE_VOLUME_DOWN || event.keyCode == KeyEvent.KEYCODE_VOLUME_UP) return false
-        if (event.keyCode == p1KeyCode || event.keyCode == p2KeyCode) {
-            Log.i(
-                "SCAN_QR_DIAG",
-                "p_key_skip_wedge keyCode=${event.keyCode} action=${event.action}"
-            )
-            return false
-        }
                 // TEST: do not let dedicated hardware scan trigger keys enter
                 // our keyboard-wedge path. These keys must be routed by the
                 // vendor scanner stack, not by the app.
@@ -1097,450 +814,48 @@ class MainActivity : ComponentActivity() {
         hardwareScanFlushHandler.postDelayed(hardwareScanFlushRunnable!!, hardwareScanTimeoutMs + 100L)
         return true
     }
-    private fun runItemInP2HardClearFallback(reason: String) {
-        val webView = activeWebViewProvider?.invoke()
-        if (webView == null) {
-            Log.i("SCAN_QR_DIAG", "p2_hard_clear_skip no_active_webview reason=$reason")
-            return
-        }
 
-        Log.i("SCAN_QR_DIAG", "p2_hard_clear_run reason=$reason")
-
-        val js = """
-        (function () {
-            function fire(el) {
-                if (!el) return;
-                el.dispatchEvent(new Event('input', { bubbles: true }));
-                el.dispatchEvent(new Event('change', { bubbles: true }));
-            }
-
-            function focusTrack() {
-                setTimeout(function () {
-                    var el = document.getElementById('trackingNo');
-                    if (el) {
-                        el.focus();
-                        if (typeof el.select === 'function') el.select();
-                    }
-                }, 120);
-            }
-
-            var form = document.getElementById('item-in-modal-form');
-            if (!form) {
-                focusTrack();
-                return 'FORM_NOT_FOUND';
-            }
-
-            Array.prototype.forEach.call(
-                form.querySelectorAll('input, textarea, select'),
-                function (el) {
-                    if (!el) return;
-
-                    if (el.name === 'batch_uid') return;
-
-                    if (el.type === 'checkbox' || el.type === 'radio') {
-                        el.checked = false;
-                        fire(el);
-                        return;
-                    }
-
-                    if (el.tagName === 'SELECT') {
-                        el.selectedIndex = 0;
-                        fire(el);
-                        return;
-                    }
-
-                    if (el.type === 'file') {
-                        el.value = '';
-                        fire(el);
-                        return;
-                    }
-
-                    el.value = '';
-                    fire(el);
-                }
-            );
-
-            var quickCells = document.getElementById('receiverAddressQuickCells');
-            if (quickCells) quickCells.innerHTML = '';
-
-            var labelInfo = document.getElementById('warehouseStockLabelPhotoInfo');
-            if (labelInfo) labelInfo.textContent = '';
-
-            var boxInfo = document.getElementById('warehouseStockBoxPhotoInfo');
-            if (boxInfo) boxInfo.textContent = '';
-
-            var addonsJson = document.getElementById('warehouseStockAddonsJson');
-            if (addonsJson) addonsJson.value = '';
-
-            var addonsDebug = document.getElementById('warehouseStockAddonsDebug');
-            if (addonsDebug) addonsDebug.value = '';
-
-            focusTrack();
-            return 'HARD_CLEARED';
-        })();
-    """.trimIndent()
-
-        runOnUiThread {
-            webView.evaluateJavascript(js) { result ->
-                Log.i("SCAN_QR_DIAG", "p2_hard_clear_result reason=$reason result=$result")
-            }
-        }
-    }
-    private fun runItemInP2SingleFallback() {
-        val webView = activeWebViewProvider?.invoke()
-        if (webView == null) {
-            Log.i("SCAN_QR_DIAG", "p2_single_fallback_skip no_active_webview")
-            return
-        }
-
-        Log.i("SCAN_QR_DIAG", "p2_single_fallback_run")
-
-        val js = """
-        (function () {
-            function focusTrack() {
-                setTimeout(function () {
-                    var el = document.getElementById('trackingNo');
-                    if (el) {
-                        el.focus();
-                        if (typeof el.select === 'function') el.select();
-                    }
-                }, 120);
-            }
-
-            var clearBtn = document.getElementById('itemInClearBtn');
-            if (clearBtn) {
-                clearBtn.click();
-                focusTrack();
-                return 'CLEAR_CLICKED';
-            }
-
-            var form = document.getElementById('item-in-modal-form');
-            if (form) {
-                Array.prototype.forEach.call(form.querySelectorAll('input, textarea, select'), function (el) {
-                    if (el.type === 'hidden') return;
-                    if (el.id === 'receiverCountry' || el.id === 'receiverCompany' || el.id === 'standDevice') return;
-                    if (el.tagName === 'SELECT') el.selectedIndex = 0;
-                    else el.value = '';
-                    el.dispatchEvent(new Event('input', { bubbles: true }));
-                    el.dispatchEvent(new Event('change', { bubbles: true }));
-                });
-            }
-
-            focusTrack();
-            return 'FORM_CLEARED';
-        })();
-    """.trimIndent()
-
-        runOnUiThread {
-            webView.evaluateJavascript(js) { result ->
-                Log.i("SCAN_QR_DIAG", "p2_single_fallback_result=$result")
-            }
-        }
-    }
-
-    private fun runItemInP2DoubleFallback() {
-        val webView = activeWebViewProvider?.invoke()
-        if (webView == null) {
-            Log.i("SCAN_QR_DIAG", "p2_double_fallback_skip no_active_webview")
-            return
-        }
-
-        Log.i("SCAN_QR_DIAG", "p2_double_fallback_run")
-
-        val js = """
-        (function () {
-            function focusTrack() {
-                setTimeout(function () {
-                    var el = document.getElementById('trackingNo');
-                    if (el) {
-                        el.focus();
-                        if (typeof el.select === 'function') el.select();
-                    }
-                }, 350);
-            }
-
-            var addBtn = document.querySelector('[data-core-action="add_new_item_in"]');
-            if (addBtn) {
-                addBtn.click();
-                focusTrack();
-                return 'ADD_ITEM_CLICKED';
-            }
-
-            return 'ADD_BUTTON_NOT_FOUND';
-        })();
-    """.trimIndent()
-
-        runOnUiThread {
-            webView.evaluateJavascript(js) { result ->
-                Log.i("SCAN_QR_DIAG", "p2_double_fallback_result=$result")
-            }
-        }
-    }
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         if (event.keyCode == 289 || event.keyCode == 290) {
-            val now = System.currentTimeMillis()
-
-            if (now < hsHardKeyBlockedUntilMs) {
-                Log.i(
-                    "SCAN_QR_DIAG",
-                    "dedicated_scan_key_blocked_vendor_warmup keyCode=${event.keyCode} action=${event.action} repeat=${event.repeatCount} now=$now until=$hsHardKeyBlockedUntilMs"
-                )
-
-                if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
-                    kickHsDcsServiceAction("hard_key_during_vendor_warmup", force = true)
-                }
-
-                return true
-            }
-
             Log.i(
                 "SCAN_QR_DIAG",
-                "dedicated_scan_key_vendor_only dispatch keyCode=${event.keyCode} action=${event.action} repeat=${event.repeatCount}"
+                "dedicated_scan_key_passthrough dispatch keyCode=${event.keyCode} action=${event.action}"
             )
+
+            if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
+                onHardwareTriggerPressed(event.keyCode)
+            }
 
             return super.dispatchKeyEvent(event)
         }
-        if (event.keyCode == p1KeyCode) {
-            Log.i(
-                "SCAN_QR_DIAG",
-                "p1_key dispatch keyCode=${event.keyCode} action=${event.action} repeat=${event.repeatCount}"
-            )
 
-            if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
-                val ocrCameraActive = cameraReleaseCallbacks.containsKey("OcrScanScreen")
-
-                if (ocrCameraActive) {
-                    Log.i("SCAN_QR_DIAG", "p1_key routed_as_vol_down_inside_ocr")
-                    hideKeyboardForScannerOverlay("p1_inside_ocr")
-                    volumeButtonDispatcher.onVolumeDown(
-                        single = { onVolDownSingle?.invoke() },
-                        double = { onVolDownDouble?.invoke() }
-                    )
-                } else {
-                    Log.i("SCAN_QR_DIAG", "p1_key routed_as_p1_single")
-                    hideKeyboardForScannerOverlay("p1_open_ocr")
-                    onP1Single?.invoke()
-                }
-            }
-
-            return true
-        }
-
-        if (event.keyCode == p2KeyCode) {
-            Log.i(
-                "SCAN_QR_DIAG",
-                "p2_key dispatch keyCode=${event.keyCode} action=${event.action} repeat=${event.repeatCount}"
-            )
-
-            if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
-                p2LongHoldFired = false
-
-                p2LongHoldRunnable?.let {
-                    scannerBootstrapHandler.removeCallbacks(it)
-                }
-
-                p2LongHoldRunnable = Runnable {
-                    p2LongHoldFired = true
-                    Log.i("SCAN_QR_DIAG", "p2_long_hold_3s_dispatch")
-                    runItemInP2HardClearFallback("p2_long_hold_3s")
-                }
-
-                scannerBootstrapHandler.postDelayed(
-                    p2LongHoldRunnable!!,
-                    p2LongHoldMs
-                )
-
-                Log.i(
-                    "SCAN_QR_DIAG",
-                    "p2_key down callbacks single=${onP2Single != null} double=${onP2Double != null} longHoldMs=$p2LongHoldMs"
-                )
-
-                return true
-            }
-
-            if (event.action == KeyEvent.ACTION_UP) {
-                p2LongHoldRunnable?.let {
-                    scannerBootstrapHandler.removeCallbacks(it)
-                }
-                p2LongHoldRunnable = null
-
-                if (p2LongHoldFired) {
-                    Log.i("SCAN_QR_DIAG", "p2_key up ignored after long hold")
-                    p2LongHoldFired = false
-                    return true
-                }
-
-                p2ButtonDispatcher.onVolumeDown(
-                    single = {
-                        Log.i(
-                            "SCAN_QR_DIAG",
-                            "p2_single_dispatch callback=${onP2Single != null}"
-                        )
-
-                        if (onP2Single != null) {
-                            onP2Single?.invoke()
-                        } else {
-                            runItemInP2SingleFallback()
-                        }
-                    },
-                    double = {
-                        Log.i(
-                            "SCAN_QR_DIAG",
-                            "p2_double_dispatch callback=${onP2Double != null}"
-                        )
-
-                        if (onP2Double != null) {
-                            onP2Double?.invoke()
-                        } else {
-                            runItemInP2DoubleFallback()
-                        }
-                    }
-                )
-
-                return true
-            }
-
-            return true
-        }
         if (handleHardwareKeyboardWedge(event)) {
             return true
         }
 
         return super.dispatchKeyEvent(event)
     }
-    private fun sendHsDcsServiceAction(
-        action: String,
-        reason: String,
-        noAddScanApp: Boolean = true
-    ) {
+    private fun kickHsDcsServiceAction(reason: String) {
         runCatching {
             val intent = Intent("com.hs.dcsservice.action").apply {
                 setPackage("com.hs.dcsservice")
                 addCategory(Intent.CATEGORY_DEFAULT)
-                putExtra("action", action)
-                if (noAddScanApp) {
-                    putExtra("noAddScanApp", 1)
-                }
             }
 
             sendBroadcast(intent, "com.honeywell.decode.permission.DECODE")
 
             Log.i(
                 "HS_BOOTSTRAP",
-                "sent com.hs.dcsservice.action action=$action noAddScanApp=${if (noAddScanApp) 1 else 0} reason=$reason permission=com.honeywell.decode.permission.DECODE"
+                "sent com.hs.dcsservice.action reason=$reason permission=com.honeywell.decode.permission.DECODE"
             )
         }.onFailure { t ->
-            Log.e(
-                "HS_BOOTSTRAP",
-                "failed to send com.hs.dcsservice.action action=$action reason=$reason",
-                t
-            )
-        }
-    }
-    private fun clearHsNoScanApp(reason: String) {
-        runCatching {
-            val intent = Intent("com.android.systemui.SCANCODE_CHANGE.ACTION").apply {
-                component = ComponentName(
-                    "com.hs.dcsservice",
-                    "com.hs.scanbutton.receiver.BootCompleteReceiver"
-                )
-                addCategory(Intent.CATEGORY_DEFAULT)
-            }
-
-            sendBroadcast(intent)
-
-            Log.i(
-                "HS_BOOTSTRAP",
-                "sent clear noScanApp via BootCompleteReceiver reason=$reason"
-            )
-        }.onFailure { t ->
-            Log.e(
-                "HS_BOOTSTRAP",
-                "failed to clear noScanApp via BootCompleteReceiver reason=$reason",
-                t
-            )
-        }
-    }
-    private fun kickHsDcsServiceAction(reason: String, force: Boolean = false) {
-        scannerBootstrapHandler.post {
-            val now = System.currentTimeMillis()
-
-            if (!force && now - hsLastVendorArmAtMs < hsVendorArmThrottleMs) {
-                Log.i(
-                    "HS_BOOTSTRAP",
-                    "skip vendor arm reason=$reason throttle now=$now last=$hsLastVendorArmAtMs"
-                )
-                return@post
-            }
-
-            hsLastVendorArmAtMs = now
-
-            Log.i("HS_BOOTSTRAP", "vendor arm start reason=$reason force=$force")
-
-            clearHsNoScanApp(reason)
-
-            scannerBootstrapHandler.postDelayed({
-                sendHsDcsServiceAction(
-                    action = "open",
-                    reason = reason,
-                    noAddScanApp = true
-                )
-            }, 150L)
-        }
-    }
-
-    private fun startHsDcsService(reason: String) {
-        Log.i("HS_BOOTSTRAP", "startHsDcsService disabled reason=$reason")
-    }
-
-    private fun kickHsScanService(reason: String) {
-        runCatching {
-            val intent = Intent("com.hs.scanservice.getsetting.action").apply {
-                setPackage("com.hs.scanservice")
-                addCategory(Intent.CATEGORY_DEFAULT)
-            }
-
-            sendBroadcast(intent, "com.honeywell.decode.permission.DECODE")
-
-            Log.i(
-                "HS_BOOTSTRAP",
-                "sent com.hs.scanservice.getsetting.action reason=$reason permission=com.honeywell.decode.permission.DECODE"
-            )
-        }.onFailure { t ->
-            Log.e("HS_BOOTSTRAP", "failed to send com.hs.scanservice.getsetting.action reason=$reason", t)
-        }
-
-        runCatching {
-            val serviceIntent = Intent().apply {
-                component = ComponentName(
-                    "com.hs.scanservice",
-                    "com.hs.scanservice.DecodeService"
-                )
-            }
-
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                startForegroundService(serviceIntent)
-            } else {
-                startService(serviceIntent)
-            }
-
-            Log.i("HS_BOOTSTRAP", "started com.hs.scanservice.DecodeService reason=$reason")
-        }.onFailure { t ->
-            Log.e("HS_BOOTSTRAP", "failed to start com.hs.scanservice.DecodeService reason=$reason", t)
+            Log.e("HS_BOOTSTRAP", "failed to send com.hs.dcsservice.action reason=$reason", t)
         }
     }
     private fun onHardwareTriggerPressed(keyCode: Int) {
         enterHardwareScanMode(reason = "hard_key_$keyCode")
-        val now = System.currentTimeMillis()
+        kickHsDcsServiceAction(reason = "hard_key_$keyCode")
 
-        if (now < skipVendorOpenOnHardKeyUntilMs) {
-            Log.i(
-                "HS_BOOTSTRAP",
-                "skip dcsservice open on hard key keyCode=$keyCode reason=qr_recently_closed now=$now until=$skipVendorOpenOnHardKeyUntilMs"
-            )
-        } else {
-            kickHsDcsServiceAction("hard_key_$keyCode")
-        }
         hsLastHardwareTriggerAtMs = System.currentTimeMillis()
         hsTriggerWatchdogRunnable?.let { scannerBootstrapHandler.removeCallbacks(it) }
 
@@ -1586,124 +901,6 @@ class MainActivity : ComponentActivity() {
                 keyCode == KeyEvent.KEYCODE_BUTTON_L2 ||
                 keyCode == KeyEvent.KEYCODE_BUTTON_R2
     }
-
-    private fun showKeyboardForActiveWebView(reason: String) {
-        val webView = activeWebViewProvider?.invoke()
-
-        if (webView == null) {
-            Log.i("SCAN_QR_DIAG", "manual_keyboard_skip no_active_webview reason=$reason")
-            return
-        }
-
-        runOnUiThread {
-            try {
-                webView.isFocusable = true
-                webView.isFocusableInTouchMode = true
-                webView.requestFocus()
-
-                val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-
-                webView.postDelayed({
-                    val shown = imm.showSoftInput(webView, InputMethodManager.SHOW_IMPLICIT)
-
-                    Log.i(
-                        "SCAN_QR_DIAG",
-                        "manual_keyboard_show reason=$reason shown=$shown"
-                    )
-                }, 80L)
-
-            } catch (t: Throwable) {
-                Log.e("SCAN_QR_DIAG", "manual_keyboard_show_failed reason=$reason", t)
-            }
-        }
-    }
-
-    private fun hideKeyboardForActiveWebView(reason: String) {
-        val webView = activeWebViewProvider?.invoke()
-
-        if (webView == null) {
-            Log.i("SCAN_QR_DIAG", "manual_keyboard_hide_skip no_active_webview reason=$reason")
-            return
-        }
-
-        runOnUiThread {
-            try {
-                val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-                imm.hideSoftInputFromWindow(webView.windowToken, 0)
-
-                Log.i("SCAN_QR_DIAG", "manual_keyboard_hide reason=$reason")
-            } catch (t: Throwable) {
-                Log.e("SCAN_QR_DIAG", "manual_keyboard_hide_failed reason=$reason", t)
-            }
-        }
-    }
-    fun hideKeyboardForScannerOverlay(reason: String) {
-        runOnUiThread {
-            try {
-                val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-
-                activeWebViewProvider?.invoke()?.let { webView ->
-                    webView.clearFocus()
-                    imm.hideSoftInputFromWindow(webView.windowToken, 0)
-                }
-
-                currentFocus?.let { focused ->
-                    focused.clearFocus()
-                    imm.hideSoftInputFromWindow(focused.windowToken, 0)
-                }
-
-                imm.hideSoftInputFromWindow(window.decorView.windowToken, 0)
-
-                Log.i("SCAN_QR_DIAG", "scanner_overlay_keyboard_hide reason=$reason")
-            } catch (t: Throwable) {
-                Log.e("SCAN_QR_DIAG", "scanner_overlay_keyboard_hide_failed reason=$reason", t)
-            }
-        }
-    }
-
-    private fun triggerP1OcrFallback(reason: String): Boolean {
-        Log.i("SCAN_QR_DIAG", "P1 OCR fallback requested reason=$reason")
-
-        val webView = activeWebViewProvider?.invoke()
-
-        if (webView != null) {
-            val js = """
-                (function () {
-                    try {
-                        if (window.DeviceOcr && typeof window.DeviceOcr.openItemInOcr === 'function') {
-                            window.DeviceOcr.openItemInOcr('p1_fallback');
-                            return 'DEVICE_OCR_HOOK_OK';
-                        }
-
-                        var form = document.getElementById('item-in-modal-form');
-                        if (form) {
-                            document.dispatchEvent(new CustomEvent('device:p1:ocr', { detail: { source: 'p1_fallback' } }));
-                            return 'ITEM_IN_FORM_EVENT_SENT';
-                        }
-
-                        return 'NO_ITEM_IN_CONTEXT';
-                    } catch (e) {
-                        return 'ERROR:' + String(e && e.message ? e.message : e);
-                    }
-                })();
-            """.trimIndent()
-
-            runOnUiThread {
-                webView.evaluateJavascript(js) { result ->
-                    Log.i("SCAN_QR_DIAG", "P1 OCR fallback JS result=$result")
-                }
-            }
-        }
-
-        val callback = onP1Single
-        if (callback != null) {
-            callback.invoke()
-            return true
-        }
-
-        return false
-    }
-
     private fun handleHardwareButtonKey(keyCode: Int): Boolean {
 
         when (keyCode) {
@@ -1725,9 +922,7 @@ class MainActivity : ComponentActivity() {
                 return triggerFirstAvailable(onScanTopSingle, onVolUpDouble)
             }
             KeyEvent.KEYCODE_BUTTON_1, KeyEvent.KEYCODE_F1 -> {
-                triggerP1OcrFallback("p1_key")
-                return true
-            }
+                return triggerHardwareAction(onP1Single)            }
             KeyEvent.KEYCODE_BUTTON_2, KeyEvent.KEYCODE_F2 -> {
 
                 return triggerHardwareAction(onP2Single)
@@ -1792,10 +987,10 @@ class MainActivity : ComponentActivity() {
 
         // init volume dispatcher with context (for Toast)
         volumeButtonDispatcher = VolumeButtonDispatcher(this)
-        p2ButtonDispatcher = VolumeButtonDispatcher(this)
+
        // экран не гаснет — поведение киоска
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
-        window.clearFlags(WindowManager.LayoutParams.FLAG_ALT_FOCUSABLE_IM)
+        window.addFlags(WindowManager.LayoutParams.FLAG_ALT_FOCUSABLE_IM)
         Log.i("HS_BOOTSTRAP", "window focus normal; FLAG_NOT_FOCUSABLE disabled")
         enableEdgeToEdge()
 
@@ -1847,10 +1042,6 @@ class MainActivity : ComponentActivity() {
                 AppRoot()
             }
         }
-        scannerBootstrapHandler.postDelayed({
-            Log.i("HS_BOOTSTRAP", "pre-arm vendor scanner reason=app_started")
-            kickHsDcsServiceAction("app_started", force = true)
-        }, 500L)
 
         val filter = IntentFilter().apply {
             scanIntentActions.forEach { addAction(it) }
@@ -1902,24 +1093,6 @@ class MainActivity : ComponentActivity() {
             Log.i("HS_BOOTSTRAP", "qr flow active reason=$reason")
         } else {
             Log.i("HS_BOOTSTRAP", "qr flow inactive reason=$reason released=$qrCameraReleased")
-            skipVendorOpenOnHardKeyUntilMs =
-                System.currentTimeMillis() + skipVendorOpenAfterQrCloseMs
-
-            Log.i(
-                "HS_BOOTSTRAP",
-                "skip vendor open on hard key armed after qr close until=$skipVendorOpenOnHardKeyUntilMs"
-            )
-            hsHardKeyBlockedUntilMs =
-                System.currentTimeMillis() + hsHardKeyBlockAfterCameraCloseMs
-
-            Log.i(
-                "HS_BOOTSTRAP",
-                "hard key blocked while vendor scanner warms up until=$hsHardKeyBlockedUntilMs"
-            )
-            scannerBootstrapHandler.postDelayed({
-                Log.i("HS_BOOTSTRAP", "pre-arm vendor scanner reason=qr_overlay_closed")
-                kickHsDcsServiceAction("qr_overlay_closed", force = true)
-            }, 50L)
         }
     }
 
@@ -2052,11 +1225,6 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-
-        scannerBootstrapHandler.postDelayed({
-            Log.i("HS_BOOTSTRAP", "pre-arm vendor scanner reason=activity_resumed")
-            kickHsDcsServiceAction("activity_resumed")
-        }, 400L)
     }
 
     override fun onDestroy() {
@@ -2100,7 +1268,6 @@ fun AppRoot() {
     var shouldClearWebViewData by remember { mutableStateOf(true) }
 
     LaunchedEffect(Unit) {
-        cleanupOldOcrLabelPhotos(context)
         if (shouldClearWebViewData) {
             clearWebViewDataOnStart(context)
             shouldClearWebViewData = false
@@ -2110,20 +1277,6 @@ fun AppRoot() {
 
     // новый экран для OCR
     var showOcr by remember { mutableStateOf(false) }
-
-    fun openItemInOcrFromP1(reason: String = "p1_open_ocr") {
-        showOcr = true
-        activity?.hideKeyboardForScannerOverlay(reason)
-        activity?.setQrCameraFlowActive(true, reason = reason)
-    }
-
-    DisposableEffect(Unit) {
-        MainActivity.onP1Single = { openItemInOcrFromP1() }
-
-        onDispose {
-            MainActivity.onP1Single = null
-        }
-    }
 
     // ссылка на WebView
     var webViewRef by remember { mutableStateOf<WebView?>(null) }
@@ -2954,9 +2107,6 @@ fun AppRoot() {
 
                 MainActivity.onP1Single = { dispatchContextFlowAction("p1_single") }
                 MainActivity.onP2Single = { dispatchContextFlowAction("p2_single") }
-                MainActivity.onP2Double = {
-                    Log.i("SCAN_QR_DIAG", "onP2Double invoke")
-                }
             }
 
             hasButtonMappings && (showWebView || showBarcodeScan || showOcr) && !hasFlow -> {
@@ -3198,8 +2348,6 @@ fun AppRoot() {
                 MainActivity.onP2Single = null
             }
         }
-
-        MainActivity.onP1Single = { openItemInOcrFromP1() }
     }
 
 
@@ -3509,53 +2657,15 @@ when {
                         nameDict = nameDict,
                         taskConfig = taskConfig,
                         scanMode = "ocr",
-                        onResult = { ocrData, labelBitmap ->
+                        onResult = { ocrData ->
                             showOcr = false
-                            val targetWebView = webViewRef
-                            targetWebView?.let { web ->
+                            webViewRef?.let { web ->
                                 fillParcelFormInWebView(
                                     webView = web,
                                     data = ocrData,
                                     config = taskConfig,
                                     includeCarrierFields = false
                                 )
-
-                                if (config.ocrSendLabelPhoto && labelBitmap != null) {
-                                    showOcrLabelPhotoUploading(web)
-                                    scope.launch {
-                                        cleanupOldOcrLabelPhotos(context)
-                                        try {
-                                            val compressedFile = compressBitmapToJpegFile(
-                                                context = context,
-                                                bitmap = labelBitmap,
-                                                maxWidth = config.ocrLabelPhotoMaxWidth,
-                                                quality = config.ocrLabelPhotoJpegQuality
-                                            )
-                                            val payload = uploadOcrLabelPhoto(context, config, compressedFile)
-                                            if (payload?.optString("status") == "ok") {
-                                                putOcrLabelPhotoIntoWebView(web, payload)
-                                                compressedFile.delete()
-                                            } else {
-                                                Log.w("OCR_LABEL_PHOTO", "upload returned non-ok response: ${payload?.toString()}")
-                                                if (config.debugToasts) {
-                                                    debugToast(context, "OCR label photo upload failed")
-                                                }
-                                            }
-                                        } catch (t: Throwable) {
-                                            Log.w("OCR_LABEL_PHOTO", "background upload failed", t)
-                                            if (config.debugToasts) {
-                                                debugToast(context, "OCR label photo upload failed")
-                                            }
-                                        } finally {
-                                            labelBitmap.recycle()
-                                        }
-                                    }
-                                } else {
-                                    labelBitmap?.recycle()
-                                }
-                            }
-                            if (targetWebView == null) {
-                                labelBitmap?.recycle()
                             }
 
                             // НОВОЕ: поддержка context flow
@@ -3636,9 +2746,6 @@ fun SettingsScreen(
     var syncNameDict by remember { mutableStateOf(config.syncNameDict) }
     var debugToasts by remember { mutableStateOf(config.debugToasts) }
     var cameraModeEnabled by remember { mutableStateOf(config.cameraModeEnabled) }
-    var ocrSendLabelPhoto by remember { mutableStateOf(config.ocrSendLabelPhoto) }
-    var ocrLabelPhotoMaxWidth by remember { mutableStateOf(config.ocrLabelPhotoMaxWidth.toString()) }
-    var ocrLabelPhotoJpegQuality by remember { mutableStateOf(config.ocrLabelPhotoJpegQuality.toString()) }
 
     val scrollState = rememberScrollState()
 
@@ -3791,53 +2898,6 @@ fun SettingsScreen(
             )
         }
 
-        Spacer(Modifier.height(8.dp))
-
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Checkbox(
-                checked = ocrSendLabelPhoto,
-                onCheckedChange = { enabled ->
-                    ocrSendLabelPhoto = enabled
-                    onConfigChanged(
-                        config.copy(
-                            ocrSendLabelPhoto = enabled,
-                            ocrLabelPhotoMaxWidth = ocrLabelPhotoMaxWidth.toIntOrNull()?.coerceIn(640, 2000) ?: 1280,
-                            ocrLabelPhotoJpegQuality = ocrLabelPhotoJpegQuality.toIntOrNull()?.coerceIn(50, 90) ?: 75
-                        )
-                    )
-                }
-            )
-            Spacer(Modifier.width(8.dp))
-            Text(
-                "OCR + отправлять фото лейбла",
-                style = MaterialTheme.typography.bodyMedium
-            )
-        }
-
-        Spacer(Modifier.height(8.dp))
-
-        OutlinedTextField(
-            value = ocrLabelPhotoMaxWidth,
-            onValueChange = { ocrLabelPhotoMaxWidth = it.filter(Char::isDigit).take(4) },
-            label = { Text("OCR label photo max width (640..2000)") },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth()
-        )
-
-        Spacer(Modifier.height(8.dp))
-
-        OutlinedTextField(
-            value = ocrLabelPhotoJpegQuality,
-            onValueChange = { ocrLabelPhotoJpegQuality = it.filter(Char::isDigit).take(2) },
-            label = { Text("OCR label JPEG quality (50..90)") },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth()
-        )
-
-
         Spacer(Modifier.height(16.dp))
 
         Text(text = statusText)
@@ -3865,11 +2925,7 @@ fun SettingsScreen(
                             liveScanEnabled = liveScanEnabled,
                             syncNameDict = syncNameDict,
                             debugToasts = debugToasts,
-                            cameraModeEnabled = cameraModeEnabled,
-                            ocrSendLabelPhoto = ocrSendLabelPhoto,
-                            ocrLabelPhotoMaxWidth = ocrLabelPhotoMaxWidth.toIntOrNull()?.coerceIn(640, 2000) ?: 1280,
-                            ocrLabelPhotoJpegQuality = ocrLabelPhotoJpegQuality.toIntOrNull()?.coerceIn(50, 90) ?: 75
-
+                            cameraModeEnabled = cameraModeEnabled
                         )
 
                         onConfigChanged(updated)
@@ -4192,7 +3248,6 @@ fun QrCameraPreview(
     val previewView = remember {
         PreviewView(context).apply {
             scaleType = PreviewView.ScaleType.FILL_CENTER
-            implementationMode = PreviewView.ImplementationMode.COMPATIBLE
         }
     }
 
@@ -4340,108 +3395,6 @@ data class RemoteOcrResult(
     val data: OcrParcelData?,
     val errorMessage: String?
 )
-
-
-data class ForwarderClientLookupResult(
-    val found: Boolean,
-    val clientId: String = "",
-    val clientName: String = "",
-    val source: String = "",
-    val error: String? = null
-)
-
-private fun normalizeLookupCountry(value: String?): String {
-    val v = value.orEmpty().trim().uppercase()
-    return when (v) {
-        "AZERBAIJAN", "AZƏRBAYCAN" -> "AZ"
-        "GERMANY", "DEUTSCHLAND" -> "DE"
-        else -> v
-    }
-}
-
-private suspend fun lookupForwarderClientOnServer(
-    context: Context,
-    config: DeviceConfig,
-    forwarder: String,
-    country: String,
-    receiverAddress: String
-): ForwarderClientLookupResult = withContext(Dispatchers.IO) {
-    val base = normalizeServerUrl(config.serverUrl)
-    if (base.isBlank()) {
-        return@withContext ForwarderClientLookupResult(false, error = "empty_server_url")
-    }
-
-    val f = forwarder.trim()
-    val c = normalizeLookupCountry(country)
-    val addr = receiverAddress.trim()
-
-    if (f.isBlank() || c.isBlank() || addr.isBlank()) {
-        return@withContext ForwarderClientLookupResult(false, error = "missing_lookup_fields")
-    }
-
-    try {
-        val url = URL("$base/core_api.php")
-        val conn = (url.openConnection() as HttpURLConnection).apply {
-            requestMethod = "POST"
-            connectTimeout = 2500
-            readTimeout = 3500
-            doOutput = true
-            setRequestProperty("Content-Type", "application/x-www-form-urlencoded; charset=UTF-8")
-            setRequestProperty("Accept", "application/json")
-
-            val cookies = CookieManager.getInstance().getCookie(base)
-                ?: CookieManager.getInstance().getCookie(url.toString())
-            if (!cookies.isNullOrBlank()) {
-                setRequestProperty("Cookie", cookies)
-            }
-        }
-        applyInsecureSslIfNeeded(conn, config)
-
-        val body = listOf(
-            "action" to "warehouse_lookup_forwarder_client",
-            "receiver_company" to f,
-            "receiver_country_code" to c,
-            "receiver_address" to addr
-        ).joinToString("&") { (k, v) ->
-            java.net.URLEncoder.encode(k, "UTF-8") + "=" +
-                    java.net.URLEncoder.encode(v, "UTF-8")
-        }
-
-        conn.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
-
-        val code = conn.responseCode
-        val stream = if (code in 200..299) conn.inputStream else conn.errorStream
-        val text = stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }.orEmpty()
-
-        val json = JSONObject(text)
-        if (json.optString("status") != "ok") {
-            return@withContext ForwarderClientLookupResult(false, error = json.optString("message", "api_error"))
-        }
-
-        val found = json.optBoolean("found", false)
-        if (!found) {
-            return@withContext ForwarderClientLookupResult(false)
-        }
-
-        val clientName = json.optString("client_name", "").trim().replace(Regex("\\s+"), " ")
-        val clientId = json.optString("client_id", "").trim()
-        val source = json.optString("source", "local_cache")
-
-        if (clientName.isBlank()) {
-            return@withContext ForwarderClientLookupResult(false, clientId = clientId, source = source)
-        }
-
-        ForwarderClientLookupResult(
-            found = true,
-            clientId = clientId,
-            clientName = clientName,
-            source = source
-        )
-    } catch (t: Throwable) {
-        Log.w("OCR_CLIENT_LOOKUP", "lookup failed", t)
-        ForwarderClientLookupResult(false, error = t.message)
-    }
-}
 
 suspend fun callRemoteOcrParse(
     context: Context,
@@ -4785,140 +3738,6 @@ private fun executeWebFunctionWithRetry(
             }
         }
     }
-}
-
-private fun ocrLabelPhotoDir(context: Context): File {
-    return File(context.cacheDir, "ocr_label_photos")
-}
-
-private fun compressBitmapToJpegFile(
-    context: Context,
-    bitmap: Bitmap,
-    maxWidth: Int = 1280,
-    quality: Int = 75
-): File {
-    val safeMaxWidth = maxWidth.coerceIn(640, 2000)
-    val safeQuality = quality.coerceIn(50, 90)
-    val source = if (bitmap.width > safeMaxWidth) {
-        val scale = safeMaxWidth.toFloat() / bitmap.width.toFloat()
-        val targetHeight = (bitmap.height * scale).toInt().coerceAtLeast(1)
-        Bitmap.createScaledBitmap(bitmap, safeMaxWidth, targetHeight, true)
-    } else {
-        bitmap
-    }
-
-    val dir = ocrLabelPhotoDir(context)
-    if (!dir.exists()) dir.mkdirs()
-    val file = File(dir, "ocr_label_${System.currentTimeMillis()}.jpg")
-    file.outputStream().use { out ->
-        source.compress(Bitmap.CompressFormat.JPEG, safeQuality, out)
-    }
-    if (source !== bitmap) {
-        source.recycle()
-    }
-    return file
-}
-
-private fun cleanupOldOcrLabelPhotos(context: Context, maxAgeMs: Long = 24 * 60 * 60 * 1000L) {
-    val now = System.currentTimeMillis()
-    ocrLabelPhotoDir(context).listFiles()?.forEach { file ->
-        if (file.isFile && now - file.lastModified() > maxAgeMs) {
-            runCatching { file.delete() }
-        }
-    }
-}
-
-private suspend fun uploadOcrLabelPhoto(
-    context: Context,
-    config: DeviceConfig,
-    file: File
-): JSONObject? = withContext(Dispatchers.IO) {
-    val base = normalizeServerUrl(config.serverUrl)
-    if (base.isBlank()) return@withContext null
-
-    val boundary = "ocr_label_${System.currentTimeMillis()}"
-    val url = URL("$base/core_api.php")
-    val conn = (url.openConnection() as HttpURLConnection)
-    applyInsecureSslIfNeeded(conn, config)
-
-    try {
-        conn.requestMethod = "POST"
-        conn.connectTimeout = 3000
-        conn.readTimeout = 8000
-        conn.doOutput = true
-        conn.setRequestProperty("Content-Type", "multipart/form-data; boundary=$boundary")
-        conn.setRequestProperty("Accept", "application/json")
-
-        val cookies = CookieManager.getInstance().getCookie(base)
-            ?: CookieManager.getInstance().getCookie(url.toString())
-        if (!cookies.isNullOrBlank()) {
-            conn.setRequestProperty("Cookie", cookies)
-        }
-
-        fun String.utf8Bytes(): ByteArray = toByteArray(Charsets.UTF_8)
-        conn.outputStream.use { out ->
-            fun field(name: String, value: String) {
-                out.write("--$boundary\r\n".utf8Bytes())
-                out.write("Content-Disposition: form-data; name=\"$name\"\r\n\r\n".utf8Bytes())
-                out.write(value.utf8Bytes())
-                out.write("\r\n".utf8Bytes())
-            }
-
-            field("action", "upload_ocr_label_photo")
-            field("photo_type", "label")
-            out.write("--$boundary\r\n".utf8Bytes())
-            out.write("Content-Disposition: form-data; name=\"file\"; filename=\"${file.name}\"\r\n".utf8Bytes())
-            out.write("Content-Type: image/jpeg\r\n\r\n".utf8Bytes())
-            file.inputStream().use { input -> input.copyTo(out) }
-            out.write("\r\n--$boundary--\r\n".utf8Bytes())
-        }
-
-        val code = conn.responseCode
-        val stream = if (code in 200..299) conn.inputStream else conn.errorStream
-        val text = stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }.orEmpty()
-        if (text.isBlank()) return@withContext null
-        JSONObject(text)
-    } catch (t: Throwable) {
-        Log.w("OCR_LABEL_PHOTO", "upload failed", t)
-        null
-    } finally {
-        conn.disconnect()
-    }
-}
-
-private fun putOcrLabelPhotoIntoWebView(webView: WebView, payload: JSONObject) {
-    val payloadJsonLiteral = JSONObject.quote(payload.toString())
-    val js = """
-        (function(payloadJson) {
-            var payload = JSON.parse(payloadJson);
-            var input = document.getElementById('warehouseStockLabelImageJson');
-            if (input) {
-                input.value = (typeof payload.json === 'string' && payload.json.length > 0) ? payload.json : JSON.stringify(payload);
-                input.dispatchEvent(new Event('input', { bubbles: true }));
-                input.dispatchEvent(new Event('change', { bubbles: true }));
-            }
-
-            var info = document.getElementById('warehouseStockLabelPhotoInfo');
-            if (info) {
-                info.textContent = 'Фото лейбла загружено из OCR';
-            }
-
-            if (window.CoreAPI && CoreAPI.ui && typeof CoreAPI.ui.showToast === 'function') {
-                CoreAPI.ui.showToast('Фото лейбла загружено', 'success');
-            }
-        })($payloadJsonLiteral);
-    """.trimIndent()
-    webView.post { webView.evaluateJavascript(js, null) }
-}
-
-private fun showOcrLabelPhotoUploading(webView: WebView) {
-    val js = """
-        (function(){
-            var info = document.getElementById('warehouseStockLabelPhotoInfo');
-            if (info) info.textContent = 'Фото лейбла загружается...';
-        })();
-    """.trimIndent()
-    webView.post { webView.evaluateJavascript(js, null) }
 }
 private fun applyInsecureSslIfNeeded(conn: HttpURLConnection, cfg: DeviceConfig) {
     if (conn is HttpsURLConnection && cfg.allowInsecureSsl) {
@@ -5315,50 +4134,8 @@ fun DeviceWebViewScreen(
             WebView(ctx).apply {
                 val mainHandler = Handler(Looper.getMainLooper())
                 val scannerDebugBridge = ScannerDebugBridge(ctx.applicationContext)
-                val webViewForIme = this
-
-                isFocusable = true
-                isFocusableInTouchMode = true
-                descendantFocusability = ViewGroup.FOCUS_AFTER_DESCENDANTS
 
                 class DeviceBridge {
-                    @JavascriptInterface
-                    fun onManualInputFocus(payload: String) {
-                        Log.i("SCAN_QR_DIAG", "manual_keyboard_request payload=$payload")
-
-                        mainHandler.post {
-                            try {
-                                webViewForIme.isFocusable = true
-                                webViewForIme.isFocusableInTouchMode = true
-                                webViewForIme.requestFocus()
-
-                                val imm = ctx.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-
-                                webViewForIme.postDelayed({
-                                    val shown = imm.showSoftInput(
-                                        webViewForIme,
-                                        InputMethodManager.SHOW_IMPLICIT
-                                    )
-
-                                    Log.i(
-                                        "SCAN_QR_DIAG",
-                                        "manual_keyboard_show payload=$payload shown=$shown"
-                                    )
-                                }, 80L)
-                            } catch (t: Throwable) {
-                                Log.e("SCAN_QR_DIAG", "manual_keyboard_show_failed payload=$payload", t)
-                            }
-                        }
-                    }
-
-                    @JavascriptInterface
-                    fun openItemInOcr(source: String?) {
-                        Log.i("SCAN_QR_DIAG", "DeviceOcr.openItemInOcr source=$source")
-                        mainHandler.post {
-                            MainActivity.onP1Single?.invoke()
-                        }
-                    }
-
                     @JavascriptInterface
                     fun onMainContext(payload: String?) {
                         if (payload.isNullOrBlank()) return
@@ -5507,8 +4284,6 @@ fun DeviceWebViewScreen(
                         }
                         // ВАЖНО: всегда инжектим, потому что при реальном reload JS улетает
                         view?.evaluateJavascript(INSTALL_MAIN_OBSERVER_JS, null)
-                        view?.evaluateJavascript(INSTALL_MANUAL_INPUT_KEYBOARD_JS, null)
-                        view?.evaluateJavascript(INSTALL_DEVICE_OCR_JS, null)
 
                         val base = normalizeServerUrl(config.serverUrl)
                         if (!url.isNullOrBlank() && base.isNotBlank()) {
@@ -5731,10 +4506,8 @@ data class OcrParcelData(
 
     // NEW: локальный перевозчик (DHL/GLS/HERMES/UPS/AMAZON) и его трек
     val localCarrierName: String? = null,
-    val localTrackingNo: String? = null,
+    val localTrackingNo: String? = null
 
-    val receiverNameSource: String? = null,
-    val receiverClientId: String? = null
 )
 
 fun escapeJsString(input: String): String =
@@ -7161,7 +5934,6 @@ fun BarcodeScanScreen(
     val previewView = remember {
         PreviewView(context).apply {
             scaleType = PreviewView.ScaleType.FILL_CENTER
-            implementationMode = PreviewView.ImplementationMode.COMPATIBLE
         }
     }
 
@@ -7186,8 +5958,6 @@ fun BarcodeScanScreen(
 
     DisposableEffect(Unit) {
         val activity = context as? MainActivity
-
-        activity?.hideKeyboardForScannerOverlay("barcode_screen_opened")
 
         activity?.setScannerCameraCallbacks(
             owner = "BarcodeScanScreen",
@@ -7214,13 +5984,7 @@ fun BarcodeScanScreen(
         )
 
         onDispose {
-            activity?.hideKeyboardForScannerOverlay("barcode_screen_closed")
-
-            activity?.setScannerCameraCallbacks(
-                owner = "BarcodeScanScreen",
-                releaseCamera = null,
-                restoreCamera = null
-            )
+            activity?.setScannerCameraCallbacks("BarcodeScanScreen", null, null)
         }
     }
     val barcodeOptions = remember {
@@ -7581,63 +6345,6 @@ fun BarcodeScanScreen(
     }
 }
 
-private data class OcrBrushPoint(
-    val x: Float,
-    val y: Float,
-    val radius: Float
-)
-
-private fun ocrBrushRadiusFromMotionEvent(event: MotionEvent): Float {
-    val pressure: Float = if (event.pressure > 0f) event.pressure else 0.5f
-    val touchSize: Float = if (event.size > 0f) event.size else 0.05f
-
-    return (18f + pressure * 34f + touchSize * 160f).coerceIn(18f, 78f)
-}
-
-private fun buildOcrBrushMaskedBitmap(
-    source: Bitmap,
-    brushPoints: List<OcrBrushPoint>
-): Bitmap? {
-    if (brushPoints.isEmpty()) {
-        return source
-    }
-
-    val left = floor(brushPoints.minOf { it.x - it.radius }).toInt().coerceIn(0, source.width - 1)
-    val top = floor(brushPoints.minOf { it.y - it.radius }).toInt().coerceIn(0, source.height - 1)
-    val right = ceil(brushPoints.maxOf { it.x + it.radius }).toInt().coerceIn(left + 1, source.width)
-    val bottom = ceil(brushPoints.maxOf { it.y + it.radius }).toInt().coerceIn(top + 1, source.height)
-
-    val width = right - left
-    val height = bottom - top
-
-    if (width < 12 || height < 12) {
-        return null
-    }
-
-    val crop = Bitmap.createBitmap(source, left, top, width, height)
-    val output = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-
-    val canvas = android.graphics.Canvas(output)
-    canvas.drawColor(android.graphics.Color.WHITE)
-
-    val clipPath = Path()
-    brushPoints.forEach { point ->
-        clipPath.addCircle(
-            point.x - left,
-            point.y - top,
-            point.radius,
-            Path.Direction.CW
-        )
-    }
-
-    canvas.save()
-    canvas.clipPath(clipPath)
-    canvas.drawBitmap(crop, 0f, 0f, null)
-    canvas.restore()
-
-    return output
-}
-
 @Composable
 fun OcrScanScreen(
     modifier: Modifier = Modifier,
@@ -7646,7 +6353,7 @@ fun OcrScanScreen(
     nameDict: NameDict?,                         // <<< НОВОЕ
     taskConfig: ScanTaskConfig?,
     scanMode: String,
-    onResult: (OcrParcelData, Bitmap?) -> Unit,
+    onResult: (OcrParcelData) -> Unit,
     onCancel: () -> Unit,
     onBindHardwareTrigger: ((() -> Unit)?) -> Unit,
     onBarcodeClick: (() -> Unit)? = null,
@@ -7699,7 +6406,6 @@ fun OcrScanScreen(
     val previewView = remember {
         PreviewView(context).apply {
             scaleType = PreviewView.ScaleType.FILL_CENTER
-            implementationMode = PreviewView.ImplementationMode.COMPATIBLE
         }
     }
 
@@ -7723,69 +6429,12 @@ fun OcrScanScreen(
     var liveOcrPreview by remember { mutableStateOf<String?>(null) }
     var liveOcrBusy by remember { mutableStateOf(false) }
 
-    var holdMode by remember { mutableStateOf(false) }
-    var frozenOcrBitmap by remember { mutableStateOf<Bitmap?>(null) }
-    var ocrBrushPoints by remember { mutableStateOf<List<OcrBrushPoint>>(emptyList()) }
-
-    val holdOcrPreviewHandler = remember { Handler(Looper.getMainLooper()) }
-    var holdOcrPreviewRunnable by remember { mutableStateOf<Runnable?>(null) }
-    var holdOcrPreviewBusy by remember { mutableStateOf(false) }
-
     var liveAnalysis by remember { mutableStateOf<ImageAnalysis?>(null) }
     var boundCameraProvider by remember { mutableStateOf<ProcessCameraProvider?>(null) }
     var cameraRestoreTick by remember { mutableStateOf(0) }
 
-    var lastClientLookupKey by remember { mutableStateOf("") }
-    var lastClientLookupResult by remember { mutableStateOf<ForwarderClientLookupResult?>(null) }
-
-    suspend fun applyForwarderClientLookup(data: OcrParcelData): OcrParcelData {
-        val cell = data.receiverCellCode
-            ?.trim()
-            ?.takeIf { it.isNotEmpty() }
-            ?: data.receiverAddress?.trim()?.takeIf { it.isNotEmpty() }
-            ?: return data
-        val forwarder = data.receiverForwarderCode
-            ?.trim()
-            ?.takeIf { it.isNotEmpty() }
-            ?: data.receiverCompany?.let { detectForwarderByText(it) }
-            ?: detectForwarderByCellCode(cell)
-            ?: return data
-        val country = normalizeLookupCountry(data.receiverCountryCode)
-            .takeIf { it.isNotEmpty() }
-            ?: return data
-
-        val lookupKey = "${forwarder.uppercase()}|${country.uppercase()}|${cell.uppercase()}"
-        val lookup = if (lookupKey == lastClientLookupKey && lastClientLookupResult != null) {
-            lastClientLookupResult!!
-        } else {
-            lookupForwarderClientOnServer(
-                context = context,
-                config = config,
-                forwarder = forwarder,
-                country = country,
-                receiverAddress = cell
-            ).also { result ->
-                lastClientLookupKey = lookupKey
-                lastClientLookupResult = result
-            }
-        }
-
-        return if (lookup.found && lookup.clientName.isNotBlank()) {
-            data.copy(
-                receiverName = lookup.clientName,
-                receiverNameSource = "forwarder_client_cache",
-                receiverClientId = lookup.clientId.takeIf { it.isNotBlank() }
-            )
-        } else {
-            data
-        }
-    }
-
-
     DisposableEffect(Unit) {
         val activity = context as? MainActivity
-
-        activity?.hideKeyboardForScannerOverlay("ocr_screen_opened")
 
         activity?.setScannerCameraCallbacks(
             owner = "OcrScanScreen",
@@ -7817,7 +6466,7 @@ fun OcrScanScreen(
             )
         }
     }
-    fun processRecognizedText(fullText: String, labelBitmap: Bitmap?) {
+    fun processRecognizedText(fullText: String) {
         scope.launch {
             try {
                 if (config.useRemoteOcr) {
@@ -7827,7 +6476,7 @@ fun OcrScanScreen(
                         val lc = detectLocalCarrierName(fullText)
                         val lt = detectLocalTrackingNo(fullText, lc)
                         val tuid = lt ?: base.trackingNo
-                        onResult(applyForwarderClientLookup(base.copy(tuid = tuid, localCarrierName = lc, localTrackingNo = lt)), labelBitmap)
+                        onResult(base.copy(tuid = tuid, localCarrierName = lc, localTrackingNo = lt))
                     } else {
                         val basic = parseOcrText(fullText)
                         val advanced = buildOcrParcelDataFromText(fullText = fullText, trackingNo = basic.trackingNo, destConfig = destConfig, nameDict = nameDict)
@@ -7841,7 +6490,7 @@ fun OcrScanScreen(
                         val lc = detectLocalCarrierName(fullText)
                         val lt = detectLocalTrackingNo(fullText, lc)
                         val tuid = detectTuid(fullText)
-                        onResult(applyForwarderClientLookup(merged.copy(tuid = tuid, localCarrierName = lc, localTrackingNo = lt)), labelBitmap)
+                        onResult(merged.copy(tuid = tuid, localCarrierName = lc, localTrackingNo = lt))
                         errorText = remote.errorMessage?.let { "Удалённый парсер не сработал: $it (использован локальный)" }
                     }
                 } else {
@@ -7857,7 +6506,7 @@ fun OcrScanScreen(
                     val lc = detectLocalCarrierName(fullText)
                     val lt = detectLocalTrackingNo(fullText, lc)
                     val tuid = detectTuid(fullText)
-                    onResult(applyForwarderClientLookup(merged.copy(tuid = tuid, localCarrierName = lc, localTrackingNo = lt)), labelBitmap)
+                    onResult(merged.copy(tuid = tuid, localCarrierName = lc, localTrackingNo = lt))
                 }
             } finally {
                 isProcessing = false
@@ -7887,9 +6536,8 @@ fun OcrScanScreen(
                 liveAnalysis = analysis
                 analysis.setAnalyzer(executor) { imageProxy ->
                     val mediaImage = imageProxy.image
-                    if (mediaImage == null || liveOcrBusy || isProcessing || holdMode) {
-                        imageProxy.close()
-                        return@setAnalyzer
+                    if (mediaImage == null || liveOcrBusy || isProcessing) {
+                        imageProxy.close(); return@setAnalyzer
                     }
                     liveOcrBusy = true
                     val input = InputImage.fromMediaImage(mediaImage, imageProxy.imageInfo.rotationDegrees)
@@ -7898,24 +6546,11 @@ fun OcrScanScreen(
                             val txt = result.text?.trim().orEmpty()
                             if (txt.isNotEmpty()) {
                                 liveOcrText = txt
-                                val previewData = buildMergedOcrParcelDataFromText(
+                                liveOcrPreview = buildLiveOcrPreview(
                                     fullText = txt,
                                     destConfig = destConfig,
                                     nameDict = nameDict
                                 )
-                                liveOcrPreview = buildLiveOcrPreviewFromData(
-                                    data = previewData,
-                                    fullText = txt
-                                )
-                                scope.launch {
-                                    val correctedData = applyForwarderClientLookup(previewData)
-                                    if (correctedData.receiverName != previewData.receiverName && liveOcrText == txt) {
-                                        liveOcrPreview = buildLiveOcrPreviewFromData(
-                                            data = correctedData,
-                                            fullText = txt
-                                        )
-                                    }
-                                }
                             } else {
                                 liveOcrText = null
                                 liveOcrPreview = null
@@ -7959,174 +6594,11 @@ fun OcrScanScreen(
         activeCamera.cameraControl.setZoomRatio(targetZoom)
     }
 
-    fun enableOcrHold() {
-        val bitmap = previewView.bitmap?.copy(Bitmap.Config.ARGB_8888, false)
-
-        if (bitmap == null) {
-            errorText = "Не удалось заморозить кадр"
-            return
-        }
-
-        frozenOcrBitmap = bitmap
-        ocrBrushPoints = emptyList()
-        holdMode = true
-        liveOcrText = null
-        liveOcrPreview = "Hold OCR: проведи пальцем по нужному тексту"
-
-        (context as? MainActivity)?.hideKeyboardForScannerOverlay("ocr_hold_enabled")
-
-        Log.i(
-            "SCAN_QR_DIAG",
-            "ocr_hold_enabled bitmap=${bitmap.width}x${bitmap.height}"
-        )
-    }
-
-    fun disableOcrHold() {
-        holdOcrPreviewRunnable?.let {
-            holdOcrPreviewHandler.removeCallbacks(it)
-        }
-        holdOcrPreviewRunnable = null
-        holdOcrPreviewBusy = false
-
-        holdMode = false
-        frozenOcrBitmap = null
-        ocrBrushPoints = emptyList()
-        liveOcrText = null
-        liveOcrPreview = null
-
-        Log.i("SCAN_QR_DIAG", "ocr_hold_disabled")
-
-    }
-
-    fun scheduleHoldOcrPreview() {
-        if (!holdMode) return
-
-        val sourceBitmap = frozenOcrBitmap ?: return
-        val pointsSnapshot = ocrBrushPoints.toList()
-
-        if (pointsSnapshot.isEmpty()) {
-            liveOcrPreview = "Hold: выдели нужный текст пальцем"
-            return
-        }
-
-        holdOcrPreviewRunnable?.let {
-            holdOcrPreviewHandler.removeCallbacks(it)
-        }
-
-        val runnable = Runnable {
-            if (holdOcrPreviewBusy) return@Runnable
-
-            val bitmapForOcr = buildOcrBrushMaskedBitmap(
-                source = sourceBitmap,
-                brushPoints = pointsSnapshot
-            )
-
-            if (bitmapForOcr == null) {
-                liveOcrPreview = "Hold: выдели область текста пальцем"
-                return@Runnable
-            }
-
-            holdOcrPreviewBusy = true
-            liveOcrPreview = "Hold OCR: распознаю выделение..."
-
-            Log.i(
-                "SCAN_QR_DIAG",
-                "ocr_hold_preview_start brushPoints=${pointsSnapshot.size} bitmap=${bitmapForOcr.width}x${bitmapForOcr.height}"
-            )
-
-            val inputImage = InputImage.fromBitmap(bitmapForOcr, 0)
-
-            recognizer
-                .process(inputImage)
-                .addOnSuccessListener { result ->
-                    val text = result.text.orEmpty().trim()
-
-                    liveOcrText = text
-
-                    liveOcrPreview =
-                        if (text.isBlank()) {
-                            "Hold OCR: текст не найден. Попробуй выделить шире"
-                        } else {
-                            val previewData = buildMergedOcrParcelDataFromText(
-                                fullText = text,
-                                destConfig = destConfig,
-                                nameDict = nameDict
-                            )
-                            scope.launch {
-                                val correctedData = applyForwarderClientLookup(previewData)
-                                if (correctedData.receiverName != previewData.receiverName && liveOcrText == text) {
-                                    liveOcrPreview = buildLiveOcrPreviewFromData(
-                                        data = correctedData,
-                                        fullText = text
-                                    )
-                                }
-                            }
-                            buildLiveOcrPreviewFromData(
-                                data = previewData,
-                                fullText = text
-                            )
-                        }
-
-                    Log.i(
-                        "SCAN_QR_DIAG",
-                        "ocr_hold_preview_success chars=${text.length}"
-                    )
-
-                    holdOcrPreviewBusy = false
-                }
-                .addOnFailureListener { e ->
-                    liveOcrPreview = "Hold OCR: ошибка распознавания ${e.message}"
-                    Log.e("SCAN_QR_DIAG", "ocr_hold_preview_failed", e)
-                    holdOcrPreviewBusy = false
-                }
-        }
-
-        holdOcrPreviewRunnable = runnable
-        holdOcrPreviewHandler.postDelayed(runnable, 450L)
-    }
-
     fun captureAndRecognize() {
         if (!hasCameraPermission || isProcessing) return
 
         isProcessing = true
         errorText = null
-
-        val frozenBitmapForRecognition = frozenOcrBitmap
-
-        if (holdMode && frozenBitmapForRecognition != null) {
-            val source = frozenBitmapForRecognition
-
-            val bitmapForOcr = buildOcrBrushMaskedBitmap(
-                source = source,
-                brushPoints = ocrBrushPoints
-            )
-
-            if (bitmapForOcr == null) {
-                errorText = "Выдели область текста пальцем"
-                isProcessing = false
-                return
-            }
-
-            Log.i(
-                "SCAN_QR_DIAG",
-                "ocr_hold_recognize brushPoints=${ocrBrushPoints.size} bitmap=${bitmapForOcr.width}x${bitmapForOcr.height}"
-            )
-
-            val inputImage = InputImage.fromBitmap(bitmapForOcr, 0)
-
-            recognizer
-                .process(inputImage)
-                .addOnSuccessListener { result ->
-                    val fullText = result.text ?: ""
-                    processRecognizedText(fullText, if (config.ocrSendLabelPhoto) source.copy(Bitmap.Config.ARGB_8888, false) else null)
-                }
-                .addOnFailureListener { e ->
-                    errorText = "Не удалось распознать Hold OCR: ${e.message}"
-                    isProcessing = false
-                }
-
-            return
-        }
 
         imageCapture.takePicture(
             executor,
@@ -8148,13 +6620,8 @@ fun OcrScanScreen(
                         .process(inputImage)
                         .addOnSuccessListener { result ->
                             val fullText = result.text ?: ""
-                            
-                            val labelBitmap = if (config.ocrSendLabelPhoto) {
-                                previewView.bitmap?.copy(Bitmap.Config.ARGB_8888, false)
-                            } else {
-                                null
-                            }
-                            processRecognizedText(fullText, labelBitmap)
+
+                            processRecognizedText(fullText)
                         }
                         .addOnFailureListener { e ->
                             errorText = "Не удалось распознать: ${e.message}"
@@ -8176,13 +6643,12 @@ fun OcrScanScreen(
 
 
     // ===== Привязка VOL_DOWN к captureAndRecognize =====
-    DisposableEffect(hasCameraPermission, config.liveScanEnabled, liveOcrText, holdMode, frozenOcrBitmap, ocrBrushPoints) {        if (hasCameraPermission) {
+    DisposableEffect(hasCameraPermission, config.liveScanEnabled, liveOcrText) {
+        if (hasCameraPermission) {
             onBindHardwareTrigger {
-                if (holdMode && frozenOcrBitmap != null) {
-                    captureAndRecognize()
-                } else if (config.liveScanEnabled && !liveOcrText.isNullOrBlank() && !isProcessing) {
+                if (config.liveScanEnabled && !liveOcrText.isNullOrBlank() && !isProcessing) {
                     isProcessing = true
-                    processRecognizedText(liveOcrText!!, if (config.ocrSendLabelPhoto) previewView.bitmap?.copy(Bitmap.Config.ARGB_8888, false) else null)
+                    processRecognizedText(liveOcrText!!)
                 } else {
                     captureAndRecognize()
                 }
@@ -8227,76 +6693,11 @@ fun OcrScanScreen(
                 }
             }
         } else {
-           // PreviewView всегда остаётся в UI, чтобы CameraX Surface не пересоздавался на Hold/Unhold
-            val frozenBitmapForUi = frozenOcrBitmap
-
+            // Превью камеры
             AndroidView(
                 modifier = Modifier.fillMaxSize(),
                 factory = { previewView }
             )
-
-            if (holdMode && frozenBitmapForUi != null) {
-                Image(
-                    bitmap = frozenBitmapForUi.asImageBitmap(),
-                    contentDescription = "Frozen OCR frame",
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.FillBounds
-                )
-            }
-            // Overlay кисти поверх frozen image
-            if (holdMode && frozenBitmapForUi != null) {
-                Canvas(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .graphicsLayer {
-                            alpha = 0.18f
-                            compositingStrategy = CompositingStrategy.Offscreen
-                        }
-                        .pointerInteropFilter { event ->
-                            when (event.actionMasked) {
-                                MotionEvent.ACTION_DOWN,
-                                MotionEvent.ACTION_MOVE -> {
-                                    val radius = ocrBrushRadiusFromMotionEvent(event)
-
-                                    val newPoints = mutableListOf<OcrBrushPoint>()
-
-                                    for (i in 0 until event.historySize) {
-                                        newPoints += OcrBrushPoint(
-                                            x = event.getHistoricalX(i),
-                                            y = event.getHistoricalY(i),
-                                            radius = radius
-                                        )
-                                    }
-
-                                    newPoints += OcrBrushPoint(
-                                        x = event.x,
-                                        y = event.y,
-                                        radius = radius
-                                    )
-
-                                    ocrBrushPoints = ocrBrushPoints + newPoints
-
-                                    liveOcrPreview = "Hold OCR: готовлю распознавание выделения..."
-                                    scheduleHoldOcrPreview()
-
-                                    true
-                                }
-
-                                MotionEvent.ACTION_UP,
-                                MotionEvent.ACTION_CANCEL -> true
-
-                                else -> false
-                            }
-                        }
-                ) {
-                    ocrBrushPoints.forEach { point ->
-                        drawCircle(
-                            color = androidx.compose.ui.graphics.Color(0xFFFFEB3B),                            radius = point.radius,
-                            center = Offset(point.x, point.y)
-                        )
-                    }
-                }
-            }
             val taskLabel = taskConfig?.ui?.stepLabels?.get(scanMode)
                 ?.trim()
                 ?.takeIf { it.isNotEmpty() }
@@ -8360,27 +6761,13 @@ fun OcrScanScreen(
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                    horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     OutlinedButton(
                         onClick = onCancel,
                         enabled = !isProcessing
                     ) {
                         Text("Отмена")
-                    }
-
-                    OutlinedButton(
-                        onClick = {
-                            if (holdMode) {
-                                disableOcrHold()
-                            } else {
-                                enableOcrHold()
-                            }
-                        },
-                        enabled = !isProcessing
-                    ) {
-                        Text(if (holdMode) "Unhold" else "Hold")
                     }
 
                     Button(
@@ -8947,11 +7334,12 @@ fun detectForwarderByText(textRaw: String): String? {
 }
 
 
-fun buildMergedOcrParcelDataFromText(
+
+fun buildLiveOcrPreview(
     fullText: String,
     destConfig: List<DestCountryCfg>,
     nameDict: NameDict?
-): OcrParcelData {
+): String {
     val basic = parseOcrText(fullText)
     val advanced = buildOcrParcelDataFromText(
         fullText = fullText,
@@ -8959,35 +7347,31 @@ fun buildMergedOcrParcelDataFromText(
         destConfig = destConfig,
         nameDict = nameDict
     )
-    return basic.copy(
-    receiverCountryCode = advanced.receiverCountryCode ?: basic.receiverCountryCode,
-    receiverCompany = advanced.receiverCompany ?: basic.receiverCompany,
-    receiverForwarderCode = advanced.receiverForwarderCode ?: basic.receiverForwarderCode,
-    receiverCellCode = advanced.receiverCellCode ?: basic.receiverCellCode,
-    receiverName = advanced.receiverName ?: basic.receiverName
+    val merged = basic.copy(
+        receiverCountryCode = advanced.receiverCountryCode ?: basic.receiverCountryCode,
+        receiverCompany = advanced.receiverCompany ?: basic.receiverCompany,
+        receiverForwarderCode = advanced.receiverForwarderCode ?: basic.receiverForwarderCode,
+        receiverCellCode = advanced.receiverCellCode ?: basic.receiverCellCode,
+        receiverName = advanced.receiverName ?: basic.receiverName
     )
-}
 
-fun buildLiveOcrPreviewFromData(
-    data: OcrParcelData,
-    fullText: String,
-    localCarrier: String? = detectLocalCarrierName(fullText),
-    localTracking: String? = detectLocalTrackingNo(fullText, localCarrier),
-    tuid: String? = detectTuid(fullText)
-): String {
+    val localCarrier = detectLocalCarrierName(fullText)
+    val localTracking = detectLocalTrackingNo(fullText, localCarrier)
+    val tuid = detectTuid(fullText)
+
     val items = mutableListOf<String>()
     fun add(label: String, value: String?) {
         val clean = value?.trim()?.takeIf { it.isNotEmpty() } ?: return
         items += "$label: $clean"
     }
 
-    add("Tracking", data.trackingNo)
+    add("Tracking", merged.trackingNo)
     add("TUID", tuid)
-    add("Country", data.receiverCountryCode)
-    add("Forwarder", data.receiverForwarderCode)
-    add("Company", data.receiverCompany)
-    add("Cell", data.receiverCellCode)
-    add("Name", data.receiverName)
+    add("Country", merged.receiverCountryCode)
+    add("Forwarder", merged.receiverForwarderCode)
+    add("Company", merged.receiverCompany)
+    add("Cell", merged.receiverCellCode)
+    add("Name", merged.receiverName)
     add("Local carrier", localCarrier)
     add("Local tracking", localTracking)
 
@@ -8999,24 +7383,9 @@ fun buildLiveOcrPreviewFromData(
             ?: "данные не распознаны"
     }
 
-    return items.joinToString("\n")
-}
-
-fun buildLiveOcrPreview(
-    fullText: String,
-    destConfig: List<DestCountryCfg>,
-    nameDict: NameDict?
-): String {
-    val merged = buildMergedOcrParcelDataFromText(
-        fullText = fullText,
-        destConfig = destConfig,
-        nameDict = nameDict
-    )
-
-    return buildLiveOcrPreviewFromData(
-        data = merged,
-        fullText = fullText
-    )
+    return items
+        .take(5)
+        .joinToString("\n")
 }
 
 

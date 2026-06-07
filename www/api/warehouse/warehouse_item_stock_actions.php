@@ -2471,6 +2471,83 @@ if ($action === 'save_item_stock') {
 }
 
 
+if ($action === 'upload_ocr_label_photo') {
+    auth_require_login();
+
+    $photoType = strtolower(trim((string)($_POST['photo_type'] ?? 'label')));
+    if ($photoType !== 'label') {
+        $response = ['status' => 'error', 'message' => 'Некорректный тип фото'];
+        return;
+    }
+
+    $upload = null;
+    if (isset($_FILES['file']) && is_array($_FILES['file'])) {
+        $upload = $_FILES['file'];
+    } elseif (isset($_FILES['photo']) && is_array($_FILES['photo'])) {
+        $upload = $_FILES['photo'];
+    }
+    if ($upload === null) {
+        $response = ['status' => 'error', 'message' => 'Файл не передан'];
+        return;
+    }
+
+    $errorCode = (int)($upload['error'] ?? UPLOAD_ERR_NO_FILE);
+    if ($errorCode !== UPLOAD_ERR_OK) {
+        $response = ['status' => 'error', 'message' => 'Ошибка загрузки файла'];
+        return;
+    }
+
+    $tmp = (string)($upload['tmp_name'] ?? '');
+    if ($tmp === '' || !is_uploaded_file($tmp)) {
+        $response = ['status' => 'error', 'message' => 'Некорректный временный файл'];
+        return;
+    }
+
+    $finfo = new finfo(FILEINFO_MIME_TYPE);
+    $mime = (string)$finfo->file($tmp);
+    if ($mime !== 'image/jpeg') {
+        $response = ['status' => 'error', 'message' => 'Разрешён только JPEG'];
+        return;
+    }
+
+    $baseRelDir = 'img/warehouse_item_stock/ocr_label_tmp/' . date('Ymd');
+    $baseAbsDir = rtrim($_SERVER['DOCUMENT_ROOT'] ?? '', '/') . '/' . $baseRelDir;
+    if (!warehouse_stock_ensure_photo_dir($baseAbsDir)) {
+        $response = ['status' => 'error', 'message' => 'Не удалось создать каталог для фото'];
+        return;
+    }
+
+    try {
+        $suffix = bin2hex(random_bytes(4));
+    } catch (Throwable $e) {
+        $suffix = substr(md5((string)microtime(true)), 0, 8);
+    }
+    $fileName = date('His') . '_ocr_label_' . $suffix . '.jpg';
+    $destAbs = $baseAbsDir . '/' . $fileName;
+    $publicPath = '/' . $baseRelDir . '/' . $fileName;
+
+    if (!move_uploaded_file($tmp, $destAbs)) {
+        $response = ['status' => 'error', 'message' => 'Не удалось сохранить файл'];
+        return;
+    }
+
+    $json = json_encode([$publicPath], JSON_UNESCAPED_UNICODE);
+    if ($json === false) {
+        @unlink($destAbs);
+        $response = ['status' => 'error', 'message' => 'Ошибка сериализации пути'];
+        return;
+    }
+
+    $response = [
+        'status' => 'ok',
+        'message' => 'Фото лейбла загружено',
+        'photo_type' => 'label',
+        'path' => $publicPath,
+        'json' => $json,
+    ];
+}
+
+
 if ($action === 'upload_item_stock_photo') {
     auth_require_login();
 
