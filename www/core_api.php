@@ -4,7 +4,19 @@ declare(strict_types=1);
 require_once __DIR__ . '/bootstrap.php';
 require_once __DIR__ . '/api/core_helpers.php';
 
-// все эти операции только для залогиненных
+// все эти операции только для залогиненных. Для AJAX/API возвращаем JSON,
+// чтобы фронтенд мог корректно обработать истёкшую PHP-сессию.
+if (!auth_is_logged_in()) {
+    http_response_code(401);
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode([
+        'status' => 'error',
+        'code' => 'session_expired',
+        'message' => 'Сессия завершена'
+    ], JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
 auth_require_login();
 
 header('Content-Type: application/json; charset=utf-8');

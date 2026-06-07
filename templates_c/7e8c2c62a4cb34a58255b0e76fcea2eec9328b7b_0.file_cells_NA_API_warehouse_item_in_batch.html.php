@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-06-02 08:54:59
+/* Smarty version 5.3.1, created on 2026-06-07 15:47:30
   from 'file:cells_NA_API_warehouse_item_in_batch.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_6a1e9a639da0a1_26274586',
+  'unifunc' => 'content_6a259292e44141_49827000',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '7e8c2c62a4cb34a58255b0e76fcea2eec9328b7b' => 
     array (
       0 => 'cells_NA_API_warehouse_item_in_batch.html',
-      1 => 1780390269,
+      1 => 1780847021,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_6a1e9a639da0a1_26274586 (\Smarty\Template $_smarty_tpl) {
+function content_6a259292e44141_49827000 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>
 
@@ -240,69 +240,140 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
 <h5>Посылки в партии <?php echo $_smarty_tpl->getValue('batch_uid');?>
 </h5>
 
-<table class="table table-sm align-middle">
-  <thead>
-    <tr>
-      <th>#</th>
-      <th>Трек</th>
-      <th>Получатель</th>
-      <th>Вес</th>
-      <th></th>
-      <th>Габариты</th>
-      <th>Создано</th>
-    </tr>
-  </thead>
-  <tbody>
-    <?php
+<div class="d-none d-md-block item-in-parcels-table-wrap">
+  <table class="table table-sm align-middle item-in-parcels-table">
+    <thead>
+      <tr>
+        <th>#</th>
+        <th>Трек</th>
+        <th>Получатель</th>
+        <th>Вес</th>
+        <th>Габариты</th>
+        <th>Создано</th>
+        <th class="text-end"></th>
+      </tr>
+    </thead>
+    <tbody>
+      <?php
 $_from = $_smarty_tpl->getSmarty()->getRuntime('Foreach')->init($_smarty_tpl, $_smarty_tpl->getValue('items'), 'p');
 $foreach3DoElse = true;
 foreach ($_from ?? [] as $_smarty_tpl->getVariable('p')->value) {
 $foreach3DoElse = false;
 ?>
-      <tr>
-        <td><?php echo $_smarty_tpl->getValue('p')['id'];?>
+        <tr>
+          <td><?php echo $_smarty_tpl->getValue('p')['id'];?>
 </td>
-        <td><?php echo htmlspecialchars((string)$_smarty_tpl->getValue('p')['tracking_no'], ENT_QUOTES, 'UTF-8', true);?>
+          <td class="text-break"><?php echo htmlspecialchars((string)$_smarty_tpl->getValue('p')['tracking_no'], ENT_QUOTES, 'UTF-8', true);?>
 </td>
-        <td><?php echo htmlspecialchars((string)$_smarty_tpl->getValue('p')['receiver_name'], ENT_QUOTES, 'UTF-8', true);?>
+          <td class="text-break"><?php echo htmlspecialchars((string)$_smarty_tpl->getValue('p')['receiver_name'], ENT_QUOTES, 'UTF-8', true);?>
 </td>
-        <td><?php if ($_smarty_tpl->getValue('p')['weight_kg']) {
+          <td><?php if ($_smarty_tpl->getValue('p')['weight_kg']) {
 echo $_smarty_tpl->getValue('p')['weight_kg'];?>
  кг<?php }?></td>
-        <td class="text-end">
-          <button type="button"
-                  class="btn btn-sm btn-outline-danger js-core-link"
-                  data-core-action="delete_item_in"
-                  data-item-id="<?php echo $_smarty_tpl->getValue('p')['id'];?>
-">
-            Удалить
-          </button>
-        </td>
-        <td>
-          <?php if ($_smarty_tpl->getValue('p')['size_l_cm'] || $_smarty_tpl->getValue('p')['size_w_cm'] || $_smarty_tpl->getValue('p')['size_h_cm']) {?>
-            <?php echo $_smarty_tpl->getValue('p')['size_l_cm'];?>
+          <td>
+            <?php if ($_smarty_tpl->getValue('p')['size_l_cm'] || $_smarty_tpl->getValue('p')['size_w_cm'] || $_smarty_tpl->getValue('p')['size_h_cm']) {?>
+              <?php echo $_smarty_tpl->getValue('p')['size_l_cm'];?>
 ×<?php echo $_smarty_tpl->getValue('p')['size_w_cm'];?>
 ×<?php echo $_smarty_tpl->getValue('p')['size_h_cm'];?>
  см
-          <?php }?>
-        </td>
-        <td><?php echo $_smarty_tpl->getValue('p')['created_at'];?>
+            <?php }?>
+          </td>
+          <td class="small text-muted"><?php echo $_smarty_tpl->getValue('p')['created_at'];?>
 </td>
-      </tr>
-    <?php
+          <td class="text-end">
+            <button type="button"
+                    class="btn btn-sm btn-outline-danger js-core-link"
+                    data-core-action="delete_item_in"
+                    data-item-id="<?php echo $_smarty_tpl->getValue('p')['id'];?>
+">
+              Удалить
+            </button>
+          </td>
+        </tr>
+      <?php
 }
 $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
-    <?php if (!$_smarty_tpl->getValue('items')) {?>
-      <tr>
-        <td colspan="6" class="text-center text-muted">
-          В этой партии ещё нет посылок
-        </td>
-      </tr>
-    <?php }?>
-  </tbody>
-</table>
+      <?php if (!$_smarty_tpl->getValue('items')) {?>
+        <tr>
+          <td colspan="7" class="text-center text-muted">
+            В этой партии ещё нет посылок
+          </td>
+        </tr>
+      <?php }?>
+    </tbody>
+  </table>
+</div>
 
-<div class="mt-3 text-end">
+<div class="d-md-none item-in-parcels-mobile">
+  <?php
+$_from = $_smarty_tpl->getSmarty()->getRuntime('Foreach')->init($_smarty_tpl, $_smarty_tpl->getValue('items'), 'p');
+$foreach4DoElse = true;
+foreach ($_from ?? [] as $_smarty_tpl->getVariable('p')->value) {
+$foreach4DoElse = false;
+?>
+    <div class="border rounded p-2 mb-2 bg-white item-in-parcel-card">
+      <div class="d-flex justify-content-between gap-2">
+        <div class="fw-semibold">#<?php echo $_smarty_tpl->getValue('p')['id'];?>
+</div>
+        <button type="button"
+                class="btn btn-sm btn-outline-danger js-core-link"
+                data-core-action="delete_item_in"
+                data-item-id="<?php echo $_smarty_tpl->getValue('p')['id'];?>
+">
+          Удалить
+        </button>
+      </div>
+
+      <div class="mt-1">
+        <div class="small text-muted">Трек</div>
+        <div class="text-break"><?php echo htmlspecialchars((string)$_smarty_tpl->getValue('p')['tracking_no'], ENT_QUOTES, 'UTF-8', true);?>
+</div>
+      </div>
+
+      <div class="mt-1">
+        <div class="small text-muted">Получатель</div>
+        <div class="text-break"><?php echo htmlspecialchars((string)$_smarty_tpl->getValue('p')['receiver_name'], ENT_QUOTES, 'UTF-8', true);?>
+</div>
+      </div>
+
+      <div class="row g-2 mt-1">
+        <div class="col-6">
+          <div class="small text-muted">Вес</div>
+          <div><?php if ($_smarty_tpl->getValue('p')['weight_kg']) {
+echo $_smarty_tpl->getValue('p')['weight_kg'];?>
+ кг<?php } else { ?>—<?php }?></div>
+        </div>
+        <div class="col-6">
+          <div class="small text-muted">Габариты</div>
+          <div>
+            <?php if ($_smarty_tpl->getValue('p')['size_l_cm'] || $_smarty_tpl->getValue('p')['size_w_cm'] || $_smarty_tpl->getValue('p')['size_h_cm']) {?>
+              <?php echo $_smarty_tpl->getValue('p')['size_l_cm'];?>
+×<?php echo $_smarty_tpl->getValue('p')['size_w_cm'];?>
+×<?php echo $_smarty_tpl->getValue('p')['size_h_cm'];?>
+ см
+            <?php } else { ?>
+              —
+            <?php }?>
+          </div>
+        </div>
+      </div>
+
+      <div class="small text-muted mt-2">
+        Создано: <?php echo $_smarty_tpl->getValue('p')['created_at'];?>
+
+      </div>
+    </div>
+  <?php
+}
+$_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
+
+  <?php if (!$_smarty_tpl->getValue('items')) {?>
+    <div class="text-center text-muted border rounded p-3">
+      В этой партии ещё нет посылок
+    </div>
+  <?php }?>
+</div>
+<div class="mt-3 d-grid d-md-flex justify-content-md-end">
   <button type="button"
           class="btn btn-success js-core-link"
           data-core-action="commit_item_in_batch"

@@ -184,52 +184,106 @@
 
 <h5>Посылки в партии {$batch_uid}</h5>
 
-<table class="table table-sm align-middle">
-  <thead>
-    <tr>
-      <th>#</th>
-      <th>Трек</th>
-      <th>Получатель</th>
-      <th>Вес</th>
-      <th></th>
-      <th>Габариты</th>
-      <th>Создано</th>
-    </tr>
-  </thead>
-  <tbody>
-    {foreach $items as $p}
+<div class="d-none d-md-block item-in-parcels-table-wrap">
+  <table class="table table-sm align-middle item-in-parcels-table">
+    <thead>
       <tr>
-        <td>{$p.id}</td>
-        <td>{$p.tracking_no|escape}</td>
-        <td>{$p.receiver_name|escape}</td>
-        <td>{if $p.weight_kg}{$p.weight_kg} кг{/if}</td>
-        <td class="text-end">
-          <button type="button"
-                  class="btn btn-sm btn-outline-danger js-core-link"
-                  data-core-action="delete_item_in"
-                  data-item-id="{$p.id}">
-            Удалить
-          </button>
-        </td>
-        <td>
-          {if $p.size_l_cm || $p.size_w_cm || $p.size_h_cm}
-            {$p.size_l_cm}×{$p.size_w_cm}×{$p.size_h_cm} см
-          {/if}
-        </td>
-        <td>{$p.created_at}</td>
+        <th>#</th>
+        <th>Трек</th>
+        <th>Получатель</th>
+        <th>Вес</th>
+        <th>Габариты</th>
+        <th>Создано</th>
+        <th class="text-end"></th>
       </tr>
-    {/foreach}
-    {if !$items}
-      <tr>
-        <td colspan="6" class="text-center text-muted">
-          В этой партии ещё нет посылок
-        </td>
-      </tr>
-    {/if}
-  </tbody>
-</table>
+    </thead>
+    <tbody>
+      {foreach $items as $p}
+        <tr>
+          <td>{$p.id}</td>
+          <td class="text-break">{$p.tracking_no|escape}</td>
+          <td class="text-break">{$p.receiver_name|escape}</td>
+          <td>{if $p.weight_kg}{$p.weight_kg} кг{/if}</td>
+          <td>
+            {if $p.size_l_cm || $p.size_w_cm || $p.size_h_cm}
+              {$p.size_l_cm}×{$p.size_w_cm}×{$p.size_h_cm} см
+            {/if}
+          </td>
+          <td class="small text-muted">{$p.created_at}</td>
+          <td class="text-end">
+            <button type="button"
+                    class="btn btn-sm btn-outline-danger js-core-link"
+                    data-core-action="delete_item_in"
+                    data-item-id="{$p.id}">
+              Удалить
+            </button>
+          </td>
+        </tr>
+      {/foreach}
+      {if !$items}
+        <tr>
+          <td colspan="7" class="text-center text-muted">
+            В этой партии ещё нет посылок
+          </td>
+        </tr>
+      {/if}
+    </tbody>
+  </table>
+</div>
 
-<div class="mt-3 text-end">
+<div class="d-md-none item-in-parcels-mobile">
+  {foreach $items as $p}
+    <div class="border rounded p-2 mb-2 bg-white item-in-parcel-card">
+      <div class="d-flex justify-content-between gap-2">
+        <div class="fw-semibold">#{$p.id}</div>
+        <button type="button"
+                class="btn btn-sm btn-outline-danger js-core-link"
+                data-core-action="delete_item_in"
+                data-item-id="{$p.id}">
+          Удалить
+        </button>
+      </div>
+
+      <div class="mt-1">
+        <div class="small text-muted">Трек</div>
+        <div class="text-break">{$p.tracking_no|escape}</div>
+      </div>
+
+      <div class="mt-1">
+        <div class="small text-muted">Получатель</div>
+        <div class="text-break">{$p.receiver_name|escape}</div>
+      </div>
+
+      <div class="row g-2 mt-1">
+        <div class="col-6">
+          <div class="small text-muted">Вес</div>
+          <div>{if $p.weight_kg}{$p.weight_kg} кг{else}—{/if}</div>
+        </div>
+        <div class="col-6">
+          <div class="small text-muted">Габариты</div>
+          <div>
+            {if $p.size_l_cm || $p.size_w_cm || $p.size_h_cm}
+              {$p.size_l_cm}×{$p.size_w_cm}×{$p.size_h_cm} см
+            {else}
+              —
+            {/if}
+          </div>
+        </div>
+      </div>
+
+      <div class="small text-muted mt-2">
+        Создано: {$p.created_at}
+      </div>
+    </div>
+  {/foreach}
+
+  {if !$items}
+    <div class="text-center text-muted border rounded p-3">
+      В этой партии ещё нет посылок
+    </div>
+  {/if}
+</div>
+<div class="mt-3 d-grid d-md-flex justify-content-md-end">
   <button type="button"
           class="btn btn-success js-core-link"
           data-core-action="commit_item_in_batch"

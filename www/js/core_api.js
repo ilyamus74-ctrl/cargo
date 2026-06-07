@@ -33,11 +33,59 @@ const CoreAPI = {
             return data;
         },
         /**
+         * Обработка истёкшей PHP-сессии без повторных редиректов.
+         */
+        handleSessionExpired(reason = 'session_expired') {
+            if (window.__coreApiSessionRedirecting) {
+                return;
+            }
+            window.__coreApiSessionRedirecting = true;
+
+            try {
+                if (CoreAPI?.ui?.showToast) {
+                    CoreAPI.ui.showToast('Сессия завершена. Выполняется вход заново...', 'warning');
+                }
+            } catch (e) {}
+
+            console.warn('CoreAPI session expired:', reason);
+            setTimeout(() => {
+                window.location.href = '/login.html';
+            }, 500);
+        },
+        /**
          * Безопасный парсинг JSON с логированием ошибок
          */
         async parseJSON(response) {
+            if (response.status === 401 || response.status === 403) {
+                this.handleSessionExpired('http_' + response.status);
+                return {
+                    status: 'error',
+                    code: 'session_expired',
+                    message: 'Сессия завершена'
+                };
+            }
+
             const text = await response.text();
-            if (!text || text.trim() === '') {
+            const trimmed = text.trim();
+            const contentType = response.headers.get('content-type') || '';
+            const looksLikeHtml = /^<!doctype html/i.test(trimmed)
+                || /^<html/i.test(trimmed)
+                || trimmed.includes('<form')
+                || trimmed.includes('login')
+                || trimmed.includes('Вход')
+                || trimmed.includes('Авторизация');
+
+            if (looksLikeHtml && !contentType.includes('application/json')) {
+                console.warn('core_api returned HTML, likely session expired:', trimmed.slice(0, 300));
+                this.handleSessionExpired('html_response');
+                return {
+                    status: 'error',
+                    code: 'session_expired',
+                    message: 'Сессия завершена'
+                };
+            }
+
+            if (!text || trimmed === '') {
                 const err = new Error(`Пустой ответ от core_api.php (HTTP ${response.status}).`);
                 err.payload = {
                     status: 'error',
@@ -1648,7 +1696,9 @@ const CoreAPI = {
                 const data = await CoreAPI.client.call(formData);
                 if (!data || data.status !== 'ok') {
                     console.error('core_api error:', data);
-
+                    if (data?.code === 'session_expired') {
+                        return;
+                    }
                     if (action === 'form_connector_operations') {
                         const connectorId = String(formData.get('connector_id') || '').trim();
                         if (connectorId) {
@@ -1714,6 +1764,9 @@ const CoreAPI = {
                 await handler(data, link, formData);
             } catch (err) {
                 console.error('core_api fetch error:', err);
+                if (err?.payload?.code === 'session_expired' || window.__coreApiSessionRedirecting) {
+                    return;
+                }
                 alert('Ошибка связи с сервером');
                 // Fallback для commit_item_in_batch
                 if (action === 'commit_item_in_batch') {
