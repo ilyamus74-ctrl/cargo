@@ -206,13 +206,15 @@ function camex_az_probe_load_connector(array $args): ?array
         return null;
     }
 
+    global $dbcnx;
+
     require_once __DIR__ . '/../../../../../configs/connectDB.php';
-    if (!isset($GLOBALS['dbcnx']) || !($GLOBALS['dbcnx'] instanceof mysqli)) {
+    if (!isset($dbcnx) || !($dbcnx instanceof mysqli)) {
         throw new RuntimeException('Database connection $dbcnx is not available.');
     }
 
     /** @var mysqli $db */
-    $db = $GLOBALS['dbcnx'];
+    $db = $dbcnx;
     if ($lookup['type'] === 'id') {
         $sql = 'SELECT id, name, countries, system_type, base_url, auth_type, auth_username, auth_password, http_auth_enabled, http_auth_type, http_auth_username, http_auth_password, ssl_ignore, scenario_json FROM connectors WHERE id = ? AND is_active = 1 LIMIT 1';
         $stmt = $db->prepare($sql);
