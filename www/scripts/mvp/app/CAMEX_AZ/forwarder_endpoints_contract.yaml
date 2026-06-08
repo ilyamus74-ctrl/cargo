@@ -1,0 +1,1260 @@
+version: 1
+name: forwarder-endpoints-contract
+description: >-
+  Единый контракт endpoint'ов и параметров для работы с форвардером
+  напрямую (без привязки к текущим PHP-раннерам).
+notes:
+  - Базовый host в примерах: https://dev-backend.colibri.az
+  - Host дан только как пример; в реальной работе домен может отличаться.
+  - В контракте не перечисляются сессионные cookie.
+  - CSRF/XSRF поля перечислены, т.к. это параметры запроса.
+  - Многие web-form endpoint'ы принимают скрытые поля формы (form_defaults).
+  - Для каждого шага указан тип ответа (html/json) и что из ответа обычно парсится.
+
+base_url_example: https://dev-backend.colibri.az
+
+entrypoints:
+  run_add_container_to_flight:
+    cli_args:
+      required_one_of:
+        - [flight-id, flight_id, target-flight-id, target_flight_id, external_id]
+      optional:
+        - [base-url, base_url]
+        - [login]
+        - [password]
+        - [session-file, session_file]
+        - [session-ttl-seconds, session_ttl_seconds]
+        - [page-path, page_path]
+        - [connector-id, connector_id]
+        - [target-table, target_table, flight-table, flight_table]
+        - [containers-table, containers_table]
+    flow:
+      - step: open_containers_page
+        method: GET
+        path: "{page_path|/collector/containers}"
+        params: {}
+        response:
+          content_type: text/html
+          parse:
+            csrf_token:
+              source: "input[name=_token]"
+              required: true
+            containers_table:
+              source: "table/list контейнеров на странице"
+              required: false
+          example:
+            status: 200
+            body_fragment: "<input type='hidden' name='_token' value='...'>"
+      - step: get_containers_before
+        method: GET
+        path: /collector/get-containers
+        params:
+          flight_id: "{flight_id}"
+          _token: "{csrf_token}"
+        response:
+          content_type: application/json
+          parse:
+            containers:
+              source: "$.data | $[*]"
+              required: false
+            container_count:
+              source: "len(containers)"
+              required: false
+          example:
+            status: 200
+            json:
+              success: true
+              data:
+                - id: 101
+                  number: "CONT-0001"
+      - step: add_container
+        method: POST
+        path: /collector/add-new-container
+        params:
+          flight: "{flight_id}"
+          _token: "{csrf_token}"
+        response:
+          content_type: "application/json | text/html (зависит от реализации)"
+          parse:
+            success_flag:
+              source: "$.success | html flash message"
+              required: false
+            message:
+              source: "$.message | html alert text"
+              required: false
+          example:
+            status: 200
+            json:
+              success: true
+              message: "Container added"
+      - step: verify_by_search
+        method: GET
+        path: /collector/containers
+        query:
+          search: "1"
+          flight: "{flight_id}"
+        params: {}
+        response:
+          content_type: text/html
+          parse:
+            result_rows:
+              source: "таблица результатов поиска"
+              required: false
+            matched_flight_id:
+              source: "ячейка/атрибут с flight id"
+              required: false
+          example:
+            status: 200
+            body_fragment: "<table>...flight...</table>"
+      - step: get_containers_after
+        method: GET
+        path: /collector/get-containers
+        params:
+          flight_id: "{flight_id}"
+          _token: "{csrf_token}"
+        response:
+          content_type: application/json
+          parse:
+            containers:
+              source: "$.data | $[*]"
+              required: false
+            delta_added:
+              source: "compare(before, after)"
+              required: false
+          example:
+            status: 200
+            json:
+              success: true
+              data:
+                - id: 101
+                  number: "CONT-0001"
+                - id: 102
+                  number: "CONT-0002"
+
+  run_del_container_from_flight:
+    cli_args:
+      required_one_of:
+        - [container-id, container_id, target-container-id, target_container_id, id]
+      optional:
+        - [base-url, base_url]
+        - [login]
+        - [password]
+        - [session-file, session_file]
+        - [session-ttl-seconds, session_ttl_seconds]
+        - [page-path, page_path]
+        - [delete-path, delete_path, url]
+        - [flight-id, flight_id, target-flight-id, target_flight_id, external_id]
+        - [connector-id, connector_id]
+        - [target-table, target_table, flight-table, flight_table]
+        - [containers-table, containers_table]
+    flow:
+      - step: open_containers_page
+        method: GET
+        path: "{page_path|/collector/containers}"
+        params: {}
+        response:
+          content_type: text/html
+          parse:
+            csrf_token:
+              source: "input[name=_token] | meta[name=csrf-token]"
+              required: true
+          example:
+            status: 200
+            body_fragment: "<input type='hidden' name='_token' value='...'>"
+      - step: delete_container
+        method: DELETE
+        path: "{delete_path|/collector/containers/delete}"
+        params:
+          id: "{container_id}"
+          _token: "{csrf_token}"
+        response:
+          content_type: "application/json | text/html (зависит от реализации)"
+          parse:
+            case:
+              source: "$.case"
+              required: false
+            success:
+              source: "$.success"
+              required: false
+            message:
+              source: "$.message | html flash message"
+              required: false
+          example:
+            status: 200
+            data: "id=24420&_token=uNgcJ9UQ0BWyRQZNvQ7Oq7fFHZiEkYDqjARxJkLf"
+
+  run_sync_flight_containers:
+    cli_args:
+      required:
+        - [flight-id, flight_id, target-flight-id, target_flight_id, external_id]
+        - [connector-id, connector_id]
+      optional:
+        - [base-url, base_url]
+        - [login]
+        - [password]
+        - [session-file, session_file]
+        - [session-ttl-seconds, session_ttl_seconds]
+        - [page-path, page_path]
+        - [target-table, target_table, flight-table, flight_table]
+        - [containers-table, containers_table]
+    flow:
+      - step: get_containers
+        method: GET
+        path: /collector/get-containers
+        params:
+          flight_id: "{flight_id}"
+          _token: "{csrf_token_from_containers_page}"
+        response:
+          content_type: application/json
+          parse:
+            rows:
+              source: "$.data | $[*]"
+              required: false
+      - step: sync_local_db_tables
+        method: LOCAL_DB
+        path: "connector_dev_colibri_operation_flight_list_containers"
+        params:
+          connector_id: "{connector_id}"
+          flight_external_id: "{flight_id}"
+        response:
+          content_type: application/json
+          parse:
+            written:
+              source: "upsert count"
+              required: false
+            deactivated:
+              source: "rows marked is_active=0"
+              required: false
+
+  run_add_flight:
+    cli_args:
+      required:
+        - [flight-number, flight_number, set_date]
+        - [awb, add_flight]
+      optional:
+        - [base-url, base_url]
+        - [login]
+        - [password]
+        - [session-file, session_file]
+        - [session-ttl-seconds, session_ttl_seconds]
+        - [page-path, page_path]
+    flow:
+      - step: open_flights_page
+        method: GET
+        path: "{page_path|/collector/flights}"
+        params: {}
+        response:
+          content_type: text/html
+          parse:
+            csrf_token:
+              source: "input[name=_token]"
+              required: true
+            add_form_action:
+              source: "form add flight action"
+              required: false
+            add_form_method:
+              source: "form add flight method"
+              required: false
+            hidden_fields:
+              source: "все input[type=hidden] формы"
+              required: false
+          example:
+            status: 200
+            body_fragment: "<form method='POST' action='/collector/flights'>..."
+      - step: submit_add_flight_form
+        method: "{form_method|POST}"
+        path: "{form_action|page_path}"
+        params:
+          form_defaults: "{all hidden/default form fields}"
+          flight_number: "{flight_number}"
+          awb: "{awb}"
+        response:
+          content_type: "text/html | application/json (зависит от формы)"
+          parse:
+            created_row_id:
+              source: "новая строка рейса в таблице | $.id"
+              required: false
+            success_flag:
+              source: "flash success | $.success"
+              required: false
+            validation_errors:
+              source: "html ошибки формы | $.errors"
+              required: false
+          example:
+            status: 200
+            html_fragment: "<div class='alert alert-success'>...</div>"
+
+
+  run_edit_flight:
+    cli_args:
+      required:
+        - [id, flight-id, flight_id, target-flight-id, target_flight_id]
+        - [carrier]
+        - [flight-number, flight_number]
+        - [awb]
+        - [departure]
+        - [destination]
+        - [flight-time, flight_time]
+      optional:
+        - [_token, token, csrf-token, csrf_token]
+        - [base-url, base_url]
+        - [login]
+        - [password]
+        - [session-file, session_file]
+        - [session-ttl-seconds, session_ttl_seconds]
+        - [page-path, page_path]
+        - [update-path, update_path, url]
+    flow:
+      - step: ensure_csrf_token
+        method: "CLI | GET"
+        path: "{page_path|/collector/flights}"
+        params: {}
+        response:
+          content_type: text/html
+          parse:
+            csrf_token:
+              source: "CLI --_token | input[name=_token] | meta[name=csrf-token]"
+              required: true
+          example:
+            status: 200
+            body_fragment: "<input type='hidden' name='_token' value='...'>"
+      - step: submit_edit_flight
+        method: POST
+        path: "{update_path|/collector/flights/update}"
+        params:
+          _token: "{csrf_token}"
+          id: "{flight_id}"
+          carrier: "{carrier}"
+          flight_number: "{flight_number}"
+          awb: "{awb}"
+          departure: "{departure}"
+          destination: "{destination}"
+          flight_time: "{flight_time}"
+        response:
+          content_type: "text/html | application/json"
+          parse:
+            success_flag:
+              source: "flash success | $.success"
+              required: false
+            validation_errors:
+              source: "html ошибки формы | $.errors"
+              required: false
+            updated_row_id:
+              source: "id из payload | $.id"
+              required: false
+          example:
+            status: 200
+            data: "_token=...&id=2369&carrier=HHN&flight_number=2026-04-05&awb=0505050506&departure=HHN&destination=GYD&flight_time=HHN05042026"
+
+  run_delete_flight:
+    cli_args:
+      required_one_of:
+        - [flight-search, flight_search_value, flight, flight_no]
+        - [target-flight-id, target_flight_id, flight_id, external_id]
+      optional:
+        - [base-url, base_url]
+        - [login]
+        - [password]
+        - [session-file, session_file]
+        - [session-ttl-seconds, session_ttl_seconds]
+        - [page-path, page_path]
+    flow:
+      - step: open_flights_page
+        method: GET
+        path: "{page_path|/collector/flights}"
+        params: {}
+        response:
+          content_type: text/html
+          parse:
+            csrf_token:
+              source: "input[name=_token]"
+              required: true
+            search_form_action:
+              source: "search form action"
+              required: false
+            search_form_method:
+              source: "search form method"
+              required: false
+            search_field_name:
+              source: "имя поля поиска из формы"
+              required: false
+          example:
+            status: 200
+            body_fragment: "<form ...><input name='flight' ...></form>"
+      - step: search_flight
+        method: "{search_form_method|GET}"
+        path: "{search_form_action|/collector/flights}"
+        params:
+          form_defaults: "{search form default fields}"
+          dynamic_search_field: "{search_field_from_form}: {flight_search_value_or_target_flight_id}"
+          search: "1"
+        response:
+          content_type: text/html
+          parse:
+            matched_rows:
+              source: "строки таблицы после фильтра"
+              required: false
+            delete_link:
+              source: "href кнопки удаления в найденной строке"
+              required: false
+            row_id:
+              source: "data-id/id строки"
+              required: false
+          example:
+            status: 200
+            body_fragment: "<a href='/collector/flights/delete/...'>Delete</a>"
+      - step: delete_by_link
+        when: "delete link exists in row"
+        method: GET
+        path: "/collector/flights/delete..."
+        params: {}
+        response:
+          content_type: "text/html (redirect) | application/json"
+          parse:
+            deleted_flag:
+              source: "redirect success flash | $.success"
+              required: false
+            message:
+              source: "flash message | $.message"
+              required: false
+          example:
+            status: 302
+            headers:
+              location: "/collector/flights"
+      - step: delete_by_rest_fallback
+        when: "row id resolved, but direct link not found"
+        method: DELETE
+        path: /collector/flights/delete
+        params:
+          id: "{row_id}"
+          _token: "{csrf_token_if_found}"
+        response:
+          content_type: application/json
+          parse:
+            success_flag:
+              source: "$.success"
+              required: false
+            message:
+              source: "$.message"
+              required: false
+          example:
+            status: 200
+            json:
+              success: true
+              message: "Deleted"
+
+  run_flight_list:
+    cli_args:
+      optional:
+        - [base-url, base_url]
+        - [login]
+        - [password]
+        - [session-file, session_file]
+        - [session-ttl-seconds, session_ttl_seconds]
+        - [page-path, page_path]
+        - [target-table, target_table]
+        - [write-mode, write_mode]
+        - [table-selector, table_selector]
+        - [connector-id, connector_id]
+    pagination:
+      example_base_url: https://dev-backend.colibri.az
+      page_param: page
+      pages_example_1_20:
+        - https://dev-backend.colibri.az/collector/flights?page=1
+        - https://dev-backend.colibri.az/collector/flights?page=2
+        - https://dev-backend.colibri.az/collector/flights?page=3
+        - https://dev-backend.colibri.az/collector/flights?page=4
+        - https://dev-backend.colibri.az/collector/flights?page=5
+        - https://dev-backend.colibri.az/collector/flights?page=6
+        - https://dev-backend.colibri.az/collector/flights?page=7
+        - https://dev-backend.colibri.az/collector/flights?page=8
+        - https://dev-backend.colibri.az/collector/flights?page=9
+        - https://dev-backend.colibri.az/collector/flights?page=10
+        - https://dev-backend.colibri.az/collector/flights?page=11
+        - https://dev-backend.colibri.az/collector/flights?page=12
+        - https://dev-backend.colibri.az/collector/flights?page=13
+        - https://dev-backend.colibri.az/collector/flights?page=14
+        - https://dev-backend.colibri.az/collector/flights?page=15
+        - https://dev-backend.colibri.az/collector/flights?page=16
+        - https://dev-backend.colibri.az/collector/flights?page=17
+        - https://dev-backend.colibri.az/collector/flights?page=18
+        - https://dev-backend.colibri.az/collector/flights?page=19
+        - https://dev-backend.colibri.az/collector/flights?page=20
+    flow:
+      - step: open_flights_page
+        method: GET
+        path: "{page_path|/collector/flights}"
+        params: {}
+        response:
+          content_type: text/html
+          parse:
+            flights_table_rows:
+              source: "таблица рейсов"
+              required: false
+            pagination_links:
+              source: ".pagination a[href*='page=']"
+              required: false
+            extracted_fields_per_row:
+              source: "flight_number, awb, status, etd/eta, created_at (если есть в колонках)"
+              required: false
+          example:
+            status: 200
+            body_fragment: "<table>...<tr>...</tr>...</table>"
+      - step: open_flights_page_paginated
+        method: GET
+        path: /collector/flights
+        query:
+          page: "{page_number}"
+        params: {}
+        response:
+          content_type: text/html
+          parse:
+            current_page:
+              source: "query.page или active pagination item"
+              required: false
+            flights_table_rows:
+              source: "таблица рейсов текущей страницы"
+              required: false
+            next_page_url:
+              source: "pagination next href"
+              required: false
+          example:
+            status: 200
+            body_fragment: "<li class='active'><span>14</span></li>"
+
+  run_report:
+    cli_args:
+      mode_scan_required:
+        - [track]
+        - [container]
+      resolved_from:
+        track: ["--track", "argv[1]", "FORWARDER_TRACK"]
+        container: ["--container", "argv[2]", "FORWARDER_CONTAINER"]
+    flow:
+      - step: auth_bootstrap
+        method: GET
+        path: /login
+        params: {}
+        response:
+          content_type: text/html
+          parse:
+            csrf_or_xsrf_token:
+              source: "input[name=_token] | meta[name=csrf-token]"
+              required: true
+          example:
+            status: 200
+            body_fragment: "<input type='hidden' name='_token' value='...'>"
+      - step: auth_submit
+        method: POST
+        path: /login
+        params:
+          username: "{FORWARDER_LOGIN}"
+          password: "{FORWARDER_PASSWORD}"
+          _token: "{csrf_or_xsrf_token}"
+        response:
+          content_type: "text/html (redirect) | application/json"
+          parse:
+            auth_ok:
+              source: "redirect to protected page | $.success"
+              required: true
+            auth_error:
+              source: "html validation/login error | $.message"
+              required: false
+          example:
+            status: 302
+            headers:
+              location: "/collector/flights"
+      - step: check_position
+        method: POST
+        path: /api/check-position
+        json:
+          container: "{container}"
+        response:
+          content_type: application/json
+          parse:
+            status:
+              source: "$.status | $.data.status"
+              required: false
+            position:
+              source: "$.position | $.data.position"
+              required: false
+            message:
+              source: "$.message"
+              required: false
+          example:
+            status: 200
+            json:
+              success: true
+              data:
+                container: "MSKU1234567"
+                status: "in_transit"
+      - step: check_package
+        method: POST
+        path: /api/check-package
+        json:
+          track: "{track}"
+          container: "{container}"
+        response:
+          content_type: application/json
+          parse:
+            package_status:
+              source: "$.status | $.data.status"
+              required: false
+            track:
+              source: "$.data.track | $.track"
+              required: false
+            events:
+              source: "$.data.events[]"
+              required: false
+          example:
+            status: 200
+            json:
+              success: true
+              data:
+                track: "COLI123456789"
+                status: "arrived"
+                events:
+                  - ts: "2026-03-10T12:00:00Z"
+                    text: "Arrived to warehouse"
+
+  run_report_single:
+    cli_args:
+      mode_scan_required:
+        - [track]
+      resolved_from:
+        track: ["--track", "argv[1]", "FORWARDER_TRACK"]
+    flow:
+      - step: auth_bootstrap
+        method: GET
+        path: /login
+        params: {}
+        response:
+          content_type: text/html
+          parse:
+            csrf_or_xsrf_token:
+              source: "input[name=_token] | meta[name=csrf-token]"
+              required: true
+      - step: auth_submit
+        method: POST
+        path: /login
+        params:
+          username: "{FORWARDER_LOGIN}"
+          password: "{FORWARDER_PASSWORD}"
+          _token: "{csrf_or_xsrf_token}"
+        response:
+          content_type: "text/html (redirect) | application/json"
+          parse:
+            auth_ok:
+              source: "redirect to protected page | $.success"
+              required: true
+      - step: check_package_single
+        method: GET
+        path: /collector
+        params: {}
+        response:
+          content_type: text/html
+          parse:
+            csrf_or_xsrf_token:
+              source: "input[name=_token] | meta[name=csrf-token]"
+              required: true
+      - step: check_package_single_submit
+        method: POST
+        path: /collector/check-package
+        form:
+          number: "{track}"
+          _token: "{csrf_or_xsrf_token}"
+        response:
+          content_type: application/json
+          parse:
+            case:
+              source: "$.case"
+              required: true
+            package_exist:
+              source: "$.package_exist"
+              required: true
+            package:
+              source: "$.package"
+              required: false
+            client_packages:
+              source: "$.client_packages[]"
+              required: false
+            matched_package:
+              source: "$.package.track == {track} OR $.client_packages[number|track|internal_id == {track}]"
+              required: false
+          example:
+            status: 200
+            json:
+              case: "success"
+              package_exist: true
+              package:
+                track: "H1000844804054601044"
+                internal_id: "CBR859569"
+                position: "PSB010"
+              client_packages:
+                - number: "H1000844804054601044"
+                  internal_id: "CBR859569"
+          verified_cli_example:
+            captured_at_utc: "2026-03-29T16:23:41Z"
+            command: "php run_report_single.php --base-url='https://dev-backend.colibri.az' --login='w' --password='S' --track='H1000844804054601044' --connector-id='13'"
+            output:
+              status: "ACCEPTED"
+              mode: "single_package_check"
+              track: "H1000844804054601044"
+              package_exist: true
+              matched_track_found: true
+              package_summary:
+                track: "H1000844804054601044"
+                internal_id: "CBR859569"
+                status: null
+                status_id: 40
+                position: "PSB010"
+                gross_weight: "0.700"
+                volume_weight: "0.000"
+                amount: "7.45 EUR"
+                currency: "USD"
+                destination: "Baku"
+                client_name: "Ulviyya Mammadova"
+                seller: ""
+              response_meta:
+                http_status: 200
+                latency_ms: 226
+                client_packages_count: 200
+              connector_id: "13"
+              correlation_id: "run-report-single-20260329162341-94e3b875"
+
+  run_add_package:
+    cli_args:
+      required:
+        - [number, track, tracking, tracking_number]
+        - [destination]
+        - [gross-weight, gross_weight, weight]
+        - [currency]
+        - [quantity]
+      optional:
+        - [base-url, base_url]
+        - [login]
+        - [password]
+        - [session-file, session_file]
+        - [session-ttl-seconds, session_ttl_seconds]
+        - [page-path, page_path]
+        - [submit-path, submit_path, add-path, add_path, url]
+        - [total-images, total_images]
+        - [length]
+        - [height]
+        - [width]
+        - [client-id, client_id]
+        - [seller]
+        - [category]
+        - [invoice]
+        - [container-id, container_id]
+        - [position]
+        - [tracking-internal-same, tracking_internal_same]
+        - [description]
+        - [tariff-type-id, tariff_type_id]
+        - [is-legal-entity, is_legal_entity]
+        - [invoice-status, invoice_status]
+        - [title]
+        - [sub-cat, sub_cat, subCat]
+    rules:
+      - when: "client_id is empty or 0"
+        enforce:
+          status_id: "36"
+          client_name_surname: "required"
+      - when: "client_id is non-zero numeric"
+        enforce:
+          status_id: "37"
+          client_name_surname: "optional (forwarder may auto-resolve real FIO)"
+    flow:
+      - step: open_collector_page
+        method: GET
+        path: "{page_path|/collector}"
+        params: {}
+        response:
+          content_type: text/html
+          parse:
+            add_form_action:
+              source: "form#form[action*=collector/add]"
+              required: false
+            add_form_method:
+              source: "form#form@method"
+              required: false
+            form_defaults:
+              source: "input/select/textarea[name] default values from add form"
+              required: false
+          example:
+            status: 200
+            body_fragment: "<form id='form' action='/collector/add' method='POST'>...</form>"
+      - step: submit_package_add
+        method: "{form_method|POST}"
+        path: "{form_action|/collector/add}"
+        form:
+          total_images: "{total_images|0}"
+          number: "{number}"
+          length: "{length|''}"
+          height: "{height|''}"
+          width: "{width|''}"
+          client_id: "{client_id|0}"
+          client_name_surname: "{client_name_surname}"
+          seller: "{seller|''}"
+          destination: "{destination}"
+          gross_weight: "{gross_weight}"
+          currency: "{currency}"
+          category: "{category|''}"
+          invoice: "{invoice|0}"
+          quantity: "{quantity}"
+          container_id: "{container_id|''}"
+          position: "{position|''}"
+          tracking_internal_same: "{tracking_internal_same|0}"
+          status_id: "{status_id}"
+          description: "{description|''}"
+          tariff_type_id: "{tariff_type_id|1}"
+          is_legal_entity: "{is_legal_entity|off}"
+          invoice_status: "{invoice_status|1}"
+          title: "{title|''}"
+          subCat: "{subCat|''}"
+          status_id_business_rule:
+            source: "if client_id in ['', '0'] => status_id=36; else status_id=37"
+            required: true
+        response:
+          content_type: application/json
+          parse:
+            case:
+              source: "$.case"
+              required: false
+            internal_id:
+              source: "$.internal_id"
+              required: false
+            amount_response:
+              source: "$.amount_response"
+              required: false
+            message:
+              source: "$.content | $.title"
+              required: false
+            status_id_effective:
+              source: "runner result.status_id_effective"
+              required: false
+            status_id_was_adjusted:
+              source: "runner result.status_id_was_adjusted"
+              required: false
+          example:
+            status: 200
+            json:
+              case: "success"
+              title: "Success!"
+              type: "success"
+              content: "Success!"
+              amount_response:
+                type: true
+                amount: "8.45"
+                currency: "EUR"
+                currency_id: 5
+                chargeable_weight_type: 1
+                used_contract_detail_id: 21
+              internal_id: "CBR859606"
+              flight_details: false
+              has_container_details: false
+              container_details: []
+
+  run_add_package_to_container:
+    cli_args:
+      required:
+        - [track, number, tracking, tracking_number]
+        - [position, container, container_id]
+      optional:
+        - [base-url, base_url]
+        - [login]
+        - [password]
+        - [session-file, session_file]
+        - [session-ttl-seconds, session_ttl_seconds]
+        - [check-path, check_path]
+        - [change-path, change_path]
+        - [verify-path, verify_path]
+        - [verify-check-package, verify_check_package]
+        - [verify-number, verify_number, check-number, check_number]
+    flow:
+      - step: check_container_position
+        method: POST
+        path: "{check_path|/collect/check-position}"
+        json:
+          position: "{position}"
+        response:
+          content_type: application/json
+          parse:
+            case:
+              source: "$.case"
+              required: false
+            change:
+              source: "$.change"
+              required: false
+            content:
+              source: "$.content"
+              required: false
+            sum:
+              source: "$.sum"
+              required: false
+          example:
+            status: 200
+            json:
+              case: "success"
+              change: true
+              content: "ok "
+              sum: "0.900"
+      - step: assign_track_to_position
+        method: POST
+        path: "{change_path|/collect/change-position}"
+        form:
+          track: "{track}"
+          position: "{position}"
+        response:
+          content_type: application/json
+          parse:
+            case:
+              source: "$.case"
+              required: false
+            change:
+              source: "$.change"
+              required: false
+            content:
+              source: "$.content"
+              required: false
+            track:
+              source: "$.track"
+              required: false
+            weight:
+              source: "$.weight"
+              required: false
+          example:
+            status: 200
+            json:
+              case: "success"
+              change: true
+              content: "Position is changed! 781116"
+              track: "H1025022509733301044"
+              weight: "0.900"
+      - step: optional_verify_check_package
+        when: "{verify_check_package in [1,true,yes,on]}"
+        method: POST
+        path: "{verify_path|/collector/check-package}"
+        json:
+          number: "{verify_number|track}"
+        response:
+          content_type: application/json
+          parse:
+            case:
+              source: "$.case"
+              required: false
+            content:
+              source: "$.content"
+              required: false
+          example:
+            status: 200
+            json:
+              case: "warning"
+              type: "validation"
+      - step: optional_send_label_to_print_server
+        when: "{print_label in [1,true,yes,on]}"
+        note: "Перед отправкой на print-server data:image/* base64 сохраняются в /app/Forwarder/lable и объединяются в одну HTML-форму."
+        method: POST
+        path: "{print_url|https://tls.cargocells.com/api/print/submit.php}"
+        json:
+          device_uid: "{print_device_uid|selected(print_devices_json, print_device_key)}"
+          file_name: "{print_file_name|label_{track}.html}"
+          label_base64: "{label_base64|verify.label_base64|change.label_base64|check.label_base64}"
+        headers:
+          Authorization: "Bearer {print_token}"
+          Content-Type: "application/json"
+        response:
+          content_type: application/json
+          parse:
+            status:
+              source: "$.status"
+              required: false
+            job_id:
+              source: "$.job_id"
+              required: false
+          example:
+            status: 200
+            json:
+              status: "ok"
+              job_id: "job-20260403111007-3aadf11b"
+      verified_cli_example:
+        captured_at_utc: "2026-03-29T19:02:08Z"
+        command: "php run_add_package_to_container.php --base-url='https://dev-backend.colibri.az' --login='w' --password='S' --track='H1025022509733301044' --position='24458' --verify-check-package=1"
+        output:
+          status: "ok"
+          check:
+            case: "success"
+            sum: "0.900"
+          change:
+            case: "success"
+            track: "H1025022509733301044"
+            weight: "0.900"
+
+  run_list_container:
+    cli_args:
+      required: []
+      optional:
+        - [base-url, base_url]
+        - [login]
+        - [password]
+        - [session-file, session_file]
+        - [session-ttl-seconds, session_ttl_seconds]
+        - [page-path, page_path, path]
+        - [page, page-start, page_start]
+        - [all-pages, all_pages]
+        - [max-pages, max_pages]
+        - [position, container, container_id]
+        - [check-path, check_path]
+    flow:
+      - step: optional_activate_position
+        when: "{position is provided}"
+        method: POST
+        path: "{check_path|/collect/check-position}"
+        json:
+          position: "{position}"
+        response:
+          content_type: application/json
+          parse:
+            case:
+              source: "$.case"
+              required: false
+            change:
+              source: "$.change"
+              required: false
+            sum:
+              source: "$.sum"
+              required: false
+      - step: open_packages_page
+        method: GET
+        path: "{page_path|/collector/packages}"
+        query:
+          page: "{page|1}"
+          position: "{position|''}"
+        response:
+          content_type: text/html
+          parse:
+            headers:
+              source: "table.references-table thead th"
+              required: false
+            rows:
+              source: "table.references-table tbody tr"
+              required: false
+            empty_state:
+              source: "text contains 'No packages!'"
+              required: false
+            placeholder_state:
+              source: "first row contains 'Please select Flight or Container'"
+              required: false
+      - step: retry_with_container_filter_if_placeholder
+        when: "{placeholder_state == true and position is provided}"
+        method: GET
+        path: "{page_path|/collector/packages}"
+        query:
+          page: "{page|1}"
+          position: "{position}"
+          container: "{position}"
+          search: "1"
+        response:
+          content_type: text/html
+          parse:
+            rows_after_retry:
+              source: "table.references-table tbody tr"
+              required: false
+            used_container_filter_retry:
+              source: "runner visited_pages[].used_container_filter_retry"
+              required: true
+      - step: parse_all_pages_optional
+        when: "{all_pages in [1,true,yes,on]}"
+        method: GET_LOOP
+        path: "{page_path|/collector/packages}?page={n}"
+        params:
+          max_pages: "{max_pages|20}"
+        response:
+          content_type: text/html
+          parse:
+            pagination:
+              source: "a[href*=page=]"
+              required: false
+            packages:
+              source: "aggregated parsed rows"
+              required: false
+      verified_cli_example:
+        captured_at_utc: "2026-03-29T19:01:38Z"
+        command: "php run_list_container.php --base-url='https://dev-backend.colibri.az' --login='n' --password='S' --position='24458' --all-pages=1 --max-pages=20"
+        output:
+          status: "ok"
+          position: "24458"
+          count: 1
+          packages:
+            - Track: "H1025022509733301044"
+              Weight: "0.900"
+          visited_pages:
+            - page: 1
+              placeholder_detected: false
+              used_container_filter_retry: true
+      verified_cli_example_2:
+        captured_at_utc: "2026-03-29T19:02:08Z"
+        command: "php run_list_container.php --base-url='https://dev-backend.colibri.az' --login='w' --password='S' --position='24369'"
+        output:
+          status: "ok"
+          position: "24369"
+          count: 3
+          visited_pages:
+            - page: 1
+              placeholder_detected: false
+              used_container_filter_retry: true
+
+  run_search_forward:
+    cli_args:
+      required: []
+      optional:
+        - [base-url, base_url]
+        - [login]
+        - [password]
+        - [session-file, session_file]
+        - [session-ttl-seconds, session_ttl_seconds]
+        - [code, track, number]
+        - [internal-id, internal_id]
+        - [client, client-name, client_name]
+        - [seller]
+        - [from-date, from_date]
+        - [to-date, to_date]
+        - [page]
+    cli_example:
+      command: "php run_search_forward.php --base-url=https://dev-backend.colibri.az --login='w' --password='S' --code=151515 --page=1"
+    flow:
+      - step: search_anonymous_orders
+        method: GET
+        path: /collector/anonymous/show
+        params:
+          code: "{code|''}"
+          internal_id: "{internal_id|''}"
+          client: "{client|''}"
+          seller: "{seller|''}"
+          from_date: "{from_date|''}"
+          to_date: "{to_date|''}"
+          page: "{page|1}"
+        response:
+          content_type: application/json
+          parse:
+            case:
+              source: "$.case"
+              required: true
+            current_page:
+              source: "$.orders.current_page"
+              required: false
+            total:
+              source: "$.orders.total"
+              required: false
+            data:
+              source: "$.orders.data[]"
+              required: false
+            internal_id:
+              source: "$.orders.data[*].internal_id"
+              required: false
+            client_name_surname:
+              source: "$.orders.data[*].client_name_surname"
+              required: false
+            seller:
+              source: "$.orders.data[*].seller"
+              required: false
+            status:
+              source: "$.orders.data[*].status"
+              required: false
+          example:
+            status: 200
+            json:
+              case: "success"
+              orders:
+                current_page: 1
+                data:
+                  - id: 795113
+                    number: "151515"
+                    internal_id: "CBR859613"
+                    client_name_surname: "kon kon"
+                    seller: null
+                    category: "Auto parts"
+                    status: "Unknown client"
+                    created_at: "2026-03-29 21:30:33"
+                total: 1
+    runner_output_example:
+      status: "FOUND"
+      mode: "forwarder_search"
+      query:
+        code: "151515"
+        internal_id: ""
+        client: ""
+        seller: ""
+        from_date: ""
+        to_date: ""
+        page: "1"
+      response_meta:
+        http_status: 200
+        latency_ms: 225
+        error: ""
+      result:
+        total: 1
+        current_page: 1
+        last_page: 1
+        count_on_page: 1
+        exact_match_found: true
+        exact_match:
+          id: 795113
+          number: "151515"
+          internal_id: "CBR859613"
+          client_name_surname: "kon kon"
+          seller: null
+          status: "Unknown client"
+          category: "Auto parts"
+          gross_weight: "1.000"
+          amount: "8.45"
+          amount_currency: "EUR"
+          created_at: "2026-03-29 21:30:33"
+      raw_case: "success"
+
+common_endpoints:
+  auth:
+    login_get:
+      method: GET
+      path: /login
+      params: {}
+      response:
+        content_type: text/html
+        parse:
+          csrf_or_xsrf_token: "input[name=_token] | meta[name=csrf-token]"
+    login_post:
+      method: POST
+      path: /login
+      params:
+        username: string
+        password: string
+        _token: string
+      response:
+        content_type: "text/html (redirect) | application/json"
+        parse:
+          auth_ok: "redirect success | $.success"
+          auth_error: "form error | $.message"
+  api:
+    check_position:
+      method: POST
+      path: /api/check-position
+      json:
+        container: string
+      response:
+        content_type: application/json
+        parse:
+          status: "$.status | $.data.status"
+          position: "$.position | $.data.position"
+          message: "$.message"
+    check_package:
+      method: POST
+      path: /api/check-package
+      json:
+        track: string
+        container: string
+      response:
+        content_type: application/json
+        parse:
+          package_status: "$.status | $.data.status"
+          track: "$.track | $.data.track"
+          events: "$.data.events[]"
