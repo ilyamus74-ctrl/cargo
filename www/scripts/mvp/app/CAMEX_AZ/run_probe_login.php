@@ -25,7 +25,7 @@ Options:
   --http-auth-password=PASSWORD     HTTP htaccess auth password.
   --login=LOGIN                     Web form login.
   --password=PASSWORD               Web form password.
-  --login-path=/login               Login page path (default: /login).
+  --login-path=/cadmin/usa/login.php Login page path (default: /cadmin/usa/login.php).
   --dashboard-path=/path            Dashboard path checked after login (default: /cadmin/usa/index.php?do=index).
   --session-file=/tmp/file          Session state file (default: /tmp/camex_az_cookie.txt).
   --session-ttl-seconds=3600        Session TTL in seconds (default: 3600).
@@ -678,8 +678,8 @@ $GLOBALS['camexAzConnectorConfig'] = camex_az_probe_connector_diagnostics($conne
 $scenario = camex_az_probe_decode_json_object($connectorRow['scenario_json'] ?? '');
 $overrides = array_merge(
     [
-        'login_path' => '/login',
-        'login_post_path' => '/login',
+        'login_path' => '/cadmin/usa/login.php',
+        'login_post_path' => '/cadmin/usa/login.php?auth=do',
         'dashboard_path' => '/cadmin/usa/index.php?do=index',
         'session_file' => '/tmp/camex_az_cookie.txt',
         'session_ttl_seconds' => 3600,
