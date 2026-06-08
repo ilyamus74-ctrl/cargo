@@ -349,6 +349,8 @@ final class FlightListService
     /** @return array<string, mixed> */
     private function loadDbHelpers(): array
     {
+        global $dbcnx;
+
         foreach ([
             $this->repoRoot . '/configs/connectDB.php',
             $this->repoRoot . '/www/api/connectors/connector_engine.php',
@@ -364,6 +366,7 @@ final class FlightListService
         if (!($db instanceof mysqli)) {
             return ['status' => 'error', 'message' => 'mysqli connection is not available'];
         }
+        $GLOBALS['dbcnx'] = $db;
 
         return ['status' => 'ok', 'db' => $db];
     }

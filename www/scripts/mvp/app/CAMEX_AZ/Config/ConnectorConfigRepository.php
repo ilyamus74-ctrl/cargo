@@ -192,6 +192,7 @@ final class ConnectorConfigRepository
         if (!($db instanceof mysqli)) {
             throw new RuntimeException('Database connection $dbcnx is not available.');
         }
+        $GLOBALS['dbcnx'] = $db;
 
         $columns = 'id, name, countries, system_type, base_url, auth_type, auth_username, auth_password, http_auth_enabled, http_auth_type, http_auth_username, http_auth_password, ssl_ignore, scenario_json';
         if ($lookup['type'] === 'id') {
