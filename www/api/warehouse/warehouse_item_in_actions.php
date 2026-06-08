@@ -11,6 +11,109 @@ $response = ['status' => 'error', 'message' => 'Unknown warehouse item in action
 require_once __DIR__ . '/warehouse_forwarder_client_helpers.php';
 
 
+
+function warehouse_item_in_try_camex_az_remote_client_lookup(mysqli $dbcnx, string $clientId, string $receiverAddress): array
+{
+    if ($clientId === '') {
+        return [
+            'status' => 'ok',
+            'ok' => true,
+            'found' => false,
+            'source' => 'remote_camex',
+            'client_id' => $clientId,
+            'message' => 'remote lookup skipped/failed',
+        ];
+    }
+
+    try {
+        $camexDir = dirname(__DIR__, 2) . '/scripts/mvp/app/CAMEX_AZ';
+        require_once $camexDir . '/bootstrap.php';
+
+        $repoRoot = dirname(__DIR__, 3);
+        $args = [
+            'connector-id' => '3',
+            'timeout' => '5',
+        ];
+
+        $connectorRow = \App\Forwarder\Config\ConnectorConfigRepository::loadRow($args, $repoRoot);
+        $overrides = \App\Forwarder\Config\ConnectorConfigRepository::buildForwarderOverrides($connectorRow, $args);
+        $config = new \App\Forwarder\Config\ForwarderConfig($overrides);
+        if ($config->baseUrl() === '' || $config->webLogin() === '' || $config->webPassword() === '') {
+            return [
+                'status' => 'ok',
+                'ok' => true,
+                'found' => false,
+                'source' => 'remote_camex',
+                'client_id' => $clientId,
+                'message' => 'remote lookup skipped/failed',
+            ];
+        }
+        if ($config->httpAuthEnabled() && ($config->httpAuthLogin() === '' || $config->httpAuthPassword() === '')) {
+            return [
+                'status' => 'ok',
+                'ok' => true,
+                'found' => false,
+                'source' => 'remote_camex',
+                'client_id' => $clientId,
+                'message' => 'remote lookup skipped/failed',
+            ];
+        }
+
+        $logger = new \App\Forwarder\Logging\ForwarderLogger('warehouse-camex-client-' . date('YmdHis'));
+        $sessionClient = new \App\Forwarder\Http\CamexSessionClient(
+            $config,
+            new \App\Forwarder\Http\ForwarderHttpClient($config),
+            new \App\Forwarder\Http\SessionManager(),
+            $logger
+        );
+        $service = new \App\Forwarder\Services\ClientLookupService($repoRoot, $sessionClient, $dbcnx);
+        $result = $service->lookup([
+            'connector_id' => 3,
+            'client_id' => $clientId,
+            'receiver_address' => $receiverAddress,
+            'write_cache' => true,
+            'dry_run' => false,
+            'debug_dir' => '',
+        ]);
+
+        if (($result['status'] ?? '') !== 'ok') {
+            return [
+                'status' => 'ok',
+                'ok' => true,
+                'found' => false,
+                'source' => 'remote_camex',
+                'client_id' => $clientId,
+                'message' => 'remote lookup skipped/failed',
+            ];
+        }
+
+        return [
+            'status' => 'ok',
+            'ok' => true,
+            'found' => true,
+            'source' => 'remote_camex',
+            'cached' => true,
+            'connector_key' => (string)($result['connector_key'] ?? 'camex_az'),
+            'forwarder_name' => (string)($result['forwarder_name'] ?? 'CAMEX'),
+            'country_code' => (string)($result['country_code'] ?? 'AZ'),
+            'client_id' => (string)($result['client_id'] ?? $clientId),
+            'client_name' => (string)($result['client_name'] ?? ''),
+            'client_email' => $result['client_email'] ?? null,
+            'client_address' => $result['client_address'] ?? null,
+        ];
+    } catch (Throwable $e) {
+        error_log('[warehouse_lookup_forwarder_client][remote_camex] ' . $e->getMessage());
+        return [
+            'status' => 'ok',
+            'ok' => true,
+            'found' => false,
+            'source' => 'remote_camex',
+            'client_id' => $clientId,
+            'message' => 'remote lookup skipped/failed',
+        ];
+    }
+}
+
 function warehouse_item_in_ensure_addons_columns(mysqli $dbcnx): void
 {
     $checkIn = $dbcnx->query("SHOW COLUMNS FROM warehouse_item_in LIKE 'addons_json'");
@@ -1579,6 +1682,12 @@ switch ($action) {
         $stmt->close();
 
         if (!$row) {
+
+            if ($receiverCompany === 'CAMEX' && $receiverCountryCode === 'AZ') {
+                $response = warehouse_item_in_try_camex_az_remote_client_lookup($dbcnx, $clientId, $receiverAddress);
+                break;
+            }
+
             $response = [
                 'status' => 'ok',
                 'found' => false,
