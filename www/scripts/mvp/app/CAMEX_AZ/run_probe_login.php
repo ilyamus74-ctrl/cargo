@@ -86,6 +86,173 @@ function camex_az_probe_extract_csrf(string $html): array
     return ['name' => '', 'value' => ''];
 }
 
+/** @return array<string, string> */
+function camex_az_extract_html_attributes(string $tag): array
+{
+    $attributes = [];
+    if (preg_match_all('/([a-zA-Z_:][-a-zA-Z0-9_:.]*)\s*=\s*(?:"([^"]*)"|\'([^\']*)\'|([^\s>]+))/i', $tag, $matches, PREG_SET_ORDER) !== false) {
+        foreach ($matches as $match) {
+            $name = strtolower((string)$match[1]);
+            $value = $match[2] ?? $match[3] ?? $match[4] ?? '';
+            $attributes[$name] = html_entity_decode((string)$value, ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        }
+    }
+
+    return $attributes;
+}
+
+/**
+ * @return array{action: string, method: string, input_names: list<string>, password_fields: list<string>}
+ */
+function camex_az_extract_login_form_metadata(string $html): array
+{
+    $metadata = [
+        'action' => '',
+        'method' => 'get',
+        'input_names' => [],
+        'password_fields' => [],
+    ];
+
+    if ($html === '') {
+        return $metadata;
+    }
+
+    if (class_exists('DOMDocument')) {
+        $previous = libxml_use_internal_errors(true);
+        $dom = new DOMDocument();
+        $loaded = $dom->loadHTML('<?xml encoding="UTF-8">' . $html);
+        libxml_clear_errors();
+        libxml_use_internal_errors($previous);
+
+        if ($loaded) {
+            $forms = $dom->getElementsByTagName('form');
+            $selectedForm = null;
+            foreach ($forms as $form) {
+                foreach ($form->getElementsByTagName('input') as $input) {
+                    if (strcasecmp((string)$input->getAttribute('type'), 'password') === 0) {
+                        $selectedForm = $form;
+                        break 2;
+                    }
+                }
+            }
+            if ($selectedForm === null && $forms->length > 0) {
+                $selectedForm = $forms->item(0);
+            }
+
+            if ($selectedForm !== null) {
+                $metadata['action'] = html_entity_decode(trim((string)$selectedForm->getAttribute('action')), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+                $method = strtolower(trim((string)$selectedForm->getAttribute('method')));
+                $metadata['method'] = $method !== '' ? $method : 'get';
+
+                foreach ($selectedForm->getElementsByTagName('input') as $input) {
+                    $name = trim((string)$input->getAttribute('name'));
+                    if ($name === '') {
+                        continue;
+                    }
+                    if (!in_array($name, $metadata['input_names'], true)) {
+                        $metadata['input_names'][] = $name;
+                    }
+                    if (strcasecmp((string)$input->getAttribute('type'), 'password') === 0 && !in_array($name, $metadata['password_fields'], true)) {
+                        $metadata['password_fields'][] = $name;
+                    }
+                }
+
+                return $metadata;
+            }
+        }
+    }
+
+    return camex_az_extract_login_form_metadata_regex($html, $metadata);
+}
+
+/**
+ * @param array{action: string, method: string, input_names: list<string>, password_fields: list<string>} $default
+ * @return array{action: string, method: string, input_names: list<string>, password_fields: list<string>}
+ */
+function camex_az_extract_login_form_metadata_regex(string $html, array $default): array
+{
+    $forms = [];
+    if (preg_match_all('/<form\b([^>]*)>(.*?)<\/form>/is', $html, $matches, PREG_SET_ORDER) !== false) {
+        $forms = $matches;
+    }
+    if ($forms === [] && preg_match('/<form\b([^>]*)>(.*)$/is', $html, $singleMatch) === 1) {
+        $forms = [$singleMatch];
+    }
+
+    $selected = null;
+    foreach ($forms as $form) {
+        if (preg_match('/<input\b[^>]*type\s*=\s*(?:"password"|\'password\'|password)\b[^>]*>/i', (string)($form[2] ?? '')) === 1) {
+            $selected = $form;
+            break;
+        }
+    }
+    if ($selected === null && $forms !== []) {
+        $selected = $forms[0];
+    }
+    if ($selected === null) {
+        return $default;
+    }
+
+    $formAttributes = camex_az_extract_html_attributes((string)($selected[1] ?? ''));
+    $default['action'] = trim((string)($formAttributes['action'] ?? ''));
+    $method = strtolower(trim((string)($formAttributes['method'] ?? '')));
+    $default['method'] = $method !== '' ? $method : 'get';
+
+    if (preg_match_all('/<input\b[^>]*>/i', (string)($selected[2] ?? ''), $inputMatches) !== false) {
+        foreach ($inputMatches[0] as $inputTag) {
+            $inputAttributes = camex_az_extract_html_attributes((string)$inputTag);
+            $name = trim((string)($inputAttributes['name'] ?? ''));
+            if ($name === '') {
+                continue;
+            }
+            if (!in_array($name, $default['input_names'], true)) {
+                $default['input_names'][] = $name;
+            }
+            if (strcasecmp((string)($inputAttributes['type'] ?? ''), 'password') === 0 && !in_array($name, $default['password_fields'], true)) {
+                $default['password_fields'][] = $name;
+            }
+        }
+    }
+
+    return $default;
+}
+
+function camex_az_resolve_form_action_path(string $loginPath, string $action): string
+{
+    $loginPath = camex_az_probe_path($loginPath);
+    $action = trim(html_entity_decode($action, ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+    if ($action === '') {
+        return $loginPath;
+    }
+
+    $action = explode('#', $action, 2)[0];
+    if ($action === '') {
+        return $loginPath;
+    }
+
+    if (preg_match('#^https?://#i', $action) === 1) {
+        $path = (string)(parse_url($action, PHP_URL_PATH) ?: '/');
+        $query = parse_url($action, PHP_URL_QUERY);
+        return camex_az_probe_path($path) . (is_string($query) && $query !== '' ? '?' . $query : '');
+    }
+
+    if ($action[0] === '/') {
+        return $action;
+    }
+
+    if ($action[0] === '?') {
+        $path = explode('?', $loginPath, 2)[0];
+        return $path . $action;
+    }
+
+    $directory = rtrim(str_replace('\\', '/', dirname($loginPath)), '/');
+    if ($directory === '') {
+        $directory = '/';
+    }
+
+    return rtrim($directory, '/') . '/' . $action;
+}
+
 function camex_az_probe_save_debug(string $debugDir, string $fileName, string $html): void
 {
     if ($debugDir === '') {
@@ -127,10 +294,13 @@ function camex_az_probe_json(array $payload, int $exitCode = 0): void
     exit($exitCode);
 }
 
-/** @param array<string, mixed> $response */
-function camex_az_probe_error(string $stage, string $message, array $response = [], int $exitCode = 1): void
+/**
+ * @param array<string, mixed> $response
+ * @param array<string, mixed> $extra
+ */
+function camex_az_probe_error(string $stage, string $message, array $response = [], int $exitCode = 1, array $extra = []): void
 {
-    camex_az_probe_json([
+    camex_az_probe_json(array_merge([
         'status' => 'error',
         'connector' => 'CAMEX_AZ',
         'stage' => $stage,
@@ -138,7 +308,7 @@ function camex_az_probe_error(string $stage, string $message, array $response = 
         'http_status' => (int)($response['status_code'] ?? 0),
         'curl_errno' => (int)($response['curl_errno'] ?? 0),
         'curl_error' => (string)($response['curl_error'] ?? ''),
-    ], $exitCode);
+    ], $extra), $exitCode);
 }
 
 $args = camex_az_probe_args($argv);
@@ -204,17 +374,27 @@ if ($loginPageStatus < 200 || $loginPageStatus >= 400) {
     camex_az_probe_error('login_page', 'Unable to load login page.', $loginPage);
 }
 
-$csrf = camex_az_probe_extract_csrf((string)($loginPage['body'] ?? ''));
-if ($csrf['value'] === '') {
-    camex_az_probe_error('csrf', 'Unable to find CSRF token on login page.', $loginPage);
-}
+$loginHtml = (string)($loginPage['body'] ?? '');
+$csrf = camex_az_probe_extract_csrf($loginHtml);
+$csrfFound = is_string($csrf['value']) && $csrf['value'] !== '';
+$formMetadata = camex_az_extract_login_form_metadata($loginHtml);
+$loginPostPath = camex_az_resolve_form_action_path($config->loginPath(), $formMetadata['action']);
+$formDiagnostics = array_merge($formMetadata, [
+    'resolved_action_path' => $loginPostPath,
+]);
 
 $payload = [
-    'username' => $config->webLogin(),
+    'user' => $config->webLogin(),
     'login' => $config->webLogin(),
+    'username' => $config->webLogin(),
+    'email' => $config->webLogin(),
     'password' => $config->webPassword(),
-    $csrf['name'] => $csrf['value'],
 ];
+if ($csrfFound) {
+    foreach (['_token', 'csrf_token', 'csrf'] as $csrfAlias) {
+        $payload[$csrfAlias] = $csrf['value'];
+    }
+}
 $headers = array_merge(
     $session->securityHeaders(true),
     [
@@ -222,17 +402,27 @@ $headers = array_merge(
         'Referer' => $config->loginUrl(),
     ]
 );
-$loginPost = $httpClient->post($config->loginPostPath(), $payload, $headers, false, $session->cookieHeader());
+$loginPost = $httpClient->post($loginPostPath, $payload, $headers, false, $session->cookieHeader());
 $session->updateFromHeaders((string)($loginPost['headers_raw'] ?? ''));
 $session->updateFromHtml((string)($loginPost['body'] ?? ''));
 camex_az_probe_save_debug($debugDir, '02_login_post_response.html', (string)($loginPost['body'] ?? ''));
 
 $loginPostStatus = (int)($loginPost['status_code'] ?? 0);
 if ($loginPostStatus === 401 || $loginPostStatus === 403) {
-    camex_az_probe_error('web_login', 'Web login form authentication failed.', $loginPost);
+    camex_az_probe_error('web_login', 'Web login form authentication failed.', $loginPost, 1, [
+        'web_login' => [
+            'csrf_found' => $csrfFound,
+        ],
+        'login_form' => $formDiagnostics,
+    ]);
 }
 if ($loginPostStatus < 200 || $loginPostStatus >= 400) {
-    camex_az_probe_error('web_login', 'Unexpected web login response status.', $loginPost);
+    camex_az_probe_error('web_login', 'Unexpected web login response status.', $loginPost, 1, [
+        'web_login' => [
+            'csrf_found' => $csrfFound,
+        ],
+        'login_form' => $formDiagnostics,
+    ]);
 }
 
 $dashboard = $httpClient->get($config->dashboardPath(), $session->securityHeaders(false), $session->cookieHeader());
@@ -267,10 +457,11 @@ camex_az_probe_json([
     ],
     'web_login' => [
         'status' => 'ok',
-        'csrf_found' => true,
+        'csrf_found' => $csrfFound,
         'login_post_status' => $loginPostStatus,
         'dashboard_status' => $dashboardStatus,
     ],
+    'login_form' => $formDiagnostics,
     'session' => [
         'session_file' => $config->sessionCookieFile(),
         'cookie_file_exists' => is_file($config->sessionCookieFile()),
