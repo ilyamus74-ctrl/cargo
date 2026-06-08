@@ -13,7 +13,7 @@ final class ForwarderConfig
     private array $overrides;
 
     /** @param array<string, mixed> $overrides */
-    public function __construct(array $overrides
+    public function __construct(array $overrides)
     {
         /** @var mixed[] $map */
         $map = require __DIR__ . '/endpoints.php';
