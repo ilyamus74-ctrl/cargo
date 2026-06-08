@@ -27,3 +27,40 @@ php run_probe_login.php \
 ```
 
 The probe writes JSON to stdout. It does not include HTTP auth passwords, web passwords, cookies, `Set-Cookie`, or authorization values in JSON output.
+
+
+### DB-backed connector config
+
+When the `connectors` row is active (`is_active = 1`), the probe can load CAMEX_AZ settings from the database. CLI arguments override database values, database columns override `scenario_json`, and `scenario_json` overrides defaults.
+
+```bash
+php www/scripts/mvp/app/CAMEX_AZ/run_probe_login.php --connector-id=3 | jq .
+```
+
+Example connector row update:
+
+```sql
+UPDATE connectors
+SET
+  system_type = 'CAMEX_AZ',
+  base_url = 'https://az.camex.net',
+  auth_type = 'camex_dual',
+  auth_username = 'WEB_LOGIN',
+  auth_password = 'WEB_PASSWORD',
+  http_auth_enabled = 1,
+  http_auth_type = 'basic',
+  http_auth_username = 'HTACCESS_LOGIN',
+  http_auth_password = 'HTACCESS_PASSWORD',
+  scenario_json = JSON_OBJECT(
+    'paths', JSON_OBJECT(
+      'login', '/cadmin/usa/login.php',
+      'login_post', '/cadmin/usa/login.php?auth=do',
+      'dashboard', '/cadmin/usa/index.php?do=index'
+    ),
+    'session', JSON_OBJECT(
+      'ttl_seconds', 3600
+    ),
+    'timeout_seconds', 30
+  )
+WHERE id = 3;
+```

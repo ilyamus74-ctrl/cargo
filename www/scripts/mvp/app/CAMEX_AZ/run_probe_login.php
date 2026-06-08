@@ -13,8 +13,12 @@ function camex_az_probe_usage(): string
     return <<<'TXT'
 Usage:
   php run_probe_login.php --base-url="https://FORWARDER_HOST" --http-auth-type=basic --http-auth-login="HTACCESS_USER" --http-auth-password="HTACCESS_PASS" --login="WEB_USER" --password="WEB_PASS" [options]
+  php run_probe_login.php --connector-id=3 [options]
 
 Options:
+  --connector-id=ID                Load active connector by connectors.id.
+  --connector-name=CAMEX           Load active connector by connectors.name.
+  --connector-key=CAMEX_AZ         Load active connector by connectors.name (no connector_key column exists).
   --base-url=URL                    Forwarder base URL.
   --http-auth-type=basic|digest|none HTTP htaccess auth type (default: none).
   --http-auth-login=LOGIN           HTTP htaccess auth login.
@@ -61,6 +65,207 @@ function camex_az_probe_path(string $path): string
     }
 
     return $path[0] === '/' ? $path : '/' . $path;
+}
+
+
+/** @return array<string, mixed> */
+function camex_az_probe_decode_json_object($json): array
+{
+    $json = trim((string)$json);
+    if ($json === '') {
+        return [];
+    }
+
+    $decoded = json_decode($json, true);
+    return is_array($decoded) ? $decoded : [];
+}
+
+/** @param array<string, mixed> $data */
+function camex_az_probe_nested_value(array $data, array $path, $default = null)
+{
+    $current = $data;
+    foreach ($path as $key) {
+        if (!is_array($current) || !array_key_exists($key, $current)) {
+            return $default;
+        }
+        $current = $current[$key];
+    }
+
+    return $current;
+}
+
+/** @return array<string, mixed> */
+function camex_az_probe_scenario_overrides(array $scenario): array
+{
+    $overrides = [];
+    $mapping = [
+        'login_path' => ['paths', 'login'],
+        'login_post_path' => ['paths', 'login_post'],
+        'dashboard_path' => ['paths', 'dashboard'],
+        'session_ttl_seconds' => ['session', 'ttl_seconds'],
+        'timeout' => ['timeout_seconds'],
+    ];
+
+    foreach ($mapping as $overrideKey => $path) {
+        $value = camex_az_probe_nested_value($scenario, $path);
+        if ($value !== null && $value !== '') {
+            $overrides[$overrideKey] = $value;
+        }
+    }
+
+    return $overrides;
+}
+
+/** @return array<string, mixed> */
+function camex_az_probe_cli_overrides(array $args): array
+{
+    $mapping = [
+        'base-url' => 'base_url',
+        'http-auth-type' => 'http_auth_type',
+        'http-auth-login' => 'http_auth_login',
+        'http-auth-password' => 'http_auth_password',
+        'login' => 'web_login',
+        'password' => 'web_password',
+        'login-path' => 'login_path',
+        'login-post-path' => 'login_post_path',
+        'dashboard-path' => 'dashboard_path',
+        'session-file' => 'session_file',
+        'session-ttl-seconds' => 'session_ttl_seconds',
+        'insecure' => 'insecure',
+        'timeout' => 'timeout',
+    ];
+
+    $overrides = [];
+    foreach ($mapping as $argKey => $overrideKey) {
+        if (array_key_exists($argKey, $args)) {
+            $value = (string)$args[$argKey];
+            if (in_array($overrideKey, ['login_path', 'login_post_path', 'dashboard_path'], true)) {
+                $value = camex_az_probe_path($value);
+            }
+            $overrides[$overrideKey] = $value;
+        }
+    }
+
+    if (array_key_exists('http-auth-type', $args)) {
+        $overrides['http_auth_enabled'] = strtolower(trim((string)$args['http-auth-type'])) !== 'none' ? '1' : '0';
+    }
+
+    return $overrides;
+}
+
+/** @return array<string, mixed> */
+function camex_az_probe_connector_row_overrides(array $row): array
+{
+    $mapping = [
+        'base_url' => 'base_url',
+        'auth_username' => 'web_login',
+        'auth_password' => 'web_password',
+        'ssl_ignore' => 'insecure',
+        'http_auth_enabled' => 'http_auth_enabled',
+        'http_auth_type' => 'http_auth_type',
+        'http_auth_username' => 'http_auth_login',
+        'http_auth_password' => 'http_auth_password',
+    ];
+
+    $overrides = [];
+    foreach ($mapping as $column => $overrideKey) {
+        if (array_key_exists($column, $row) && $row[$column] !== null && (string)$row[$column] !== '') {
+            $overrides[$overrideKey] = $row[$column];
+        }
+    }
+
+    return $overrides;
+}
+
+function camex_az_probe_find_connector_arg(array $args): array
+{
+    foreach (['connector-id', 'connector_id'] as $key) {
+        if (array_key_exists($key, $args) && trim((string)$args[$key]) !== '') {
+            return ['type' => 'id', 'value' => trim((string)$args[$key])];
+        }
+    }
+    foreach (['connector-name', 'connector_name'] as $key) {
+        if (array_key_exists($key, $args) && trim((string)$args[$key]) !== '') {
+            return ['type' => 'name', 'value' => trim((string)$args[$key])];
+        }
+    }
+    foreach (['connector-key', 'connector_key'] as $key) {
+        if (array_key_exists($key, $args) && trim((string)$args[$key]) !== '') {
+            return ['type' => 'name', 'value' => trim((string)$args[$key])];
+        }
+    }
+
+    return ['type' => '', 'value' => ''];
+}
+
+/** @return array<string, mixed>|null */
+function camex_az_probe_load_connector(array $args): ?array
+{
+    $lookup = camex_az_probe_find_connector_arg($args);
+    if ($lookup['type'] === '') {
+        return null;
+    }
+
+    require_once __DIR__ . '/../../../../../configs/connectDB.php';
+    if (!isset($GLOBALS['dbcnx']) || !($GLOBALS['dbcnx'] instanceof mysqli)) {
+        throw new RuntimeException('Database connection $dbcnx is not available.');
+    }
+
+    /** @var mysqli $db */
+    $db = $GLOBALS['dbcnx'];
+    if ($lookup['type'] === 'id') {
+        $sql = 'SELECT id, name, countries, system_type, base_url, auth_type, auth_username, auth_password, http_auth_enabled, http_auth_type, http_auth_username, http_auth_password, ssl_ignore, scenario_json FROM connectors WHERE id = ? AND is_active = 1 LIMIT 1';
+        $stmt = $db->prepare($sql);
+        if (!$stmt) {
+            throw new RuntimeException('Prepare connector lookup failed: ' . $db->error);
+        }
+        $id = (int)$lookup['value'];
+        $stmt->bind_param('i', $id);
+    } else {
+        $sql = 'SELECT id, name, countries, system_type, base_url, auth_type, auth_username, auth_password, http_auth_enabled, http_auth_type, http_auth_username, http_auth_password, ssl_ignore, scenario_json FROM connectors WHERE name = ? AND is_active = 1 ORDER BY id ASC LIMIT 1';
+        $stmt = $db->prepare($sql);
+        if (!$stmt) {
+            throw new RuntimeException('Prepare connector lookup failed: ' . $db->error);
+        }
+        $name = (string)$lookup['value'];
+        $stmt->bind_param('s', $name);
+    }
+
+    if (!$stmt->execute()) {
+        $error = $stmt->error;
+        $stmt->close();
+        throw new RuntimeException('Execute connector lookup failed: ' . $error);
+    }
+
+    $res = $stmt->get_result();
+    $row = $res ? $res->fetch_assoc() : null;
+    $stmt->close();
+
+    if (!$row) {
+        throw new RuntimeException('Active connector not found for --connector-' . $lookup['type'] . '=' . $lookup['value']);
+    }
+
+    return $row;
+}
+
+/** @return array<string, mixed> */
+function camex_az_probe_connector_diagnostics(?array $row): array
+{
+    if ($row === null) {
+        return ['source' => 'cli'];
+    }
+
+    return [
+        'source' => 'db',
+        'id' => (int)($row['id'] ?? 0),
+        'name' => (string)($row['name'] ?? ''),
+        'countries' => (string)($row['countries'] ?? ''),
+        'system_type' => (string)($row['system_type'] ?? ''),
+        'auth_type' => (string)($row['auth_type'] ?? ''),
+        'base_url' => (string)($row['base_url'] ?? ''),
+        'http_auth_enabled' => filter_var($row['http_auth_enabled'] ?? false, FILTER_VALIDATE_BOOLEAN),
+        'http_auth_type' => (string)($row['http_auth_type'] ?? ''),
+    ];
 }
 
 /** @return array{name: string, value: string} */
@@ -409,7 +614,7 @@ function camex_az_fetch_dashboard_following_redirects(
 /** @param array<string, mixed> $value */
 function camex_az_probe_mask(array $value): array
 {
-    $secretKeys = ['http-auth-password', 'password', 'cookies', 'set-cookie', 'authorization', 'cookie'];
+    $secretKeys = ['auth-password', 'http-auth-password', 'password', 'auth_password', 'http_auth_password', 'cookies', 'auth_cookies', 'set-cookie', 'authorization', 'cookie'];
     foreach ($value as $key => $item) {
         $normalized = strtolower(str_replace('_', '-', (string)$key));
         if (in_array($normalized, $secretKeys, true)) {
@@ -438,7 +643,8 @@ function camex_az_probe_json(array $payload, int $exitCode = 0): void
  */
 function camex_az_probe_error(string $stage, string $message, array $response = [], int $exitCode = 1, array $extra = []): void
 {
-    camex_az_probe_json(array_merge([
+    $diagnostics = $GLOBALS['camexAzConnectorConfig'] ?? null;
+    $base = [
         'status' => 'error',
         'connector' => 'CAMEX_AZ',
         'stage' => $stage,
@@ -446,7 +652,11 @@ function camex_az_probe_error(string $stage, string $message, array $response = 
         'http_status' => (int)($response['status_code'] ?? 0),
         'curl_errno' => (int)($response['curl_errno'] ?? 0),
         'curl_error' => (string)($response['curl_error'] ?? ''),
-    ], $extra), $exitCode);
+    ];
+    if (is_array($diagnostics)) {
+        $base['connector_config'] = $diagnostics;
+    }
+    camex_az_probe_json(array_merge($base, $extra), $exitCode);
 }
 
 $args = camex_az_probe_args($argv);
@@ -455,47 +665,61 @@ if (isset($args['help'])) {
     exit(0);
 }
 
-$httpAuthType = strtolower(trim($args['http-auth-type'] ?? 'none'));
-if (!in_array($httpAuthType, ['basic', 'digest', 'none'], true)) {
-    camex_az_probe_error('http_auth', 'Invalid --http-auth-type value. Expected basic, digest, or none.');
+try {
+    $connectorRow = camex_az_probe_load_connector($args);
+} catch (Throwable $e) {
+    camex_az_probe_error('connector_lookup', $e->getMessage());
 }
 
-$baseUrl = rtrim((string)($args['base-url'] ?? ''), '/');
-$login = (string)($args['login'] ?? '');
-$password = (string)($args['password'] ?? '');
-$loginPath = camex_az_probe_path((string)($args['login-path'] ?? '/login'));
-$dashboardPath = camex_az_probe_path((string)($args['dashboard-path'] ?? '/cadmin/usa/index.php?do=index'));
-$sessionFile = (string)($args['session-file'] ?? '/tmp/camex_az_cookie.txt');
+$GLOBALS['camexAzConnectorConfig'] = camex_az_probe_connector_diagnostics($connectorRow);
+
+$scenario = camex_az_probe_decode_json_object($connectorRow['scenario_json'] ?? '');
+$overrides = array_merge(
+    [
+        'login_path' => '/login',
+        'login_post_path' => '/login',
+        'dashboard_path' => '/cadmin/usa/index.php?do=index',
+        'session_file' => '/tmp/camex_az_cookie.txt',
+        'session_ttl_seconds' => 3600,
+        'timeout' => 30,
+        'insecure' => '0',
+        'http_auth_enabled' => '0',
+        'http_auth_type' => 'none',
+    ],
+    camex_az_probe_scenario_overrides($scenario),
+    $connectorRow !== null ? camex_az_probe_connector_row_overrides($connectorRow) : [],
+    camex_az_probe_cli_overrides($args)
+);
+
+$overrides['base_url'] = rtrim((string)($overrides['base_url'] ?? ''), '/');
+foreach (['login_path', 'login_post_path', 'dashboard_path'] as $pathKey) {
+    $overrides[$pathKey] = camex_az_probe_path((string)($overrides[$pathKey] ?? '/'));
+}
+$overrides['timeout'] = max(1, (int)($overrides['timeout'] ?? 30));
+$overrides['session_ttl_seconds'] = max(60, (int)($overrides['session_ttl_seconds'] ?? 3600));
+$overrides['http_auth_type'] = strtolower(trim((string)($overrides['http_auth_type'] ?? 'none')));
+if (!in_array($overrides['http_auth_type'], ['basic', 'digest', 'none'], true)) {
+    camex_az_probe_error('http_auth', 'Invalid HTTP auth type. Expected basic, digest, or none.');
+}
+if ($overrides['http_auth_type'] === 'none') {
+    $overrides['http_auth_enabled'] = '0';
+}
+
 $debugDir = (string)($args['debug-dir'] ?? '');
-$timeout = max(1, (int)($args['timeout'] ?? 30));
-$sessionTtlSeconds = max(60, (int)($args['session-ttl-seconds'] ?? 3600));
+$config = new ForwarderConfig($overrides);
+$GLOBALS['camexAzConnectorConfig']['base_url'] = $config->baseUrl();
+$GLOBALS['camexAzConnectorConfig']['http_auth_enabled'] = $config->httpAuthEnabled();
+$GLOBALS['camexAzConnectorConfig']['http_auth_type'] = $config->httpAuthType();
 
-if ($baseUrl === '') {
-    camex_az_probe_error('login_page', 'Missing required --base-url.');
+if ($config->baseUrl() === '') {
+    camex_az_probe_error('login_page', 'Missing required --base-url or connectors.base_url.');
 }
-if ($login === '' || $password === '') {
-    camex_az_probe_error('web_login', 'Missing required --login or --password.');
+if ($config->webLogin() === '' || $config->webPassword() === '') {
+    camex_az_probe_error('web_login', 'Missing required --login/--password or connectors.auth_username/auth_password.');
 }
-if ($httpAuthType !== 'none' && ((string)($args['http-auth-login'] ?? '') === '' || (string)($args['http-auth-password'] ?? '') === '')) {
-    camex_az_probe_error('http_auth', 'Missing required --http-auth-login or --http-auth-password for enabled HTTP auth.');
+if ($config->httpAuthEnabled() && ($config->httpAuthLogin() === '' || $config->httpAuthPassword() === '')) {
+    camex_az_probe_error('http_auth', 'Missing required HTTP auth username/password for enabled HTTP auth.');
 }
-
-$config = new ForwarderConfig([
-    'base_url' => $baseUrl,
-    'http_auth_enabled' => $httpAuthType !== 'none',
-    'http_auth_type' => $httpAuthType,
-    'http_auth_login' => (string)($args['http-auth-login'] ?? ''),
-    'http_auth_password' => (string)($args['http-auth-password'] ?? ''),
-    'web_login' => $login,
-    'web_password' => $password,
-    'login_path' => $loginPath,
-    'login_post_path' => $loginPath,
-    'dashboard_path' => $dashboardPath,
-    'session_file' => $sessionFile,
-    'session_ttl_seconds' => $sessionTtlSeconds,
-    'insecure' => (string)($args['insecure'] ?? '0'),
-    'timeout' => $timeout,
-]);
 $session = new SessionManager();
 $httpClient = new ForwarderHttpClient($config);
 
@@ -516,7 +740,9 @@ $loginHtml = (string)($loginPage['body'] ?? '');
 $csrf = camex_az_probe_extract_csrf($loginHtml);
 $csrfFound = is_string($csrf['value']) && $csrf['value'] !== '';
 $formMetadata = camex_az_extract_login_form_metadata($loginHtml);
-$loginPostPath = camex_az_resolve_form_action_path($config->loginPath(), $formMetadata['action']);
+$loginPostPath = $formMetadata['action'] !== ''
+    ? camex_az_resolve_form_action_path($config->loginPath(), $formMetadata['action'])
+    : $config->loginPostPath();
 $formDiagnostics = array_merge($formMetadata, [
     'resolved_action_path' => $loginPostPath,
 ]);
@@ -647,6 +873,7 @@ if (!is_dir($sessionDir)) {
 camex_az_probe_json([
     'status' => 'ok',
     'connector' => 'CAMEX_AZ',
+    'connector_config' => $GLOBALS['camexAzConnectorConfig'] ?? ['source' => 'cli'],
     'http_auth' => [
         'enabled' => $config->httpAuthEnabled(),
         'type' => $config->httpAuthType(),
