@@ -71,15 +71,21 @@ final class SessionManager
         }
 
         if (
-            preg_match('/<meta[^>]+name=["\\\']csrf-token["\\\'][^>]+content=["\\\']([^"\\\']+)["\\\']/i', $html, $metaMatch) === 1
+            preg_match('/<meta[^>]+name=["\']csrf-token["\'][^>]+content=["\']([^"\']+)["\']/i', $html, $metaMatch) === 1
             && isset($metaMatch[1])
         ) {
             $this->csrfToken = trim((string)$metaMatch[1]);
-        } elseif (
-            preg_match('/<input[^>]+name=["\\\']_token["\\\'][^>]+value=["\\\']([^"\\\']+)["\\\']/i', $html, $inputMatch) === 1
-            && isset($inputMatch[1])
-        ) {
-            $this->csrfToken = trim((string)$inputMatch[1]);
+        } else {
+            foreach (['_token', 'csrf_token', 'csrf'] as $fieldName) {
+                $quotedName = preg_quote($fieldName, '/');
+                if (
+                    preg_match('/<input[^>]+name=["\']' . $quotedName . '["\'][^>]+value=["\']([^"\']+)["\']/i', $html, $inputMatch) === 1
+                    && isset($inputMatch[1])
+                ) {
+                    $this->csrfToken = trim((string)$inputMatch[1]);
+                    break;
+                }
+            }
         }
 
         if ($this->xsrfToken === '' && $this->csrfToken !== '') {

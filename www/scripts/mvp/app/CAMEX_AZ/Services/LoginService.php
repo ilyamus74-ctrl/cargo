@@ -44,7 +44,7 @@ final class LoginService
             '_token' => $this->session->csrfToken() !== '' ? $this->session->csrfToken() : $this->session->xsrfToken(),
         ];
 
-        $loginPostPath = (string)($this->config->endpoint('login_post')['path'] ?? $this->config->loginPath());
+        $loginPostPath = $this->config->loginPostPath();
         $headers = array_merge(
             $this->session->securityHeaders(true),
             [

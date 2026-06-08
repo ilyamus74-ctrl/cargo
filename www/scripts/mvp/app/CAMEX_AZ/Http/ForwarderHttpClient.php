@@ -108,6 +108,15 @@ final class ForwarderHttpClient
                 }
             }
 
+            if ($this->config->httpAuthEnabled()) {
+                curl_setopt(
+                    $ch,
+                    CURLOPT_HTTPAUTH,
+                    $this->config->httpAuthType() === 'digest' ? CURLAUTH_DIGEST : CURLAUTH_BASIC
+                );
+                curl_setopt($ch, CURLOPT_USERPWD, $this->config->httpAuthLogin() . ':' . $this->config->httpAuthPassword());
+            }
+
             curl_setopt_array($ch, [
                 CURLOPT_HTTPHEADER => $httpHeaders,
                 CURLOPT_RETURNTRANSFER => true,
@@ -146,6 +155,8 @@ final class ForwarderHttpClient
                     'json' => null,
                     'latency_ms' => $latencyMs,
                     'error' => $lastError,
+                    'curl_errno' => $errno,
+                    'curl_error' => $error,
                 ];
             }
 
@@ -169,6 +180,8 @@ final class ForwarderHttpClient
                 'json' => $json,
                 'latency_ms' => $latencyMs,
                 'error' => $ok ? '' : ('http_status=' . $statusCode),
+                'curl_errno' => $errno,
+                'curl_error' => $error,
             ];
         }
 
@@ -180,6 +193,8 @@ final class ForwarderHttpClient
             'json' => null,
             'latency_ms' => 0,
             'error' => $lastError,
+            'curl_errno' => 0,
+            'curl_error' => $lastError,
         ];
     }
 }
