@@ -22,7 +22,7 @@ Options:
   --login=LOGIN                     Web form login.
   --password=PASSWORD               Web form password.
   --login-path=/login               Login page path (default: /login).
-  --dashboard-path=/                Dashboard path checked after login (default: /).
+  --dashboard-path=/path            Dashboard path checked after login (default: /cadmin/usa/index.php?do=index).
   --session-file=/tmp/file          Session state file (default: /tmp/camex_az_cookie.txt).
   --session-ttl-seconds=3600        Session TTL in seconds (default: 3600).
   --debug-dir=/tmp/camex_az_debug   Optional directory for debug HTML snapshots.
@@ -268,6 +268,144 @@ function camex_az_probe_save_debug(string $debugDir, string $fileName, string $h
     }
 }
 
+function camex_az_extract_location(array $response): string
+{
+    $headersRaw = (string)($response['headers_raw'] ?? '');
+    if ($headersRaw === '') {
+        return '';
+    }
+
+    $location = '';
+    foreach (preg_split('/\r\n|\r|\n/', $headersRaw) ?: [] as $line) {
+        if (stripos((string)$line, 'Location:') === 0) {
+            $location = trim(substr((string)$line, strlen('Location:')));
+        }
+    }
+
+    return $location;
+}
+
+function camex_az_location_contains(string $location, string $needle): bool
+{
+    return $location !== '' && stripos($location, $needle) !== false;
+}
+
+function camex_az_resolve_redirect_path(string $currentPath, string $location): string
+{
+    $location = trim(html_entity_decode($location, ENT_QUOTES | ENT_HTML5, 'UTF-8'));
+    if ($location === '') {
+        return camex_az_probe_path($currentPath);
+    }
+
+    $location = explode('#', $location, 2)[0];
+    if (preg_match('#^https?://#i', $location) === 1) {
+        $path = (string)(parse_url($location, PHP_URL_PATH) ?: '/');
+        $query = parse_url($location, PHP_URL_QUERY);
+        return camex_az_probe_path($path) . (is_string($query) && $query !== '' ? '?' . $query : '');
+    }
+
+    if ($location[0] === '/') {
+        return $location;
+    }
+
+    if ($location[0] === '?') {
+        $path = explode('?', camex_az_probe_path($currentPath), 2)[0];
+        return $path . $location;
+    }
+
+    $pathOnly = explode('?', camex_az_probe_path($currentPath), 2)[0];
+    $directory = rtrim(str_replace('\\', '/', dirname($pathOnly)), '/');
+    if ($directory === '') {
+        $directory = '/';
+    }
+
+    return rtrim($directory, '/') . '/' . $location;
+}
+
+function camex_az_effective_url(string $baseUrl, string $path): string
+{
+    return rtrim($baseUrl, '/') . camex_az_probe_path($path);
+}
+
+function camex_az_looks_like_login_page(string $html): bool
+{
+    if ($html === '') {
+        return false;
+    }
+
+    $hasPassword = preg_match('/<input\b[^>]*type\s*=\s*(?:"password"|\'password\'|password)\b/i', $html) === 1;
+    $hasLoginAction = stripos($html, 'login.php?auth=do') !== false;
+    $hasLoginTitle = stripos($html, 'Camara Express Login Form') !== false;
+
+    return $hasPassword && $hasLoginAction && $hasLoginTitle;
+}
+
+function camex_az_looks_like_admin_page(string $html): bool
+{
+    if ($html === '') {
+        return false;
+    }
+
+    $markers = [
+        'index.php?do=logout',
+        'LogOut',
+        'Camara Express Admin Panel',
+        'index.php?do=newaddpre',
+        'index.php?do=flight',
+        'index.php?do=tracking_search',
+        'index.php?do=show_orders_global',
+        'index.php?do=searchtracking',
+        'index.php?do=track2box',
+        'index.php?do=box4track',
+    ];
+
+    foreach ($markers as $marker) {
+        if (stripos($html, $marker) !== false) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+/**
+ * @return array{response: array<string, mixed>, location: string, effective_path: string, effective_url: string}
+ */
+function camex_az_fetch_dashboard_following_redirects(
+    ForwarderHttpClient $httpClient,
+    ForwarderConfig $config,
+    SessionManager $session
+): array {
+    $path = $config->dashboardPath();
+    $firstLocation = '';
+    $response = [];
+
+    for ($redirects = 0; $redirects <= 5; $redirects++) {
+        $response = $httpClient->get($path, $session->securityHeaders(false), $session->cookieHeader());
+        $session->updateFromHeaders((string)($response['headers_raw'] ?? ''));
+        $session->updateFromHtml((string)($response['body'] ?? ''));
+
+        $status = (int)($response['status_code'] ?? 0);
+        $location = camex_az_extract_location($response);
+        if ($firstLocation === '' && $location !== '') {
+            $firstLocation = $location;
+        }
+
+        if ($status < 300 || $status >= 400 || $location === '') {
+            break;
+        }
+
+        $path = camex_az_resolve_redirect_path($path, $location);
+    }
+
+    return [
+        'response' => $response,
+        'location' => $firstLocation,
+        'effective_path' => $path,
+        'effective_url' => camex_az_effective_url($config->baseUrl(), $path),
+    ];
+}
+
 /** @param array<string, mixed> $value */
 function camex_az_probe_mask(array $value): array
 {
@@ -326,7 +464,7 @@ $baseUrl = rtrim((string)($args['base-url'] ?? ''), '/');
 $login = (string)($args['login'] ?? '');
 $password = (string)($args['password'] ?? '');
 $loginPath = camex_az_probe_path((string)($args['login-path'] ?? '/login'));
-$dashboardPath = camex_az_probe_path((string)($args['dashboard-path'] ?? '/'));
+$dashboardPath = camex_az_probe_path((string)($args['dashboard-path'] ?? '/cadmin/usa/index.php?do=index'));
 $sessionFile = (string)($args['session-file'] ?? '/tmp/camex_az_cookie.txt');
 $debugDir = (string)($args['debug-dir'] ?? '');
 $timeout = max(1, (int)($args['timeout'] ?? 30));
@@ -408,34 +546,93 @@ $session->updateFromHtml((string)($loginPost['body'] ?? ''));
 camex_az_probe_save_debug($debugDir, '02_login_post_response.html', (string)($loginPost['body'] ?? ''));
 
 $loginPostStatus = (int)($loginPost['status_code'] ?? 0);
+$loginPostLocation = camex_az_extract_location($loginPost);
+$loginSuccessCandidate = camex_az_location_contains($loginPostLocation, 'index.php?do=index');
 if ($loginPostStatus === 401 || $loginPostStatus === 403) {
     camex_az_probe_error('web_login', 'Web login form authentication failed.', $loginPost, 1, [
         'web_login' => [
             'csrf_found' => $csrfFound,
+            'login_post_status' => $loginPostStatus,
+            'login_post_location' => $loginPostLocation,
+        ],
+        'login_form' => $formDiagnostics,
+    ]);
+}
+if (camex_az_location_contains($loginPostLocation, 'login.php')) {
+    camex_az_probe_error('web_login', 'Web login redirects to login page.', $loginPost, 1, [
+        'web_login' => [
+            'csrf_found' => $csrfFound,
+            'login_post_status' => $loginPostStatus,
+            'login_post_location' => $loginPostLocation,
         ],
         'login_form' => $formDiagnostics,
     ]);
 }
 if ($loginPostStatus < 200 || $loginPostStatus >= 400) {
-    camex_az_probe_error('web_login', 'Unexpected web login response status.', $loginPost, 1, [
-        'web_login' => [
-            'csrf_found' => $csrfFound,
-        ],
-        'login_form' => $formDiagnostics,
-    ]);
+    if ($loginPostStatus !== 302 || !$loginSuccessCandidate) {
+        camex_az_probe_error('web_login', 'Unexpected web login response status.', $loginPost, 1, [
+            'web_login' => [
+                'csrf_found' => $csrfFound,
+                'login_post_status' => $loginPostStatus,
+                'login_post_location' => $loginPostLocation,
+            ],
+            'login_form' => $formDiagnostics,
+        ]);
+    }
 }
 
-$dashboard = $httpClient->get($config->dashboardPath(), $session->securityHeaders(false), $session->cookieHeader());
-$session->updateFromHeaders((string)($dashboard['headers_raw'] ?? ''));
-$session->updateFromHtml((string)($dashboard['body'] ?? ''));
+$dashboardResult = camex_az_fetch_dashboard_following_redirects($httpClient, $config, $session);
+$dashboard = $dashboardResult['response'];
+$dashboardLocation = (string)$dashboardResult['location'];
+$dashboardEffectiveUrl = (string)$dashboardResult['effective_url'];
 camex_az_probe_save_debug($debugDir, '03_dashboard.html', (string)($dashboard['body'] ?? ''));
 
 $dashboardStatus = (int)($dashboard['status_code'] ?? 0);
+$dashboardHtml = (string)($dashboard['body'] ?? '');
+$dashboardLooksLikeLogin = camex_az_looks_like_login_page($dashboardHtml)
+    || (stripos($dashboardHtml, '<input type="password"') !== false && stripos($dashboardHtml, 'login.php?auth=do') !== false);
+$dashboardLooksLikeAdmin = camex_az_looks_like_admin_page($dashboardHtml);
+$webLoginDiagnostics = [
+    'status' => $dashboardLooksLikeAdmin ? 'ok' : 'error',
+    'csrf_found' => $csrfFound,
+    'login_post_status' => $loginPostStatus,
+    'login_post_location' => $loginPostLocation,
+    'dashboard_status' => $dashboardStatus,
+    'dashboard_location' => $dashboardLocation,
+    'dashboard_effective_url' => $dashboardEffectiveUrl,
+    'dashboard_looks_like_login' => $dashboardLooksLikeLogin,
+    'dashboard_looks_like_admin' => $dashboardLooksLikeAdmin,
+];
+
 if ($dashboardStatus === 401 || $dashboardStatus === 403) {
-    camex_az_probe_error('dashboard', 'Dashboard request was not authenticated.', $dashboard);
+    camex_az_probe_error('dashboard', 'Dashboard request was not authenticated.', $dashboard, 1, [
+        'web_login' => $webLoginDiagnostics,
+        'login_form' => $formDiagnostics,
+    ]);
+}
+if (camex_az_location_contains($dashboardLocation, 'login.php')) {
+    camex_az_probe_error('web_login', 'Dashboard redirects to login page after web login', $dashboard, 1, [
+        'web_login' => $webLoginDiagnostics,
+        'login_form' => $formDiagnostics,
+    ]);
 }
 if ($dashboardStatus < 200 || $dashboardStatus >= 400) {
-    camex_az_probe_error('dashboard', 'Unexpected dashboard response status.', $dashboard);
+    camex_az_probe_error('dashboard', 'Unexpected dashboard response status.', $dashboard, 1, [
+        'web_login' => $webLoginDiagnostics,
+        'login_form' => $formDiagnostics,
+    ]);
+}
+if ($dashboardLooksLikeLogin) {
+    camex_az_probe_error('web_login', 'Dashboard still looks like login page after web login', $dashboard, 1, [
+        'web_login' => $webLoginDiagnostics,
+        'login_form' => $formDiagnostics,
+    ]);
+}
+if (!$dashboardLooksLikeAdmin) {
+    camex_az_probe_error('web_login', 'Dashboard does not look like CAMEX_AZ admin page after web login.', $dashboard, 1, [
+        'web_login' => $webLoginDiagnostics,
+        'login_form' => $formDiagnostics,
+    ]);
 }
 
 $sessionDir = dirname($config->sessionCookieFile());
@@ -455,12 +652,7 @@ camex_az_probe_json([
         'type' => $config->httpAuthType(),
         'login_page_status' => $loginPageStatus,
     ],
-    'web_login' => [
-        'status' => 'ok',
-        'csrf_found' => $csrfFound,
-        'login_post_status' => $loginPostStatus,
-        'dashboard_status' => $dashboardStatus,
-    ],
+    'web_login' => $webLoginDiagnostics,
     'login_form' => $formDiagnostics,
     'session' => [
         'session_file' => $config->sessionCookieFile(),
