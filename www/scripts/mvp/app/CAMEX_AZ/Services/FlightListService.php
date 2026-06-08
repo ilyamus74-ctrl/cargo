@@ -61,6 +61,9 @@ final class FlightListService
 
         $safeTable = $targetTable;
         $written = 0;
+        $inserted = 0;
+        $updated = 0;
+
         if (!$dryRun) {
             $load = $this->loadDbHelpers();
             if (($load['status'] ?? 'ok') !== 'ok') {
@@ -70,9 +73,18 @@ final class FlightListService
             $db = $load['db'];
             $safeTable = \connectors_subrunner_sanitize_table_name($targetTable);
             \connectors_subrunner_ensure_flight_table($db, $safeTable);
+
             foreach ($rows as $row) {
+                $existingId = self::findExistingFlightRowId($db, $safeTable, $connectorId, $row);
+
                 \connectors_subrunner_upsert_flight_row($db, $safeTable, $connectorId, $row);
+
                 $written++;
+                if ($existingId === null) {
+                    $inserted++;
+                } else {
+                    $updated++;
+                }
             }
         }
 
@@ -83,8 +95,18 @@ final class FlightListService
             'target_table' => $safeTable,
             'page_path' => $pagePath,
             'http_status' => $httpStatus,
+
+            // Internal metrics.
             'rows_extracted' => count($rows),
             'rows_written' => $written,
+            'rows_inserted' => $inserted,
+            'rows_updated' => $updated,
+
+            // Backward-compatible metric aliases for connector operation UI.
+            // In UI imported_rows should mean NEW rows, not all upserted rows.
+            'rows_detected' => count($rows),
+            'imported_rows' => $inserted,
+
             'rows_skipped' => 0,
             'dry_run' => $dryRun,
             'debug_html' => $debugHtml,
@@ -344,6 +366,65 @@ final class FlightListService
         }
 
         return rtrim($dir, '/') . '/' . $href;
+    }
+
+    private static function findExistingFlightRowId(mysqli $db, string $tableName, int $connectorId, array $row): ?int
+    {
+        $safeTable = '`' . str_replace('`', '``', $tableName) . '`';
+
+        $sourceRowId = trim((string)($row['source_row_id'] ?? ''));
+        if ($sourceRowId !== '') {
+            $stmt = $db->prepare("SELECT id FROM {$safeTable} WHERE connector_id = ? AND source_row_id = ? ORDER BY id DESC LIMIT 1");
+            if (!$stmt) {
+                throw new \RuntimeException('DB prepare error (find CAMEX flight by source_row_id): ' . $db->error);
+            }
+
+            $stmt->bind_param('is', $connectorId, $sourceRowId);
+            if (!$stmt->execute()) {
+                $err = $stmt->error;
+                $stmt->close();
+                throw new \RuntimeException('DB execute error (find CAMEX flight by source_row_id): ' . $err);
+            }
+
+            $result = $stmt->get_result();
+            $found = $result instanceof \mysqli_result ? $result->fetch_assoc() : null;
+            if ($result instanceof \mysqli_result) {
+                $result->close();
+            }
+            $stmt->close();
+
+            if (is_array($found) && isset($found['id'])) {
+                return (int)$found['id'];
+            }
+        }
+
+        $externalId = trim((string)($row['external_id'] ?? ''));
+        if ($externalId !== '') {
+            $stmt = $db->prepare("SELECT id FROM {$safeTable} WHERE connector_id = ? AND external_id = ? ORDER BY id DESC LIMIT 1");
+            if (!$stmt) {
+                throw new \RuntimeException('DB prepare error (find CAMEX flight by external_id): ' . $db->error);
+            }
+
+            $stmt->bind_param('is', $connectorId, $externalId);
+            if (!$stmt->execute()) {
+                $err = $stmt->error;
+                $stmt->close();
+                throw new \RuntimeException('DB execute error (find CAMEX flight by external_id): ' . $err);
+            }
+
+            $result = $stmt->get_result();
+            $found = $result instanceof \mysqli_result ? $result->fetch_assoc() : null;
+            if ($result instanceof \mysqli_result) {
+                $result->close();
+            }
+            $stmt->close();
+
+            if (is_array($found) && isset($found['id'])) {
+                return (int)$found['id'];
+            }
+        }
+
+        return null;
     }
 
     /** @return array<string, mixed> */
