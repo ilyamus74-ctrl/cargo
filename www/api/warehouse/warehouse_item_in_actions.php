@@ -509,10 +509,7 @@ function warehouse_item_in_is_camex_az_connector(array $stockItem, array $connec
         return true;
     }
 
-    $connectorNameNorm = warehouse_item_in_normalize_key((string)($connector['name'] ?? ''));
-    $countries = strtoupper(trim((string)($connector['countries'] ?? '')));
-    $countryParts = array_filter(array_map('trim', explode(',', $countries)), static function ($value) { return $value !== ''; });
-    return $connectorNameNorm === 'CAMEX' && in_array('AZ', $countryParts, true);
+    return false;
 }
 
 function warehouse_item_in_stock_numeric_value(array $stockItem, string $key, string $default = ''): string
@@ -524,8 +521,9 @@ function warehouse_item_in_stock_numeric_value(array $stockItem, string $key, st
     return (string)(float)$raw;
 }
 
-function warehouse_item_in_build_camex_az_args(array $stockItem, array $connector, string $batchUid, int $stockItemId): array
+function warehouse_item_in_build_camex_az_args(array $stockItem, array $connector, $batchUid, int $stockItemId): array
 {
+    $batchUid = (string)$batchUid;
     $addons = warehouse_item_in_decode_json_array((string)($stockItem['addons_json'] ?? ''));
     $tracking = trim((string)($stockItem['tracking_no'] ?? ''));
     if ($tracking === '') {
@@ -557,6 +555,42 @@ function warehouse_item_in_build_camex_az_args(array $stockItem, array $connecto
         'debug-dir' => '/tmp/camex_az_warehouse_commit_' . preg_replace('/[^A-Za-z0-9_.-]+/', '_', $batchUid) . '_' . $stockItemId,
         'dry-run' => '0',
         'confirm-submit' => '1',
+    ];
+}
+
+
+function warehouse_item_in_resolve_camex_az_flight_no(array $stockItem, array $connector, array $camexArgs): array
+{
+    $addons = warehouse_item_in_decode_json_array((string)($stockItem['addons_json'] ?? ''));
+    foreach (['camex_flight_no', 'flight_no', 'reisi'] as $key) {
+        $value = trim((string)($addons[$key] ?? ''));
+        if ($value !== '') {
+            return [
+                'flight_no' => $value,
+                'source' => 'addons_json.' . $key,
+                'result' => null,
+                'args_preview' => $camexArgs,
+            ];
+        }
+    }
+
+    $dryRunArgs = $camexArgs;
+    $dryRunArgs['flight-no'] = '';
+    $dryRunArgs['dry-run'] = '1';
+    $dryRunArgs['confirm-submit'] = '0';
+    $dryRunArgs['debug-dir'] = '';
+
+    $result = warehouse_item_in_exec_php_cli_script('www/scripts/mvp/app/CAMEX_AZ/run_prepare_package.php', $dryRunArgs);
+    $flightNo = trim((string)($result['selected']['flight_no'] ?? ''));
+    if ($flightNo === '') {
+        $flightNo = trim((string)($result['payload_preview']['reisi'] ?? ''));
+    }
+
+    return [
+        'flight_no' => $flightNo,
+        'source' => $flightNo !== '' ? 'run_prepare_package.dry_run' : 'not_found',
+        'result' => $result,
+        'args_preview' => $dryRunArgs,
     ];
 }
 
@@ -2121,6 +2155,7 @@ switch ($action) {
         auth_require_login();
         warehouse_item_in_ensure_addons_columns($dbcnx);
         warehouse_item_in_ensure_cell_columns($dbcnx);
+        warehouse_item_in_ensure_forwarder_registration_columns($dbcnx);
         $current  = $user;
         $userId   = (int)$current['id'];
         $batchUid = (int)($_POST['batch_uid'] ?? 0);
@@ -2437,46 +2472,54 @@ switch ($action) {
             }
 
             if (warehouse_item_in_is_camex_az_connector($stockItem, $connector)) {
-                $camexArgs = warehouse_item_in_build_camex_az_args($stockItem, $connector, $batchUid, $stockItemId);
-                $camexValidation = warehouse_item_in_validate_camex_az_args($stockItem, $camexArgs);
-                if (empty($camexValidation['ok'])) {
-                    $message = (string)($camexValidation['message'] ?? 'CAMEX_AZ: validation_error');
-                    $response = [
-                        'registration_status' => 'validation_error',
-                        'connector_id' => (int)($connector['id'] ?? 0),
-                        'connector_name' => (string)($connector['name'] ?? ''),
-                        'stock_item_id' => $stockItemId,
-                        'batch_uid' => $batchUid,
-                        'submitted_args' => $camexArgs,
-                        'payload' => $camexArgs,
-                        'args_preview' => $camexArgs,
-                        'missing_fields' => $camexValidation['missing_fields'] ?? [],
-                        'required_fields' => $camexValidation['required_fields'] ?? [],
-                        'required_field_values' => $camexValidation['required_field_values'] ?? [],
-                    ];
-                    warehouse_item_in_update_registration_state($dbcnx, $stockItemId, 'validation_error', $message, $response);
-                    warehouse_item_in_sync_audit_log($dbcnx, [
-                        'item_id' => $stockItemId,
-                        'tracking_no' => $track,
-                        'forwarder' => (string)($stockItem['receiver_company'] ?? ''),
-                        'country_code' => (string)($stockItem['receiver_country_code'] ?? ''),
-                        'status' => 'error',
-                        'message' => 'commit_item_in_batch: ' . $message,
-                        'response_json' => json_encode($response, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: '',
-                        'created_by' => $userId,
-                    ]);
-                    $registrationSummary['validation_skipped']++;
-                    $registrationSummary['details'][] = [
-                        'track' => $track,
-                        'status' => 'validation_error',
-                        'message' => $message,
-                        'required_fields' => $camexValidation['required_fields'] ?? [],
-                        'required_field_values' => $camexValidation['required_field_values'] ?? [],
-                    ];
-                    continue;
-                }
-
+                $camexArgs = [];
                 try {
+                    $camexArgs = warehouse_item_in_build_camex_az_args($stockItem, $connector, (string)$batchUid, $stockItemId);
+                    $flightResolution = warehouse_item_in_resolve_camex_az_flight_no($stockItem, $connector, $camexArgs);
+                    if (trim((string)($camexArgs['flight-no'] ?? '')) === '') {
+                        $camexArgs['flight-no'] = trim((string)($flightResolution['flight_no'] ?? ''));
+                    }
+                    $camexValidation = warehouse_item_in_validate_camex_az_args($stockItem, $camexArgs);
+                    if (empty($camexValidation['ok'])) {
+                        $message = in_array('flight_no', (array)($camexValidation['missing_fields'] ?? []), true)
+                            ? 'CAMEX_AZ: не найден текущий рейс'
+                            : (string)($camexValidation['message'] ?? 'CAMEX_AZ: validation_error');
+                        $response = [
+                            'registration_status' => 'validation_error',
+                            'connector_id' => (int)($connector['id'] ?? 0),
+                            'connector_name' => (string)($connector['name'] ?? ''),
+                            'stock_item_id' => $stockItemId,
+                            'batch_uid' => $batchUid,
+                            'submitted_args' => $camexArgs,
+                            'payload' => $camexArgs,
+                            'args_preview' => $camexArgs,
+                            'flight_resolution' => $flightResolution,
+                            'missing_fields' => $camexValidation['missing_fields'] ?? [],
+                            'required_fields' => $camexValidation['required_fields'] ?? [],
+                            'required_field_values' => $camexValidation['required_field_values'] ?? [],
+                        ];
+                        warehouse_item_in_update_registration_state($dbcnx, $stockItemId, 'validation_error', $message, $response);
+                        warehouse_item_in_sync_audit_log($dbcnx, [
+                            'item_id' => $stockItemId,
+                            'tracking_no' => $track,
+                            'forwarder' => (string)($stockItem['receiver_company'] ?? ''),
+                            'country_code' => (string)($stockItem['receiver_country_code'] ?? ''),
+                            'status' => 'error',
+                            'message' => 'commit_item_in_batch: ' . $message,
+                            'response_json' => json_encode($response, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: '',
+                            'created_by' => $userId,
+                        ]);
+                        $registrationSummary['validation_skipped']++;
+                        $registrationSummary['details'][] = [
+                            'track' => $track,
+                            'status' => 'validation_error',
+                            'message' => $message,
+                            'required_fields' => $camexValidation['required_fields'] ?? [],
+                            'required_field_values' => $camexValidation['required_field_values'] ?? [],
+                        ];
+                        continue;
+                    }
+
                     $result = warehouse_item_in_exec_php_cli_script('www/scripts/mvp/app/CAMEX_AZ/run_prepare_package.php', $camexArgs);
                     $registeredOrder = warehouse_item_in_camex_az_registered_order($result);
                     $submitted = !empty($result['submitted']);
@@ -2488,6 +2531,7 @@ switch ($action) {
                         'args_preview' => $camexArgs,
                         'result' => $result,
                         'registered_order' => $registeredOrder,
+                        'flight_resolution' => $flightResolution,
                         'debug_html' => $result['debug_html'] ?? ($result['debug']['html'] ?? null),
                         'connector_id' => (int)($connector['id'] ?? 0),
                         'connector_name' => (string)($connector['name'] ?? ''),
@@ -2719,7 +2763,7 @@ switch ($action) {
         );
         $response = [
             'status'  => 'ok',
-            'message' => 'Партия прихода завершена и перенесена на склад',
+            'message' => 'Партия прихода завершена и перенесена на склад. Регистрация у форварда: успешно ' . (int)$registrationSummary['registered'] . ', пропущено ' . (int)$registrationSummary['validation_skipped'] . ', ошибок ' . (int)$registrationSummary['integration_errors'] . '.',
             'moved_to_stock' => $cnt,
             'registration_summary' => $registrationSummary,
         ];

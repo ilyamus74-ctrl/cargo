@@ -430,9 +430,14 @@ final class PackagePrepareService
             'comment' => 'comment',
         ];
         foreach ($map as $optionKey => $fieldName) {
-            if (array_key_exists($optionKey, $options)) {
-                $payload[$fieldName] = (string)$options[$optionKey];
+            if (!array_key_exists($optionKey, $options)) {
+                continue;
             }
+            $optionValue = (string)$options[$optionKey];
+            if ($optionKey === 'flight_no' && trim($optionValue) === '') {
+                continue;
+            }
+            $payload[$fieldName] = $optionValue;
         }
 
         if ((string)($options['parfume'] ?? '') === '1') {
@@ -629,6 +634,15 @@ final class PackagePrepareService
                     if (!empty($option['selected'])) {
                         $selected = (string)$option['value'];
                         break;
+                    }
+                }
+                if ($selected === null && $name === 'reisi') {
+                    foreach ($options as $option) {
+                        $optionValue = trim((string)($option['value'] ?? ''));
+                        if ($optionValue !== '') {
+                            $selected = $optionValue;
+                            break;
+                        }
                     }
                 }
                 if ($selected === null && $options !== []) {
