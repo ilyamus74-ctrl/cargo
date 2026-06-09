@@ -144,6 +144,11 @@ final class PackagePrepareService
         $formFound = is_array($parsed['form'] ?? null) && !empty($parsed['form']['found']);
         $clientId = (string)($parsed['client']['client_id'] ?? '');
         $canSubmit = $detected['state'] === 'ready_to_add' && $formFound && $clientId !== '' && (string)($payloadPreview['track'] ?? '') !== '';
+        $flightMissing = trim((string)($payloadPreview['reisi'] ?? '')) === '';
+        if ($flightMissing) {
+            $warnings[] = 'flight_no_not_found_in_camex_form';
+            $canSubmit = false;
+        }
         $allowSystemBox = (string)($options['allow_system_box'] ?? '0') === '1';
         if (self::isSystemBox100Selected($selected)) {
             if ($allowSystemBox) {
@@ -155,7 +160,7 @@ final class PackagePrepareService
         }
 
         $result = [
-            'status' => 'ok',
+            'status' => $flightMissing ? 'validation_error' : 'ok',
             'connector' => 'CAMEX_AZ',
             'connector_id' => (int)($options['connector_id'] ?? 0),
             'mode' => $dryRun ? 'dry_run' : 'submit',
@@ -186,6 +191,11 @@ final class PackagePrepareService
             'orders_before_submit' => $parsed['orders'],
             'debug_html' => $debugHtml,
         ];
+
+        if ($flightMissing) {
+            $result['stage'] = 'validation';
+            $result['message'] = 'CAMEX_AZ: не найден рейс в форме CAMEX';
+        }
 
         if ($registeredOrder !== null || $detected['state'] === 'already_registered') {
             $result['registered_order'] = $registeredOrder;
@@ -254,6 +264,9 @@ final class PackagePrepareService
         }
         if (($result['status'] ?? '') !== 'ok') {
             $details[] = 'prepare_status_not_ok';
+            if (($result['status'] ?? '') === 'validation_error' && (string)($result['message'] ?? '') !== '') {
+                return $this->submitValidationError($result, (string)$result['message'], $details, $warnings);
+            }
         }
         if (!empty($result['existing_tracking_found'])) {
             return $this->submitValidationError($result, 'Tracking already registered', $details, $warnings);
@@ -633,10 +646,12 @@ final class PackagePrepareService
                 foreach ($options as $option) {
                     if (!empty($option['selected'])) {
                         $selected = (string)$option['value'];
-                        break;
+                        if ($name !== 'reisi' || trim($selected) !== '') {
+                            break;
+                        }
                     }
                 }
-                if ($selected === null && $name === 'reisi') {
+                if ($name === 'reisi' && ($selected === null || trim($selected) === '')) {
                     foreach ($options as $option) {
                         $optionValue = trim((string)($option['value'] ?? ''));
                         if ($optionValue !== '') {

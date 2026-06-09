@@ -535,12 +535,11 @@ function warehouse_item_in_build_camex_az_args(array $stockItem, array $connecto
         $invoiceCurrency = 'EUR';
     }
 
-    return [
+    $args = [
         'connector-id' => (string)(int)($connector['id'] ?? 0),
         'prepare-mode' => 'client',
         'client-id' => (string)warehouse_item_in_extract_client_id($stockItem),
         'tracking' => $tracking,
-        'flight-no' => trim((string)($addons['camex_flight_no'] ?? $addons['flight_no'] ?? $addons['reisi'] ?? '')),
         'weight' => warehouse_item_in_stock_numeric_value($stockItem, 'weight_kg'),
         'length' => warehouse_item_in_stock_numeric_value($stockItem, 'size_l_cm', '0'),
         'width' => warehouse_item_in_stock_numeric_value($stockItem, 'size_w_cm', '0'),
@@ -556,6 +555,13 @@ function warehouse_item_in_build_camex_az_args(array $stockItem, array $connecto
         'dry-run' => '0',
         'confirm-submit' => '1',
     ];
+
+    $flightNo = trim((string)($addons['camex_flight_no'] ?? $addons['flight_no'] ?? $addons['reisi'] ?? ''));
+    if ($flightNo !== '') {
+        $args['flight-no'] = $flightNo;
+    }
+
+    return $args;
 }
 
 
@@ -575,7 +581,7 @@ function warehouse_item_in_resolve_camex_az_flight_no(array $stockItem, array $c
     }
 
     $dryRunArgs = $camexArgs;
-    $dryRunArgs['flight-no'] = '';
+    unset($dryRunArgs['flight-no']);
     $dryRunArgs['dry-run'] = '1';
     $dryRunArgs['confirm-submit'] = '0';
     $dryRunArgs['debug-dir'] = '';
@@ -601,7 +607,6 @@ function warehouse_item_in_validate_camex_az_args(array $stockItem, array $args)
         'tracking',
         'client_id',
         'weight',
-        'flight_no',
         'package_type_id',
         'receiver_country_code',
         'receiver_company',
@@ -622,9 +627,6 @@ function warehouse_item_in_validate_camex_az_args(array $stockItem, array $args)
     if ($weight === '' || !is_numeric($weight) || (float)$weight <= 0) {
         $missing[] = 'weight';
     }
-    if (trim((string)($args['flight-no'] ?? '')) === '') {
-        $missing[] = 'flight_no';
-    }
     if ($packageTypeId === '' || $packageTypeId === '0') {
         $missing[] = 'package_type_id';
     }
@@ -638,8 +640,6 @@ function warehouse_item_in_validate_camex_az_args(array $stockItem, array $args)
     $message = '';
     if (in_array('client_id', $missing, true)) {
         $message = 'CAMEX_AZ: не найден client_id';
-    } elseif (in_array('flight_no', $missing, true)) {
-        $message = 'CAMEX_AZ: не выбран рейс';
     } elseif (in_array('package_type_id', $missing, true)) {
         $message = 'CAMEX_AZ: не выбран Package Type';
     } elseif (!empty($missing)) {
@@ -2475,15 +2475,16 @@ switch ($action) {
                 $camexArgs = [];
                 try {
                     $camexArgs = warehouse_item_in_build_camex_az_args($stockItem, $connector, (string)$batchUid, $stockItemId);
-                    $flightResolution = warehouse_item_in_resolve_camex_az_flight_no($stockItem, $connector, $camexArgs);
-                    if (trim((string)($camexArgs['flight-no'] ?? '')) === '') {
-                        $camexArgs['flight-no'] = trim((string)($flightResolution['flight_no'] ?? ''));
-                    }
+                    $requestedFlightNo = trim((string)($camexArgs['flight-no'] ?? ''));
+                    $flightResolution = [
+                        'flight_no' => $requestedFlightNo,
+                        'source' => $requestedFlightNo !== '' ? 'request' : 'camex_form',
+                        'result' => null,
+                        'args_preview' => $camexArgs,
+                    ];
                     $camexValidation = warehouse_item_in_validate_camex_az_args($stockItem, $camexArgs);
                     if (empty($camexValidation['ok'])) {
-                        $message = in_array('flight_no', (array)($camexValidation['missing_fields'] ?? []), true)
-                            ? 'CAMEX_AZ: не найден текущий рейс'
-                            : (string)($camexValidation['message'] ?? 'CAMEX_AZ: validation_error');
+                        $message = (string)($camexValidation['message'] ?? 'CAMEX_AZ: validation_error');
                         $response = [
                             'registration_status' => 'validation_error',
                             'connector_id' => (int)($connector['id'] ?? 0),
@@ -2524,6 +2525,8 @@ switch ($action) {
                     $registeredOrder = warehouse_item_in_camex_az_registered_order($result);
                     $submitted = !empty($result['submitted']);
                     $alreadyRegistered = !empty($result['already_registered']);
+                    $verifyTrackingFound = !empty($result['verify']['tracking_found']);
+                    $resolvedFlightNo = trim((string)($result['selected']['flight_no'] ?? $result['payload_preview']['reisi'] ?? ''));
                     $resultStatus = strtolower(trim((string)($result['status'] ?? '')));
                     $response = [
                         'submitted_args' => $camexArgs,
@@ -2532,6 +2535,9 @@ switch ($action) {
                         'result' => $result,
                         'registered_order' => $registeredOrder,
                         'flight_resolution' => $flightResolution,
+                        'requested' => ['flight_no' => $requestedFlightNo],
+                        'resolved' => ['flight_no' => $resolvedFlightNo],
+                        'selected' => ['flight_no' => $resolvedFlightNo],
                         'debug_html' => $result['debug_html'] ?? ($result['debug']['html'] ?? null),
                         'connector_id' => (int)($connector['id'] ?? 0),
                         'connector_name' => (string)($connector['name'] ?? ''),
@@ -2539,7 +2545,7 @@ switch ($action) {
                         'batch_uid' => $batchUid,
                     ];
                     $response = warehouse_item_in_mask_submitted_args_password($response);
-                    if ($resultStatus === 'ok') {
+                    if ($resultStatus === 'ok' && (($submitted && $verifyTrackingFound) || $alreadyRegistered)) {
                         $okMessage = $alreadyRegistered
                             ? 'Уже зарегистрировано у CAMEX_AZ (идемпотентный успех)'
                             : 'Успешно зарегистрировано у CAMEX_AZ';

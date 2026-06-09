@@ -83,7 +83,8 @@ if (!function_exists('warehouse_forwarder_resolve_connector')) {
         }
         $countryNorm = strtoupper(trim($country));
         $rows = [];
-        if ($res = $dbcnx->query("SELECT id, name, countries, auth_username, auth_password, base_url, is_active FROM connectors WHERE is_active = 1 ORDER BY id DESC")) {
+        $systemTypeSelect = warehouse_forwarder_column_exists($dbcnx, 'connectors', 'system_type') ? ', system_type' : '';
+        if ($res = $dbcnx->query("SELECT id, name, countries, auth_username, auth_password, base_url, is_active{$systemTypeSelect} FROM connectors WHERE is_active = 1 ORDER BY id DESC")) {
             while ($row = $res->fetch_assoc()) {
                 if (warehouse_forwarder_normalize_key((string)($row['name'] ?? '')) === $forwarderNorm) {
                     $rows[] = $row;
@@ -333,6 +334,155 @@ if (!function_exists('warehouse_forwarder_exec_cli_script')) {
     }
 }
 
+
+if (!function_exists('warehouse_forwarder_exec_php_cli_script')) {
+    function warehouse_forwarder_exec_php_cli_script(string $scriptPath, array $args): array
+    {
+        $root = dirname(__DIR__, 3);
+        $fullPath = $scriptPath;
+        if ($fullPath === '' || $fullPath[0] !== '/') {
+            $fullPath = $root . '/' . ltrim($scriptPath, '/');
+        }
+        if (!is_file($fullPath)) {
+            throw new RuntimeException('Не найден скрипт форвардера: ' . $fullPath);
+        }
+        $cmdParts = ['php', $fullPath];
+        foreach ($args as $key => $value) {
+            $key = trim((string)$key);
+            if ($key !== '') {
+                $cmdParts[] = '--' . $key . '=' . (string)$value;
+            }
+        }
+        $cmd = implode(' ', array_map('escapeshellarg', $cmdParts)) . ' 2>&1';
+        $lines = [];
+        $exitCode = 0;
+        @exec($cmd, $lines, $exitCode);
+        $output = trim(implode("\n", $lines));
+        $parsed = json_decode($output, true);
+        if (!is_array($parsed)) {
+            $parsed = ['status' => $exitCode === 0 ? 'ok' : 'error', 'message' => $output !== '' ? $output : 'Unknown CLI response'];
+        }
+        $parsed['_meta'] = ['script' => $scriptPath, 'exit_code' => $exitCode, 'raw_output' => $output];
+        return warehouse_forwarder_mask_submitted_args_password($parsed);
+    }
+}
+
+if (!function_exists('warehouse_forwarder_is_camex_az_connector')) {
+    function warehouse_forwarder_is_camex_az_connector(array $stockItem, array $connector): bool
+    {
+        $receiverCompanyNorm = warehouse_forwarder_normalize_key((string)($stockItem['receiver_company'] ?? ''));
+        $receiverCountry = strtoupper(trim((string)($stockItem['receiver_country_code'] ?? '')));
+        $systemTypeNorm = warehouse_forwarder_normalize_key((string)($connector['system_type'] ?? ''));
+        return ($receiverCompanyNorm === 'CAMEX' && $receiverCountry === 'AZ') || $systemTypeNorm === 'CAMEX_AZ';
+    }
+}
+
+if (!function_exists('warehouse_forwarder_stock_numeric_value')) {
+    function warehouse_forwarder_stock_numeric_value(array $stockItem, string $key, string $default = ''): string
+    {
+        $raw = str_replace(',', '.', trim((string)($stockItem[$key] ?? '')));
+        if ($raw === '' || !is_numeric($raw)) {
+            return $default;
+        }
+        return (string)(float)$raw;
+    }
+}
+
+if (!function_exists('warehouse_forwarder_build_camex_az_args')) {
+    function warehouse_forwarder_build_camex_az_args(array $stockItem, array $connector, string $context, int $stockItemId): array
+    {
+        $addons = warehouse_forwarder_decode_json_array((string)($stockItem['addons_json'] ?? ''));
+        $tracking = trim((string)($stockItem['tracking_no'] ?? '')) ?: trim((string)($stockItem['tuid'] ?? ''));
+        $invoiceCurrency = trim((string)($addons['invoice_ccy'] ?? $addons['invoice_currency'] ?? 'EUR')) ?: 'EUR';
+        $args = [
+            'connector-id' => (string)(int)($connector['id'] ?? 0),
+            'prepare-mode' => 'client',
+            'client-id' => (string)warehouse_forwarder_extract_client_id($stockItem),
+            'tracking' => $tracking,
+            'weight' => warehouse_forwarder_stock_numeric_value($stockItem, 'weight_kg'),
+            'length' => warehouse_forwarder_stock_numeric_value($stockItem, 'size_l_cm', '0'),
+            'width' => warehouse_forwarder_stock_numeric_value($stockItem, 'size_w_cm', '0'),
+            'height' => warehouse_forwarder_stock_numeric_value($stockItem, 'size_h_cm', '0'),
+            'box-code' => 'BOX1',
+            'invoice-price' => '',
+            'invoice-currency' => $invoiceCurrency,
+            'shop' => 'amazon.de',
+            'item-count' => '',
+            'package-type-id' => trim((string)($addons['camex_package_type_id'] ?? $addons['package_type_id'] ?? '')),
+            'comment' => '',
+            'debug-dir' => '/tmp/camex_az_warehouse_manual_' . preg_replace('/[^A-Za-z0-9_.-]+/', '_', $context) . '_' . $stockItemId,
+            'dry-run' => '0',
+            'confirm-submit' => '1',
+        ];
+        $flightNo = trim((string)($addons['camex_flight_no'] ?? $addons['flight_no'] ?? $addons['reisi'] ?? ''));
+        if ($flightNo !== '') {
+            $args['flight-no'] = $flightNo;
+        }
+        return $args;
+    }
+}
+
+if (!function_exists('warehouse_forwarder_validate_camex_az_args')) {
+    function warehouse_forwarder_validate_camex_az_args(array $stockItem, array $args): array
+    {
+        $missing = [];
+        $receiverCompanyNorm = warehouse_forwarder_normalize_key((string)($stockItem['receiver_company'] ?? ''));
+        $receiverCountry = strtoupper(trim((string)($stockItem['receiver_country_code'] ?? '')));
+        $clientId = (int)($args['client-id'] ?? 0);
+        $weight = str_replace(',', '.', trim((string)($args['weight'] ?? '')));
+        $packageTypeId = trim((string)($args['package-type-id'] ?? ''));
+        if (trim((string)($args['tracking'] ?? '')) === '') {
+            $missing[] = 'tracking';
+        }
+        if ($clientId <= 0) {
+            $missing[] = 'client_id';
+        }
+        if ($weight === '' || !is_numeric($weight) || (float)$weight <= 0) {
+            $missing[] = 'weight';
+        }
+        if ($packageTypeId === '' || $packageTypeId === '0') {
+            $missing[] = 'package_type_id';
+        }
+        if ($receiverCountry !== 'AZ') {
+            $missing[] = 'receiver_country_code';
+        }
+        if ($receiverCompanyNorm !== 'CAMEX') {
+            $missing[] = 'receiver_company';
+        }
+        $message = '';
+        if (in_array('client_id', $missing, true)) {
+            $message = 'CAMEX_AZ: не найден client_id';
+        } elseif (in_array('package_type_id', $missing, true)) {
+            $message = 'CAMEX_AZ: не выбран Package Type';
+        } elseif ($missing !== []) {
+            $message = 'CAMEX_AZ: не заполнены обязательные поля [' . implode(', ', $missing) . ']';
+        }
+        return [
+            'ok' => $missing === [],
+            'message' => $message,
+            'required_fields' => ['tracking', 'client_id', 'weight', 'package_type_id', 'receiver_country_code', 'receiver_company'],
+            'missing_fields' => array_values(array_unique($missing)),
+            'required_field_values' => [
+                'tracking' => (string)($args['tracking'] ?? ''),
+                'client_id' => (string)$clientId,
+                'weight' => (string)($args['weight'] ?? ''),
+                'flight_no' => (string)($args['flight-no'] ?? ''),
+                'package_type_id' => (string)($args['package-type-id'] ?? ''),
+                'receiver_country_code' => $receiverCountry,
+                'receiver_company' => (string)($stockItem['receiver_company'] ?? ''),
+            ],
+        ];
+    }
+}
+
+if (!function_exists('warehouse_forwarder_camex_az_registered_order')) {
+    function warehouse_forwarder_camex_az_registered_order(array $result): array
+    {
+        $registeredOrder = $result['verify']['registered_order'] ?? $result['registered_order'] ?? [];
+        return is_array($registeredOrder) ? $registeredOrder : [];
+    }
+}
+
 if (!function_exists('warehouse_forwarder_update_table_registration_state')) {
     function warehouse_forwarder_update_table_registration_state(mysqli $dbcnx, string $table, string $whereColumn, int $itemId, ?string $registeredAt, string $status, string $message, string $responseJson): void
     {
@@ -493,8 +643,10 @@ if (!function_exists('warehouse_forwarder_register_stock_item')) {
             return $result;
         }
 
-        $requiredFields = warehouse_forwarder_required_registration_fields($dbcnx, (string)($stockItem['receiver_company'] ?? ''));
-        $missingFields = warehouse_forwarder_validate_registration_payload($stockItem, $requiredFields);
+        $isCamexAzStock = warehouse_forwarder_normalize_key((string)($stockItem['receiver_company'] ?? '')) === 'CAMEX'
+            && strtoupper(trim((string)($stockItem['receiver_country_code'] ?? ''))) === 'AZ';
+        $requiredFields = $isCamexAzStock ? [] : warehouse_forwarder_required_registration_fields($dbcnx, (string)($stockItem['receiver_company'] ?? ''));
+        $missingFields = $requiredFields === [] ? [] : warehouse_forwarder_validate_registration_payload($stockItem, $requiredFields);
         $payloadPreview = warehouse_forwarder_build_registration_payload($stockItem);
         if ($missingFields) {
             $message = 'Не заполнены обязательные поля для регистрации у форварда: ' . implode(', ', $missingFields);
@@ -544,6 +696,78 @@ if (!function_exists('warehouse_forwarder_register_stock_item')) {
             $result = ['status' => 'connector_error', 'message' => $message, 'item_id' => $stockItemId, 'tracking_no' => $track, 'forwarder_registration_status' => 'connector_error', 'raw_response' => $raw];
             warehouse_forwarder_audit_manual($userId, $stockItemId, $stockItem, 'connector_error', $message, $result);
             return $result;
+        }
+
+        if (warehouse_forwarder_is_camex_az_connector($stockItem, $connector)) {
+            $camexArgs = [];
+            try {
+                $camexArgs = warehouse_forwarder_build_camex_az_args($stockItem, $connector, $context, $stockItemId);
+                $requestedFlightNo = trim((string)($camexArgs['flight-no'] ?? ''));
+                $validation = warehouse_forwarder_validate_camex_az_args($stockItem, $camexArgs);
+                if (empty($validation['ok'])) {
+                    $message = (string)($validation['message'] ?? 'CAMEX_AZ: validation_error');
+                    $raw = [
+                        'registration_status' => 'validation_error',
+                        'connector_id' => (int)($connector['id'] ?? 0),
+                        'connector_name' => (string)($connector['name'] ?? ''),
+                        'stock_item_id' => $stockItemId,
+                        'submitted_args' => $camexArgs,
+                        'payload' => $camexArgs,
+                        'args_preview' => $camexArgs,
+                        'requested' => ['flight_no' => $requestedFlightNo],
+                        'resolved' => ['flight_no' => ''],
+                        'missing_fields' => $validation['missing_fields'] ?? [],
+                        'required_fields' => $validation['required_fields'] ?? [],
+                        'required_field_values' => $validation['required_field_values'] ?? [],
+                        'context' => $context,
+                    ];
+                    warehouse_forwarder_update_registration_state($dbcnx, $stockItemId, 'validation_error', $message, $raw);
+                    warehouse_forwarder_sync_audit_log($dbcnx, ['item_id' => $stockItemId, 'tracking_no' => $track, 'forwarder' => (string)($stockItem['receiver_company'] ?? ''), 'country_code' => (string)($stockItem['receiver_country_code'] ?? ''), 'status' => 'error', 'message' => 'manual_forwarder_registration: ' . $message, 'response_json' => json_encode($raw, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: '', 'created_by' => $userId]);
+                    $result = ['status' => 'validation_error', 'message' => $message, 'item_id' => $stockItemId, 'tracking_no' => $track, 'forwarder_registration_status' => 'validation_error', 'raw_response' => $raw];
+                    warehouse_forwarder_audit_manual($userId, $stockItemId, $stockItem, 'validation_error', $message, $result);
+                    return $result;
+                }
+
+                $raw = warehouse_forwarder_exec_php_cli_script('www/scripts/mvp/app/CAMEX_AZ/run_prepare_package.php', $camexArgs);
+                $registeredOrder = warehouse_forwarder_camex_az_registered_order($raw);
+                $submitted = !empty($raw['submitted']);
+                $alreadyRegistered = !empty($raw['already_registered']);
+                $verifyTrackingFound = !empty($raw['verify']['tracking_found']);
+                $resolvedFlightNo = trim((string)($raw['selected']['flight_no'] ?? $raw['payload_preview']['reisi'] ?? ''));
+                $resultStatus = strtolower(trim((string)($raw['status'] ?? '')));
+                $response = warehouse_forwarder_mask_submitted_args_password([
+                    'submitted_args' => $camexArgs,
+                    'payload' => $camexArgs,
+                    'args_preview' => $camexArgs,
+                    'result' => $raw,
+                    'registered_order' => $registeredOrder,
+                    'requested' => ['flight_no' => $requestedFlightNo],
+                    'resolved' => ['flight_no' => $resolvedFlightNo],
+                    'selected' => ['flight_no' => $resolvedFlightNo],
+                    'debug_html' => $raw['debug_html'] ?? ($raw['debug']['html'] ?? null),
+                    'connector_id' => (int)($connector['id'] ?? 0),
+                    'connector_name' => (string)($connector['name'] ?? ''),
+                    'stock_item_id' => $stockItemId,
+                    'context' => $context,
+                ]);
+                $status = ($resultStatus === 'ok' && (($submitted && $verifyTrackingFound) || $alreadyRegistered)) ? 'ok' : 'forwarder_error';
+                $message = $status === 'ok'
+                    ? ($alreadyRegistered ? 'Уже зарегистрировано у CAMEX_AZ (идемпотентный успех)' : 'Успешно зарегистрировано у CAMEX_AZ')
+                    : trim((string)($raw['message'] ?? $raw['error'] ?? 'CAMEX_AZ: ошибка регистрации'));
+                $registeredAt = warehouse_forwarder_update_registration_state($dbcnx, $stockItemId, $status, $message, $response);
+                warehouse_forwarder_sync_audit_log($dbcnx, ['item_id' => $stockItemId, 'tracking_no' => $track, 'forwarder' => (string)($stockItem['receiver_company'] ?? ''), 'country_code' => (string)($stockItem['receiver_country_code'] ?? ''), 'status' => $status === 'ok' ? 'success' : 'error', 'message' => 'manual_forwarder_registration: ' . $message, 'response_json' => json_encode($response, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: '', 'created_by' => $userId]);
+                $result = ['status' => $status, 'message' => $message, 'item_id' => $stockItemId, 'tracking_no' => $track, 'forwarder_registration_status' => $status, 'forwarder_registered_at' => $registeredAt, 'raw_response' => $response];
+                warehouse_forwarder_audit_manual($userId, $stockItemId, $stockItem, $status, $message, $result);
+                return $result;
+            } catch (Throwable $e) {
+                $message = $e->getMessage();
+                $raw = ['exception' => $message, 'submitted_args' => $camexArgs, 'context' => $context];
+                warehouse_forwarder_update_registration_state($dbcnx, $stockItemId, 'forwarder_error', $message, $raw);
+                warehouse_forwarder_sync_audit_log($dbcnx, ['item_id' => $stockItemId, 'tracking_no' => $track, 'forwarder' => (string)($stockItem['receiver_company'] ?? ''), 'country_code' => (string)($stockItem['receiver_country_code'] ?? ''), 'status' => 'error', 'message' => 'manual_forwarder_registration: ' . $message, 'response_json' => json_encode($raw, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: '', 'created_by' => $userId]);
+                $result = ['status' => 'forwarder_error', 'message' => $message, 'item_id' => $stockItemId, 'tracking_no' => $track, 'forwarder_registration_status' => 'forwarder_error', 'raw_response' => $raw];
+                warehouse_forwarder_audit_manual($userId, $stockItemId, $stockItem, 'forwarder_error', $message, $result);
+                return $result;
+            }
         }
 
         $payload = warehouse_forwarder_build_registration_payload($stockItem);
