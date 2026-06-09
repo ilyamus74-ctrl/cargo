@@ -345,6 +345,59 @@ if (!function_exists('warehouse_forwarder_exec_cli_script')) {
 }
 
 
+if (!function_exists('warehouse_forwarder_extract_json_from_cli_output')) {
+    function warehouse_forwarder_extract_json_from_cli_output(string $output): ?array
+    {
+        $output = trim($output);
+        if ($output === '') {
+            return null;
+        }
+
+        $decoded = json_decode($output, true);
+        if (is_array($decoded)) {
+            return $decoded;
+        }
+
+        $lines = preg_split('/\R/', $output);
+        if (is_array($lines)) {
+            foreach ($lines as $index => $line) {
+                $trimmedLine = ltrim((string)$line);
+                if ($trimmedLine === '' || ($trimmedLine[0] !== '{' && $trimmedLine[0] !== '[')) {
+                    continue;
+                }
+
+                $candidate = trim(implode("\n", array_slice($lines, $index)));
+                $decoded = json_decode($candidate, true);
+                if (is_array($decoded)) {
+                    return $decoded;
+                }
+                break;
+            }
+        }
+
+        $lastObjectStart = strrpos($output, "\n{");
+        if ($lastObjectStart !== false) {
+            $candidate = trim(substr($output, $lastObjectStart + 1));
+            $decoded = json_decode($candidate, true);
+            if (is_array($decoded)) {
+                return $decoded;
+            }
+        }
+
+        $firstBrace = strpos($output, '{');
+        $lastBrace = strrpos($output, '}');
+        if ($firstBrace !== false && $lastBrace !== false && $lastBrace >= $firstBrace) {
+            $candidate = substr($output, $firstBrace, $lastBrace - $firstBrace + 1);
+            $decoded = json_decode($candidate, true);
+            if (is_array($decoded)) {
+                return $decoded;
+            }
+        }
+
+        return null;
+    }
+}
+
 if (!function_exists('warehouse_forwarder_exec_php_cli_script')) {
     function warehouse_forwarder_exec_php_cli_script(string $scriptPath, array $args): array
     {
@@ -368,9 +421,12 @@ if (!function_exists('warehouse_forwarder_exec_php_cli_script')) {
         $exitCode = 0;
         @exec($cmd, $lines, $exitCode);
         $output = trim(implode("\n", $lines));
-        $parsed = json_decode($output, true);
+        $parsed = warehouse_forwarder_extract_json_from_cli_output($output);
         if (!is_array($parsed)) {
-            $parsed = ['status' => $exitCode === 0 ? 'ok' : 'error', 'message' => $output !== '' ? $output : 'Unknown CLI response'];
+            $parsed = [
+                'status' => $exitCode === 0 ? 'cli_unparsed' : 'error',
+                'message' => 'CLI output is not valid JSON',
+            ];
         }
         $parsed['_meta'] = ['script' => $scriptPath, 'exit_code' => $exitCode, 'raw_output' => $output];
         return warehouse_forwarder_mask_submitted_args_password($parsed);
