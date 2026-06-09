@@ -112,6 +112,107 @@ function departures_table_exists(mysqli $dbcnx, string $tableName): bool
     return false;
 }
 
+function departures_normalized_connector_name(array $connector): string
+{
+    return strtoupper(trim((string)($connector['name'] ?? '')));
+}
+
+function departures_connector_has_country(array $connector, string $countryCode): bool
+{
+    $needle = strtoupper(trim($countryCode));
+    if ($needle === '') {
+        return false;
+    }
+
+    $rawCountries = trim((string)($connector['countries'] ?? ''));
+    if ($rawCountries === '') {
+        return false;
+    }
+
+    $decoded = json_decode($rawCountries, true);
+    if (is_array($decoded)) {
+        foreach ($decoded as $country) {
+            if (strtoupper(trim((string)$country)) === $needle) {
+                return true;
+            }
+        }
+    }
+
+    foreach (preg_split('/[^A-Za-z0-9]+/', $rawCountries) ?: [] as $country) {
+        if (strtoupper(trim((string)$country)) === $needle) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+function departures_is_camex_az_connector(array $connector): bool
+{
+    $systemType = strtoupper(trim((string)($connector['system_type'] ?? '')));
+    if ($systemType === 'CAMEX_AZ') {
+        return true;
+    }
+
+    return departures_normalized_connector_name($connector) === 'CAMEX'
+        && departures_connector_has_country($connector, 'AZ');
+}
+
+function departures_column_exists(array $columns, string $columnName): bool
+{
+    return in_array(strtolower($columnName), array_map('strtolower', $columns), true);
+}
+
+function departures_safe_column_sql(string $columnName): string
+{
+    return '`' . str_replace('`', '``', $columnName) . '`';
+}
+
+function departures_first_available_column(array $columns, array $candidates): string
+{
+    foreach ($candidates as $candidate) {
+        if (departures_column_exists($columns, (string)$candidate)) {
+            return (string)$candidate;
+        }
+    }
+
+    return '';
+}
+
+function departures_coalesce_columns_sql(array $columns, array $candidates, string $fallbackSql): string
+{
+    $parts = [];
+    foreach ($candidates as $candidate) {
+        if (departures_column_exists($columns, (string)$candidate)) {
+            $parts[] = "NULLIF(TRIM(CAST(" . departures_safe_column_sql((string)$candidate) . " AS CHAR)), '')";
+        }
+    }
+
+    $parts[] = $fallbackSql;
+    return 'COALESCE(' . implode(', ', $parts) . ')';
+}
+
+function departures_select_column_or_default(array $columns, string $alias, string $defaultSql): string
+{
+    if (departures_column_exists($columns, $alias)) {
+        return departures_safe_column_sql($alias);
+    }
+
+    return $defaultSql . ' AS ' . departures_safe_column_sql($alias);
+}
+
+function departures_connector_select_columns(mysqli $dbcnx, array $baseColumns): string
+{
+    $columns = departures_get_table_columns($dbcnx, 'connectors');
+    $selectColumns = $baseColumns;
+    if (departures_column_exists($columns, 'system_type')) {
+        $selectColumns[] = 'system_type';
+    }
+
+    $selectColumns = array_values(array_unique($selectColumns));
+    return implode(', ', array_map('departures_safe_column_sql', $selectColumns));
+}
+
 function departures_resolve_table_names(array $connector): array
 {
     $tableNames = [];
@@ -144,6 +245,10 @@ function departures_resolve_table_names(array $connector): array
         } catch (Throwable $e) {
             error_log('departures resolve default table error: ' . $e->getMessage());
         }
+    }
+
+    if (departures_is_camex_az_connector($connector)) {
+        $tableNames[] = 'connector_camex_az_operation_flight_list';
     }
 
     return array_values(array_unique(array_filter(array_map('strval', $tableNames))));
@@ -862,39 +967,76 @@ function departures_fetch_rows(mysqli $dbcnx, array $connector, string $statusFi
 
     $rows = [];
     $normalizedStatusFilter = strtoupper(trim($statusFilter));
+    $isCamexAzConnector = departures_is_camex_az_connector($connector);
 
     foreach (departures_resolve_table_names($connector) as $tableName) {
         if (!departures_table_exists($dbcnx, $tableName)) {
             continue;
         }
 
+        $tableColumns = departures_get_table_columns($dbcnx, $tableName);
+        if (!departures_column_exists($tableColumns, 'connector_id')) {
+            error_log('departures table has no connector_id column; table=' . $tableName);
+            continue;
+        }
+
+        $flightNoDefault = departures_coalesce_columns_sql($tableColumns, ['name', 'external_id', 'source_row_id', 'id'], "''");
+        $externalIdDefault = departures_coalesce_columns_sql($tableColumns, ['source_row_id', 'flight_no', 'id'], "''");
+        $nameDefault = departures_coalesce_columns_sql($tableColumns, ['flight_no', 'external_id', 'source_row_id', 'id'], "''");
+        $flightTimeDefault = departures_coalesce_columns_sql($tableColumns, ['departure_at', 'updated_at', 'created_at'], "''");
+        $flightNumberDefault = departures_coalesce_columns_sql($tableColumns, ['departure_raw'], "''");
+        $routeDefault = departures_coalesce_columns_sql($tableColumns, ['route', 'departure_raw'], "''");
+        $departureDefault = departures_column_exists($tableColumns, 'carrier')
+            ? departures_coalesce_columns_sql($tableColumns, ['carrier'], "'DE'")
+            : "'DE'";
+        $updatedAtDefault = departures_coalesce_columns_sql($tableColumns, ['departure_at', 'created_at'], 'NOW()');
+
+        $selectParts = [
+            departures_select_column_or_default($tableColumns, 'id', '0'),
+            departures_select_column_or_default($tableColumns, 'connector_id', (string)$connectorId),
+            departures_select_column_or_default($tableColumns, 'flight_no', $flightNoDefault),
+            departures_select_column_or_default($tableColumns, 'route', $routeDefault),
+            departures_select_column_or_default($tableColumns, 'status', "'open'"),
+            departures_select_column_or_default($tableColumns, 'external_id', $externalIdDefault),
+            departures_select_column_or_default($tableColumns, 'name', $nameDefault),
+            departures_select_column_or_default($tableColumns, 'flight_time', $flightTimeDefault),
+            departures_select_column_or_default($tableColumns, 'flight_number', $flightNumberDefault),
+            departures_select_column_or_default($tableColumns, 'awb', "''"),
+            departures_select_column_or_default($tableColumns, 'departure', $departureDefault),
+            departures_select_column_or_default($tableColumns, 'destination', "'AZ'"),
+            departures_select_column_or_default($tableColumns, 'packages_count', '0'),
+            departures_select_column_or_default($tableColumns, 'total_weight', '0'),
+            departures_select_column_or_default($tableColumns, 'closed_at', 'NULL'),
+            departures_select_column_or_default($tableColumns, 'containers_json', "'[]'"),
+            departures_select_column_or_default($tableColumns, 'containers_count', '0'),
+            departures_select_column_or_default($tableColumns, 'containers_synced_at', 'NULL'),
+            departures_select_column_or_default($tableColumns, 'containers_sync_status', "'pending'"),
+            departures_select_column_or_default($tableColumns, 'containers_sync_error', "''"),
+            departures_select_column_or_default($tableColumns, 'updated_at', $updatedAtDefault),
+        ];
+
+        $orderTimestampColumns = [];
+        foreach (['updated_at', 'closed_at', 'departure_at', 'created_at'] as $orderColumn) {
+            if (departures_column_exists($tableColumns, $orderColumn)) {
+                $orderTimestampColumns[] = departures_safe_column_sql($orderColumn);
+            }
+        }
+        $orderByParts = [];
+        if ($orderTimestampColumns !== []) {
+            $orderByParts[] = 'COALESCE(' . implode(', ', $orderTimestampColumns) . ') DESC';
+        } else {
+            $orderByParts[] = 'NOW() DESC';
+        }
+        if (departures_column_exists($tableColumns, 'id')) {
+            $orderByParts[] = departures_safe_column_sql('id') . ' DESC';
+        }
+
         $safeTable = '`' . str_replace('`', '``', $tableName) . '`';
-        $sql = "SELECT
-                    id,
-                    connector_id,
-                    flight_no,
-                    route,
-                    status,
-                    external_id,
-                    name,
-                    flight_time,
-                    flight_number,
-                    awb,
-                    departure,
-                    destination,
-                    packages_count,
-                    total_weight,
-                    closed_at,
-                    containers_json,
-                    containers_count,
-                    containers_synced_at,
-                    containers_sync_status,
-                    containers_sync_error,
-                    updated_at
-                FROM {$safeTable}
-                WHERE connector_id = ?
-                ORDER BY COALESCE(updated_at, closed_at) DESC, id DESC
-                LIMIT 250";
+        $sql = 'SELECT ' . implode(', ', $selectParts) . "\n"
+            . "                FROM {$safeTable}\n"
+            . "                WHERE " . departures_safe_column_sql('connector_id') . " = ?\n"
+            . '                ORDER BY ' . implode(', ', $orderByParts) . "\n"
+            . '                LIMIT 250';
 
         $stmt = $dbcnx->prepare($sql);
         if (!$stmt) {
@@ -945,23 +1087,58 @@ function departures_fetch_rows(mysqli $dbcnx, array $connector, string $statusFi
                 }
                 $updatedAtRaw = trim((string)($flight['updated_at'] ?? ''));
                 $closedAtRaw = trim((string)($flight['closed_at'] ?? ''));
+                $flightId = trim((string)($flight['external_id'] ?? ''));
+                $flightNo = trim((string)($flight['flight_no'] ?? ''));
+                $name = trim((string)($flight['name'] ?? ''));
+                $flightNumber = trim((string)($flight['flight_number'] ?? ''));
+                $departure = trim((string)($flight['departure'] ?? ''));
+                $destination = trim((string)($flight['destination'] ?? ''));
+                $route = trim((string)($flight['route'] ?? ''));
+                $status = trim((string)($flight['status'] ?? ''));
+                $flightTime = trim((string)($flight['flight_time'] ?? ''));
+
+                if ($isCamexAzConnector) {
+                    $departure = $departure !== '' ? $departure : 'DE';
+                    $destination = $destination !== '' ? $destination : 'AZ';
+                    if ($route === '' || ($flightNumber !== '' && $route === $flightNumber)) {
+                        $route = $departure . ' → ' . $destination;
+                    }
+                }
+                if ($route === '' && $departure !== '' && $destination !== '') {
+                    $route = $departure . ' → ' . $destination;
+                }
+                if ($flightNo === '') {
+                    $flightNo = $name !== '' ? $name : $flightId;
+                }
+                if ($name === '') {
+                    $name = $flightNo;
+                }
+                if ($flightId === '') {
+                    $flightId = $flightNo;
+                }
+                if ($status === '') {
+                    $status = 'open';
+                }
+                if ($flightTime === '' && $updatedAtRaw !== '') {
+                    $flightTime = $updatedAtRaw;
+                }
 
                 $rows[] = [
                     'row_uid' => 'departure_' . $tableName . '_' . (int)($flight['id'] ?? 0),
                     'connector_id' => (int)($connector['id'] ?? 0),
                     'flight_record_id' => (int)($flight['id'] ?? 0),
-                    'flight_id' => trim((string)($flight['external_id'] ?? '')),
-                    'flight_no' => trim((string)($flight['flight_no'] ?? '')),
-                    'name' => trim((string)($flight['name'] ?? '')),
-                    'flight_number' => trim((string)($flight['flight_number'] ?? '')),
+                    'flight_id' => $flightId,
+                    'flight_no' => $flightNo,
+                    'name' => $name,
+                    'flight_number' => $flightNumber,
                     'awb' => trim((string)($flight['awb'] ?? '')),
                     'forwarder_name' => trim((string)($connector['name'] ?? '')),
                     'forwarder_countries' => trim((string)($connector['countries'] ?? '')),
-                    'departure' => trim((string)($flight['departure'] ?? '')),
-                    'destination' => trim((string)($flight['destination'] ?? '')),
-                    'route' => trim((string)($flight['route'] ?? '')),
-                    'status' => trim((string)($flight['status'] ?? '')),
-                    'status_badge_class' => departures_status_badge_class((string)($flight['status'] ?? '')),
+                    'departure' => $departure,
+                    'destination' => $destination,
+                    'route' => $route,
+                    'status' => $status,
+                    'status_badge_class' => departures_status_badge_class($status),
                     'containers_total' => $containersTotal,
                     'can_close_flight' => $canCloseFlight,
                     'packages_count' => departures_format_value($flight['packages_count'] ?? null, 0),
@@ -970,7 +1147,7 @@ function departures_fetch_rows(mysqli $dbcnx, array $connector, string $statusFi
                     'containers_synced_at' => departures_format_datetime($flight['containers_synced_at'] ?? null),
                     'containers_sync_error' => trim((string)($flight['containers_sync_error'] ?? '')),
                     'updated_at' => departures_format_datetime($updatedAtRaw),
-                    'flight_time' => trim((string)($flight['flight_time'] ?? '')),
+                    'flight_time' => $flightTime,
                     'closed_at' => departures_format_datetime($closedAtRaw),
                     'containers' => $containers,
                     '_sort_ts' => strtotime($updatedAtRaw !== '' ? $updatedAtRaw : $closedAtRaw) ?: 0,
@@ -996,7 +1173,8 @@ function departures_fetch_rows(mysqli $dbcnx, array $connector, string $statusFi
 
 function departures_fetch_connector(mysqli $dbcnx, int $connectorId): ?array
 {
-    $stmt = $dbcnx->prepare('SELECT id, name, countries, operations_json, is_active, base_url, auth_username, auth_password FROM connectors WHERE id = ? LIMIT 1');
+    $selectColumns = departures_connector_select_columns($dbcnx, ['id', 'name', 'countries', 'operations_json', 'is_active', 'base_url', 'auth_username', 'auth_password']);
+    $stmt = $dbcnx->prepare("SELECT {$selectColumns} FROM connectors WHERE id = ? LIMIT 1");
     if (!$stmt) {
         error_log('departures connector fetch prepare error: ' . $dbcnx->error);
         return null;
@@ -1919,7 +2097,8 @@ switch ($normalizedAction) {
                 $connectors[] = $connector;
             }
         } else {
-            $sql = 'SELECT id, name, countries, operations_json, is_active FROM connectors ORDER BY name ASC, id ASC';
+            $selectColumns = departures_connector_select_columns($dbcnx, ['id', 'name', 'countries', 'operations_json', 'is_active']);
+            $sql = "SELECT {$selectColumns} FROM connectors ORDER BY name ASC, id ASC";
             if ($res = $dbcnx->query($sql)) {
                 while ($row = $res->fetch_assoc()) {
                     $connectors[] = $row;
