@@ -2092,10 +2092,11 @@ if ($action === 'warehouse_stock_register_forwarder') {
     }
 
     $registrationResult = warehouse_forwarder_register_stock_item($dbcnx, $itemId, $userId, $force ? 'manual_button_force' : 'manual_button', $force);
-    $apiStatus = in_array($registrationResult['status'] ?? '', ['ok', 'validation_error', 'connector_error', 'forwarder_error'], true) ? 'ok' : 'error';
+    $registrationStatus = (string)($registrationResult['status'] ?? 'error');
+    $apiStatus = in_array($registrationStatus, ['ok', 'validation_error'], true) ? $registrationStatus : 'error';
     $response = array_merge($registrationResult, [
         'status' => $apiStatus,
-        'registration_status' => $registrationResult['status'] ?? 'error',
+        'registration_status' => $registrationStatus,
     ]);
 }
 

@@ -281,7 +281,7 @@ function warehouse_item_in_ensure_forwarder_registration_columns(mysqli $dbcnx):
     $columns = [
         'forwarder_registered_at' => "ALTER TABLE warehouse_item_stock ADD COLUMN forwarder_registered_at DATETIME NULL AFTER addons_json",
         'forwarder_registration_status' => "ALTER TABLE warehouse_item_stock ADD COLUMN forwarder_registration_status VARCHAR(32) NULL AFTER forwarder_registered_at",
-        'forwarder_registration_message' => "ALTER TABLE warehouse_item_stock ADD COLUMN forwarder_registration_message VARCHAR(255) NULL AFTER forwarder_registration_status",
+        'forwarder_registration_message' => "ALTER TABLE warehouse_item_stock ADD COLUMN forwarder_registration_message TEXT NULL AFTER forwarder_registration_status",
         'forwarder_registration_response_json' => "ALTER TABLE warehouse_item_stock ADD COLUMN forwarder_registration_response_json LONGTEXT NULL AFTER forwarder_registration_message",
     ];
 
@@ -293,6 +293,16 @@ function warehouse_item_in_ensure_forwarder_registration_columns(mysqli $dbcnx):
             if (!$exists) {
                 $dbcnx->query($alterSql);
             }
+        }
+    }
+
+    $messageColumn = $dbcnx->query("SHOW COLUMNS FROM warehouse_item_stock LIKE 'forwarder_registration_message'");
+    if ($messageColumn instanceof mysqli_result) {
+        $messageInfo = $messageColumn->fetch_assoc();
+        $messageColumn->free();
+        $messageType = strtolower((string)($messageInfo['Type'] ?? ''));
+        if ($messageType !== '' && $messageType !== 'text') {
+            $dbcnx->query("ALTER TABLE warehouse_item_stock MODIFY COLUMN forwarder_registration_message TEXT NULL");
         }
     }
 }

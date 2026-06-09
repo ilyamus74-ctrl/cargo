@@ -52,12 +52,22 @@ if (!function_exists('warehouse_forwarder_ensure_stock_registration_columns')) {
         $columns = [
             'forwarder_registered_at' => "ALTER TABLE warehouse_item_stock ADD COLUMN forwarder_registered_at DATETIME NULL AFTER addons_json",
             'forwarder_registration_status' => "ALTER TABLE warehouse_item_stock ADD COLUMN forwarder_registration_status VARCHAR(32) NULL AFTER forwarder_registered_at",
-            'forwarder_registration_message' => "ALTER TABLE warehouse_item_stock ADD COLUMN forwarder_registration_message VARCHAR(255) NULL AFTER forwarder_registration_status",
+            'forwarder_registration_message' => "ALTER TABLE warehouse_item_stock ADD COLUMN forwarder_registration_message TEXT NULL AFTER forwarder_registration_status",
             'forwarder_registration_response_json' => "ALTER TABLE warehouse_item_stock ADD COLUMN forwarder_registration_response_json LONGTEXT NULL AFTER forwarder_registration_message",
         ];
         foreach ($columns as $column => $alterSql) {
             if (!warehouse_forwarder_column_exists($dbcnx, 'warehouse_item_stock', $column)) {
                 $dbcnx->query($alterSql);
+            }
+        }
+
+        $messageColumn = $dbcnx->query("SHOW COLUMNS FROM warehouse_item_stock LIKE 'forwarder_registration_message'");
+        if ($messageColumn instanceof mysqli_result) {
+            $messageInfo = $messageColumn->fetch_assoc();
+            $messageColumn->free();
+            $messageType = strtolower((string)($messageInfo['Type'] ?? ''));
+            if ($messageType !== '' && $messageType !== 'text') {
+                $dbcnx->query("ALTER TABLE warehouse_item_stock MODIFY COLUMN forwarder_registration_message TEXT NULL");
             }
         }
     }
@@ -410,7 +420,7 @@ if (!function_exists('warehouse_forwarder_build_camex_az_args')) {
             'item-count' => '',
             'package-type-id' => trim((string)($addons['camex_package_type_id'] ?? $addons['package_type_id'] ?? '')),
             'comment' => '',
-            'debug-dir' => '/tmp/camex_az_warehouse_manual_' . preg_replace('/[^A-Za-z0-9_.-]+/', '_', $context) . '_' . $stockItemId,
+            'debug-dir' => '/tmp/camex_az_stock_register_' . $stockItemId,
             'dry-run' => '0',
             'confirm-submit' => '1',
         ];
@@ -453,7 +463,7 @@ if (!function_exists('warehouse_forwarder_validate_camex_az_args')) {
         if (in_array('client_id', $missing, true)) {
             $message = 'CAMEX_AZ: не найден client_id';
         } elseif (in_array('package_type_id', $missing, true)) {
-            $message = 'CAMEX_AZ: не выбран Package Type';
+            $message = 'CAMEX_AZ: не выбран тип посылки';
         } elseif ($missing !== []) {
             $message = 'CAMEX_AZ: не заполнены обязательные поля [' . implode(', ', $missing) . ']';
         }
@@ -685,19 +695,6 @@ if (!function_exists('warehouse_forwarder_register_stock_item')) {
             return $result;
         }
 
-        $baseUrl = trim((string)($connector['base_url'] ?? ''));
-        $login = trim((string)($connector['auth_username'] ?? ''));
-        $password = trim((string)($connector['auth_password'] ?? ''));
-        if ($baseUrl === '' || $login === '' || $password === '') {
-            $message = 'В коннекторе не заполнены base_url/login/password';
-            $raw = ['registration_status' => 'connector_error', 'connector_id' => (int)($connector['id'] ?? 0), 'context' => $context];
-            warehouse_forwarder_update_registration_state($dbcnx, $stockItemId, 'connector_error', $message, $raw);
-            warehouse_forwarder_sync_audit_log($dbcnx, ['item_id' => $stockItemId, 'tracking_no' => $track, 'forwarder' => (string)($stockItem['receiver_company'] ?? ''), 'country_code' => (string)($stockItem['receiver_country_code'] ?? ''), 'status' => 'error', 'message' => 'manual_forwarder_registration: ' . $message, 'response_json' => json_encode($raw, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: '', 'created_by' => $userId]);
-            $result = ['status' => 'connector_error', 'message' => $message, 'item_id' => $stockItemId, 'tracking_no' => $track, 'forwarder_registration_status' => 'connector_error', 'raw_response' => $raw];
-            warehouse_forwarder_audit_manual($userId, $stockItemId, $stockItem, 'connector_error', $message, $result);
-            return $result;
-        }
-
         if (warehouse_forwarder_is_camex_az_connector($stockItem, $connector)) {
             $camexArgs = [];
             try {
@@ -756,7 +753,17 @@ if (!function_exists('warehouse_forwarder_register_stock_item')) {
                     : trim((string)($raw['message'] ?? $raw['error'] ?? 'CAMEX_AZ: ошибка регистрации'));
                 $registeredAt = warehouse_forwarder_update_registration_state($dbcnx, $stockItemId, $status, $message, $response);
                 warehouse_forwarder_sync_audit_log($dbcnx, ['item_id' => $stockItemId, 'tracking_no' => $track, 'forwarder' => (string)($stockItem['receiver_company'] ?? ''), 'country_code' => (string)($stockItem['receiver_country_code'] ?? ''), 'status' => $status === 'ok' ? 'success' : 'error', 'message' => 'manual_forwarder_registration: ' . $message, 'response_json' => json_encode($response, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: '', 'created_by' => $userId]);
-                $result = ['status' => $status, 'message' => $message, 'item_id' => $stockItemId, 'tracking_no' => $track, 'forwarder_registration_status' => $status, 'forwarder_registered_at' => $registeredAt, 'raw_response' => $response];
+                $result = [
+                    'status' => $status,
+                    'message' => $message,
+                    'already_registered' => $alreadyRegistered,
+                    'item_id' => $stockItemId,
+                    'tracking_no' => $track,
+                    'forwarder_registration_status' => $status,
+                    'forwarder_registered_at' => $registeredAt,
+                    'registered_order' => $registeredOrder,
+                    'raw_response' => $response,
+                ];
                 warehouse_forwarder_audit_manual($userId, $stockItemId, $stockItem, $status, $message, $result);
                 return $result;
             } catch (Throwable $e) {
@@ -768,6 +775,19 @@ if (!function_exists('warehouse_forwarder_register_stock_item')) {
                 warehouse_forwarder_audit_manual($userId, $stockItemId, $stockItem, 'forwarder_error', $message, $result);
                 return $result;
             }
+        }
+
+        $baseUrl = trim((string)($connector['base_url'] ?? ''));
+        $login = trim((string)($connector['auth_username'] ?? ''));
+        $password = trim((string)($connector['auth_password'] ?? ''));
+        if ($baseUrl === '' || $login === '' || $password === '') {
+            $message = 'В коннекторе не заполнены base_url/login/password';
+            $raw = ['registration_status' => 'connector_error', 'connector_id' => (int)($connector['id'] ?? 0), 'context' => $context];
+            warehouse_forwarder_update_registration_state($dbcnx, $stockItemId, 'connector_error', $message, $raw);
+            warehouse_forwarder_sync_audit_log($dbcnx, ['item_id' => $stockItemId, 'tracking_no' => $track, 'forwarder' => (string)($stockItem['receiver_company'] ?? ''), 'country_code' => (string)($stockItem['receiver_country_code'] ?? ''), 'status' => 'error', 'message' => 'manual_forwarder_registration: ' . $message, 'response_json' => json_encode($raw, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: '', 'created_by' => $userId]);
+            $result = ['status' => 'connector_error', 'message' => $message, 'item_id' => $stockItemId, 'tracking_no' => $track, 'forwarder_registration_status' => 'connector_error', 'raw_response' => $raw];
+            warehouse_forwarder_audit_manual($userId, $stockItemId, $stockItem, 'connector_error', $message, $result);
+            return $result;
         }
 
         $payload = warehouse_forwarder_build_registration_payload($stockItem);
