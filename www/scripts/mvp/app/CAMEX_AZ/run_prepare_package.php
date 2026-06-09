@@ -79,6 +79,25 @@ function camex_az_prepare_package_arg(array $args, string $dashKey, string $unde
     return trim((string)($args[$dashKey] ?? $args[$underscoreKey] ?? ''));
 }
 
+function camex_az_prepare_package_has_arg(array $args, string $dashKey, string $underscoreKey = ''): bool
+{
+    $underscoreKey = $underscoreKey !== '' ? $underscoreKey : str_replace('-', '_', $dashKey);
+    return array_key_exists($dashKey, $args) || array_key_exists($underscoreKey, $args);
+}
+
+function camex_az_prepare_package_raw_arg(array $args, string $dashKey, string $underscoreKey = ''): string
+{
+    $underscoreKey = $underscoreKey !== '' ? $underscoreKey : str_replace('-', '_', $dashKey);
+    if (array_key_exists($dashKey, $args)) {
+        return (string)$args[$dashKey];
+    }
+    if (array_key_exists($underscoreKey, $args)) {
+        return (string)$args[$underscoreKey];
+    }
+
+    return '';
+}
+
 function camex_az_prepare_package_country_code(array $args, ?array $connectorRow): string
 {
     $countryCode = camex_az_prepare_package_arg($args, 'country-code');
@@ -161,6 +180,7 @@ $options = [
     'connector_id' => $connectorId,
     'country_code' => camex_az_prepare_package_country_code($args, $connectorRow),
     'tracking' => $tracking,
+    'prepare_mode' => camex_az_prepare_package_arg($args, 'prepare-mode') !== '' ? camex_az_prepare_package_arg($args, 'prepare-mode') : 'auto',
     'client_id' => camex_az_prepare_package_arg($args, 'client-id'),
     'receiver_address' => camex_az_prepare_package_arg($args, 'receiver-address'),
     'flight_no' => camex_az_prepare_package_arg($args, 'flight-no'),
@@ -170,13 +190,13 @@ $options = [
     'length' => camex_az_prepare_package_arg($args, 'length') !== '' ? camex_az_prepare_package_arg($args, 'length') : '0',
     'width' => camex_az_prepare_package_arg($args, 'width') !== '' ? camex_az_prepare_package_arg($args, 'width') : '0',
     'height' => camex_az_prepare_package_arg($args, 'height') !== '' ? camex_az_prepare_package_arg($args, 'height') : '0',
-    'invoice_price' => camex_az_prepare_package_arg($args, 'invoice-price') !== '' ? camex_az_prepare_package_arg($args, 'invoice-price') : '0',
+    'invoice_price' => camex_az_prepare_package_has_arg($args, 'invoice-price') ? camex_az_prepare_package_raw_arg($args, 'invoice-price') : '',
     'invoice_currency' => camex_az_prepare_package_arg($args, 'invoice-currency') !== '' ? camex_az_prepare_package_arg($args, 'invoice-currency') : 'EUR',
-    'shop' => camex_az_prepare_package_arg($args, 'shop'),
-    'item_count' => camex_az_prepare_package_arg($args, 'item-count') !== '' ? camex_az_prepare_package_arg($args, 'item-count') : '1',
+    'shop' => camex_az_prepare_package_arg($args, 'shop') !== '' ? camex_az_prepare_package_arg($args, 'shop') : 'amazon.de',
+    'item_count' => camex_az_prepare_package_has_arg($args, 'item-count') ? camex_az_prepare_package_raw_arg($args, 'item-count') : '',
     'package_type_id' => camex_az_prepare_package_arg($args, 'package-type-id') !== '' ? camex_az_prepare_package_arg($args, 'package-type-id') : '0',
     'parfume' => camex_az_prepare_package_arg($args, 'parfume') !== '' ? camex_az_prepare_package_arg($args, 'parfume') : '0',
-    'comment' => camex_az_prepare_package_arg($args, 'comment'),
+    'comment' => camex_az_prepare_package_has_arg($args, 'comment') ? camex_az_prepare_package_raw_arg($args, 'comment') : '',
     'debug_dir' => camex_az_prepare_package_arg($args, 'debug-dir'),
     'allow_system_box' => camex_az_prepare_package_arg($args, 'allow-system-box') !== '' ? camex_az_prepare_package_arg($args, 'allow-system-box') : '0',
     'dry_run' => '1',

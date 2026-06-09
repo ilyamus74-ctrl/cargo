@@ -227,7 +227,7 @@ final class PackagePrepareService
             'box_options' => $boxOptions,
             'package_type_options' => $packageTypeOptions,
             'form_defaults' => $defaults,
-            'orders' => self::parseOrders($xpath, $tracking),
+            'orders' => self::parseOrders($xpath, $tracking, (string)($client['client_name'] ?? '')),
         ];
     }
 
@@ -554,16 +554,16 @@ final class PackagePrepareService
     }
 
     /** @return list<array<string, mixed>> */
-    private static function parseOrders(DOMXPath $xpath, string $tracking): array
+    private static function parseOrders(DOMXPath $xpath, string $tracking, string $clientName): array
     {
         return array_merge(
-            self::parseOrdersFromColumnRes($xpath, $tracking),
-            self::parseOrdersFromTables($xpath, $tracking)
+            self::parseOrdersFromColumnRes($xpath, $tracking, $clientName),
+            self::parseOrdersFromTables($xpath, $tracking, $clientName)
         );
     }
 
     /** @return list<array<string, mixed>> */
-    private static function parseOrdersFromColumnRes(DOMXPath $xpath, string $tracking): array
+    private static function parseOrdersFromColumnRes(DOMXPath $xpath, string $tracking, string $clientName): array
     {
         $orders = [];
         $headers = $xpath->query('//h3[contains(translate(normalize-space(.), "ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz"), "orders")]');
@@ -598,9 +598,12 @@ final class PackagePrepareService
                 if (count($cells) < 2) {
                     continue;
                 }
+                $trackingRaw = (string)($cells[1] ?? '');
+                $trackingClean = self::normalizeOrderTracking($trackingRaw, $clientName);
                 $order = [
                     'number' => (string)($cells[0] ?? ''),
-                    'tracking' => (string)($cells[1] ?? ''),
+                    'tracking_raw' => $trackingRaw,
+                    'tracking' => $trackingClean,
                     'package_status' => (string)($cells[2] ?? ''),
                     'status' => (string)($cells[2] ?? ''),
                     'weight' => (string)($cells[3] ?? ''),
@@ -620,7 +623,7 @@ final class PackagePrepareService
     }
 
     /** @return list<array<string, mixed>> */
-    private static function parseOrdersFromTables(DOMXPath $xpath, string $tracking): array
+    private static function parseOrdersFromTables(DOMXPath $xpath, string $tracking, string $clientName): array
     {
         $orders = [];
         $tables = $xpath->query('//table');
@@ -662,9 +665,12 @@ final class PackagePrepareService
                 if (count($cells) < 2) {
                     continue;
                 }
+                $trackingRaw = (string)($cells[1] ?? '');
+                $trackingClean = self::normalizeOrderTracking($trackingRaw, $clientName);
                 $order = [
                     'number' => (string)($cells[0] ?? ''),
-                    'tracking' => (string)($cells[1] ?? ''),
+                    'tracking_raw' => $trackingRaw,
+                    'tracking' => $trackingClean,
                     'package_status' => (string)($cells[2] ?? ''),
                     'status' => (string)($cells[2] ?? ''),
                     'weight' => (string)($cells[3] ?? ''),
@@ -790,6 +796,23 @@ final class PackagePrepareService
     private static function findOptionByValueOrText(array $options, string $value): ?array
     {
         return self::findOptionByValue($options, $value) ?? self::findOptionByText($options, $value);
+    }
+
+    private static function normalizeOrderTracking(string $trackingRaw, string $clientName): string
+    {
+        $tracking = self::cleanText($trackingRaw);
+        $clientName = self::cleanText($clientName);
+        if ($tracking === '' || $clientName === '') {
+            return $tracking;
+        }
+
+        $trackingLower = mb_strtolower($tracking, 'UTF-8');
+        $clientNameLower = mb_strtolower($clientName, 'UTF-8');
+        if (!str_ends_with($trackingLower, $clientNameLower)) {
+            return $tracking;
+        }
+
+        return trim(mb_substr($tracking, 0, mb_strlen($tracking, 'UTF-8') - mb_strlen($clientName, 'UTF-8'), 'UTF-8'));
     }
 
     private static function sameTracking(string $left, string $right): bool
