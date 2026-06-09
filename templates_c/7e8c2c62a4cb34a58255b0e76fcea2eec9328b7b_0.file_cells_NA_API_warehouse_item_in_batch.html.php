@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-06-07 15:47:30
+/* Smarty version 5.3.1, created on 2026-06-09 10:30:50
   from 'file:cells_NA_API_warehouse_item_in_batch.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_6a259292e44141_49827000',
+  'unifunc' => 'content_6a27eb5a574f02_87957179',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '7e8c2c62a4cb34a58255b0e76fcea2eec9328b7b' => 
     array (
       0 => 'cells_NA_API_warehouse_item_in_batch.html',
-      1 => 1780847021,
+      1 => 1781000682,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_6a259292e44141_49827000 (\Smarty\Template $_smarty_tpl) {
+function content_6a27eb5a574f02_87957179 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>
 
@@ -109,6 +109,19 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
                   </select>
   </div>
 
+  <div id="warehouseStockAddonsSection"
+       class="col-12"
+       data-addons-map='<?php echo htmlspecialchars((string)json_encode($_smarty_tpl->getValue('addons_map')), ENT_QUOTES, 'UTF-8', true);?>
+'
+       data-addons-raw-map='<?php echo htmlspecialchars((string)json_encode($_smarty_tpl->getValue('addons_raw_map')), ENT_QUOTES, 'UTF-8', true);?>
+'
+       data-item-addons='{}'>
+    <label class="form-label">ДопИнфо</label>
+    <div id="warehouseStockAddonsControls" class="row g-2"></div>
+    <div id="warehouseStockAddonsEmpty" class="form-text text-muted">Для выбранной компании форварда нет настроенной ДопИнфо.</div>
+    <input type="hidden" id="warehouseStockAddonsJson" name="addons_json" value="">
+    <input type="hidden" id="warehouseStockAddonsDebug" name="debug" value="">
+  </div>
 <!--  <div class="col-md-6">
     <label for="receiverCompany" class="form-label">Компания форвард</label>
     <input type="text" class="form-control" id="receiverCompany" name="receiver_company">
@@ -170,19 +183,6 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
     <input type="number" step="0.1" class="form-control" id="sizeH" name="size_h_cm">
   </div>
 
-    <div id="warehouseStockAddonsSection"
-         data-addons-map='<?php echo htmlspecialchars((string)json_encode($_smarty_tpl->getValue('addons_map')), ENT_QUOTES, 'UTF-8', true);?>
-'
-         data-addons-raw-map='<?php echo htmlspecialchars((string)json_encode($_smarty_tpl->getValue('addons_raw_map')), ENT_QUOTES, 'UTF-8', true);?>
-'
-         data-item-addons='{}'>
-      <label class="form-label">ДопИнфо</label>
-      <div id="warehouseStockAddonsControls" class="row g-2"></div>
-      <div id="warehouseStockAddonsEmpty" class="form-text text-muted">Для выбранной компании форварда нет настроенной ДопИнфо.</div>
-      <input type="hidden" id="warehouseStockAddonsJson" name="addons_json" value="">
-      <input type="hidden" id="warehouseStockAddonsDebug" name="debug" value="">
-    </div>
-  </div>
 
   <div class="col-md-6">
     <label class="form-label d-block">Фото Лейб</label>
