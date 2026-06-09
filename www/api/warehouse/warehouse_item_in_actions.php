@@ -297,11 +297,67 @@ function warehouse_item_in_ensure_forwarder_registration_columns(mysqli $dbcnx):
     }
 }
 
-function warehouse_item_in_exec_forwarder_cli_script(string $scriptName, array $args): array
+function warehouse_item_in_parse_cli_json_output(string $output): ?array
 {
-    $scriptPath = dirname(__DIR__, 2) . '/scripts/mvp/app/Forwarder/' . ltrim($scriptName, '/');
+    $output = trim($output);
+    if ($output === '') {
+        return null;
+    }
+
+    $parsed = json_decode($output, true);
+    if (is_array($parsed)) {
+        return $parsed;
+    }
+
+    $lines = preg_split('/\R/', $output) ?: [];
+    for ($i = count($lines) - 1; $i >= 0; $i--) {
+        $line = trim((string)$lines[$i]);
+        if ($line === '' || substr($line, 0, 1) !== '{') {
+            continue;
+        }
+        $parsed = json_decode($line, true);
+        if (is_array($parsed)) {
+            return $parsed;
+        }
+    }
+
+    $jsonStart = strpos($output, '{');
+    if ($jsonStart !== false) {
+        $parsed = json_decode(substr($output, $jsonStart), true);
+        if (is_array($parsed)) {
+            return $parsed;
+        }
+    }
+
+    return null;
+}
+
+function warehouse_item_in_mask_cli_output(string $output, array $args): string
+{
+    foreach ($args as $key => $value) {
+        $keyNorm = strtolower((string)$key);
+        if (strpos($keyNorm, 'pass') === false && strpos($keyNorm, 'token') === false && strpos($keyNorm, 'secret') === false) {
+            continue;
+        }
+        $value = (string)$value;
+        if ($value !== '') {
+            $output = str_replace($value, '***', $output);
+        }
+    }
+    return $output;
+}
+
+function warehouse_item_in_exec_php_cli_script(string $scriptPath, array $args): array
+{
+    $scriptPath = trim($scriptPath);
+    if ($scriptPath === '') {
+        throw new RuntimeException('Не указан PHP CLI script path');
+    }
+    if ($scriptPath[0] !== '/') {
+        $scriptPath = dirname(__DIR__, 3) . '/' . ltrim($scriptPath, '/');
+    }
     if (!is_file($scriptPath)) {
-        throw new RuntimeException('Не найден скрипт форвардера: ' . $scriptPath);
+        throw new RuntimeException('Не найден PHP CLI скрипт: ' . $scriptPath);
     }
 
     $cmdParts = ['php', $scriptPath];
@@ -317,8 +373,8 @@ function warehouse_item_in_exec_forwarder_cli_script(string $scriptName, array $
     $lines = [];
     $exitCode = 0;
     @exec($cmd, $lines, $exitCode);
-    $output = trim((string)implode("\n", $lines));
-    $parsed = json_decode($output, true);
+    $output = warehouse_item_in_mask_cli_output(trim((string)implode("\n", $lines)), $args);
+    $parsed = warehouse_item_in_parse_cli_json_output($output);
     if (!is_array($parsed)) {
         $parsed = [
             'status' => $exitCode === 0 ? 'ok' : 'error',
@@ -326,12 +382,17 @@ function warehouse_item_in_exec_forwarder_cli_script(string $scriptName, array $
         ];
     }
     $parsed['_meta'] = [
-        'script' => $scriptName,
+        'script' => $scriptPath,
         'exit_code' => $exitCode,
         'raw_output' => $output,
     ];
 
-    return $parsed;
+    return warehouse_item_in_mask_submitted_args_password($parsed);
+}
+
+function warehouse_item_in_exec_forwarder_cli_script(string $scriptName, array $args): array
+{
+    return warehouse_item_in_exec_php_cli_script(dirname(__DIR__, 2) . '/scripts/mvp/app/Forwarder/' . ltrim($scriptName, '/'), $args);
 }
 
 function warehouse_item_in_resolve_forwarder_connector(mysqli $dbcnx, string $forwarder, string $country): ?array
@@ -342,8 +403,17 @@ function warehouse_item_in_resolve_forwarder_connector(mysqli $dbcnx, string $fo
     }
 
     $countryNorm = strtoupper(trim($country));
+    $selectColumns = ['id', 'name', 'countries', 'auth_username', 'auth_password', 'base_url', 'is_active'];
+    if ($resColumns = $dbcnx->query("SHOW COLUMNS FROM connectors LIKE 'system_type'")) {
+        $hasSystemType = $resColumns->num_rows > 0;
+        $resColumns->free();
+        if ($hasSystemType) {
+            $selectColumns[] = 'system_type';
+        }
+    }
+
     $rows = [];
-    if ($resAll = $dbcnx->query("SELECT id, name, countries, auth_username, auth_password, base_url, is_active FROM connectors WHERE is_active = 1 ORDER BY id DESC")) {
+    if ($resAll = $dbcnx->query('SELECT ' . implode(', ', $selectColumns) . " FROM connectors WHERE is_active = 1 ORDER BY id DESC")) {
         while ($row = $resAll->fetch_assoc()) {
             $nameNorm = warehouse_item_in_normalize_key((string)($row['name'] ?? ''));
             if ($nameNorm === '') {
@@ -424,6 +494,145 @@ function warehouse_item_in_required_registration_fields(mysqli $dbcnx, string $f
     }
 
     return array_values(array_unique($required));
+}
+
+function warehouse_item_in_is_camex_az_connector(array $stockItem, array $connector): bool
+{
+    $receiverCompanyNorm = warehouse_item_in_normalize_key((string)($stockItem['receiver_company'] ?? ''));
+    $receiverCountry = strtoupper(trim((string)($stockItem['receiver_country_code'] ?? '')));
+    if ($receiverCompanyNorm === 'CAMEX' && $receiverCountry === 'AZ') {
+        return true;
+    }
+
+    $systemTypeNorm = warehouse_item_in_normalize_key((string)($connector['system_type'] ?? ''));
+    if ($systemTypeNorm === 'CAMEX_AZ') {
+        return true;
+    }
+
+    $connectorNameNorm = warehouse_item_in_normalize_key((string)($connector['name'] ?? ''));
+    $countries = strtoupper(trim((string)($connector['countries'] ?? '')));
+    $countryParts = array_filter(array_map('trim', explode(',', $countries)), static function ($value) { return $value !== ''; });
+    return $connectorNameNorm === 'CAMEX' && in_array('AZ', $countryParts, true);
+}
+
+function warehouse_item_in_stock_numeric_value(array $stockItem, string $key, string $default = ''): string
+{
+    $raw = str_replace(',', '.', trim((string)($stockItem[$key] ?? '')));
+    if ($raw === '' || !is_numeric($raw)) {
+        return $default;
+    }
+    return (string)(float)$raw;
+}
+
+function warehouse_item_in_build_camex_az_args(array $stockItem, array $connector, string $batchUid, int $stockItemId): array
+{
+    $addons = warehouse_item_in_decode_json_array((string)($stockItem['addons_json'] ?? ''));
+    $tracking = trim((string)($stockItem['tracking_no'] ?? ''));
+    if ($tracking === '') {
+        $tracking = trim((string)($stockItem['tuid'] ?? ''));
+    }
+
+    $invoiceCurrency = trim((string)($addons['invoice_ccy'] ?? $addons['invoice_currency'] ?? 'EUR'));
+    if ($invoiceCurrency === '') {
+        $invoiceCurrency = 'EUR';
+    }
+
+    return [
+        'connector-id' => (string)(int)($connector['id'] ?? 0),
+        'prepare-mode' => 'client',
+        'client-id' => (string)warehouse_item_in_extract_client_id($stockItem),
+        'tracking' => $tracking,
+        'flight-no' => trim((string)($addons['camex_flight_no'] ?? $addons['flight_no'] ?? $addons['reisi'] ?? '')),
+        'weight' => warehouse_item_in_stock_numeric_value($stockItem, 'weight_kg'),
+        'length' => warehouse_item_in_stock_numeric_value($stockItem, 'size_l_cm', '0'),
+        'width' => warehouse_item_in_stock_numeric_value($stockItem, 'size_w_cm', '0'),
+        'height' => warehouse_item_in_stock_numeric_value($stockItem, 'size_h_cm', '0'),
+        'box-code' => 'BOX1',
+        'invoice-price' => '',
+        'invoice-currency' => $invoiceCurrency,
+        'shop' => 'amazon.de',
+        'item-count' => '',
+        'package-type-id' => trim((string)($addons['camex_package_type_id'] ?? $addons['package_type_id'] ?? '')),
+        'comment' => '',
+        'debug-dir' => '/tmp/camex_az_warehouse_commit_' . preg_replace('/[^A-Za-z0-9_.-]+/', '_', $batchUid) . '_' . $stockItemId,
+        'dry-run' => '0',
+        'confirm-submit' => '1',
+    ];
+}
+
+function warehouse_item_in_validate_camex_az_args(array $stockItem, array $args): array
+{
+    $missing = [];
+    $requiredFields = [
+        'tracking',
+        'client_id',
+        'weight',
+        'flight_no',
+        'package_type_id',
+        'receiver_country_code',
+        'receiver_company',
+    ];
+
+    $receiverCompanyNorm = warehouse_item_in_normalize_key((string)($stockItem['receiver_company'] ?? ''));
+    $receiverCountry = strtoupper(trim((string)($stockItem['receiver_country_code'] ?? '')));
+    $clientId = (int)($args['client-id'] ?? 0);
+    $weight = str_replace(',', '.', trim((string)($args['weight'] ?? '')));
+    $packageTypeId = trim((string)($args['package-type-id'] ?? ''));
+
+    if (trim((string)($args['tracking'] ?? '')) === '') {
+        $missing[] = 'tracking';
+    }
+    if ($clientId <= 0) {
+        $missing[] = 'client_id';
+    }
+    if ($weight === '' || !is_numeric($weight) || (float)$weight <= 0) {
+        $missing[] = 'weight';
+    }
+    if (trim((string)($args['flight-no'] ?? '')) === '') {
+        $missing[] = 'flight_no';
+    }
+    if ($packageTypeId === '' || $packageTypeId === '0') {
+        $missing[] = 'package_type_id';
+    }
+    if ($receiverCountry !== 'AZ') {
+        $missing[] = 'receiver_country_code';
+    }
+    if ($receiverCompanyNorm !== 'CAMEX') {
+        $missing[] = 'receiver_company';
+    }
+
+    $message = '';
+    if (in_array('client_id', $missing, true)) {
+        $message = 'CAMEX_AZ: не найден client_id';
+    } elseif (in_array('flight_no', $missing, true)) {
+        $message = 'CAMEX_AZ: не выбран рейс';
+    } elseif (in_array('package_type_id', $missing, true)) {
+        $message = 'CAMEX_AZ: не выбран Package Type';
+    } elseif (!empty($missing)) {
+        $message = 'CAMEX_AZ: не заполнены обязательные поля [' . implode(', ', $missing) . ']';
+    }
+
+    return [
+        'ok' => empty($missing),
+        'message' => $message,
+        'required_fields' => $requiredFields,
+        'missing_fields' => array_values(array_unique($missing)),
+        'required_field_values' => [
+            'tracking' => (string)($args['tracking'] ?? ''),
+            'client_id' => (string)$clientId,
+            'weight' => (string)($args['weight'] ?? ''),
+            'flight_no' => (string)($args['flight-no'] ?? ''),
+            'package_type_id' => (string)($args['package-type-id'] ?? ''),
+            'receiver_country_code' => $receiverCountry,
+            'receiver_company' => (string)($stockItem['receiver_company'] ?? ''),
+        ],
+    ];
+}
+
+function warehouse_item_in_camex_az_registered_order(array $result): array
+{
+    $registeredOrder = $result['verify']['registered_order'] ?? $result['registered_order'] ?? [];
+    return is_array($registeredOrder) ? $registeredOrder : [];
 }
 
 function warehouse_item_in_validate_registration_payload(array $stockItem, array $requiredFields): array
@@ -2128,8 +2337,10 @@ switch ($action) {
                 continue;
             }
 
+            $isCamexAzByReceiver = warehouse_item_in_normalize_key((string)($stockItem['receiver_company'] ?? '')) === 'CAMEX'
+                && strtoupper(trim((string)($stockItem['receiver_country_code'] ?? ''))) === 'AZ';
             $requiredFields = warehouse_item_in_required_registration_fields($dbcnx, (string)($stockItem['receiver_company'] ?? ''));
-            $missingFields = warehouse_item_in_validate_registration_payload($stockItem, $requiredFields);
+            $missingFields = $isCamexAzByReceiver ? [] : warehouse_item_in_validate_registration_payload($stockItem, $requiredFields);
             if (!empty($missingFields)) {
                 $message = 'Пропущено: не заполнены поля [' . implode(', ', $missingFields) . ']';
                 $requiredFieldValues = warehouse_item_in_required_fields_value_map($stockItem, $requiredFields);
@@ -2222,6 +2433,141 @@ switch ($action) {
                     'status' => 'connector_error',
                     'message' => $message,
                 ];
+                continue;
+            }
+
+            if (warehouse_item_in_is_camex_az_connector($stockItem, $connector)) {
+                $camexArgs = warehouse_item_in_build_camex_az_args($stockItem, $connector, $batchUid, $stockItemId);
+                $camexValidation = warehouse_item_in_validate_camex_az_args($stockItem, $camexArgs);
+                if (empty($camexValidation['ok'])) {
+                    $message = (string)($camexValidation['message'] ?? 'CAMEX_AZ: validation_error');
+                    $response = [
+                        'registration_status' => 'validation_error',
+                        'connector_id' => (int)($connector['id'] ?? 0),
+                        'connector_name' => (string)($connector['name'] ?? ''),
+                        'stock_item_id' => $stockItemId,
+                        'batch_uid' => $batchUid,
+                        'submitted_args' => $camexArgs,
+                        'payload' => $camexArgs,
+                        'args_preview' => $camexArgs,
+                        'missing_fields' => $camexValidation['missing_fields'] ?? [],
+                        'required_fields' => $camexValidation['required_fields'] ?? [],
+                        'required_field_values' => $camexValidation['required_field_values'] ?? [],
+                    ];
+                    warehouse_item_in_update_registration_state($dbcnx, $stockItemId, 'validation_error', $message, $response);
+                    warehouse_item_in_sync_audit_log($dbcnx, [
+                        'item_id' => $stockItemId,
+                        'tracking_no' => $track,
+                        'forwarder' => (string)($stockItem['receiver_company'] ?? ''),
+                        'country_code' => (string)($stockItem['receiver_country_code'] ?? ''),
+                        'status' => 'error',
+                        'message' => 'commit_item_in_batch: ' . $message,
+                        'response_json' => json_encode($response, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: '',
+                        'created_by' => $userId,
+                    ]);
+                    $registrationSummary['validation_skipped']++;
+                    $registrationSummary['details'][] = [
+                        'track' => $track,
+                        'status' => 'validation_error',
+                        'message' => $message,
+                        'required_fields' => $camexValidation['required_fields'] ?? [],
+                        'required_field_values' => $camexValidation['required_field_values'] ?? [],
+                    ];
+                    continue;
+                }
+
+                try {
+                    $result = warehouse_item_in_exec_php_cli_script('www/scripts/mvp/app/CAMEX_AZ/run_prepare_package.php', $camexArgs);
+                    $registeredOrder = warehouse_item_in_camex_az_registered_order($result);
+                    $submitted = !empty($result['submitted']);
+                    $alreadyRegistered = !empty($result['already_registered']);
+                    $resultStatus = strtolower(trim((string)($result['status'] ?? '')));
+                    $response = [
+                        'submitted_args' => $camexArgs,
+                        'payload' => $camexArgs,
+                        'args_preview' => $camexArgs,
+                        'result' => $result,
+                        'registered_order' => $registeredOrder,
+                        'debug_html' => $result['debug_html'] ?? ($result['debug']['html'] ?? null),
+                        'connector_id' => (int)($connector['id'] ?? 0),
+                        'connector_name' => (string)($connector['name'] ?? ''),
+                        'stock_item_id' => $stockItemId,
+                        'batch_uid' => $batchUid,
+                    ];
+                    $response = warehouse_item_in_mask_submitted_args_password($response);
+                    if ($resultStatus === 'ok') {
+                        $okMessage = $alreadyRegistered
+                            ? 'Уже зарегистрировано у CAMEX_AZ (идемпотентный успех)'
+                            : 'Успешно зарегистрировано у CAMEX_AZ';
+                        warehouse_item_in_update_registration_state($dbcnx, $stockItemId, 'ok', $okMessage, $response);
+                        warehouse_item_in_sync_audit_log($dbcnx, [
+                            'item_id' => $stockItemId,
+                            'tracking_no' => $track,
+                            'forwarder' => (string)($stockItem['receiver_company'] ?? ''),
+                            'country_code' => (string)($stockItem['receiver_country_code'] ?? ''),
+                            'status' => 'success',
+                            'message' => 'commit_item_in_batch: ' . $okMessage,
+                            'response_json' => json_encode($response, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: '',
+                            'created_by' => $userId,
+                        ]);
+                        $registrationSummary['registered']++;
+                        $registrationSummary['details'][] = [
+                            'track' => $track,
+                            'status' => 'ok',
+                            'message' => $okMessage,
+                            'submitted' => $submitted,
+                            'already_registered' => $alreadyRegistered,
+                            'registered_order' => $registeredOrder,
+                        ];
+                    } else {
+                        $err = trim((string)($result['message'] ?? $result['error'] ?? 'CAMEX_AZ: ошибка регистрации'));
+                        warehouse_item_in_update_registration_state($dbcnx, $stockItemId, 'forwarder_error', $err, $response);
+                        warehouse_item_in_sync_audit_log($dbcnx, [
+                            'item_id' => $stockItemId,
+                            'tracking_no' => $track,
+                            'forwarder' => (string)($stockItem['receiver_company'] ?? ''),
+                            'country_code' => (string)($stockItem['receiver_country_code'] ?? ''),
+                            'status' => 'error',
+                            'message' => 'commit_item_in_batch: ' . $err,
+                            'response_json' => json_encode($response, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: '',
+                            'created_by' => $userId,
+                        ]);
+                        $registrationSummary['integration_errors']++;
+                        $registrationSummary['details'][] = [
+                            'track' => $track,
+                            'status' => 'forwarder_error',
+                            'message' => $err,
+                        ];
+                    }
+                } catch (Throwable $e) {
+                    $err = $e->getMessage();
+                    $response = [
+                        'exception' => $err,
+                        'submitted_args' => $camexArgs,
+                        'payload' => $camexArgs,
+                        'connector_id' => (int)($connector['id'] ?? 0),
+                        'connector_name' => (string)($connector['name'] ?? ''),
+                        'stock_item_id' => $stockItemId,
+                        'batch_uid' => $batchUid,
+                    ];
+                    warehouse_item_in_update_registration_state($dbcnx, $stockItemId, 'forwarder_error', $err, $response);
+                    warehouse_item_in_sync_audit_log($dbcnx, [
+                        'item_id' => $stockItemId,
+                        'tracking_no' => $track,
+                        'forwarder' => (string)($stockItem['receiver_company'] ?? ''),
+                        'country_code' => (string)($stockItem['receiver_country_code'] ?? ''),
+                        'status' => 'error',
+                        'message' => 'commit_item_in_batch: ' . $err,
+                        'response_json' => json_encode($response, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: '',
+                        'created_by' => $userId,
+                    ]);
+                    $registrationSummary['integration_errors']++;
+                    $registrationSummary['details'][] = [
+                        'track' => $track,
+                        'status' => 'forwarder_error',
+                        'message' => $err,
+                    ];
+                }
                 continue;
             }
 
