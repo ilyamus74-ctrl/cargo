@@ -42,7 +42,8 @@ Options:
   --parfume=0|1                 Future submit storage checkbox.
   --comment=TEXT                Future submit comment value.
   --debug-dir=DIR               Optional directory for debug HTML snapshots.
-  --dry-run=0|1                 Always dry-run in this version (default: 1).
+  --dry-run=0|1                 Preview only when 1 (default: 1). Real submit also requires --confirm-submit=1.
+  --confirm-submit=0|1          Explicitly allow real CAMEX Add submit when --dry-run=0 (default: 0).
   --allow-system-box=0|1        Allow BOX100 system box for diagnostics (default: 0).
   --help                        Show this help.
 TXT;
@@ -176,6 +177,11 @@ $service = new PackagePrepareService(
     $logger
 );
 
+$dryRunArg = camex_az_prepare_package_arg($args, 'dry-run');
+$confirmSubmitArg = camex_az_prepare_package_arg($args, 'confirm-submit');
+$confirmSubmit = $confirmSubmitArg === '1';
+$dryRun = $dryRunArg === '0' && $confirmSubmit ? '0' : '1';
+
 $options = [
     'connector_id' => $connectorId,
     'country_code' => camex_az_prepare_package_country_code($args, $connectorRow),
@@ -199,7 +205,8 @@ $options = [
     'comment' => camex_az_prepare_package_has_arg($args, 'comment') ? camex_az_prepare_package_raw_arg($args, 'comment') : '',
     'debug_dir' => camex_az_prepare_package_arg($args, 'debug-dir'),
     'allow_system_box' => camex_az_prepare_package_arg($args, 'allow-system-box') !== '' ? camex_az_prepare_package_arg($args, 'allow-system-box') : '0',
-    'dry_run' => '1',
+    'dry_run' => $dryRun,
+    'confirm_submit' => $confirmSubmit ? '1' : '0',
     'page_path' => '/cadmin/usa/index.php?do=newaddpre',
 ];
 

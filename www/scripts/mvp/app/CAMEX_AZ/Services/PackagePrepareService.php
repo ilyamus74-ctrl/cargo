@@ -66,8 +66,11 @@ final class PackagePrepareService
             ];
         }
 
-        if ((string)($options['dry_run'] ?? '1') !== '1') {
-            $warnings[] = 'submit_not_implemented';
+        $confirmSubmit = (string)($options['confirm_submit'] ?? '0') === '1';
+        $dryRunRequested = (string)($options['dry_run'] ?? '1') !== '0';
+        $dryRun = $dryRunRequested || !$confirmSubmit;
+        if ($dryRunRequested && $confirmSubmit) {
+            $warnings[] = 'confirm_submit_ignored_in_dry_run';
         }
 
         $pagePath = $prepareMode === 'client'
@@ -154,7 +157,9 @@ final class PackagePrepareService
             'status' => 'ok',
             'connector' => 'CAMEX_AZ',
             'connector_id' => (int)($options['connector_id'] ?? 0),
-            'mode' => 'dry_run',
+            'mode' => $dryRun ? 'dry_run' : 'submit',
+            'confirm_submit' => $confirmSubmit,
+            'submitted' => false,
             'prepare_mode' => $prepareMode,
             'tracking' => $tracking,
             'client_id_input' => $clientIdInput,
@@ -182,12 +187,143 @@ final class PackagePrepareService
             $result['detected_status'] = $detected['detected_status'];
         }
 
-        $this->logger->info('CAMEX package prepare dry-run completed', [
-            'tracking' => $tracking,
-            'prepare_mode' => $prepareMode,
-            'state' => $result['detected_state'],
-            'can_submit' => $result['can_submit'],
-        ]);
+        if ($dryRun) {
+            $this->logger->info('CAMEX package prepare dry-run completed', [
+                'tracking' => $tracking,
+                'prepare_mode' => $prepareMode,
+                'state' => $result['detected_state'],
+                'can_submit' => $result['can_submit'],
+            ]);
+
+            return $result;
+        }
+
+        $validationError = $this->validateSubmitResult($result, $warnings);
+        if ($validationError !== null) {
+            return $validationError;
+        }
+
+        return $this->submitPreparedPackage($result, $debugDir, $tracking);
+    }
+
+    /** @return array<string, mixed>|null */
+    private function validateSubmitResult(array $result, array $warnings): ?array
+    {
+        $payload = (array)($result['payload_preview'] ?? []);
+        $selected = (array)($result['selected'] ?? []);
+        $form = (array)($result['form'] ?? []);
+        $details = [];
+
+        if (empty($result['confirm_submit'])) {
+            $details[] = 'confirm_submit_required';
+        }
+        if (($result['status'] ?? '') !== 'ok') {
+            $details[] = 'prepare_status_not_ok';
+        }
+        if (!empty($result['existing_tracking_found'])) {
+            return $this->submitValidationError($result, 'Tracking already registered', $details, $warnings);
+        }
+        if (($result['detected_state'] ?? '') !== 'ready_to_add') {
+            $details[] = 'detected_state_not_ready_to_add';
+        }
+        if (empty($result['can_submit'])) {
+            $details[] = 'can_submit_false';
+        }
+        if (trim((string)($form['action'] ?? '')) === '') {
+            $details[] = 'form_action_required';
+        }
+
+        foreach (['track', 'reisi', 'dim_storage', 'name', 'last_name', 'p_wona', 'shop', 'package_type_id'] as $field) {
+            if (trim((string)($payload[$field] ?? '')) === '') {
+                $details[] = $field . '_required';
+            }
+        }
+
+        if (trim((string)($payload['package_type_id'] ?? '')) === '0') {
+            return $this->submitValidationError($result, 'Package type is required for submit', $details, $warnings);
+        }
+        if (self::isSystemBox100Selected($selected)) {
+            return $this->submitValidationError($result, 'BOX100 is forbidden for manual registration', $details, $warnings);
+        }
+
+        if ($details !== []) {
+            return $this->submitValidationError($result, 'Submit validation failed', $details, $warnings);
+        }
+
+        return null;
+    }
+
+    /** @return array<string, mixed> */
+    private function submitValidationError(array $result, string $message, array $details, array $warnings): array
+    {
+        $result['status'] = 'error';
+        $result['stage'] = 'validation';
+        $result['message'] = $message;
+        $result['submitted'] = false;
+        $result['warnings'] = array_values(array_unique(array_merge((array)($result['warnings'] ?? []), $warnings)));
+        $result['details'] = array_values(array_unique($details));
+
+        return $result;
+    }
+
+    /** @return array<string, mixed> */
+    private function submitPreparedPackage(array $result, string $debugDir, string $tracking): array
+    {
+        $payload = [];
+        foreach ((array)($result['payload_preview'] ?? []) as $key => $value) {
+            $payload[(string)$key] = (string)$value;
+        }
+        $action = (string)($result['form']['action'] ?? '');
+        $submitResponse = $this->client->requestWithSession('POST', $action, $payload, true);
+        $submitHttpStatus = (int)($submitResponse['status_code'] ?? 0);
+        $submitDebugHtml = self::saveDebugHtml($debugDir, '02_newaddpre_submit_response.html', (string)($submitResponse['body'] ?? ''));
+
+        $debugHtml = [
+            'prepare' => (string)($result['debug_html'] ?? ''),
+            'submit' => $submitDebugHtml,
+            'after_submit' => '',
+        ];
+        $result['debug_html'] = $debugHtml;
+        $result['submit'] = [
+            'status' => !empty($submitResponse['ok']) ? 'ok' : 'error',
+            'http_status' => $submitHttpStatus,
+        ];
+
+        if ($submitHttpStatus !== 200 || empty($submitResponse['ok'])) {
+            $result['status'] = 'error';
+            $result['stage'] = 'submit';
+            $result['message'] = (string)($submitResponse['error'] ?? 'CAMEX package submit failed.');
+            $result['submitted'] = false;
+            $result['submitted_maybe'] = true;
+            return $result;
+        }
+
+        $code = (string)($payload['code'] ?? $result['client']['client_id'] ?? '');
+        $verifyPath = self::DEFAULT_PAGE_PATH . '&code=' . rawurlencode($code);
+        $verifyResponse = $this->client->requestWithSession('GET', $verifyPath);
+        $afterSubmitDebugHtml = self::saveDebugHtml($debugDir, '03_newaddpre_after_submit.html', (string)($verifyResponse['body'] ?? ''));
+        $result['debug_html']['after_submit'] = $afterSubmitDebugHtml;
+
+        $verifyParsed = self::parsePretrackHtml((string)($verifyResponse['body'] ?? ''), $tracking, $verifyPath);
+        $verifyDetected = self::detectState($verifyParsed, $tracking, (string)($verifyResponse['body'] ?? ''));
+        $trackingFound = (bool)$verifyDetected['existing_tracking_found'];
+        $result['submitted'] = true;
+        $result['detected_state_before_submit'] = (string)($result['detected_state'] ?? '');
+        $result['verify'] = [
+            'tracking_found' => $trackingFound,
+            'detected_state_after_submit' => $verifyDetected['state'],
+        ];
+
+        if ($trackingFound) {
+            $result['status'] = 'ok';
+            $result['mode'] = 'submit';
+            return $result;
+        }
+
+        $result['status'] = 'error';
+        $result['stage'] = 'verify_submit';
+        $result['message'] = 'Submitted package was not found during verification';
+        $result['submitted_maybe'] = true;
 
         return $result;
     }
