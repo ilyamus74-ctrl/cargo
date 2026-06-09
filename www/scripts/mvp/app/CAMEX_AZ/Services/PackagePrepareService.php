@@ -176,10 +176,12 @@ final class PackagePrepareService
                 'box_options' => count($parsed['box_options']),
                 'package_type_options' => count($parsed['package_type_options']),
                 'orders' => count($parsed['orders']),
+                'orders_before_submit' => count($parsed['orders']),
             ],
             'warnings' => array_values(array_unique($warnings)),
             'payload_preview' => $payloadPreview,
             'orders' => $parsed['orders'],
+            'orders_before_submit' => $parsed['orders'],
             'debug_html' => $debugHtml,
         ];
 
@@ -306,12 +308,16 @@ final class PackagePrepareService
 
         $verifyParsed = self::parsePretrackHtml((string)($verifyResponse['body'] ?? ''), $tracking, $verifyPath);
         $verifyDetected = self::detectState($verifyParsed, $tracking, (string)($verifyResponse['body'] ?? ''));
-        $trackingFound = (bool)$verifyDetected['existing_tracking_found'];
+        $registeredOrder = self::findOrderByTracking((array)($verifyParsed['orders'] ?? []), $tracking);
+        $trackingFound = $registeredOrder !== null || (bool)$verifyDetected['existing_tracking_found'];
         $result['submitted'] = true;
         $result['detected_state_before_submit'] = (string)($result['detected_state'] ?? '');
+        $result['orders_after_submit'] = $verifyParsed['orders'];
+        $result['counts']['orders_after_submit'] = count((array)$verifyParsed['orders']);
         $result['verify'] = [
             'tracking_found' => $trackingFound,
             'detected_state_after_submit' => $verifyDetected['state'],
+            'registered_order' => $trackingFound ? $registeredOrder : null,
         ];
 
         if ($trackingFound) {
@@ -949,6 +955,18 @@ final class PackagePrepareService
         }
 
         return trim(mb_substr($tracking, 0, mb_strlen($tracking, 'UTF-8') - mb_strlen($clientName, 'UTF-8'), 'UTF-8'));
+    }
+
+    /** @param list<array<string, mixed>> $orders */
+    private static function findOrderByTracking(array $orders, string $tracking): ?array
+    {
+        foreach ($orders as $order) {
+            if (self::sameTracking((string)($order['tracking'] ?? ''), $tracking)) {
+                return $order;
+            }
+        }
+
+        return null;
     }
 
     private static function sameTracking(string $left, string $right): bool
