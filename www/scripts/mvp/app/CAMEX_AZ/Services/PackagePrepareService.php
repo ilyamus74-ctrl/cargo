@@ -140,6 +140,7 @@ final class PackagePrepareService
         $payloadPreview = self::buildPayloadPreview($parsed, $options, $warnings);
         $selected = self::buildSelected($payloadPreview, $parsed, $options);
         $detected = self::detectState($parsed, $tracking, $body);
+        $registeredOrder = self::findOrderByTracking((array)($parsed['orders'] ?? []), $tracking);
         $formFound = is_array($parsed['form'] ?? null) && !empty($parsed['form']['found']);
         $clientId = (string)($parsed['client']['client_id'] ?? '');
         $canSubmit = $detected['state'] === 'ready_to_add' && $formFound && $clientId !== '' && (string)($payloadPreview['track'] ?? '') !== '';
@@ -160,6 +161,7 @@ final class PackagePrepareService
             'mode' => $dryRun ? 'dry_run' : 'submit',
             'confirm_submit' => $confirmSubmit,
             'submitted' => false,
+            'already_registered' => $detected['state'] === 'already_registered',
             'prepare_mode' => $prepareMode,
             'tracking' => $tracking,
             'client_id_input' => $clientIdInput,
@@ -185,6 +187,10 @@ final class PackagePrepareService
             'debug_html' => $debugHtml,
         ];
 
+        if ($registeredOrder !== null || $detected['state'] === 'already_registered') {
+            $result['registered_order'] = $registeredOrder;
+        }
+
         if ($detected['detected_status'] !== '') {
             $result['detected_status'] = $detected['detected_status'];
         }
@@ -200,12 +206,39 @@ final class PackagePrepareService
             return $result;
         }
 
+        if (($result['detected_state'] ?? '') === 'already_registered' && !empty($result['existing_tracking_found'])) {
+            return $this->alreadyRegisteredSubmitResult($result, $registeredOrder);
+        }
+
         $validationError = $this->validateSubmitResult($result, $warnings);
         if ($validationError !== null) {
             return $validationError;
         }
 
         return $this->submitPreparedPackage($result, $debugDir, $tracking);
+    }
+
+    /** @return array<string, mixed> */
+    private function alreadyRegisteredSubmitResult(array $result, ?array $registeredOrder): array
+    {
+        $result['status'] = 'ok';
+        $result['mode'] = 'submit';
+        $result['submitted'] = false;
+        $result['already_registered'] = true;
+        $result['submit'] = null;
+        $result['registered_order'] = $registeredOrder;
+        $result['verify'] = [
+            'tracking_found' => $registeredOrder !== null || !empty($result['existing_tracking_found']),
+            'detected_state_after_submit' => 'already_registered',
+            'registered_order' => $registeredOrder,
+        ];
+
+        $this->logger->info('CAMEX package submit skipped because tracking is already registered', [
+            'tracking' => (string)($result['tracking'] ?? ''),
+            'prepare_mode' => (string)($result['prepare_mode'] ?? ''),
+        ]);
+
+        return $result;
     }
 
     /** @return array<string, mixed>|null */
