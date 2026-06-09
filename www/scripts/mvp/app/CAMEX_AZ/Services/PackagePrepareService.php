@@ -28,8 +28,9 @@ final class PackagePrepareService
     public function prepare(array $options): array
     {
         $tracking = trim((string)($options['tracking'] ?? ''));
-        $pagePath = self::normalizePath((string)($options['page_path'] ?? self::DEFAULT_PAGE_PATH), self::DEFAULT_PAGE_PATH);
         $debugDir = trim((string)($options['debug_dir'] ?? ''));
+        $requestedMode = strtolower(trim((string)($options['prepare_mode'] ?? 'auto')));
+        $warnings = [];
 
         if ($tracking === '') {
             return [
@@ -40,21 +41,65 @@ final class PackagePrepareService
             ];
         }
 
-        $response = $this->client->requestWithSession('POST', $pagePath, [
-            'pretrack' => $tracking,
-            'pretrack_flg' => '1',
-        ], true);
+        if (!in_array($requestedMode, ['auto', 'client', 'pretrack'], true)) {
+            return [
+                'status' => 'error',
+                'stage' => 'validation',
+                'message' => 'Invalid --prepare-mode. Expected auto, client, or pretrack.',
+                'tracking' => $tracking,
+                'prepare_mode' => $requestedMode,
+            ];
+        }
+
+        $clientIdInput = self::extractClientIdInput($options);
+        $prepareMode = $requestedMode === 'auto'
+            ? ($clientIdInput !== '' ? 'client' : 'pretrack')
+            : $requestedMode;
+
+        if ($prepareMode === 'client' && $clientIdInput === '') {
+            return [
+                'status' => 'error',
+                'stage' => 'validation',
+                'message' => 'Client prepare mode requires --client-id or a numeric id in --receiver-address.',
+                'tracking' => $tracking,
+                'prepare_mode' => $prepareMode,
+            ];
+        }
+
+        if ((string)($options['dry_run'] ?? '1') !== '1') {
+            $warnings[] = 'submit_not_implemented';
+        }
+
+        $pagePath = $prepareMode === 'client'
+            ? self::DEFAULT_PAGE_PATH . '&code=' . rawurlencode($clientIdInput)
+            : self::normalizePath((string)($options['page_path'] ?? self::DEFAULT_PAGE_PATH), self::DEFAULT_PAGE_PATH);
+
+        if ($prepareMode === 'client') {
+            $response = $this->client->requestWithSession('GET', $pagePath);
+            $debugFileName = '01_newaddpre_client_form.html';
+            $fetchStage = 'client_form_fetch';
+        } else {
+            $response = $this->client->requestWithSession('POST', $pagePath, [
+                'pretrack' => $tracking,
+                'pretrack_flg' => '1',
+            ], true);
+            $debugFileName = '01_newaddpre_pretrack.html';
+            $fetchStage = 'pretrack_fetch';
+        }
 
         $httpStatus = (int)($response['status_code'] ?? 0);
         $body = (string)($response['body'] ?? '');
-        $debugHtml = self::saveDebugHtml($debugDir, '01_newaddpre_pretrack.html', $body);
+        $debugHtml = self::saveDebugHtml($debugDir, $debugFileName, $body);
 
         if ($httpStatus !== 200 || empty($response['ok'])) {
             return [
                 'status' => 'error',
-                'stage' => 'pretrack_fetch',
-                'message' => (string)($response['error'] ?? 'CAMEX newaddpre pretrack request failed.'),
+                'stage' => $fetchStage,
+                'message' => (string)($response['error'] ?? 'CAMEX newaddpre request failed.'),
                 'tracking' => $tracking,
+                'prepare_mode' => $prepareMode,
+                'client_id_input' => $clientIdInput,
+                'page_path' => $pagePath,
                 'http_status' => $httpStatus,
                 'debug_html' => $debugHtml,
             ];
@@ -63,45 +108,47 @@ final class PackagePrepareService
         if (self::looksLikeLoginPage($body)) {
             return [
                 'status' => 'error',
-                'stage' => 'pretrack_fetch',
-                'message' => 'CAMEX newaddpre pretrack response looks like login page.',
+                'stage' => $fetchStage,
+                'message' => 'CAMEX newaddpre response looks like login page.',
                 'tracking' => $tracking,
+                'prepare_mode' => $prepareMode,
+                'client_id_input' => $clientIdInput,
+                'page_path' => $pagePath,
                 'http_status' => $httpStatus,
                 'debug_html' => $debugHtml,
             ];
         }
 
-        if (!self::hasExpectedNewaddpreMarkers($body)) {
+        if (!self::hasExpectedNewaddpreMarkers($body, $prepareMode)) {
             return [
                 'status' => 'error',
                 'stage' => 'parse',
                 'message' => 'CAMEX newaddpre response does not contain expected form, user, or orders markers.',
                 'tracking' => $tracking,
+                'prepare_mode' => $prepareMode,
+                'client_id_input' => $clientIdInput,
+                'page_path' => $pagePath,
                 'http_status' => $httpStatus,
                 'debug_html' => $debugHtml,
             ];
         }
 
         $parsed = self::parsePretrackHtml($body, $tracking, $pagePath);
-        $warnings = [];
         $payloadPreview = self::buildPayloadPreview($parsed, $options, $warnings);
         $selected = self::buildSelected($payloadPreview, $parsed, $options);
         $detected = self::detectState($parsed, $tracking, $body);
         $formFound = is_array($parsed['form'] ?? null) && !empty($parsed['form']['found']);
         $clientId = (string)($parsed['client']['client_id'] ?? '');
-        $trackField = (string)($parsed['form_defaults']['track'] ?? '');
-        $canSubmit = $detected['state'] === 'ready_to_add' && $formFound && $clientId !== '' && $trackField !== '';
-
-        if (!$formFound && $clientId === '' && empty($parsed['orders'])) {
-            $canSubmit = false;
-        }
+        $canSubmit = $detected['state'] === 'ready_to_add' && $formFound && $clientId !== '' && (string)($payloadPreview['track'] ?? '') !== '';
 
         $result = [
             'status' => 'ok',
             'connector' => 'CAMEX_AZ',
             'connector_id' => (int)($options['connector_id'] ?? 0),
             'mode' => 'dry_run',
+            'prepare_mode' => $prepareMode,
             'tracking' => $tracking,
+            'client_id_input' => $clientIdInput,
             'page_path' => $pagePath,
             'http_status' => $httpStatus,
             'detected_state' => $detected['state'],
@@ -128,6 +175,7 @@ final class PackagePrepareService
 
         $this->logger->info('CAMEX package prepare dry-run completed', [
             'tracking' => $tracking,
+            'prepare_mode' => $prepareMode,
             'state' => $result['detected_state'],
             'can_submit' => $result['can_submit'],
         ]);
@@ -161,7 +209,7 @@ final class PackagePrepareService
             $packageTypeOptions = self::extractSelectOptions($ordForm, $xpath, 'package_type_id');
         }
 
-        $client = self::extractClient($html, $xpath, $defaults, $form['action']);
+        $client = self::extractClient($html, $xpath, $defaults, $form['action'], $pagePath);
 
         return [
             'client' => $client,
@@ -223,7 +271,8 @@ final class PackagePrepareService
         if (array_key_exists('box_id', $options) && trim((string)$options['box_id']) !== '' && self::findOptionByValue((array)($parsed['box_options'] ?? []), (string)$options['box_id']) === null) {
             $warnings[] = 'box_id_not_found';
         }
-        if (array_key_exists('package_type_id', $options) && trim((string)$options['package_type_id']) !== '' && self::findOptionByValue((array)($parsed['package_type_options'] ?? []), (string)$options['package_type_id']) === null) {
+        $packageTypeId = trim((string)($options['package_type_id'] ?? ''));
+        if ($packageTypeId !== '' && $packageTypeId !== '0' && self::findOptionByValue((array)($parsed['package_type_options'] ?? []), $packageTypeId) === null) {
             $warnings[] = 'package_type_id_not_found';
         }
         if ((string)($payload['package_type_id'] ?? '') === '0' || (string)($payload['package_type_id'] ?? '') === '') {
@@ -242,8 +291,8 @@ final class PackagePrepareService
     /** @return array<string, string> */
     private static function buildSelected(array $payload, array $parsed, array $options): array
     {
-        $boxCode = (string)($options['box_code'] ?? '');
-        if ($boxCode === '' && (string)($payload['dim_storage'] ?? '') !== '') {
+        $boxCode = '';
+        if ((string)($payload['dim_storage'] ?? '') !== '') {
             $box = self::findOptionByValue((array)($parsed['box_options'] ?? []), (string)$payload['dim_storage']);
             $boxCode = $box !== null ? (string)$box['text'] : '';
         }
@@ -260,35 +309,31 @@ final class PackagePrepareService
     /** @return array{state: string, existing_tracking_found: bool, detected_status: string} */
     private static function detectState(array $parsed, string $tracking, string $html): array
     {
-        $existing = false;
-        $status = '';
         foreach ((array)($parsed['orders'] ?? []) as $order) {
-            if (self::sameTracking((string)($order['tracking'] ?? ''), $tracking)) {
-                $existing = true;
-                $status = (string)($order['status'] ?? '');
-                break;
+            if (!self::sameTracking((string)($order['tracking'] ?? ''), $tracking)) {
+                continue;
             }
-        }
 
-        $lowerHtml = mb_strtolower($html, 'UTF-8');
-        if ($existing || preg_match('/already\s+(registered|added)|exist(s|ing)?\s+track|tracking\s+already/i', $html) === 1) {
-            return ['state' => 'already_registered', 'existing_tracking_found' => true, 'detected_status' => $status];
-        }
-
-        foreach ((array)($parsed['orders'] ?? []) as $order) {
-            $line = mb_strtolower(((string)($order['status'] ?? '')) . ' ' . ((string)($order['flight'] ?? '')) . ' ' . ((string)($order['action_text'] ?? '')), 'UTF-8');
+            $line = mb_strtolower(
+                ((string)($order['package_status'] ?? $order['status'] ?? '')) . ' '
+                . ((string)($order['flight'] ?? '')) . ' '
+                . ((string)($order['action_text'] ?? $order['action'] ?? '')),
+                'UTF-8'
+            );
             if (str_contains($line, 'declared') || str_contains($line, 'declaration') || str_contains($line, 'box 100') || str_contains($line, 'box100')) {
-                return ['state' => 'declared_or_auto_box', 'existing_tracking_found' => false, 'detected_status' => self::cleanText($line)];
+                return ['state' => 'declared_or_auto_box', 'existing_tracking_found' => true, 'detected_status' => self::cleanText($line)];
             }
+
+            return ['state' => 'already_registered', 'existing_tracking_found' => true, 'detected_status' => (string)($order['package_status'] ?? $order['status'] ?? '')];
         }
-        if (str_contains($lowerHtml, 'declared') || str_contains($lowerHtml, 'declaration') || str_contains($lowerHtml, 'box 100') || str_contains($lowerHtml, 'box100')) {
-            return ['state' => 'declared_or_auto_box', 'existing_tracking_found' => false, 'detected_status' => 'declared_or_auto_box_marker'];
+
+        if (preg_match('/already\s+(registered|added)|exist(s|ing)?\s+track|tracking\s+already/i', $html) === 1) {
+            return ['state' => 'already_registered', 'existing_tracking_found' => true, 'detected_status' => ''];
         }
 
         $formFound = !empty($parsed['form']['found']);
         $clientId = (string)($parsed['client']['client_id'] ?? '');
-        $track = (string)($parsed['form_defaults']['track'] ?? '');
-        if ($formFound && $clientId !== '' && $track !== '') {
+        if ($formFound && $clientId !== '') {
             return ['state' => 'ready_to_add', 'existing_tracking_found' => false, 'detected_status' => ''];
         }
         if (!$formFound || $clientId === '') {
@@ -296,6 +341,21 @@ final class PackagePrepareService
         }
 
         return ['state' => 'parse_error', 'existing_tracking_found' => false, 'detected_status' => ''];
+    }
+
+    private static function extractClientIdInput(array $options): string
+    {
+        $clientId = trim((string)($options['client_id'] ?? ''));
+        if ($clientId !== '' && preg_match('/^[0-9]+$/', $clientId) === 1) {
+            return $clientId;
+        }
+
+        $receiverAddress = trim((string)($options['receiver_address'] ?? ''));
+        if ($receiverAddress !== '' && preg_match('/([0-9]+)/', $receiverAddress, $m) === 1) {
+            return (string)$m[1];
+        }
+
+        return '';
     }
 
     private static function loadDom(string $html): DOMDocument
@@ -414,7 +474,7 @@ final class PackagePrepareService
     }
 
     /** @return array<string, string> */
-    private static function extractClient(string $html, DOMXPath $xpath, array $defaults, string $formAction): array
+    private static function extractClient(string $html, DOMXPath $xpath, array $defaults, string $formAction, string $pagePath): array
     {
         $userText = '';
         $nodes = $xpath->query('//*[@id="user_info"]');
@@ -434,6 +494,8 @@ final class PackagePrepareService
         } elseif ((string)($defaults['code'] ?? '') !== '') {
             $clientId = (string)$defaults['code'];
         } elseif (preg_match('/[?&]code=([0-9]+)/i', $formAction, $m) === 1) {
+            $clientId = (string)$m[1];
+        } elseif (preg_match('/[?&]code=([0-9]+)/i', $pagePath, $m) === 1) {
             $clientId = (string)$m[1];
         }
 
@@ -465,6 +527,72 @@ final class PackagePrepareService
 
     /** @return list<array<string, mixed>> */
     private static function parseOrders(DOMXPath $xpath, string $tracking): array
+    {
+        return array_merge(
+            self::parseOrdersFromColumnRes($xpath, $tracking),
+            self::parseOrdersFromTables($xpath, $tracking)
+        );
+    }
+
+    /** @return list<array<string, mixed>> */
+    private static function parseOrdersFromColumnRes(DOMXPath $xpath, string $tracking): array
+    {
+        $orders = [];
+        $headers = $xpath->query('//h3[contains(translate(normalize-space(.), "ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz"), "orders")]');
+        if (!$headers instanceof DOMNodeList) {
+            return $orders;
+        }
+
+        foreach ($headers as $header) {
+            if (!$header instanceof DOMElement) {
+                continue;
+            }
+            $lists = $xpath->query('following-sibling::ul[contains(concat(" ", normalize-space(@class), " "), " column_res ")][1]', $header);
+            if (!$lists instanceof DOMNodeList || $lists->length === 0 || !$lists->item(0) instanceof DOMElement) {
+                continue;
+            }
+            $rows = $xpath->query('./li[position()>1]', $lists->item(0));
+            if (!$rows instanceof DOMNodeList) {
+                continue;
+            }
+            foreach ($rows as $row) {
+                if (!$row instanceof DOMElement) {
+                    continue;
+                }
+                $cells = [];
+                $cellNodes = $xpath->query('./span', $row);
+                if (!$cellNodes instanceof DOMNodeList || $cellNodes->length === 0) {
+                    continue;
+                }
+                foreach ($cellNodes as $cell) {
+                    $cells[] = self::cleanText($cell->textContent ?? '');
+                }
+                if (count($cells) < 2) {
+                    continue;
+                }
+                $order = [
+                    'number' => (string)($cells[0] ?? ''),
+                    'tracking' => (string)($cells[1] ?? ''),
+                    'package_status' => (string)($cells[2] ?? ''),
+                    'status' => (string)($cells[2] ?? ''),
+                    'weight' => (string)($cells[3] ?? ''),
+                    'price' => (string)($cells[4] ?? ''),
+                    'decl_date' => (string)($cells[5] ?? ''),
+                    'flight' => (string)($cells[6] ?? ''),
+                    'date' => (string)($cells[7] ?? ''),
+                    'action' => (string)($cells[8] ?? ''),
+                    'action_text' => (string)($cells[8] ?? ''),
+                ];
+                $order['existing_tracking_found'] = self::sameTracking($order['tracking'], $tracking);
+                $orders[] = $order;
+            }
+        }
+
+        return $orders;
+    }
+
+    /** @return list<array<string, mixed>> */
+    private static function parseOrdersFromTables(DOMXPath $xpath, string $tracking): array
     {
         $orders = [];
         $tables = $xpath->query('//table');
@@ -507,13 +635,16 @@ final class PackagePrepareService
                     continue;
                 }
                 $order = [
+                    'number' => (string)($cells[0] ?? ''),
                     'tracking' => (string)($cells[1] ?? ''),
+                    'package_status' => (string)($cells[2] ?? ''),
                     'status' => (string)($cells[2] ?? ''),
                     'weight' => (string)($cells[3] ?? ''),
                     'price' => (string)($cells[4] ?? ''),
                     'decl_date' => (string)($cells[5] ?? ''),
                     'flight' => (string)($cells[6] ?? ''),
                     'date' => (string)($cells[7] ?? ''),
+                    'action' => (string)($cells[8] ?? ''),
                     'action_text' => (string)($cells[8] ?? ''),
                 ];
                 $order['existing_tracking_found'] = self::sameTracking($order['tracking'], $tracking);
@@ -580,10 +711,17 @@ final class PackagePrepareService
         return $hasPassword && (stripos($html, 'login.php') !== false || stripos($html, 'auth=do') !== false);
     }
 
-    private static function hasExpectedNewaddpreMarkers(string $html): bool
+    private static function hasExpectedNewaddpreMarkers(string $html, string $prepareMode): bool
     {
+        if ($prepareMode === 'client') {
+            return stripos($html, 'ord_form') !== false
+                || stripos($html, 'User Detailes') !== false
+                || stripos($html, 'show_add') !== false;
+        }
+
         return stripos($html, 'action') !== false
             || stripos($html, 'User Detailes') !== false
+            || stripos($html, 'show_add') !== false
             || stripos($html, 'Orders') !== false
             || stripos($html, 'ord_form') !== false;
     }
