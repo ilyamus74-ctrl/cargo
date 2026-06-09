@@ -43,6 +43,7 @@ Options:
   --comment=TEXT                Future submit comment value.
   --debug-dir=DIR               Optional directory for debug HTML snapshots.
   --dry-run=0|1                 Always dry-run in this version (default: 1).
+  --allow-system-box=0|1        Allow BOX100 system box for diagnostics (default: 0).
   --help                        Show this help.
 TXT;
 }
@@ -177,6 +178,7 @@ $options = [
     'parfume' => camex_az_prepare_package_arg($args, 'parfume') !== '' ? camex_az_prepare_package_arg($args, 'parfume') : '0',
     'comment' => camex_az_prepare_package_arg($args, 'comment'),
     'debug_dir' => camex_az_prepare_package_arg($args, 'debug-dir'),
+    'allow_system_box' => camex_az_prepare_package_arg($args, 'allow-system-box') !== '' ? camex_az_prepare_package_arg($args, 'allow-system-box') : '0',
     'dry_run' => '1',
     'page_path' => '/cadmin/usa/index.php?do=newaddpre',
 ];

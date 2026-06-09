@@ -140,6 +140,15 @@ final class PackagePrepareService
         $formFound = is_array($parsed['form'] ?? null) && !empty($parsed['form']['found']);
         $clientId = (string)($parsed['client']['client_id'] ?? '');
         $canSubmit = $detected['state'] === 'ready_to_add' && $formFound && $clientId !== '' && (string)($payloadPreview['track'] ?? '') !== '';
+        $allowSystemBox = (string)($options['allow_system_box'] ?? '0') === '1';
+        if (self::isSystemBox100Selected($selected)) {
+            if ($allowSystemBox) {
+                $warnings[] = 'manual_registration_box100_allowed_by_override';
+            } else {
+                $warnings[] = 'manual_registration_box100_forbidden';
+                $canSubmit = false;
+            }
+        }
 
         $result = [
             'status' => 'ok',
@@ -256,12 +265,21 @@ final class PackagePrepareService
         }
 
         $boxCode = trim((string)($options['box_code'] ?? ''));
+        $boxId = trim((string)($options['box_id'] ?? ''));
         if ($boxCode !== '') {
-            $box = self::findOptionByText((array)($parsed['box_options'] ?? []), $boxCode);
+            $normalizedBoxCode = self::normalizeBoxCode($boxCode);
+            $box = self::findOptionByText((array)($parsed['box_options'] ?? []), $normalizedBoxCode);
             if ($box !== null) {
                 $payload['dim_storage'] = (string)$box['value'];
             } else {
                 $warnings[] = 'box_code_not_found';
+            }
+        } elseif ($boxId === '') {
+            $box = self::findOptionByText((array)($parsed['box_options'] ?? []), 'BOX001');
+            if ($box !== null) {
+                $payload['dim_storage'] = (string)$box['value'];
+            } else {
+                $warnings[] = 'box001_not_found';
             }
         }
 
@@ -286,6 +304,16 @@ final class PackagePrepareService
         }
 
         return $payload;
+    }
+
+    public static function normalizeBoxCode(string $boxCode): string
+    {
+        $boxCode = strtoupper(trim($boxCode));
+        if (preg_match('/^(?:BOX)?0*([0-9]+)$/', $boxCode, $matches) !== 1) {
+            return $boxCode;
+        }
+
+        return 'BOX' . str_pad((string)((int)$matches[1]), 3, '0', STR_PAD_LEFT);
     }
 
     /** @return array<string, string> */
@@ -726,11 +754,21 @@ final class PackagePrepareService
             || stripos($html, 'ord_form') !== false;
     }
 
+    /** @param array<string, string> $selected */
+    private static function isSystemBox100Selected(array $selected): bool
+    {
+        return self::normalizeBoxCode((string)($selected['box_code'] ?? '')) === 'BOX100'
+            || (string)($selected['box_id'] ?? '') === '500';
+    }
+
     /** @param list<array<string, mixed>> $options */
     private static function findOptionByText(array $options, string $text): ?array
     {
+        $cleanText = self::cleanText($text);
+        $normalizedText = self::normalizeBoxCode($cleanText);
         foreach ($options as $option) {
-            if (strcasecmp(self::cleanText((string)($option['text'] ?? '')), self::cleanText($text)) === 0) {
+            $optionText = self::cleanText((string)($option['text'] ?? ''));
+            if (strcasecmp($optionText, $cleanText) === 0 || strcasecmp(self::normalizeBoxCode($optionText), $normalizedText) === 0) {
                 return $option;
             }
         }
