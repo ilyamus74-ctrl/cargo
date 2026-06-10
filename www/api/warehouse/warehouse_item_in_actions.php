@@ -314,32 +314,63 @@ function warehouse_item_in_parse_cli_json_output(string $output): ?array
         return null;
     }
 
+    $hasRunnerResponseKeys = static function (array $parsed): bool {
+        foreach (['status', 'connector', 'mode', 'tracking', 'submitted', 'verify'] as $key) {
+            if (array_key_exists($key, $parsed)) {
+                return true;
+            }
+        }
+        return false;
+    };
+
     $parsed = json_decode($output, true);
     if (is_array($parsed)) {
         return $parsed;
     }
 
-    $lines = preg_split('/\R/', $output) ?: [];
-    for ($i = count($lines) - 1; $i >= 0; $i--) {
-        $line = trim((string)$lines[$i]);
-        if ($line === '' || substr($line, 0, 1) !== '{') {
+    $lines = preg_split('/\R/', $output);
+    if (!is_array($lines)) {
+        return null;
+    }
+
+    $decodedCandidates = [];
+    foreach ($lines as $index => $line) {
+        $trimmedLine = ltrim((string)$line);
+        if ($trimmedLine === '' || ($trimmedLine[0] !== '{' && $trimmedLine[0] !== '[')) {
             continue;
         }
-        $parsed = json_decode($line, true);
-        if (is_array($parsed)) {
-            return $parsed;
+
+        $candidate = trim(implode("\n", array_slice($lines, $index)));
+        $decoded = json_decode($candidate, true);
+        if (!is_array($decoded)) {
+            continue;
         }
+
+        if ($hasRunnerResponseKeys($decoded)) {
+            return $decoded;
+        }
+        $decodedCandidates[] = $decoded;
     }
 
-    $jsonStart = strpos($output, '{');
-    if ($jsonStart !== false) {
-        $parsed = json_decode(substr($output, $jsonStart), true);
-        if (is_array($parsed)) {
-            return $parsed;
+    for ($i = count($lines) - 1; $i >= 0; $i--) {
+        $trimmedLine = ltrim((string)$lines[$i]);
+        if ($trimmedLine === '' || ($trimmedLine[0] !== '{' && $trimmedLine[0] !== '[')) {
+            continue;
         }
+
+        $candidate = trim(implode("\n", array_slice($lines, $i)));
+        $decoded = json_decode($candidate, true);
+        if (!is_array($decoded)) {
+            continue;
+        }
+
+        if ($hasRunnerResponseKeys($decoded)) {
+            return $decoded;
+        }
+        $decodedCandidates[] = $decoded;
     }
 
-    return null;
+    return $decodedCandidates[0] ?? null;
 }
 
 function warehouse_item_in_mask_cli_output(string $output, array $args): string
