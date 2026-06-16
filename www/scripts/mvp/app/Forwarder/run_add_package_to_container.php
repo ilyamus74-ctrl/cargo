@@ -478,14 +478,21 @@ function forwarder_add_package_to_container_convert_html_to_png(string $html, fl
     return ['ok' => true, 'error' => '', 'png_base64' => base64_encode($pngBinary)];
 }
 
-function forwarder_add_package_to_container_prepare_html_for_png_capture(string $html, int $widthPx, int $heightPx): string
+function forwarder_add_package_to_container_render_fit_mode(?string $mode = null): string
+{
+    $value = strtolower(trim((string)($mode ?? (defined('PRINT_DIRECT_CUPS_RENDER_FIT_MODE') ? PRINT_DIRECT_CUPS_RENDER_FIT_MODE : 'cover'))));
+    return in_array($value, ['contain', 'cover', 'none'], true) ? $value : 'cover';
+}
+
+function forwarder_add_package_to_container_prepare_html_for_png_capture(string $html, int $widthPx, int $heightPx, string $fitMode = 'cover'): string
 {
     $targetWidth = max(300, $widthPx);
     $targetHeight = max(200, $heightPx);
+    $fitMode = forwarder_add_package_to_container_render_fit_mode($fitMode);
     $bootstrap = '<style>'
-        . 'html,body{margin:0!important;padding:0!important;width:100%!important;height:100%!important;overflow:hidden!important;background:#fff!important;}'
-        . '#__raster_frame{position:relative;width:' . $targetWidth . 'px;height:' . $targetHeight . 'px;overflow:hidden;background:#fff;}'
-        . '#__raster_content{position:absolute;left:0;top:0;transform-origin:top left;}'
+        . 'html,body{margin:0!important;padding:0!important;width:' . $targetWidth . 'px!important;height:' . $targetHeight . 'px!important;overflow:hidden!important;background:#fff!important;}'
+        . '#__raster_frame{position:relative;width:' . $targetWidth . 'px;height:' . $targetHeight . 'px;margin:0;padding:0;overflow:hidden;background:#fff;box-sizing:border-box;}'
+        . '#__raster_content{position:absolute;left:0;top:0;transform-origin:top left;box-sizing:border-box;}'
         . '</style>'
         . '<script>'
         . '(function(){'
@@ -503,7 +510,7 @@ function forwarder_add_package_to_container_prepare_html_for_png_capture(string 
         . 'var tw=' . $targetWidth . ';var th=' . $targetHeight . ';'
         . 'var cw=Math.max(content.scrollWidth,content.offsetWidth,1);'
         . 'var ch=Math.max(content.scrollHeight,content.offsetHeight,1);'
-        . 'var scale=Math.min(tw/cw,th/ch);'
+        . 'var mode=' . json_encode($fitMode) . ';var scale=mode==="cover"?Math.max(tw/cw,th/ch):(mode==="contain"?Math.min(tw/cw,th/ch):1);'
         . 'if(!isFinite(scale)||scale<=0){scale=1;}'
         . 'content.style.transform="scale("+scale+")";'
         . '}'

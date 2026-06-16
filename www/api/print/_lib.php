@@ -202,8 +202,12 @@ function print_direct_cups_send(array $job): array
         if ($finalWidthMm !== null && $finalHeightMm !== null) {
             $options[] = '-o ' . escapeshellarg('media=Custom.' . $finalWidthMm . 'x' . $finalHeightMm . 'mm');
         }
-        $options[] = '-o ' . escapeshellarg('print-scaling=' . $printScaling);
-        foreach (['fit-to-page', 'position=center', 'page-left=0', 'page-right=0', 'page-top=0', 'page-bottom=0'] as $option) {
+        if ($printScaling === 'fill') {
+            $options[] = '-o ' . escapeshellarg('print-scaling=fill');
+        } elseif ($printScaling === 'fit') {
+            $options[] = '-o ' . escapeshellarg('print-scaling=fit');
+        }
+        foreach (['position=center', 'page-left=0', 'page-right=0', 'page-top=0', 'page-bottom=0'] as $option) {
             $options[] = '-o ' . escapeshellarg($option);
         }
         if ($finalWidthCm > 0 && $finalHeightCm > 0) {
