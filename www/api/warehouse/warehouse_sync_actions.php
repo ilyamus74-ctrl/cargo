@@ -4302,10 +4302,13 @@ if ($action === 'open_connector_label_template_print_preview') {
         return;
     }
 
+    $previewWarnings = [];
     if ($labelWidthCm < 2.0 || $labelWidthCm > 30.0) {
+        $previewWarnings[] = 'label_width_cm выглядит некорректно; для HTML preview использовано 10 cm.';
         $labelWidthCm = 10.0;
     }
     if ($labelHeightCm < 2.0 || $labelHeightCm > 30.0) {
+        $previewWarnings[] = 'label_height_cm выглядит некорректно; для HTML preview использовано 15 cm.';
         $labelHeightCm = 15.0;
     }
     if (!in_array($printRotate, [0, 90, 180, 270], true)) {
@@ -4327,7 +4330,7 @@ if ($action === 'open_connector_label_template_print_preview') {
         'printable_html' => $printableHtml,
         'validation_status' => (string)($check['status'] ?? 'ok'),
         'validation_errors' => $check['errors'] ?? [],
-        'validation_warnings' => $check['warnings'] ?? [],
+        'validation_warnings' => array_merge($check['warnings'] ?? [], $previewWarnings),
         'label_width_cm' => $labelWidthCm,
         'label_height_cm' => $labelHeightCm,
         'print_rotate' => $printRotate,
@@ -4336,7 +4339,7 @@ if ($action === 'open_connector_label_template_print_preview') {
             'printable_size' => strlen($printableHtml),
             'validation_status' => (string)($check['status'] ?? 'ok'),
             'validation_errors' => $check['errors'] ?? [],
-            'validation_warnings' => $check['warnings'] ?? [],
+            'validation_warnings' => array_merge($check['warnings'] ?? [], $previewWarnings),
             'label_width_cm' => $labelWidthCm,
             'label_height_cm' => $labelHeightCm,
             'final_width_mm' => $finalWidthMm,

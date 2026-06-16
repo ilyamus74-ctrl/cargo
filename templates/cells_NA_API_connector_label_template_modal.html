@@ -107,6 +107,9 @@
                    name="label_height_cm"
                    value="{$template.label_height_cm|default:15|escape:'htmlattr'}">
           </div>
+          <div class="col-12">
+            <div class="form-text">Для физической этикетки 10 x 15 cm используйте width=10, height=15. В HTML preview должен быть размер 100 x 150 mm. В print dialog выберите 4 x 6 / 100 x 150 mm.</div>
+          </div>
         </div>
         <div class="border rounded p-2 bg-light" style="min-height: 420px; max-height: 620px; overflow: auto;">
           <div id="connector-label-template-preview" class="small">{$template.preview_html|default:'<span class="text-muted">Предпросмотр пока пуст</span>' nofilter}</div>
