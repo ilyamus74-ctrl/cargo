@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-06-16 14:49:17
+/* Smarty version 5.3.1, created on 2026-06-16 15:27:34
   from 'file:cells_NA_API_connector_label_template_modal.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_6a31626dd13382_87423479',
+  'unifunc' => 'content_6a316b667f3b66_26255185',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '837d386e7f61a5e4cbaacc48d56efa349bdf1327' => 
     array (
       0 => 'cells_NA_API_connector_label_template_modal.html',
-      1 => 1781621137,
+      1 => 1781623532,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_6a31626dd13382_87423479 (\Smarty\Template $_smarty_tpl) {
+function content_6a316b667f3b66_26255185 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?><form id="connector-label-template-form">
   <input type="hidden" name="connector_id" value="<?php echo $_smarty_tpl->getSmarty()->getModifierCallback('escape')((($tmp = $_smarty_tpl->getValue('connector')['id'] ?? null)===null||$tmp==='' ? 0 ?? null : $tmp), 'htmlattr');?>
@@ -201,6 +201,7 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
       <button type="button" class="btn btn-outline-info js-core-link" data-core-action="test_print_connector_label_template">
         Тест печати шаблона
       </button>
+      <span class="form-text align-self-center">Основная печать выполняется через браузер. Выберите Zebra-ZPL-Label, Paper 4 x 6 / 100 x 150 mm, Scale 100%, Margins None.</span>
     </div>
     <button type="button" class="btn btn-primary js-core-link" data-core-action="save_connector_label_template">
       Сохранить шаблон
