@@ -140,8 +140,10 @@ function print_direct_cups_send(array $job): array
 {
     $cupsHost = trim((string)(defined('PRINT_DIRECT_CUPS_HOST') ? PRINT_DIRECT_CUPS_HOST : ''));
     $cupsQueue = trim((string)(defined('PRINT_DIRECT_CUPS_QUEUE') ? PRINT_DIRECT_CUPS_QUEUE : ''));
-    $labelWidthCm = isset($job['label_width_cm']) ? (float)$job['label_width_cm'] : 0.0;
-    $labelHeightCm = isset($job['label_height_cm']) ? (float)$job['label_height_cm'] : 0.0;
+    $paperWidthMm = isset($job['print_paper_width_mm']) ? (float)$job['print_paper_width_mm'] : 0.0;
+    $paperHeightMm = isset($job['print_paper_height_mm']) ? (float)$job['print_paper_height_mm'] : 0.0;
+    $labelWidthCm = $paperWidthMm > 0 ? ($paperWidthMm / 10) : (isset($job['label_width_cm']) ? (float)$job['label_width_cm'] : 0.0);
+    $labelHeightCm = $paperHeightMm > 0 ? ($paperHeightMm / 10) : (isset($job['label_height_cm']) ? (float)$job['label_height_cm'] : 0.0);
     $rotate = isset($job['rotate']) ? (int)$job['rotate'] : 0;
     if (!in_array($rotate, [0, 90, 180, 270], true)) {
         $rotate = 0;
@@ -168,6 +170,7 @@ function print_direct_cups_send(array $job): array
         'final_height_mm' => $finalHeightMm,
         'cups_media_mm' => ($finalWidthMm !== null && $finalHeightMm !== null) ? ($finalWidthMm . 'x' . $finalHeightMm) : '',
         'rotate' => $rotate,
+        'cups_rotate_applied' => false,
         'print_scaling' => $printScaling,
         'raw_mode' => false,
         'file_suffix' => '',
@@ -204,12 +207,8 @@ function print_direct_cups_send(array $job): array
             $options[] = '-o ' . escapeshellarg('media=Custom.' . $finalWidthMm . 'x' . $finalHeightMm . 'mm');
         }
         $options[] = '-o ' . escapeshellarg('print-scaling=' . $printScaling);
-        foreach (['fit-to-page', 'position=center', 'page-left=0', 'page-right=0', 'page-top=0', 'page-bottom=0'] as $option) {
+        foreach (['position=center', 'page-left=0', 'page-right=0', 'page-top=0', 'page-bottom=0'] as $option) {
             $options[] = '-o ' . escapeshellarg($option);
-        }
-        if ($finalWidthCm > 0 && $finalHeightCm > 0) {
-            $orientation = $finalWidthCm >= $finalHeightCm ? 4 : 3;
-            $options[] = '-o ' . escapeshellarg('orientation-requested=' . $orientation);
         }
     }
 

@@ -2360,21 +2360,28 @@ if (!function_exists('warehouse_sync_queue_print_preview')) {
         $labelBase64 = '';
         $renderEngine = '';
         $renderMessage = '';
+        $composeDiagnostics = [];
         $fileName = 'connector_label_preview_' . gmdate('Ymd_His') . '.pdf';
 
         $renderProfile = warehouse_sync_label_render_profile_from_array($renderProfile);
-        $renderWidthCm = ((float)$renderProfile['render_width_mm']) / 10;
-        $renderHeightCm = ((float)$renderProfile['render_height_mm']) / 10;
-        $paperWidthCm = ((float)$renderProfile['print_paper_width_mm']) / 10;
-        $paperHeightCm = ((float)$renderProfile['print_paper_height_mm']) / 10;
-        $renderRotate = (int)$renderProfile['render_rotate'];
+        $printProfile = warehouse_sync_build_print_profile_from_template($renderProfile);
+        $renderWidthCm = ((float)$printProfile['render_width_mm']) / 10;
+        $renderHeightCm = ((float)$printProfile['render_height_mm']) / 10;
+        $paperWidthCm = ((float)$printProfile['paper_width_mm']) / 10;
+        $paperHeightCm = ((float)$printProfile['paper_height_mm']) / 10;
+        $renderRotate = (int)$printProfile['render_rotate'];
         $preferRaster = (bool)$preferRasterImage;
         if ($preferRaster) {
             $renderPng = warehouse_sync_preview_html_to_png_base64($previewHtml, $renderWidthCm, $renderHeightCm);
-            $labelBase64 = (string)($renderPng['png_base64'] ?? '');
+            $intermediatePngBase64 = (string)($renderPng['png_base64'] ?? '');
             $renderEngine = 'html-to-png';
             $renderMessage = trim((string)($renderPng['error'] ?? ''));
-            if ($labelBase64 !== '') {
+            if ($intermediatePngBase64 !== '') {
+                $composed = warehouse_sync_compose_physical_png_base64($intermediatePngBase64, $printProfile);
+                $composeDiagnostics = is_array($composed['diagnostics'] ?? null) ? $composed['diagnostics'] : [];
+                $labelBase64 = (string)($composed['png_base64'] ?? '');
+                $renderEngine = 'html-to-png+physical-compose';
+                $renderMessage = trim($renderMessage . ' ' . (string)($composed['error'] ?? ''));
                 $fileName = 'connector_label_preview_' . gmdate('Ymd_His') . '.png';
             }
         }
@@ -2396,11 +2403,13 @@ if (!function_exists('warehouse_sync_queue_print_preview')) {
             'created_at' => gmdate('c'),
             'file_name' => $fileName,
             'label_base64' => $labelBase64,
-            'rotate' => $renderRotate,
+            'rotate' => 0,
             'label_width_cm' => $paperWidthCm,
             'label_height_cm' => $paperHeightCm,
-            'render_width_mm' => $renderProfile['render_width_mm'],
-            'render_height_mm' => $renderProfile['render_height_mm'],
+            'render_width_mm' => $printProfile['render_width_mm'],
+            'render_height_mm' => $printProfile['render_height_mm'],
+            'print_paper_width_mm' => $printProfile['paper_width_mm'],
+            'print_paper_height_mm' => $printProfile['paper_height_mm'],
         ];
         if (function_exists('print_direct_cups_enabled') && function_exists('print_direct_cups_send') && print_direct_cups_enabled()) {
             $direct = print_direct_cups_send($job);
@@ -2411,6 +2420,7 @@ if (!function_exists('warehouse_sync_queue_print_preview')) {
                 'job_id' => $jobId,
                 'render_engine' => $renderEngine,
                 'render_message' => $renderMessage,
+                'compose_diagnostics' => $composeDiagnostics,
                 'direct' => $direct,
             ];
         }
@@ -2563,6 +2573,98 @@ if (!function_exists('warehouse_sync_label_render_defaults')) {
         $profile['render_fit_mode'] = in_array($fitMode, ['contain', 'cover', 'none'], true) ? $fitMode : 'contain';
         $profile['render_css_override'] = ((string)($source['render_css_override'] ?? $profile['render_css_override']) === '0') ? 0 : 1;
         return $profile;
+    }
+
+    function warehouse_sync_build_print_profile_from_template(array $template, array $post = []): array
+    {
+        $source = array_merge($template, $post);
+        $profile = warehouse_sync_label_render_profile_from_array($source);
+
+        return [
+            'paper_width_mm' => (float)$profile['print_paper_width_mm'],
+            'paper_height_mm' => (float)$profile['print_paper_height_mm'],
+            'render_width_mm' => (float)$profile['render_width_mm'],
+            'render_height_mm' => (float)$profile['render_height_mm'],
+            'render_rotate' => (int)$profile['render_rotate'],
+            'layout_mode' => (string)$profile['render_layout_mode'],
+            'css_override' => (bool)$profile['render_css_override'],
+            'fit_mode' => (string)$profile['render_fit_mode'],
+            'scale_percent' => (float)$profile['render_scale_percent'],
+            'offset_x_mm' => (float)$profile['render_offset_x_mm'],
+            'offset_y_mm' => (float)$profile['render_offset_y_mm'],
+        ];
+    }
+}
+
+if (!function_exists('warehouse_sync_compose_physical_png_base64')) {
+    function warehouse_sync_compose_physical_png_base64(string $intermediatePngBase64, array $printProfile, int $dpi = 203): array
+    {
+        $binary = base64_decode($intermediatePngBase64, true);
+        if (!is_string($binary) || $binary === '') {
+            return ['ok' => false, 'error' => 'intermediate png is empty', 'png_base64' => '', 'diagnostics' => []];
+        }
+        if (!function_exists('imagecreatefromstring')) {
+            return ['ok' => false, 'error' => 'GD extension is required to compose physical raster', 'png_base64' => '', 'diagnostics' => []];
+        }
+
+        $src = @imagecreatefromstring($binary);
+        if (!$src) {
+            return ['ok' => false, 'error' => 'failed to decode intermediate png', 'png_base64' => '', 'diagnostics' => []];
+        }
+
+        $rotate = (int)($printProfile['render_rotate'] ?? 0);
+        if (in_array($rotate, [90, 180, 270], true)) {
+            $src = imagerotate($src, 360 - $rotate, 0);
+        }
+        imagealphablending($src, true);
+        imagesavealpha($src, true);
+
+        $srcW = imagesx($src);
+        $srcH = imagesy($src);
+        $paperWmm = max(1.0, (float)($printProfile['paper_width_mm'] ?? 100.0));
+        $paperHmm = max(1.0, (float)($printProfile['paper_height_mm'] ?? 150.0));
+        $dstW = max(1, (int)round(($paperWmm / 25.4) * $dpi));
+        $dstH = max(1, (int)round(($paperHmm / 25.4) * $dpi));
+
+        $dst = imagecreatetruecolor($dstW, $dstH);
+        $white = imagecolorallocate($dst, 255, 255, 255);
+        imagefilledrectangle($dst, 0, 0, $dstW, $dstH, $white);
+
+        $fitMode = (string)($printProfile['fit_mode'] ?? 'contain');
+        $scale = max(1.0, (float)($printProfile['scale_percent'] ?? 100.0)) / 100.0;
+        $ratioX = $dstW / max(1, $srcW);
+        $ratioY = $dstH / max(1, $srcH);
+        $fitRatio = $fitMode === 'cover' ? max($ratioX, $ratioY) : ($fitMode === 'none' ? 1.0 : min($ratioX, $ratioY));
+        $copyW = max(1, (int)round($srcW * $fitRatio * $scale));
+        $copyH = max(1, (int)round($srcH * $fitRatio * $scale));
+        $offsetX = (int)round(((float)($printProfile['offset_x_mm'] ?? 0.0) / 25.4) * $dpi);
+        $offsetY = (int)round(((float)($printProfile['offset_y_mm'] ?? 0.0) / 25.4) * $dpi);
+        $dstX = (int)round(($dstW - $copyW) / 2) + $offsetX;
+        $dstY = (int)round(($dstH - $copyH) / 2) + $offsetY;
+
+        imagecopyresampled($dst, $src, $dstX, $dstY, 0, 0, $copyW, $copyH, $srcW, $srcH);
+        ob_start();
+        imagepng($dst);
+        $png = (string)ob_get_clean();
+        imagedestroy($src);
+        imagedestroy($dst);
+
+        $paperAspect = $paperWmm / $paperHmm;
+        $finalAspect = $dstW / $dstH;
+        $warning = abs($paperAspect - $finalAspect) > 0.01 ? 'final raster aspect does not match CUPS media' : '';
+
+        return [
+            'ok' => $png !== '',
+            'error' => $png !== '' ? '' : 'failed to encode final png',
+            'png_base64' => base64_encode($png),
+            'diagnostics' => [
+                'intermediate_png_width_px' => $srcW,
+                'intermediate_png_height_px' => $srcH,
+                'final_png_width_px' => $dstW,
+                'final_png_height_px' => $dstH,
+                'final_raster_aspect_warning' => $warning,
+            ],
+        ];
     }
 }
 
@@ -4568,10 +4670,11 @@ if ($action === 'test_print_connector_label_template') {
     $templateBody = (string)($_POST['template_body'] ?? '');
     $testTrack = trim((string)($_POST['test_track'] ?? 'TEST-TRACK-0001'));
     $printDeviceKey = trim((string)($_POST['print_device_key'] ?? ''));
-    $printRotate = (int)($_POST['print_rotate'] ?? 0);
     $labelWidthCm = (float)($_POST['label_width_cm'] ?? 10);
     $labelHeightCm = (float)($_POST['label_height_cm'] ?? 15);
+    $printRotate = 0;
     $renderProfile = warehouse_sync_label_render_profile_from_array($_POST);
+    $profileSource = 'post_print_profile';
     $previewRasterizeRaw = strtolower(trim((string)($_POST['preview_rasterize'] ?? '1')));
     $preferRasterImage = in_array($previewRasterizeRaw, ['1', 'true', 'yes', 'on'], true);
     if (!in_array($printRotate, [0, 90, 180, 270], true)) {
@@ -4591,6 +4694,12 @@ if ($action === 'test_print_connector_label_template') {
         $response = ['status' => 'error', 'message' => 'Коннектор не найден'];
         return;
     }
+    $savedTemplate = warehouse_sync_resolve_label_template_code($dbcnx, $connector);
+    if (!empty($savedTemplate['template_body'])) {
+        $renderProfile = warehouse_sync_label_render_profile_from_array($savedTemplate);
+        $profileSource = 'saved_template_print_profile';
+    }
+    $printProfile = warehouse_sync_build_print_profile_from_template($renderProfile);
 
 
     try {
@@ -4613,11 +4722,11 @@ if ($action === 'test_print_connector_label_template') {
         }
 
         $previewHtml = warehouse_sync_label_template_preview_html($templateBody, $connectorId, $labelWidthCm, $labelHeightCm, true, false);
-        $previewPdfRender = warehouse_sync_preview_html_to_pdf_base64($previewHtml, ((float)$renderProfile['render_width_mm']) / 10, ((float)$renderProfile['render_height_mm']) / 10, (int)$renderProfile['render_rotate']);
+        $previewPdfRender = warehouse_sync_preview_html_to_pdf_base64($previewHtml, ((float)$printProfile['render_width_mm']) / 10, ((float)$printProfile['render_height_mm']) / 10, (int)$printProfile['render_rotate']);
         $previewPdfBase64 = (string)($previewPdfRender['pdf_base64'] ?? '');
         if ($previewPdfBase64 === '') {
             $previewPdfBase64 = base64_encode(
-                warehouse_sync_preview_html_to_simple_pdf($previewHtml, (int)$renderProfile['render_rotate'], ((float)$renderProfile['render_width_mm']) / 10, ((float)$renderProfile['render_height_mm']) / 10)
+                warehouse_sync_preview_html_to_simple_pdf($previewHtml, (int)$printProfile['render_rotate'], ((float)$printProfile['render_width_mm']) / 10, ((float)$printProfile['render_height_mm']) / 10)
             );
         }
 
@@ -4625,13 +4734,16 @@ if ($action === 'test_print_connector_label_template') {
         $previewLabelBase64 = $previewPdfBase64;
         $previewLabelMime = 'application/pdf';
         $previewRenderEngine = $previewPdfBase64 === (string)($previewPdfRender['pdf_base64'] ?? '') ? 'html-to-pdf' : 'simple-pdf-fallback';
+        $composeDiagnostics = [];
         if ($preferRasterImage) {
-            $previewImageRender = warehouse_sync_preview_html_to_png_base64($previewHtml, ((float)$renderProfile['render_width_mm']) / 10, ((float)$renderProfile['render_height_mm']) / 10);
+            $previewImageRender = warehouse_sync_preview_html_to_png_base64($previewHtml, ((float)$printProfile['render_width_mm']) / 10, ((float)$printProfile['render_height_mm']) / 10);
             $previewPngBase64 = (string)($previewImageRender['png_base64'] ?? '');
             if ($previewPngBase64 !== '') {
-                $previewLabelBase64 = $previewPngBase64;
+                $composedPreview = warehouse_sync_compose_physical_png_base64($previewPngBase64, $printProfile);
+                $composeDiagnostics = is_array($composedPreview['diagnostics'] ?? null) ? $composedPreview['diagnostics'] : [];
+                $previewLabelBase64 = (string)($composedPreview['png_base64'] ?? $previewPngBase64);
                 $previewLabelMime = 'image/png';
-                $previewRenderEngine = 'html-to-png';
+                $previewRenderEngine = 'html-to-png+physical-compose';
             }
         }
         $printResult = ['status' => 'skipped', 'message' => 'Отправка на принтер не запрошена'];
@@ -4639,9 +4751,9 @@ if ($action === 'test_print_connector_label_template') {
             $printResult = warehouse_sync_queue_print_preview(
                 $printDeviceKey,
                 $previewHtml,
-                $printRotate,
-                $labelWidthCm,
-                $labelHeightCm,
+                0,
+                ((float)$printProfile['paper_width_mm']) / 10,
+                ((float)$printProfile['paper_height_mm']) / 10,
                 (bool)$preferRasterImage,
                 $renderProfile
             );
@@ -4682,13 +4794,24 @@ if ($action === 'test_print_connector_label_template') {
                 'preview_render_engine' => $previewRenderEngine,
                 'print_device_key' => $printDeviceKey,
                 'preview_rasterize' => $preferRasterImage ? 1 : 0,
-                'print_rotate' => $printRotate,
-                'label_width_cm' => $labelWidthCm,
-                'label_height_cm' => $labelHeightCm,
+                'source_profile' => $profileSource,
+                'paper_width_mm' => $printProfile['paper_width_mm'],
+                'paper_height_mm' => $printProfile['paper_height_mm'],
+                'render_width_mm' => $printProfile['render_width_mm'],
+                'render_height_mm' => $printProfile['render_height_mm'],
+                'render_rotate' => $printProfile['render_rotate'],
+                'layout_mode' => $printProfile['layout_mode'],
+                'css_override' => $printProfile['css_override'],
+                'fit_mode' => $printProfile['fit_mode'],
+                'scale_percent' => $printProfile['scale_percent'],
+                'offset_x_mm' => $printProfile['offset_x_mm'],
+                'offset_y_mm' => $printProfile['offset_y_mm'],
+                'cups_media_mm' => rtrim(rtrim(number_format((float)$printProfile['paper_width_mm'], 2, '.', ''), '0'), '.') . 'x' . rtrim(rtrim(number_format((float)$printProfile['paper_height_mm'], 2, '.', ''), '0'), '.'),
+                'cups_rotate_applied' => false,
                 'print_status' => (string)($printResult['status'] ?? ''),
                 'print_job_id' => (string)($printResult['job_id'] ?? ''),
                 'print_message' => (string)($printResult['message'] ?? ''),
-            ], $directDiagnostics),
+            ], $composeDiagnostics, $directDiagnostics),
         ];
         audit_log($userId, 'CONNECTOR_LABEL_TEMPLATE_TEST_PRINT', 'connectors', $connectorId, 'Тест печати шаблона выполнен', [
             'connector_id' => $connectorId,
