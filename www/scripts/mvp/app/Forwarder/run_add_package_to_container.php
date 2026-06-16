@@ -963,7 +963,7 @@ $countryDestRaw = match ($countryDestNorm) {
 
 
     $templateBody = trim($labelTemplateBody) !== '' ? $labelTemplateBody : $defaultTemplate;
-    $html = forwarder_add_package_to_container_render_template_html($templateBody, [
+    $labelVars = [
         'track' => $trackSafe,
         'client' => $client,
         'client_name' => $client,
@@ -988,7 +988,8 @@ $countryDestRaw = match ($countryDestNorm) {
         'qr_img_html' => $qrImg,
         'consignee_phone' => $consigneePhone,
         'total_invoice_price' => $totalWaybillInvoicePrice,
-    ]);
+    ];
+    $html = forwarder_add_package_to_container_render_template_html($templateBody, $labelVars);
 
     if ($returnLabelHtml) {
         return [
@@ -1002,6 +1003,7 @@ $countryDestRaw = match ($countryDestNorm) {
             'template_code' => $templateCode,
             'printable_html' => $html,
             'generated_waybill_html' => $html,
+            'label_vars' => $labelVars,
         ];
     }
 
@@ -1017,6 +1019,7 @@ $countryDestRaw = match ($countryDestNorm) {
                 'qr_url' => $qrUrl,
                 'render_engine' => 'html-to-png',
                 'template_code' => $templateCode,
+                    'label_vars' => $labelVars,
             ];
         }
     }
@@ -1032,6 +1035,7 @@ $countryDestRaw = match ($countryDestNorm) {
             'qr_url' => $qrUrl,
             'render_engine' => 'wkhtmltopdf',
             'template_code' => $templateCode,
+            'label_vars' => $labelVars,
         ];
     }
     $fallbackLines = [
@@ -1267,7 +1271,8 @@ $printDeviceKey = forwarder_add_package_to_container_arg($args, 'print-device-ke
 $printFileName = forwarder_add_package_to_container_arg($args, 'print-file-name', 'print_file_name');
 $labelBase64Arg = forwarder_add_package_to_container_arg($args, 'label-base64', 'label_base64');
 $printModeArg = strtolower(str_replace('_', '-', forwarder_add_package_to_container_arg($args, 'print-mode', 'print_mode')));
-$returnLabelHtml = forwarder_add_package_to_container_as_bool(forwarder_add_package_to_container_arg($args, 'return-label-html', 'return_label_html')) || $printModeArg === 'browser-html';
+$returnLabelHtml = forwarder_add_package_to_container_as_bool(forwarder_add_package_to_container_arg($args, 'return-label-html', 'return_label_html')) || $printModeArg === 'browser-html' || $printModeArg === 'zpl-raw';
+$returnLabelVars = forwarder_add_package_to_container_as_bool(forwarder_add_package_to_container_arg($args, 'return-label-vars', 'return_label_vars'));
 
 $printLabelRetries = max(0, forwarder_add_package_to_container_as_int(
     forwarder_add_package_to_container_arg($args, 'print-label-retries', 'print_label_retries'),
@@ -1623,7 +1628,7 @@ if ($printRequested) {
         $printResponsePayload = [
             'ok' => $returnLabelHtml,
             'status' => $returnLabelHtml ? 'ready_for_browser_print' : 'skipped',
-            'print_mode' => $returnLabelHtml ? 'browser_html' : 'direct_cups_legacy',
+            'print_mode' => $printModeArg === 'zpl-raw' ? 'zpl_raw' : ($returnLabelHtml ? 'browser_html' : 'direct_cups_legacy'),
             'http_status' => 0,
             'error' => 'print skipped: require successful add-flow, print-token, selected device and html/base64 label (url-label only with --allow-label-url=1)',
             'response' => null,
@@ -1687,10 +1692,11 @@ $result = [
     'render_rotate' => $renderRotate,
     'print_allow_label_url' => $allowLabelUrl,
     'print_rasterize' => $printRasterize ? 1 : 0,
-    'print_mode' => $returnLabelHtml ? 'browser_html' : 'direct_cups_legacy',
-    'print_status' => $returnLabelHtml ? 'ready_for_browser_print' : (string)($printResponsePayload['status'] ?? ''),
-    'printable_html' => $returnLabelHtml ? (string)($generatedWaybill['printable_html'] ?? '') : '',
-    'generated_waybill_html' => $returnLabelHtml ? (string)($generatedWaybill['generated_waybill_html'] ?? '') : '',
+    'print_mode' => $printModeArg === 'zpl-raw' ? 'zpl_raw' : ($returnLabelHtml ? 'browser_html' : 'direct_cups_legacy'),
+    'print_status' => $printModeArg === 'zpl-raw' ? 'label_vars_ready' : ($returnLabelHtml ? 'ready_for_browser_print' : (string)($printResponsePayload['status'] ?? '')),
+    'printable_html' => ($returnLabelHtml && $printModeArg !== 'zpl-raw') ? (string)($generatedWaybill['printable_html'] ?? '') : '',
+    'generated_waybill_html' => ($returnLabelHtml && $printModeArg !== 'zpl-raw') ? (string)($generatedWaybill['generated_waybill_html'] ?? '') : '',
+    'label_vars' => $returnLabelVars ? (array)($generatedWaybill['label_vars'] ?? []) : [],
 ];
 
 

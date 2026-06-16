@@ -6,6 +6,26 @@ require_once __DIR__ . '/../system/system_tasks_lib.php';
 require_once __DIR__ . '/../connectors/subrunners/connector_modules.php';
 
 
+if (!defined('PRINT_LABEL_PRODUCTION_MODE')) {
+    define('PRINT_LABEL_PRODUCTION_MODE', 'zpl_raw');
+}
+if (!defined('PRINT_ZPL_TRANSPORT')) {
+    define('PRINT_ZPL_TRANSPORT', 'cups');
+}
+if (!defined('PRINT_ZPL_CUPS_HOST')) {
+    define('PRINT_ZPL_CUPS_HOST', '10.0.1.7');
+}
+if (!defined('PRINT_ZPL_CUPS_QUEUE')) {
+    define('PRINT_ZPL_CUPS_QUEUE', 'Zebra_Technologies_ZTC_ZT230-200dpi_ZPL');
+}
+if (!defined('PRINT_ZPL_SOCKET_HOST')) {
+    define('PRINT_ZPL_SOCKET_HOST', '127.0.0.1');
+}
+if (!defined('PRINT_ZPL_SOCKET_PORT')) {
+    define('PRINT_ZPL_SOCKET_PORT', 9100);
+}
+
+
 if (!function_exists('warehouse_sync_normalize_key')) {
     function warehouse_sync_normalize_key(string $value): string
     {
@@ -2880,6 +2900,140 @@ if (!function_exists('warehouse_sync_label_template_sample_vars')) {
     }
 }
 
+
+if (!function_exists('warehouse_sync_label_var')) {
+    function warehouse_sync_label_var(array $vars, string $key, string $default = ''): string
+    {
+        if (array_key_exists($key, $vars)) {
+            return trim((string)$vars[$key]);
+        }
+        $wrapped = '{{' . $key . '}}';
+        if (array_key_exists($wrapped, $vars)) {
+            return trim((string)$vars[$wrapped]);
+        }
+        return $default;
+    }
+}
+
+if (!function_exists('warehouse_sync_zpl_text')) {
+    function warehouse_sync_zpl_text(string $value, int $maxLength = 80): string
+    {
+        $value = html_entity_decode(strip_tags($value), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $value = preg_replace('/\s+/u', ' ', trim($value)) ?? trim($value);
+        $value = str_replace(['^', '~'], [' ', ' '], $value);
+        if ($maxLength > 0 && function_exists('mb_substr')) {
+            $value = mb_substr($value, 0, $maxLength, 'UTF-8');
+        } elseif ($maxLength > 0) {
+            $value = substr($value, 0, $maxLength);
+        }
+        return $value;
+    }
+}
+
+if (!function_exists('warehouse_sync_render_waybill_zpl')) {
+    function warehouse_sync_render_waybill_zpl(array $vars, array $profile = []): string
+    {
+        $track = warehouse_sync_label_var($vars, 'track', 'TEST-TRACK-0001');
+        $clientName = warehouse_sync_label_var($vars, 'client_name', warehouse_sync_label_var($vars, 'client', ''));
+        $clientCode = warehouse_sync_label_var($vars, 'client_code');
+        $clientId = warehouse_sync_label_var($vars, 'client_id');
+        $internalId = warehouse_sync_label_var($vars, 'internal_id', $track);
+        $weight = warehouse_sync_label_var($vars, 'weight', '0.000');
+        $amount = warehouse_sync_label_var($vars, 'amount', '0.00');
+        $forwardName = warehouse_sync_label_var($vars, 'forward_name', 'Forwarder');
+        $countryDest = warehouse_sync_label_var($vars, 'country_dest', '');
+        $flightDeparture = warehouse_sync_label_var($vars, 'flight_departure', '');
+        $flightDestination = warehouse_sync_label_var($vars, 'flight_destination', '');
+        $flightName = warehouse_sync_label_var($vars, 'flight_name', '');
+        $phone = warehouse_sync_label_var($vars, 'consignee_phone', warehouse_sync_label_var($vars, 'client_phone', ''));
+        $address = warehouse_sync_label_var($vars, 'client_address', '');
+        $volumeWeight = warehouse_sync_label_var($vars, 'volume_weight', '0.000');
+        $description = warehouse_sync_label_var($vars, 'description', '');
+        $category = warehouse_sync_label_var($vars, 'category', '');
+        $invoiceUsd = warehouse_sync_label_var($vars, 'invoice_usd', '0.00');
+        $totalInvoice = warehouse_sync_label_var($vars, 'total_invoice_price', '0.00');
+
+        $barcodeValue = warehouse_sync_zpl_text($internalId !== '' ? $internalId : $track, 48);
+        $lines = [
+            '^XA',
+            '^CI28',
+            '^PW800',
+            '^LL1200',
+            '^LH0,0',
+            '^FO20,20^GB760,1160,3^FS',
+            '^FO40,45^A0N,58,58^FDWAYBILL^FS',
+            '^FO520,42^A0N,28,28^FD' . warehouse_sync_zpl_text($forwardName, 24) . '^FS',
+            '^FO40,115^GB720,2,2^FS',
+            '^FO40,140^A0N,28,28^FDTRACK^FS',
+            '^FO160,132^A0N,42,42^FD' . warehouse_sync_zpl_text($track, 34) . '^FS',
+            '^FO40,205^BY3,2,110^BCN,110,Y,N,N^FD' . $barcodeValue . '^FS',
+            '^FO40,350^GB720,2,2^FS',
+            '^FO40,375^A0N,24,24^FDFROM / SHIPPER^FS',
+            '^FO40,410^A0N,31,31^FD' . warehouse_sync_zpl_text(trim($clientName . ' ' . $clientCode), 38) . '^FS',
+            '^FO40,450^A0N,26,26^FDClient ID: ' . warehouse_sync_zpl_text($clientId, 32) . '^FS',
+            '^FO40,485^A0N,26,26^FDInternal ID: ' . warehouse_sync_zpl_text($internalId, 32) . '^FS',
+            '^FO40,530^GB720,2,2^FS',
+            '^FO40,555^A0N,24,24^FDTO / CONSIGNEE^FS',
+            '^FO40,590^A0N,30,30^FD' . warehouse_sync_zpl_text(trim($clientName . ' ' . $clientCode), 38) . '^FS',
+            '^FO40,630^A0N,24,24^FDPhone: ' . warehouse_sync_zpl_text($phone, 42) . '^FS',
+            '^FO40,665^A0N,24,24^FDAddress: ' . warehouse_sync_zpl_text($address, 48) . '^FS',
+            '^FO40,710^GB720,2,2^FS',
+            '^FO40,735^A0N,24,24^FDSHIPMENT DETAILS^FS',
+            '^FO40,775^A0N,25,25^FDGross kg: ' . warehouse_sync_zpl_text($weight, 16) . '^FS',
+            '^FO300,775^A0N,25,25^FDVol kg: ' . warehouse_sync_zpl_text($volumeWeight, 16) . '^FS',
+            '^FO540,775^A0N,25,25^FDAmount: ' . warehouse_sync_zpl_text($amount, 18) . '^FS',
+            '^FO40,820^A0N,25,25^FDFlight: ' . warehouse_sync_zpl_text($flightName, 26) . '^FS',
+            '^FO300,820^A0N,25,25^FDRoute: ' . warehouse_sync_zpl_text($flightDeparture . ' -> ' . $flightDestination, 24) . '^FS',
+            '^FO40,865^A0N,25,25^FDCountry: ' . warehouse_sync_zpl_text($countryDest, 32) . '^FS',
+            '^FO40,910^GB720,2,2^FS',
+            '^FO40,935^A0N,24,24^FDCONTENTS^FS',
+            '^FO40,970^A0N,25,25^FD' . warehouse_sync_zpl_text($description, 56) . '^FS',
+            '^FO40,1015^A0N,25,25^FDCategory: ' . warehouse_sync_zpl_text($category, 24) . '^FS',
+            '^FO360,1015^A0N,25,25^FDInvoice USD: ' . warehouse_sync_zpl_text($invoiceUsd, 18) . '^FS',
+            '^FO40,1060^A0N,25,25^FDTotal price: ' . warehouse_sync_zpl_text($totalInvoice, 26) . '^FS',
+            '^FO600,1070^GB120,90,2^FS',
+            '^FO622,1102^A0N,26,26^FD[QR]^FS',
+            '^XZ',
+        ];
+        return implode("\n", $lines) . "\n";
+    }
+}
+
+if (!function_exists('warehouse_sync_send_zpl_to_printer')) {
+    function warehouse_sync_send_zpl_to_printer(string $zpl, array $config = []): array
+    {
+        $transport = strtolower(trim((string)($config['transport'] ?? PRINT_ZPL_TRANSPORT ?: 'cups')));
+        if ($transport === 'socket') {
+            $host = trim((string)($config['socket_host'] ?? PRINT_ZPL_SOCKET_HOST));
+            $port = (int)($config['socket_port'] ?? PRINT_ZPL_SOCKET_PORT);
+            $errno = 0; $errstr = '';
+            $fp = @fsockopen($host, $port, $errno, $errstr, 5.0);
+            if (!$fp) {
+                return ['ok' => false, 'status' => 'error', 'message' => $errstr !== '' ? $errstr : 'socket open failed', 'transport' => 'socket', 'socket_host' => $host, 'socket_port' => $port, 'zpl_size' => strlen($zpl), 'exit_code' => $errno, 'command_output' => $errstr];
+            }
+            $written = fwrite($fp, $zpl);
+            fclose($fp);
+            return ['ok' => $written !== false, 'status' => $written !== false ? 'ok' : 'error', 'message' => $written !== false ? 'ZPL sent to socket printer' : 'socket write failed', 'transport' => 'socket', 'socket_host' => $host, 'socket_port' => $port, 'zpl_size' => strlen($zpl), 'bytes_written' => (int)$written, 'exit_code' => 0, 'command_output' => ''];
+        }
+
+        $host = trim((string)($config['cups_host'] ?? PRINT_ZPL_CUPS_HOST));
+        $queue = trim((string)($config['cups_queue'] ?? PRINT_ZPL_CUPS_QUEUE));
+        $tmp = tempnam(sys_get_temp_dir(), 'warehouse_label_');
+        if (!is_string($tmp)) {
+            return ['ok' => false, 'status' => 'error', 'message' => 'failed to create temp zpl file', 'transport' => 'cups', 'cups_host' => $host, 'cups_queue' => $queue, 'zpl_size' => strlen($zpl), 'exit_code' => 1, 'command_output' => ''];
+        }
+        $file = $tmp . '.zpl';
+        @rename($tmp, $file);
+        file_put_contents($file, $zpl);
+        $cmd = 'lp -h ' . escapeshellarg($host) . ' -d ' . escapeshellarg($queue) . ' -o raw ' . escapeshellarg($file) . ' 2>&1';
+        $out = [];
+        $exit = 0;
+        @exec($cmd, $out, $exit);
+        @unlink($file);
+        return ['ok' => $exit === 0, 'status' => $exit === 0 ? 'ok' : 'error', 'message' => $exit === 0 ? 'ZPL sent to CUPS raw queue' : 'CUPS raw print failed', 'transport' => 'cups', 'cups_host' => $host, 'cups_queue' => $queue, 'exit_code' => $exit, 'command_output' => trim(implode("\n", $out)), 'zpl_size' => strlen($zpl)];
+    }
+}
+
 if (!function_exists('warehouse_sync_render_label_template_body')) {
     function warehouse_sync_render_label_template_body(string $templateBody, array $vars): string
     {
@@ -4337,8 +4491,9 @@ if ($action === 'warehouse_item_out_confirm_send') {
                     'position' => $containerPosition,
                     'verify-check-package' => '1',
                     'print-label' => '1',
-                    'print-mode' => 'browser-html',
-                    'return-label-html' => '1',
+                    'print-mode' => 'zpl_raw',
+                    'return-label-html' => '0',
+                    'return-label-vars' => '1',
                     'print-token' => $printToken,
                     'print-device-key' => $printDeviceKey,
                     'print-file-name' => 'label_' . (string)(preg_replace('/[^A-Za-z0-9._-]+/', '_', $trackingForForwarder) ?? 'track') . '.html',
@@ -4417,25 +4572,26 @@ $lastAddResult = $addResult;
                         'add_result' => $addResult,
                         'snapshot_update' => $snapshotUpdate,
                     ];
-                    if (($addResult['print_mode'] ?? '') === 'browser_html' || ($addResult['print']['print_mode'] ?? '') === 'browser_html') {
+                    if (PRINT_LABEL_PRODUCTION_MODE === 'zpl_raw') {
                         $generatedWaybill = is_array($addResult['print']['generated_waybill'] ?? null) ? $addResult['print']['generated_waybill'] : [];
-                        $printableHtml = (string)($addResult['printable_html'] ?? $addResult['generated_waybill_html'] ?? $generatedWaybill['printable_html'] ?? $generatedWaybill['generated_waybill_html'] ?? '');
-                        $response['print_mode'] = 'browser_html';
-                        $response['printable_html'] = $printableHtml;
-                        $response['print_profile'] = [
-                            'paper_width_mm' => $renderProfile['print_paper_width_mm'],
-                            'paper_height_mm' => $renderProfile['print_paper_height_mm'],
-                            'render_width_mm' => $renderProfile['render_width_mm'],
-                            'render_height_mm' => $renderProfile['render_height_mm'],
-                            'render_rotate' => $renderProfile['render_rotate'],
-                            'render_layout_mode' => $renderProfile['render_layout_mode'],
-                            'render_css_override' => $renderProfile['render_css_override'],
-                            'render_fit_mode' => $renderProfile['render_fit_mode'],
-                            'render_scale_percent' => $renderProfile['render_scale_percent'],
-                            'render_offset_x_mm' => $renderProfile['render_offset_x_mm'],
-                            'render_offset_y_mm' => $renderProfile['render_offset_y_mm'],
+                        $labelVars = is_array($addResult['label_vars'] ?? null) ? $addResult['label_vars'] : (is_array($generatedWaybill['label_vars'] ?? null) ? $generatedWaybill['label_vars'] : []);
+                        if ($labelVars === []) {
+                            $labelVars = warehouse_sync_label_template_sample_vars((int)($connector['id'] ?? 0), $trackingForForwarder);
+                        }
+                        $zpl = warehouse_sync_render_waybill_zpl($labelVars, $renderProfile);
+                        $printResult = warehouse_sync_send_zpl_to_printer($zpl);
+                        $response['print_mode'] = 'zpl_raw';
+                        $response['print_status'] = (string)($printResult['status'] ?? 'error');
+                        $response['print_transport'] = (string)($printResult['transport'] ?? PRINT_ZPL_TRANSPORT);
+                        $response['print_message'] = (string)($printResult['message'] ?? '');
+                        $response['print_diagnostics'] = [
+                            'printer_transport' => (string)($printResult['transport'] ?? PRINT_ZPL_TRANSPORT),
+                            'cups_host' => (string)($printResult['cups_host'] ?? ''),
+                            'cups_queue' => (string)($printResult['cups_queue'] ?? ''),
+                            'zpl_size' => strlen($zpl),
+                            'exit_code' => (int)($printResult['exit_code'] ?? 0),
+                            'command_output' => (string)($printResult['command_output'] ?? ''),
                         ];
-                        $response['print_status'] = $printableHtml !== '' ? 'ready_for_browser_print' : 'browser_print_html_missing';
                     }
                 }
             }
@@ -4752,10 +4908,46 @@ if ($action === 'test_print_connector_label_template') {
             return;
         }
 
-        $printableHtml = warehouse_sync_render_label_template_body(
-            $templateBody,
-            warehouse_sync_label_template_sample_vars($connectorId, $testTrack !== '' ? $testTrack : 'TEST-TRACK-0001')
-        );
+        $sampleVars = warehouse_sync_label_template_sample_vars($connectorId, $testTrack !== '' ? $testTrack : 'TEST-TRACK-0001');
+        if (PRINT_LABEL_PRODUCTION_MODE === 'zpl_raw') {
+            $zpl = warehouse_sync_render_waybill_zpl($sampleVars, $printProfile);
+            $printResult = warehouse_sync_send_zpl_to_printer($zpl);
+            $diagnostics = [
+                'template_sha256' => hash('sha256', $templateBody),
+                'connector_id' => $connectorId,
+                'test_track' => $testTrack,
+                'print_mode' => 'zpl_raw',
+                'printer_transport' => (string)($printResult['transport'] ?? PRINT_ZPL_TRANSPORT),
+                'cups_host' => (string)($printResult['cups_host'] ?? ''),
+                'cups_queue' => (string)($printResult['cups_queue'] ?? ''),
+                'zpl_size' => strlen($zpl),
+                'exit_code' => (int)($printResult['exit_code'] ?? 0),
+                'command_output' => (string)($printResult['command_output'] ?? ''),
+            ];
+            $response = [
+                'status' => !empty($printResult['ok']) ? 'ok' : 'error',
+                'message' => !empty($printResult['ok']) ? 'ZPL label отправлен на печать' : (string)($printResult['message'] ?? 'Ошибка ZPL печати'),
+                'connector_id' => $connectorId,
+                'test_track' => $testTrack,
+                'print_mode' => 'zpl_raw',
+                'print_status' => (string)($printResult['status'] ?? 'error'),
+                'zpl_transport' => (string)($printResult['transport'] ?? PRINT_ZPL_TRANSPORT),
+                'zpl_size' => strlen($zpl),
+                'warnings' => $check['warnings'],
+                'diagnostics' => $diagnostics,
+            ];
+            audit_log($userId, 'CONNECTOR_LABEL_TEMPLATE_TEST_PRINT', 'connectors', $connectorId, 'ZPL label отправлен на печать', [
+                'connector_id' => $connectorId,
+                'template_code' => trim((string)($_POST['template_code'] ?? 'default')),
+                'template_sha256' => hash('sha256', $templateBody),
+                'result' => 'zpl_raw',
+                'test_track' => $testTrack,
+                'print_status' => $response['print_status'],
+            ]);
+            return;
+        }
+
+        $printableHtml = warehouse_sync_render_label_template_body($templateBody, $sampleVars);
 
         $response = [
             'status' => 'ok',
@@ -4766,43 +4958,8 @@ if ($action === 'test_print_connector_label_template') {
             'printable_html' => $printableHtml,
             'preview_html' => warehouse_sync_label_template_preview_html($templateBody, $connectorId, $labelWidthCm, $labelHeightCm, true, false, $testTrack),
             'warnings' => $check['warnings'],
-            'print_profile' => [
-                'paper_width_mm' => $printProfile['paper_width_mm'],
-                'paper_height_mm' => $printProfile['paper_height_mm'],
-                'render_width_mm' => $printProfile['render_width_mm'],
-                'render_height_mm' => $printProfile['render_height_mm'],
-                'render_rotate' => $printProfile['render_rotate'],
-                'render_layout_mode' => $printProfile['layout_mode'],
-                'render_css_override' => $printProfile['css_override'],
-                'render_fit_mode' => $printProfile['fit_mode'],
-                'render_scale_percent' => $printProfile['scale_percent'],
-                'render_offset_x_mm' => $printProfile['offset_x_mm'],
-                'render_offset_y_mm' => $printProfile['offset_y_mm'],
-            ],
             'render_profile' => $renderProfile,
-            'diagnostics' => [
-                'template_sha256' => hash('sha256', $templateBody),
-                'printable_size' => strlen($printableHtml),
-                'print_mode' => 'browser_html',
-                'renderer' => 'browser',
-                'server_rasterize' => false,
-                'direct_cups_used' => false,
-                'print_profile.source' => $profileSource,
-                'source_profile' => $profileSource,
-                'paper_width_mm' => $printProfile['paper_width_mm'],
-                'paper_height_mm' => $printProfile['paper_height_mm'],
-                'final_width_mm' => $printProfile['render_width_mm'],
-                'final_height_mm' => $printProfile['render_height_mm'],
-                'render_width_mm' => $printProfile['render_width_mm'],
-                'render_height_mm' => $printProfile['render_height_mm'],
-                'render_rotate' => $printProfile['render_rotate'],
-                'render_layout_mode' => $printProfile['layout_mode'],
-                'render_css_override' => $printProfile['css_override'],
-                'render_fit_mode' => $printProfile['fit_mode'],
-                'render_scale_percent' => $printProfile['scale_percent'],
-                'render_offset_x_mm' => $printProfile['offset_x_mm'],
-                'render_offset_y_mm' => $printProfile['offset_y_mm'],
-            ],
+            'diagnostics' => ['template_sha256' => hash('sha256', $templateBody), 'printable_size' => strlen($printableHtml), 'print_mode' => 'browser_html'],
         ];
         audit_log($userId, 'CONNECTOR_LABEL_TEMPLATE_TEST_PRINT', 'connectors', $connectorId, 'HTML label готов к печати в браузере', [
             'connector_id' => $connectorId,
