@@ -1007,53 +1007,72 @@ const CoreAPI = {
                 }
             }
         },
-        'test_print_connector_label_template': (data) => {
-            if (data?.print_mode === 'browser_html' && typeof data?.printable_html === 'string') {
-                CoreAPI.handlers.actions.open_connector_label_template_print_preview({
-                    ...data,
-                    render_profile: data.render_profile || data.print_profile || {},
-                    auto_print: true,
-                    auto_print_delay_ms: 400,
-                });
-            }
-            const box = document.getElementById('connector-label-template-validation');
-            const message = String(data?.message || '').trim() || 'Тест печати выполнен';
-            if (box) {
-                const status = String(data?.status || '').toLowerCase();
-                const cls = status === 'ok' ? 'text-success' : 'text-danger';
-                const errors = Array.isArray(data?.errors) ? data.errors : [];
-                const warnings = Array.isArray(data?.warnings) ? data.warnings : [];
-                const diagnostics = (data?.diagnostics && typeof data.diagnostics === 'object') ? data.diagnostics : {};
+'test_print_connector_label_template': (data) => {
+    if (data?.print_mode === 'browser_html' && typeof data?.printable_html === 'string') {
+        const openPrintPreview = CoreAPI.handlers?.open_connector_label_template_print_preview;
 
-                const lines = [`<div class=\"${cls}\"><strong>${message.replace(/[<>&]/g, '')}</strong></div>`];
-                if (errors.length > 0) {
-                    lines.push(`<div class=\"text-danger mt-1\"><ul class=\"mb-1\">${errors.map((item) => `<li>${String(item || '').replace(/[<>&]/g, '')}</li>`).join('')}</ul></div>`);
-                }
-                if (warnings.length > 0) {
-                    lines.push(`<div class=\"text-warning mt-1\"><ul class=\"mb-1\">${warnings.map((item) => `<li>${String(item || '').replace(/[<>&]/g, '')}</li>`).join('')}</ul></div>`);
-                }
-                const diagnosticsRows = Object.entries(diagnostics)
-                    .filter(([key, val]) => String(key).trim() !== '' && val !== null && val !== undefined && String(val).trim() !== '')
-                    .map(([key, val]) => `<li><code>${String(key).replace(/[<>&]/g, '')}</code>: ${String(val).replace(/[<>&]/g, '')}</li>`);
-                if (diagnosticsRows.length > 0) {
-                    lines.push(`<div class=\"text-muted mt-1\"><div class=\"small fw-semibold\">Диагностика</div><ul class=\"small mb-0\">${diagnosticsRows.join('')}</ul></div>`);
-                }
-                const labelBase64 = String(data?.label_base64 || '').trim();
-                const labelMime = String(data?.label_base64_mime || '').trim().toLowerCase();
-                if (labelBase64 !== '' && labelMime === 'application/pdf') {
-                    const href = `data:application/pdf;base64,${labelBase64}`;
-                    lines.push(`<div class=\"mt-2\"><a class=\"btn btn-sm btn-outline-primary\" href=\"${href}\" target=\"_blank\" rel=\"noopener\">Открыть PDF preview (без печати)</a></div>`);
-                }
-                box.innerHTML = lines.join('');
-            }
-            if (typeof data?.preview_html === 'string') {
-                const preview = document.getElementById('connector-label-template-preview');
-                if (preview) {
-                    preview.innerHTML = data.preview_html;
-                }
-            }
-            alert(message);
-        },
+        if (typeof openPrintPreview === 'function') {
+            openPrintPreview({
+                ...data,
+                render_profile: data.render_profile || data.print_profile || {},
+                auto_print: true,
+                auto_print_delay_ms: 400,
+            });
+            return;
+        }
+
+        alert('Не найден обработчик HTML-печати лейбла');
+        return;
+    }
+
+    const box = document.getElementById('connector-label-template-validation');
+    const message = String(data?.message || '').trim() || 'Тест печати выполнен';
+
+    if (box) {
+        const status = String(data?.status || '').toLowerCase();
+        const cls = status === 'ok' ? 'text-success' : 'text-danger';
+        const errors = Array.isArray(data?.errors) ? data.errors : [];
+        const warnings = Array.isArray(data?.warnings) ? data.warnings : [];
+        const diagnostics = (data?.diagnostics && typeof data.diagnostics === 'object') ? data.diagnostics : {};
+
+        const lines = [`<div class="${cls}"><strong>${message.replace(/[<>&]/g, '')}</strong></div>`];
+
+        if (errors.length > 0) {
+            lines.push(`<div class="text-danger mt-1"><ul class="mb-1">${errors.map((item) => `<li>${String(item || '').replace(/[<>&]/g, '')}</li>`).join('')}</ul></div>`);
+        }
+
+        if (warnings.length > 0) {
+            lines.push(`<div class="text-warning mt-1"><ul class="mb-1">${warnings.map((item) => `<li>${String(item || '').replace(/[<>&]/g, '')}</li>`).join('')}</ul></div>`);
+        }
+
+        const diagnosticsRows = Object.entries(diagnostics)
+            .filter(([key, val]) => String(key).trim() !== '' && val !== null && val !== undefined && String(val).trim() !== '')
+            .map(([key, val]) => `<li><code>${String(key).replace(/[<>&]/g, '')}</code>: ${String(val).replace(/[<>&]/g, '')}</li>`);
+
+        if (diagnosticsRows.length > 0) {
+            lines.push(`<div class="text-muted mt-1"><div class="small fw-semibold">Диагностика</div><ul class="small mb-0">${diagnosticsRows.join('')}</ul></div>`);
+        }
+
+        const labelBase64 = String(data?.label_base64 || '').trim();
+        const labelMime = String(data?.label_base64_mime || '').trim().toLowerCase();
+
+        if (labelBase64 !== '' && labelMime === 'application/pdf') {
+            const href = `data:application/pdf;base64,${labelBase64}`;
+            lines.push(`<div class="mt-2"><a class="btn btn-sm btn-outline-primary" href="${href}" target="_blank" rel="noopener">Открыть PDF preview (без печати)</a></div>`);
+        }
+
+        box.innerHTML = lines.join('');
+    }
+
+    if (typeof data?.preview_html === 'string') {
+        const preview = document.getElementById('connector-label-template-preview');
+        if (preview) {
+            preview.innerHTML = data.preview_html;
+        }
+    }
+
+    alert(message);
+},
         'save_connector_operations': async (data) => {
             alert(data.message || 'Операции сохранены');
             await CoreAPI.ui.reloadList('view_connectors');
