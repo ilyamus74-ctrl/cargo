@@ -32,6 +32,7 @@ if (!$auth['ok']) {
     print_json_response(['status' => 'error', 'message' => $auth['message'] ?? 'auth error'], (int)($auth['http_code'] ?? 403));
 }
 
+$queue = print_read_queue($deviceUid);
 
 $jobId = (string)($data['job_id'] ?? '');
 if ($jobId === '') {
@@ -61,30 +62,9 @@ if ($labelBase64 !== '') {
     $job['label_base64'] = $labelBase64;
 }
 
-if (print_direct_cups_enabled()) {
-    $direct = print_direct_cups_send($job);
-    if (($direct['ok'] ?? false) === true) {
-        print_json_response([
-            'status' => 'ok',
-            'print_mode' => 'direct_cups',
-            'job_id' => $jobId,
-            'direct' => $direct,
-        ], 200);
-    }
-
-    print_json_response([
-        'status' => 'error',
-        'print_mode' => 'direct_cups',
-        'message' => $direct['message'] ?? 'direct CUPS print failed',
-        'job_id' => $jobId,
-        'direct' => $direct,
-    ], 500);
-}
-
-$queue = print_read_queue($deviceUid);
 $queue[] = $job;
 if (!print_write_queue($deviceUid, $queue)) {
     print_json_response(['status' => 'error', 'message' => 'failed to save queue'], 500);
 }
 
-print_json_response(['status' => 'ok', 'print_mode' => 'agent_queue', 'job_id' => $jobId], 200);
+print_json_response(['status' => 'ok', 'job_id' => $jobId], 200);

@@ -2355,10 +2355,7 @@ if (!function_exists('warehouse_sync_queue_print_preview')) {
         }
 
         $jobId = 'job-preview-' . gmdate('YmdHis') . '-' . bin2hex(random_bytes(4));
-        $queue = print_read_queue($deviceUid);
-        if (!is_array($queue)) {
-            $queue = [];
-        }
+
         $labelBase64 = '';
         $renderEngine = '';
         $renderMessage = '';
@@ -2386,23 +2383,41 @@ if (!function_exists('warehouse_sync_queue_print_preview')) {
                 $renderEngine = 'simple-pdf-fallback';
             }
         }
-        $queue[] = [
+        $job = [
             'job_id' => $jobId,
             'status' => 'queued',
             'created_at' => gmdate('c'),
             'file_name' => $fileName,
             'label_base64' => $labelBase64,
-            'label_base64' => $labelBase64,
             'rotate' => $rotateDegrees,
             'label_width_cm' => $labelWidthCm,
             'label_height_cm' => $labelHeightCm,
         ];
+        if (function_exists('print_direct_cups_enabled') && function_exists('print_direct_cups_send') && print_direct_cups_enabled()) {
+            $direct = print_direct_cups_send($job);
+            return [
+                'status' => ($direct['ok'] ?? false) === true ? 'ok' : 'error',
+                'print_mode' => 'direct_cups',
+                'message' => ($direct['ok'] ?? false) === true ? 'Тестовая печать отправлена напрямую в CUPS' : ($direct['message'] ?? 'direct CUPS print failed'),
+                'job_id' => $jobId,
+                'render_engine' => $renderEngine,
+                'render_message' => $renderMessage,
+                'direct' => $direct,
+            ];
+        }
+
+        $queue = print_read_queue($deviceUid);
+        if (!is_array($queue)) {
+            $queue = [];
+        }
+        $queue[] = $job;
         if (!print_write_queue($deviceUid, $queue)) {
             return ['status' => 'error', 'message' => 'Не удалось записать задачу в print queue'];
         }
 
         return [
             'status' => 'ok',
+            'print_mode' => 'agent_queue',
             'message' => 'Тестовая печать отправлена в очередь',
             'job_id' => $jobId,
             'render_engine' => $renderEngine,

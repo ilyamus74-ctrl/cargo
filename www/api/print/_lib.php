@@ -35,6 +35,175 @@ function print_queue_file(string $deviceUid): string
     $safe = preg_replace('/[^a-zA-Z0-9_-]/', '_', $deviceUid);
     return __DIR__ . '/../_tmp/print_queue_' . $safe . '.json';
 }
+function print_direct_cups_enabled(): bool
+{
+    if (!defined('PRINT_DIRECT_CUPS_ENABLED') || PRINT_DIRECT_CUPS_ENABLED !== true) {
+        return false;
+    }
+
+    return trim((string)(defined('PRINT_DIRECT_CUPS_HOST') ? PRINT_DIRECT_CUPS_HOST : '')) !== ''
+        && trim((string)(defined('PRINT_DIRECT_CUPS_QUEUE') ? PRINT_DIRECT_CUPS_QUEUE : '')) !== '';
+}
+
+function print_decode_label_to_temp_file(array $job): array
+{
+    $fileName = trim((string)($job['file_name'] ?? 'label.pdf'));
+    $labelBase64 = trim((string)($job['label_base64'] ?? ''));
+    $labelUrl = trim((string)($job['label_url'] ?? ''));
+    $binary = '';
+    $extension = strtolower(pathinfo($fileName, PATHINFO_EXTENSION));
+
+    if ($labelBase64 !== '') {
+        if (preg_match('#^data:([^;,]+)?;base64,(.*)$#s', $labelBase64, $m) === 1) {
+            $mime = strtolower(trim((string)($m[1] ?? '')));
+            $labelBase64 = (string)$m[2];
+            $extension = match ($mime) {
+                'application/pdf' => 'pdf',
+                'image/png' => 'png',
+                'image/jpeg', 'image/jpg' => 'jpg',
+                'application/zpl', 'application/x-zpl', 'text/plain' => 'zpl',
+                default => $extension,
+            };
+        }
+
+        $decoded = base64_decode($labelBase64, true);
+        if (!is_string($decoded) || $decoded === '') {
+            return ['ok' => false, 'message' => 'invalid label_base64'];
+        }
+        $binary = $decoded;
+    } elseif ($labelUrl !== '') {
+        $context = stream_context_create([
+            'http' => ['timeout' => 15],
+            'https' => ['timeout' => 15],
+        ]);
+        $downloaded = @file_get_contents($labelUrl, false, $context);
+        if (!is_string($downloaded) || $downloaded === '') {
+            if (function_exists('curl_init')) {
+                $ch = curl_init($labelUrl);
+                if ($ch !== false) {
+                    curl_setopt_array($ch, [
+                        CURLOPT_RETURNTRANSFER => true,
+                        CURLOPT_FOLLOWLOCATION => true,
+                        CURLOPT_CONNECTTIMEOUT => 5,
+                        CURLOPT_TIMEOUT => 15,
+                    ]);
+                    $downloaded = curl_exec($ch);
+                    curl_close($ch);
+                }
+            }
+        }
+        if (!is_string($downloaded) || $downloaded === '') {
+            return ['ok' => false, 'message' => 'failed to download label_url'];
+        }
+        $binary = $downloaded;
+    } else {
+        return ['ok' => false, 'message' => 'label_base64 or label_url required'];
+    }
+
+    if (!in_array($extension, ['pdf', 'png', 'jpg', 'jpeg', 'zpl'], true)) {
+        if (str_starts_with($binary, '%PDF')) {
+            $extension = 'pdf';
+        } elseif (str_starts_with($binary, "\x89PNG")) {
+            $extension = 'png';
+        } elseif (str_starts_with($binary, "\xFF\xD8")) {
+            $extension = 'jpg';
+        } else {
+            $extension = 'zpl';
+        }
+    }
+    if ($extension === 'jpeg') {
+        $extension = 'jpg';
+    }
+
+    $tmp = tempnam(sys_get_temp_dir(), 'print_label_');
+    if (!is_string($tmp)) {
+        return ['ok' => false, 'message' => 'failed to create temp file'];
+    }
+    $tmpFile = $tmp . '.' . $extension;
+    @rename($tmp, $tmpFile);
+    if (file_put_contents($tmpFile, $binary) === false) {
+        @unlink($tmpFile);
+        return ['ok' => false, 'message' => 'failed to write temp file'];
+    }
+
+    return ['ok' => true, 'path' => $tmpFile, 'extension' => $extension];
+}
+
+function print_direct_cups_send(array $job): array
+{
+    $cupsHost = trim((string)(defined('PRINT_DIRECT_CUPS_HOST') ? PRINT_DIRECT_CUPS_HOST : ''));
+    $cupsQueue = trim((string)(defined('PRINT_DIRECT_CUPS_QUEUE') ? PRINT_DIRECT_CUPS_QUEUE : ''));
+    if ($cupsHost === '' || $cupsQueue === '') {
+        return [
+            'ok' => false,
+            'status' => 'error',
+            'message' => 'direct CUPS host/queue is not configured',
+            'exit_code' => null,
+            'cups_host' => $cupsHost,
+            'cups_queue' => $cupsQueue,
+            'command_output' => '',
+        ];
+    }
+
+    $decoded = print_decode_label_to_temp_file($job);
+    if (!($decoded['ok'] ?? false)) {
+        return [
+            'ok' => false,
+            'status' => 'error',
+            'message' => (string)($decoded['message'] ?? 'failed to prepare label'),
+            'exit_code' => null,
+            'cups_host' => $cupsHost,
+            'cups_queue' => $cupsQueue,
+            'command_output' => '',
+        ];
+    }
+
+    $tmpFile = (string)$decoded['path'];
+    $extension = (string)$decoded['extension'];
+    $options = [];
+    if ($extension === 'zpl') {
+        $options[] = '-o ' . escapeshellarg('raw');
+    } else {
+        foreach (['fit-to-page', 'position=center', 'page-left=0', 'page-right=0', 'page-top=0', 'page-bottom=0'] as $option) {
+            $options[] = '-o ' . escapeshellarg($option);
+        }
+    }
+
+    $widthCm = isset($job['label_width_cm']) ? (float)$job['label_width_cm'] : 0.0;
+    $heightCm = isset($job['label_height_cm']) ? (float)$job['label_height_cm'] : 0.0;
+    $rotate = isset($job['rotate']) ? (int)$job['rotate'] : 0;
+    if ($widthCm > 0 && $heightCm > 0) {
+        $widthMm = (int)round($widthCm * 10);
+        $heightMm = (int)round($heightCm * 10);
+        if (in_array($rotate, [90, 270], true)) {
+            [$widthMm, $heightMm] = [$heightMm, $widthMm];
+        }
+        $options[] = '-o ' . escapeshellarg('media=Custom.' . $widthMm . 'x' . $heightMm . 'mm');
+    }
+
+    $cmd = 'lp'
+        . ' -h ' . escapeshellarg($cupsHost)
+        . ' -d ' . escapeshellarg($cupsQueue)
+        . ($options ? ' ' . implode(' ', $options) : '')
+        . ' ' . escapeshellarg($tmpFile)
+        . ' 2>&1';
+
+    $output = [];
+    $exitCode = 0;
+    exec($cmd, $output, $exitCode);
+    @unlink($tmpFile);
+    $commandOutput = trim(implode("\n", $output));
+
+    return [
+        'ok' => $exitCode === 0,
+        'status' => $exitCode === 0 ? 'ok' : 'error',
+        'message' => $exitCode === 0 ? 'sent to direct CUPS' : 'lp failed',
+        'exit_code' => $exitCode,
+        'cups_host' => $cupsHost,
+        'cups_queue' => $cupsQueue,
+        'command_output' => $commandOutput,
+    ];
+}
 
 function print_read_queue(string $deviceUid): array
 {

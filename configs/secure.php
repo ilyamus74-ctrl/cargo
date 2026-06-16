@@ -8,6 +8,18 @@ if (session_status() !== PHP_SESSION_ACTIVE) {
 }
 
 
+// Direct CUPS printing from backend to OrangePi over WireGuard.
+// print-agent queue remains available as fallback when direct CUPS is disabled.
+if (!defined('PRINT_DIRECT_CUPS_ENABLED')) {
+    define('PRINT_DIRECT_CUPS_ENABLED', true);
+}
+if (!defined('PRINT_DIRECT_CUPS_HOST')) {
+    define('PRINT_DIRECT_CUPS_HOST', '10.0.1.7');
+}
+if (!defined('PRINT_DIRECT_CUPS_QUEUE')) {
+    define('PRINT_DIRECT_CUPS_QUEUE', 'Zebra_Technologies_ZTC_ZT230-200dpi_ZPL');
+}
+
 function auth_device_by_token(
     string $deviceUid,
     string $deviceToken,
