@@ -1,6 +1,17 @@
 <form id="connector-label-template-form">
   <input type="hidden" name="connector_id" value="{$connector.id|default:0|escape:'htmlattr'}">
   <input type="hidden" name="template_code" value="{$template.template_code|default:'default'|escape:'htmlattr'}">
+  <input type="hidden" name="print_paper_width_mm" value="{$template.print_paper_width_mm|default:'100'|escape:'htmlattr'}">
+  <input type="hidden" name="print_paper_height_mm" value="{$template.print_paper_height_mm|default:'150'|escape:'htmlattr'}">
+  <input type="hidden" name="render_width_mm" value="{$template.render_width_mm|default:'300.8'|escape:'htmlattr'}">
+  <input type="hidden" name="render_height_mm" value="{$template.render_height_mm|default:'191'|escape:'htmlattr'}">
+  <input type="hidden" name="render_rotate" value="{$template.render_rotate|default:'180'|escape:'htmlattr'}">
+  <input type="hidden" name="render_layout_mode" value="{$template.render_layout_mode|default:'native-css'|escape:'htmlattr'}">
+  <input type="hidden" name="render_css_override" value="{$template.render_css_override|default:'1'|escape:'htmlattr'}">
+  <input type="hidden" name="render_fit_mode" value="{$template.render_fit_mode|default:'contain'|escape:'htmlattr'}">
+  <input type="hidden" name="render_scale_percent" value="{$template.render_scale_percent|default:'100'|escape:'htmlattr'}">
+  <input type="hidden" name="render_offset_x_mm" value="{$template.render_offset_x_mm|default:'0'|escape:'htmlattr'}">
+  <input type="hidden" name="render_offset_y_mm" value="{$template.render_offset_y_mm|default:'0'|escape:'htmlattr'}">
 
   <div class="container-fluid">
     <div class="row g-3">
@@ -108,7 +119,7 @@
                    value="{$template.label_height_cm|default:15|escape:'htmlattr'}">
           </div>
           <div class="col-12">
-            <div class="form-text">Для физической этикетки 10 x 15 cm используйте width=10, height=15. В HTML preview должен быть размер 100 x 150 mm. В print dialog выберите 4 x 6 / 100 x 150 mm.</div>
+            <div class="form-text">Для физической этикетки 10 x 15 cm используйте width=10, height=15. В HTML preview использует render canvas из сохранённого профиля (по умолчанию 300.8 x 191 mm), а физическая бумага/CUPS остаётся 100 x 150 mm. В print dialog выберите 4 x 6 / 100 x 150 mm.</div>
           </div>
         </div>
         <div class="border rounded p-2 bg-light" style="min-height: 420px; max-height: 620px; overflow: auto;">

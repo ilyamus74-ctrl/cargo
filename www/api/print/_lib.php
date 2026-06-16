@@ -166,6 +166,7 @@ function print_direct_cups_send(array $job): array
         'label_height_cm' => $labelHeightCm,
         'final_width_mm' => $finalWidthMm,
         'final_height_mm' => $finalHeightMm,
+        'cups_media_mm' => ($finalWidthMm !== null && $finalHeightMm !== null) ? ($finalWidthMm . 'x' . $finalHeightMm) : '',
         'rotate' => $rotate,
         'print_scaling' => $printScaling,
         'raw_mode' => false,

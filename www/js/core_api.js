@@ -776,16 +776,25 @@ const CoreAPI = {
 
             let widthMm = Number(data?.diagnostics?.final_width_mm ?? (Number(data?.label_width_cm) * 10));
             let heightMm = Number(data?.diagnostics?.final_height_mm ?? (Number(data?.label_height_cm) * 10));
-            if (!Number.isFinite(widthMm) || widthMm <= 0 || widthMm > 300) {
+            if (!Number.isFinite(widthMm) || widthMm <= 0 || widthMm > 500) {
                 widthMm = 100;
             }
-            if (!Number.isFinite(heightMm) || heightMm <= 0 || heightMm > 300) {
+            if (!Number.isFinite(heightMm) || heightMm <= 0 || heightMm > 500) {
                 heightMm = 150;
             }
             widthMm = Math.round(widthMm * 100) / 100;
             heightMm = Math.round(heightMm * 100) / 100;
 
-            const rotate = Number.isFinite(Number(data?.print_rotate)) ? Number(data.print_rotate) : 0;
+            const renderProfile = (data?.render_profile && typeof data.render_profile === 'object') ? data.render_profile : {};
+            const paperWidthMm = Number(renderProfile.print_paper_width_mm ?? data?.diagnostics?.print_paper_width_mm ?? 100);
+            const paperHeightMm = Number(renderProfile.print_paper_height_mm ?? data?.diagnostics?.print_paper_height_mm ?? 150);
+            const initialScale = Number(renderProfile.render_scale_percent ?? data?.diagnostics?.render_scale_percent ?? 100);
+            const initialOffsetX = Number(renderProfile.render_offset_x_mm ?? data?.diagnostics?.render_offset_x_mm ?? 0);
+            const initialOffsetY = Number(renderProfile.render_offset_y_mm ?? data?.diagnostics?.render_offset_y_mm ?? 0);
+            const initialLayoutMode = String(renderProfile.render_layout_mode ?? data?.diagnostics?.render_layout_mode ?? 'native-css');
+            const initialFitMode = String(renderProfile.render_fit_mode ?? data?.diagnostics?.render_fit_mode ?? 'contain');
+            const initialCssOverride = String(renderProfile.render_css_override ?? data?.diagnostics?.render_css_override ?? '1') !== '0';
+            const rotate = Number.isFinite(Number(renderProfile.render_rotate ?? data?.diagnostics?.render_rotate ?? data?.print_rotate)) ? Number(renderProfile.render_rotate ?? data?.diagnostics?.render_rotate ?? data.print_rotate) : 180;
             const escapeHtml = (value) => String(value ?? '').replace(/[&<>"]/g, (ch) => ({
                 '&': '&amp;',
                 '<': '&lt;',
@@ -868,19 +877,23 @@ const CoreAPI = {
                 '<div class="print-toolbar">',
                 '<div>',
                 '<button type="button" onclick="window.print()">Печать</button> ',
+                '<button type="button" onclick="window.applyWorkingLabelPreset()">Применить рабочие настройки 300.8 x 191 → 4x6</button> ',
+                '<button type="button" onclick="window.applyLabelSettingsToTemplate()">Применить эти настройки в шаблон</button> ',
                 '<button type="button" onclick="window.close()">Закрыть</button> ',
                 `<span>validation: ${escapeHtml(validationStatus)}</span>`,
                 '</div>',
                 '<div>',
                 `<label>Width mm <input id="label-width-mm" type="number" step="0.1" min="1" value="${widthMm}"></label>`,
                 `<label>Height mm <input id="label-height-mm" type="number" step="0.1" min="1" value="${heightMm}"></label>`,
-                '<label>Scale % <input id="label-scale-percent" type="number" step="1" min="1" value="100"></label>',
-                '<label>Offset X mm <input id="label-offset-x-mm" type="number" step="0.1" value="0"></label>',
-                '<label>Offset Y mm <input id="label-offset-y-mm" type="number" step="0.1" value="0"></label>',
-                '<label>Layout mode <select id="label-layout-mode"><option value="native-css" selected>native-css</option><option value="transform-fit">transform-fit</option></select></label>',
-                '<label>Fit mode <select id="label-fit-mode"><option value="contain" selected>contain</option><option value="cover">cover</option><option value="none">none</option></select></label>',
+                `<label>Paper W mm <input id="label-paper-width-mm" type="number" step="0.1" min="1" value="${Number.isFinite(paperWidthMm) ? paperWidthMm : 100}"></label>`,
+                `<label>Paper H mm <input id="label-paper-height-mm" type="number" step="0.1" min="1" value="${Number.isFinite(paperHeightMm) ? paperHeightMm : 150}"></label>`,
+                `<label>Scale % <input id="label-scale-percent" type="number" step="1" min="1" value="${Number.isFinite(initialScale) ? initialScale : 100}"></label>`,
+                `<label>Offset X mm <input id="label-offset-x-mm" type="number" step="0.1" value="${Number.isFinite(initialOffsetX) ? initialOffsetX : 0}"></label>`,
+                `<label>Offset Y mm <input id="label-offset-y-mm" type="number" step="0.1" value="${Number.isFinite(initialOffsetY) ? initialOffsetY : 0}"></label>`,
+                `<label>Layout mode <select id="label-layout-mode"><option value="native-css"${initialLayoutMode === 'native-css' ? ' selected' : ''}>native-css</option><option value="transform-fit"${initialLayoutMode === 'transform-fit' ? ' selected' : ''}>transform-fit</option></select></label>`,
+                `<label>Fit mode <select id="label-fit-mode"><option value="contain"${initialFitMode === 'contain' ? ' selected' : ''}>contain</option><option value="cover"${initialFitMode === 'cover' ? ' selected' : ''}>cover</option><option value="none"${initialFitMode === 'none' ? ' selected' : ''}>none</option></select></label>`,
                 `<label>Rotate <select id="label-rotate"><option value="0"${initialRotate === 0 ? ' selected' : ''}>0</option><option value="90"${initialRotate === 90 ? ' selected' : ''}>90</option><option value="180"${initialRotate === 180 ? ' selected' : ''}>180</option><option value="270"${initialRotate === 270 ? ' selected' : ''}>270</option></select></label>`,
-                '<label><input id="label-css-override" type="checkbox" checked style="width:auto;"> Override template CSS for print</label>',
+                `<label><input id="label-css-override" type="checkbox"${initialCssOverride ? ' checked' : ''} style="width:auto;"> Override template CSS for print</label>`,
                 '</div>',
                 '<div>',
                 '<button type="button" data-preset-width="100" data-preset-height="150">100 x 150 mm</button>',
@@ -903,6 +916,9 @@ const CoreAPI = {
                 '  const $ = (id) => document.getElementById(id);',
                 '  function clamp(value, min, max) { return Math.max(min, Math.min(max, value)); }',
                 '  function numberValue(id, fallback) { const value = Number($(id)?.value); return Number.isFinite(value) ? value : fallback; }',
+                '  function setValue(id, value) { const el = $(id); if (el) { el.value = String(value); } }',
+                '  function setChecked(id, value) { const el = $(id); if (el) { el.checked = Boolean(value); } }',
+                '  function currentSettings() { return { print_paper_width_mm: numberValue("label-paper-width-mm", 100), print_paper_height_mm: numberValue("label-paper-height-mm", 150), render_width_mm: numberValue("label-width-mm", 300.8), render_height_mm: numberValue("label-height-mm", 191), render_rotate: Number($("label-rotate")?.value || 180), render_layout_mode: $("label-layout-mode")?.value || "native-css", render_css_override: $("label-css-override")?.checked ? 1 : 0, render_fit_mode: $("label-fit-mode")?.value || "contain", render_scale_percent: numberValue("label-scale-percent", 100), render_offset_x_mm: numberValue("label-offset-x-mm", 0), render_offset_y_mm: numberValue("label-offset-y-mm", 0) }; }',
                 '  function computeLabelCssVars(widthMm, heightMm) {',
                 '    const shortSide = Math.min(widthMm, heightMm);',
                 '    return {',
@@ -917,6 +933,8 @@ const CoreAPI = {
                 '  function updateDynamicStyle(widthMm, heightMm, vars) {',
                 '    $("label-print-dynamic-style").textContent = `@page { size: ${widthMm}mm ${heightMm}mm; margin: 0; }\nhtml, body { width: ${widthMm}mm; height: ${heightMm}mm; }\n.label-print-page { --label-width-mm: ${widthMm}; --label-height-mm: ${heightMm}; --label-w: ${widthMm}mm; --label-h: ${heightMm}mm; --label-font-title: ${vars.titleFontPx}px; --label-font-base: ${vars.baseFontPx}px; --label-font-small: ${vars.smallFontPx}px; --label-cell-padding: ${vars.cellPaddingPx}px; --label-border-width: ${vars.borderWidthPx}px; --barcode-height: ${vars.barcodeHeightMm}mm; width: ${widthMm}mm; height: ${heightMm}mm; }\n.label-print-page.label-print-css-override { overflow: hidden; background: #fff; font-family: Arial, sans-serif; font-size: var(--label-font-base); line-height: 1.15; }\n.label-print-page.label-print-css-override table { width: 100%; border-collapse: collapse; table-layout: fixed; }\n.label-print-page.label-print-css-override td, .label-print-page.label-print-css-override th { border: var(--label-border-width) solid #000; padding: var(--label-cell-padding); vertical-align: top; overflow: hidden; }\n.label-print-page.label-print-css-override img { max-width: 100%; max-height: 100%; }\n.label-print-page.label-print-css-override img[src*="barcode"], .label-print-page.label-print-css-override img[alt*="barcode" i] { width: 100% !important; height: var(--barcode-height) !important; object-fit: contain; }\n.label-print-page.label-print-css-override .title { font-size: var(--label-font-title) !important; line-height: 1 !important; }\n.label-print-page.label-print-css-override .small { font-size: var(--label-font-small) !important; }\n.label-print-page.label-print-css-override .center { text-align: center !important; }\n.label-print-page.label-print-css-override .h80 { height: calc(var(--label-h) * 0.12) !important; }\n.label-print-page.label-print-css-override .h70 { height: calc(var(--label-h) * 0.10) !important; }\n@media print { html, body { width: ${widthMm}mm; height: ${heightMm}mm; } .label-print-page { width: ${widthMm}mm; height: ${heightMm}mm; } }`;',
                 '  }',
+                '  window.applyWorkingLabelPreset = function applyWorkingLabelPreset() { setValue("label-width-mm", 300.8); setValue("label-height-mm", 191); setValue("label-paper-width-mm", 100); setValue("label-paper-height-mm", 150); setValue("label-scale-percent", 100); setValue("label-offset-x-mm", 0); setValue("label-offset-y-mm", 0); setValue("label-layout-mode", "native-css"); setValue("label-fit-mode", "contain"); setValue("label-rotate", 180); setChecked("label-css-override", true); window.fitLabelToPage(); }',
+                '  window.applyLabelSettingsToTemplate = function applyLabelSettingsToTemplate() { const doc = window.opener && window.opener.document; if (!doc) { alert("Основная модалка недоступна"); return; } const settings = currentSettings(); Object.entries(settings).forEach(([name, value]) => { const field = doc.querySelector(`[name="${name}"]`); if (!field) { return; } if (field.type === "checkbox") { field.checked = String(value) !== "0"; } else { field.value = String(value); } field.dispatchEvent(new Event("input", { bubbles: true })); field.dispatchEvent(new Event("change", { bubbles: true })); }); alert("Настройки применены в шаблон. Нажмите «Сохранить шаблон» в основной модалке."); }',
                 '  window.fitLabelToPage = function fitLabelToPage() {',
                 '    const page = $("label-print-page");',
                 '    const content = $("label-print-content");',
@@ -945,12 +963,12 @@ const CoreAPI = {
                 '    const autoScale = layoutMode === "transform-fit" ? (fitMode === "cover" ? scaleCover : (fitMode === "none" ? 1 : scaleContain)) : 1;',
                 '    const finalScale = autoScale * manualScale / 100;',
                 '    if (layoutMode === "transform-fit") { content.style.transform = `translate(${offsetX}mm, ${offsetY}mm) rotate(${rotate}deg) scale(${finalScale})`; }',
-                '    const diagnostics = { page: `${widthMm} x ${heightMm} mm`, layoutMode, cssOverride: cssOverride ? "on" : "off", titleFontPx: vars.titleFontPx, baseFontPx: vars.baseFontPx, smallFontPx: vars.smallFontPx, cellPaddingPx: vars.cellPaddingPx, barcodeHeightMm: vars.barcodeHeightMm, pageWidthPx, pageHeightPx, contentWidthPx, contentHeightPx, autoScale, manualScale, finalScale, fitMode, widthMm, heightMm };',
+                '    const diagnostics = { page: `${widthMm} x ${heightMm} mm`, cupsMedia: `${numberValue("label-paper-width-mm", 100)} x ${numberValue("label-paper-height-mm", 150)} mm`, layoutMode, cssOverride: cssOverride ? "on" : "off", titleFontPx: vars.titleFontPx, baseFontPx: vars.baseFontPx, smallFontPx: vars.smallFontPx, cellPaddingPx: vars.cellPaddingPx, barcodeHeightMm: vars.barcodeHeightMm, pageWidthPx, pageHeightPx, contentWidthPx, contentHeightPx, autoScale, manualScale, finalScale, fitMode, rotate, widthMm, heightMm };',
                 '    console.log("Connector label print preview diagnostics", diagnostics);',
                 '    const box = $("label-print-diagnostics");',
                 '    if (box) { box.textContent = Object.entries(diagnostics).map(([key, value]) => `${key}: ${typeof value === "number" ? Math.round(value * 10000) / 10000 : value}`).join(" · "); }',
                 '  };',
-                '  ["label-width-mm", "label-height-mm", "label-scale-percent", "label-offset-x-mm", "label-offset-y-mm", "label-layout-mode", "label-fit-mode", "label-rotate", "label-css-override"].forEach((id) => { $(id)?.addEventListener("input", window.fitLabelToPage); $(id)?.addEventListener("change", window.fitLabelToPage); });',
+                '  ["label-width-mm", "label-height-mm", "label-paper-width-mm", "label-paper-height-mm", "label-scale-percent", "label-offset-x-mm", "label-offset-y-mm", "label-layout-mode", "label-fit-mode", "label-rotate", "label-css-override"].forEach((id) => { $(id)?.addEventListener("input", window.fitLabelToPage); $(id)?.addEventListener("change", window.fitLabelToPage); });',
                 '  document.querySelectorAll("[data-preset-width][data-preset-height]").forEach((button) => button.addEventListener("click", function () { $("label-width-mm").value = this.dataset.presetWidth; $("label-height-mm").value = this.dataset.presetHeight; window.fitLabelToPage(); }));',
                 '  window.addEventListener("load", window.fitLabelToPage);',
                 '  setTimeout(window.fitLabelToPage, 50);',

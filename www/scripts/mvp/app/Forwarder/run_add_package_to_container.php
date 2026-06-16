@@ -1267,6 +1267,11 @@ $countryDestArg = trim(forwarder_add_package_to_container_arg($args, 'country-de
 $labelTemplateBodyBase64 = trim(forwarder_add_package_to_container_arg($args, 'label-template-body-base64', 'label_template_body_base64'));
 $labelWidthCm = (float)forwarder_add_package_to_container_arg($args, 'label-width-cm', 'label_width_cm');
 $labelHeightCm = (float)forwarder_add_package_to_container_arg($args, 'label-height-cm', 'label_height_cm');
+$printPaperWidthMm = (float)forwarder_add_package_to_container_arg($args, 'print-paper-width-mm', 'print_paper_width_mm');
+$printPaperHeightMm = (float)forwarder_add_package_to_container_arg($args, 'print-paper-height-mm', 'print_paper_height_mm');
+$renderWidthMm = (float)forwarder_add_package_to_container_arg($args, 'render-width-mm', 'render_width_mm');
+$renderHeightMm = (float)forwarder_add_package_to_container_arg($args, 'render-height-mm', 'render_height_mm');
+$renderRotate = (int)forwarder_add_package_to_container_arg($args, 'render-rotate', 'render_rotate');
 $printRotate = (int)forwarder_add_package_to_container_arg($args, 'print-rotate', 'print_rotate');
 $printRasterize = forwarder_add_package_to_container_as_bool(
     forwarder_add_package_to_container_arg($args, 'print-rasterize', 'print_rasterize')
@@ -1284,8 +1289,23 @@ if ($labelWidthCm < 2.0 || $labelWidthCm > 30.0) {
 if ($labelHeightCm < 2.0 || $labelHeightCm > 30.0) {
     $labelHeightCm = 15.0;
 }
+if ($printPaperWidthMm <= 0) {
+    $printPaperWidthMm = 100.0;
+}
+if ($printPaperHeightMm <= 0) {
+    $printPaperHeightMm = 150.0;
+}
+if ($renderWidthMm <= 0) {
+    $renderWidthMm = 300.8;
+}
+if ($renderHeightMm <= 0) {
+    $renderHeightMm = 191.0;
+}
+if (!in_array($renderRotate, [0, 90, 180, 270], true)) {
+    $renderRotate = 180;
+}
 if (!in_array($printRotate, [0, 90, 180, 270], true)) {
-    $printRotate = 0;
+    $printRotate = $renderRotate;
 }
 $allowLabelUrl = forwarder_add_package_to_container_as_bool(
     forwarder_add_package_to_container_arg($args, 'allow-label-url', 'allow_label_url')
@@ -1474,8 +1494,8 @@ if ($printRequested) {
     $publicBaseUrl,
     $labelTemplateCode,
     $labelTemplateBody,
-    $labelWidthCm,
-    $labelHeightCm,
+    $renderWidthMm / 10,
+    $renderHeightMm / 10,
     $printRasterize,
     $forwardNameArg,
     $countryDestArg
@@ -1559,9 +1579,11 @@ if ($printRequested) {
             $printPayload['label_url'] = $labelUrl;
         }
 
-        $printPayload['label_width_cm'] = $labelWidthCm;
-        $printPayload['label_height_cm'] = $labelHeightCm;
-        $printPayload['rotate'] = $printRotate;
+        $printPayload['label_width_cm'] = $printPaperWidthMm / 10;
+        $printPayload['label_height_cm'] = $printPaperHeightMm / 10;
+        $printPayload['rotate'] = $renderRotate;
+        $printPayload['render_width_mm'] = $renderWidthMm;
+        $printPayload['render_height_mm'] = $renderHeightMm;
         $printResponsePayload = forwarder_add_package_to_container_send_print_job($printUrl, $printToken, $printPayload);
         $printResponsePayload['status'] = !empty($printResponsePayload['ok']) ? 'ok' : 'error';
         $printResponsePayload['message'] = !empty($printResponsePayload['ok'])
@@ -1637,6 +1659,11 @@ $result = [
     'print_rotate' => $printRotate,
     'label_width_cm' => $labelWidthCm,
     'label_height_cm' => $labelHeightCm,
+    'print_paper_width_mm' => $printPaperWidthMm,
+    'print_paper_height_mm' => $printPaperHeightMm,
+    'render_width_mm' => $renderWidthMm,
+    'render_height_mm' => $renderHeightMm,
+    'render_rotate' => $renderRotate,
     'print_allow_label_url' => $allowLabelUrl,
     'print_rasterize' => $printRasterize ? 1 : 0,
 ];

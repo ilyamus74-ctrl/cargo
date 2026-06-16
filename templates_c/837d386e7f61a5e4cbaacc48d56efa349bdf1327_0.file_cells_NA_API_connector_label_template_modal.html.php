@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-06-16 14:04:42
+/* Smarty version 5.3.1, created on 2026-06-16 14:49:17
   from 'file:cells_NA_API_connector_label_template_modal.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_6a3157fa5cb4c9_77895975',
+  'unifunc' => 'content_6a31626dd13382_87423479',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '837d386e7f61a5e4cbaacc48d56efa349bdf1327' => 
     array (
       0 => 'cells_NA_API_connector_label_template_modal.html',
-      1 => 1781618611,
+      1 => 1781621137,
       2 => 'file',
     ),
   ),
@@ -20,12 +20,34 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_6a3157fa5cb4c9_77895975 (\Smarty\Template $_smarty_tpl) {
+function content_6a31626dd13382_87423479 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?><form id="connector-label-template-form">
   <input type="hidden" name="connector_id" value="<?php echo $_smarty_tpl->getSmarty()->getModifierCallback('escape')((($tmp = $_smarty_tpl->getValue('connector')['id'] ?? null)===null||$tmp==='' ? 0 ?? null : $tmp), 'htmlattr');?>
 ">
   <input type="hidden" name="template_code" value="<?php echo $_smarty_tpl->getSmarty()->getModifierCallback('escape')((($tmp = $_smarty_tpl->getValue('template')['template_code'] ?? null)===null||$tmp==='' ? 'default' ?? null : $tmp), 'htmlattr');?>
+">
+  <input type="hidden" name="print_paper_width_mm" value="<?php echo $_smarty_tpl->getSmarty()->getModifierCallback('escape')((($tmp = $_smarty_tpl->getValue('template')['print_paper_width_mm'] ?? null)===null||$tmp==='' ? '100' ?? null : $tmp), 'htmlattr');?>
+">
+  <input type="hidden" name="print_paper_height_mm" value="<?php echo $_smarty_tpl->getSmarty()->getModifierCallback('escape')((($tmp = $_smarty_tpl->getValue('template')['print_paper_height_mm'] ?? null)===null||$tmp==='' ? '150' ?? null : $tmp), 'htmlattr');?>
+">
+  <input type="hidden" name="render_width_mm" value="<?php echo $_smarty_tpl->getSmarty()->getModifierCallback('escape')((($tmp = $_smarty_tpl->getValue('template')['render_width_mm'] ?? null)===null||$tmp==='' ? '300.8' ?? null : $tmp), 'htmlattr');?>
+">
+  <input type="hidden" name="render_height_mm" value="<?php echo $_smarty_tpl->getSmarty()->getModifierCallback('escape')((($tmp = $_smarty_tpl->getValue('template')['render_height_mm'] ?? null)===null||$tmp==='' ? '191' ?? null : $tmp), 'htmlattr');?>
+">
+  <input type="hidden" name="render_rotate" value="<?php echo $_smarty_tpl->getSmarty()->getModifierCallback('escape')((($tmp = $_smarty_tpl->getValue('template')['render_rotate'] ?? null)===null||$tmp==='' ? '180' ?? null : $tmp), 'htmlattr');?>
+">
+  <input type="hidden" name="render_layout_mode" value="<?php echo $_smarty_tpl->getSmarty()->getModifierCallback('escape')((($tmp = $_smarty_tpl->getValue('template')['render_layout_mode'] ?? null)===null||$tmp==='' ? 'native-css' ?? null : $tmp), 'htmlattr');?>
+">
+  <input type="hidden" name="render_css_override" value="<?php echo $_smarty_tpl->getSmarty()->getModifierCallback('escape')((($tmp = $_smarty_tpl->getValue('template')['render_css_override'] ?? null)===null||$tmp==='' ? '1' ?? null : $tmp), 'htmlattr');?>
+">
+  <input type="hidden" name="render_fit_mode" value="<?php echo $_smarty_tpl->getSmarty()->getModifierCallback('escape')((($tmp = $_smarty_tpl->getValue('template')['render_fit_mode'] ?? null)===null||$tmp==='' ? 'contain' ?? null : $tmp), 'htmlattr');?>
+">
+  <input type="hidden" name="render_scale_percent" value="<?php echo $_smarty_tpl->getSmarty()->getModifierCallback('escape')((($tmp = $_smarty_tpl->getValue('template')['render_scale_percent'] ?? null)===null||$tmp==='' ? '100' ?? null : $tmp), 'htmlattr');?>
+">
+  <input type="hidden" name="render_offset_x_mm" value="<?php echo $_smarty_tpl->getSmarty()->getModifierCallback('escape')((($tmp = $_smarty_tpl->getValue('template')['render_offset_x_mm'] ?? null)===null||$tmp==='' ? '0' ?? null : $tmp), 'htmlattr');?>
+">
+  <input type="hidden" name="render_offset_y_mm" value="<?php echo $_smarty_tpl->getSmarty()->getModifierCallback('escape')((($tmp = $_smarty_tpl->getValue('template')['render_offset_y_mm'] ?? null)===null||$tmp==='' ? '0' ?? null : $tmp), 'htmlattr');?>
 ">
 
   <div class="container-fluid">
@@ -152,7 +174,7 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
 ">
           </div>
           <div class="col-12">
-            <div class="form-text">Для физической этикетки 10 x 15 cm используйте width=10, height=15. В HTML preview должен быть размер 100 x 150 mm. В print dialog выберите 4 x 6 / 100 x 150 mm.</div>
+            <div class="form-text">Для физической этикетки 10 x 15 cm используйте width=10, height=15. В HTML preview использует render canvas из сохранённого профиля (по умолчанию 300.8 x 191 mm), а физическая бумага/CUPS остаётся 100 x 150 mm. В print dialog выберите 4 x 6 / 100 x 150 mm.</div>
           </div>
         </div>
         <div class="border rounded p-2 bg-light" style="min-height: 420px; max-height: 620px; overflow: auto;">
