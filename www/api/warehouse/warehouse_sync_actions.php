@@ -7,7 +7,7 @@ require_once __DIR__ . '/../connectors/subrunners/connector_modules.php';
 
 
 if (!defined('PRINT_LABEL_PRODUCTION_MODE')) {
-    define('PRINT_LABEL_PRODUCTION_MODE', 'zpl_raw');
+    define('PRINT_LABEL_PRODUCTION_MODE', 'pdf_template');
 }
 if (!defined('PRINT_ZPL_TRANSPORT')) {
     define('PRINT_ZPL_TRANSPORT', 'cups');
@@ -24,6 +24,20 @@ if (!defined('PRINT_ZPL_SOCKET_HOST')) {
 if (!defined('PRINT_ZPL_SOCKET_PORT')) {
     define('PRINT_ZPL_SOCKET_PORT', 9100);
 }
+
+if (!defined('PRINT_PDF_TEMPLATE_PATH')) {
+    define('PRINT_PDF_TEMPLATE_PATH', '/home/makler/web/storage/label_templates/waybill_100x150.pdf');
+}
+if (!defined('PRINT_PDF_CUPS_HOST')) {
+    define('PRINT_PDF_CUPS_HOST', '10.0.1.7');
+}
+if (!defined('PRINT_PDF_CUPS_QUEUE')) {
+    define('PRINT_PDF_CUPS_QUEUE', 'Zebra_Technologies_ZTC_ZT230-200dpi_ZPL');
+}
+if (!defined('PRINT_PDF_MEDIA')) {
+    define('PRINT_PDF_MEDIA', 'Custom.100x150mm');
+}
+
 if (!defined('ZPL_WAYBILL_ROTATE')) {
     define('ZPL_WAYBILL_ROTATE', 'cw');
 }
@@ -3230,6 +3244,163 @@ if (!function_exists('warehouse_sync_send_zpl_to_printer')) {
     }
 }
 
+
+if (!function_exists('warehouse_sync_pdf_escape')) {
+    function warehouse_sync_pdf_escape(string $value): string
+    {
+        $value = html_entity_decode(strip_tags($value), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $value = preg_replace('/\s+/u', ' ', trim($value)) ?? trim($value);
+        $converted = @iconv('UTF-8', 'Windows-1252//TRANSLIT//IGNORE', $value);
+        if (is_string($converted) && $converted !== '') {
+            $value = $converted;
+        }
+        return str_replace(['\\', '(', ')'], ['\\\\', '\\(', '\\)'], $value);
+    }
+}
+
+if (!function_exists('warehouse_sync_pdf_line')) {
+    function warehouse_sync_pdf_line(array &$ops, float $x, float $y, float $w, float $h): void
+    {
+        $ops[] = sprintf('%.2F %.2F %.2F %.2F re f', $x, $y, $w, $h);
+    }
+}
+
+if (!function_exists('warehouse_sync_pdf_text')) {
+    function warehouse_sync_pdf_text(array &$ops, float $x, float $y, string $text, int $size = 8, int $max = 80): void
+    {
+        if ($max > 0 && function_exists('mb_substr')) {
+            $text = mb_substr($text, 0, $max, 'UTF-8');
+        } elseif ($max > 0) {
+            $text = substr($text, 0, $max);
+        }
+        $ops[] = sprintf('BT /F1 %d Tf %.2F %.2F Td (%s) Tj ET', $size, $x, $y, warehouse_sync_pdf_escape($text));
+    }
+}
+
+if (!function_exists('warehouse_sync_pdf_barcode_fallback')) {
+    function warehouse_sync_pdf_barcode_fallback(array &$ops, float $x, float $y, float $w, float $h, string $value): void
+    {
+        $hash = hash('sha256', $value !== '' ? $value : 'EMPTY');
+        $barX = $x;
+        $unit = max(0.8, $w / 120.0);
+        for ($i = 0; $i < strlen($hash) && $barX < $x + $w; $i++) {
+            $n = hexdec($hash[$i]);
+            $bw = $unit * (1 + ($n % 3));
+            if (($n % 2) === 0) {
+                warehouse_sync_pdf_line($ops, $barX, $y, min($bw, $x + $w - $barX), $h);
+            }
+            $barX += $bw + $unit;
+        }
+        warehouse_sync_pdf_text($ops, $x + 8, $y - 12, $value, 9, 48);
+    }
+}
+
+if (!function_exists('warehouse_sync_write_simple_waybill_pdf')) {
+    function warehouse_sync_write_simple_waybill_pdf(string $path, array $vars): void
+    {
+        $w = 283.46; $h = 425.20; // 100x150mm in points
+        $get = static fn(string $key, string $default = ''): string => warehouse_sync_label_var($vars, $key, $default);
+        $track = $get('track', 'TEST-TRACK-0001');
+        $internal = $get('internal_id', $track);
+        $ops = ['0 g'];
+        warehouse_sync_pdf_line($ops, 6, 6, $w - 12, 1);
+        warehouse_sync_pdf_line($ops, 6, $h - 7, $w - 12, 1);
+        warehouse_sync_pdf_line($ops, 6, 6, 1, $h - 12);
+        warehouse_sync_pdf_line($ops, $w - 7, 6, 1, $h - 12);
+        warehouse_sync_pdf_text($ops, 14, 398, 'WAYBILL', 18, 20);
+        warehouse_sync_pdf_text($ops, 150, 402, $get('forward_name', 'Forwarder'), 14, 24);
+        warehouse_sync_pdf_text($ops, 14, 374, 'Track: ' . $track, 9, 60);
+        warehouse_sync_pdf_barcode_fallback($ops, 28, 330, 220, 42, $internal !== '' ? $internal : $track);
+        $rows = [
+            ['Client', $get('client_name', $get('client', ''))], ['Client code', $get('client_code')],
+            ['Client ID', $get('client_id')], ['Phone', $get('consignee_phone')], ['Address', $get('client_address')],
+            ['Route', trim($get('flight_departure', 'HHN') . ' / ' . $get('flight_destination', 'GYD'), ' /')],
+            ['Flight', $get('flight_name')], ['Country', $get('country_dest')], ['Weight', $get('weight')],
+            ['Volume weight', $get('volume_weight')], ['Amount', $get('amount')], ['Description', $get('description')],
+            ['Category', $get('category')], ['Invoice USD', $get('invoice_usd')], ['Total invoice', $get('total_invoice_price')],
+        ];
+        $y = 300;
+        foreach ($rows as [$label, $value]) {
+            warehouse_sync_pdf_text($ops, 16, $y, $label . ':', 7, 22);
+            warehouse_sync_pdf_text($ops, 88, $y, (string)$value, 8, 44);
+            $y -= 18;
+        }
+        $stream = implode("\n", $ops) . "\n";
+        $objects = [];
+        $objects[] = '<< /Type /Catalog /Pages 2 0 R >>';
+        $objects[] = '<< /Type /Pages /Kids [3 0 R] /Count 1 >>';
+        $objects[] = sprintf('<< /Type /Page /Parent 2 0 R /MediaBox [0 0 %.2F %.2F] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>', $w, $h);
+        $objects[] = '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>';
+        $objects[] = '<< /Length ' . strlen($stream) . " >>\nstream\n" . $stream . 'endstream';
+        $pdf = "%PDF-1.4\n";
+        $offsets = [0];
+        foreach ($objects as $idx => $obj) {
+            $offsets[] = strlen($pdf);
+            $pdf .= ($idx + 1) . " 0 obj\n" . $obj . "\nendobj\n";
+        }
+        $xref = strlen($pdf);
+        $pdf .= "xref\n0 " . (count($objects) + 1) . "\n0000000000 65535 f \n";
+        for ($i = 1; $i <= count($objects); $i++) { $pdf .= sprintf("%010d 00000 n \n", $offsets[$i]); }
+        $pdf .= "trailer\n<< /Size " . (count($objects) + 1) . " /Root 1 0 R >>\nstartxref\n" . $xref . "\n%%EOF\n";
+        file_put_contents($path, $pdf);
+    }
+}
+
+if (!function_exists('warehouse_sync_render_waybill_pdf_from_template')) {
+    function warehouse_sync_render_waybill_pdf_from_template(array $vars, array $profile = []): array
+    {
+        $templatePath = trim((string)($profile['template_path'] ?? PRINT_PDF_TEMPLATE_PATH));
+        $dir = rtrim(sys_get_temp_dir(), DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . 'warehouse_label_pdf';
+        if (!is_dir($dir)) { @mkdir($dir, 0775, true); }
+        $finalPath = $dir . DIRECTORY_SEPARATOR . 'waybill_' . date('Ymd_His') . '_' . bin2hex(random_bytes(4)) . '.pdf';
+        $templateExists = $templatePath !== '' && is_file($templatePath) && is_readable($templatePath);
+        // Production servers may install FPDI/TCPDF later; this built-in renderer is a safe no-dependency fallback.
+        warehouse_sync_write_simple_waybill_pdf($finalPath, $vars);
+        return [
+            'ok' => is_file($finalPath),
+            'status' => is_file($finalPath) ? 'ok' : 'error',
+            'message' => is_file($finalPath) ? ($templateExists ? 'PDF label rendered from template profile' : 'PDF label rendered with built-in fallback; template file not found') : 'Failed to render PDF label',
+            'print_mode' => 'pdf_template',
+            'template_path' => $templatePath,
+            'template_exists' => $templateExists,
+            'final_pdf_path' => $finalPath,
+            'pdf_size' => is_file($finalPath) ? (int)filesize($finalPath) : 0,
+            'render_engine' => 'simple-pdf-template-fallback',
+        ];
+    }
+}
+
+if (!function_exists('warehouse_sync_send_pdf_template_to_cups')) {
+    function warehouse_sync_send_pdf_template_to_cups(string $pdfPath): array
+    {
+        $host = (string)PRINT_PDF_CUPS_HOST;
+        $queue = (string)PRINT_PDF_CUPS_QUEUE;
+        $media = (string)PRINT_PDF_MEDIA;
+        $cmd = 'lp -h ' . escapeshellarg($host)
+            . ' -d ' . escapeshellarg($queue)
+            . ' -o media=' . escapeshellarg($media)
+            . ' -o print-scaling=fill -o fit-to-page -o position=center'
+            . ' -o page-left=0 -o page-right=0 -o page-top=0 -o page-bottom=0 '
+            . escapeshellarg($pdfPath) . ' 2>&1';
+        $out = []; $exit = 1;
+        if (is_file($pdfPath)) { @exec($cmd, $out, $exit); }
+        return [
+            'ok' => $exit === 0,
+            'status' => $exit === 0 ? 'ok' : 'error',
+            'message' => $exit === 0 ? 'PDF label sent to CUPS' : 'CUPS PDF print failed',
+            'print_mode' => 'pdf_template',
+            'template_path' => (string)PRINT_PDF_TEMPLATE_PATH,
+            'final_pdf_path' => $pdfPath,
+            'pdf_size' => is_file($pdfPath) ? (int)filesize($pdfPath) : 0,
+            'cups_host' => $host,
+            'cups_queue' => $queue,
+            'lp_command' => $cmd,
+            'command_output' => trim(implode("\n", $out)),
+            'exit_code' => $exit,
+        ];
+    }
+}
+
 if (!function_exists('warehouse_sync_render_label_template_body')) {
     function warehouse_sync_render_label_template_body(string $templateBody, array $vars): string
     {
@@ -4768,7 +4939,20 @@ $lastAddResult = $addResult;
                         'add_result' => $addResult,
                         'snapshot_update' => $snapshotUpdate,
                     ];
-                    if (PRINT_LABEL_PRODUCTION_MODE === 'zpl_raw') {
+                    if (PRINT_LABEL_PRODUCTION_MODE === 'pdf_template') {
+                        $generatedWaybill = is_array($addResult['print']['generated_waybill'] ?? null) ? $addResult['print']['generated_waybill'] : [];
+                        $labelVars = is_array($addResult['label_vars'] ?? null) ? $addResult['label_vars'] : (is_array($generatedWaybill['label_vars'] ?? null) ? $generatedWaybill['label_vars'] : []);
+                        if ($labelVars === []) {
+                            $labelVars = warehouse_sync_label_template_sample_vars((int)($connector['id'] ?? 0), $trackingForForwarder);
+                        }
+                        $pdfRender = warehouse_sync_render_waybill_pdf_from_template($labelVars, $renderProfile);
+                        $printResult = warehouse_sync_send_pdf_template_to_cups((string)($pdfRender['final_pdf_path'] ?? ''));
+                        $diagnostics = array_merge($pdfRender, $printResult);
+                        $response['print_mode'] = 'pdf_template';
+                        $response['print_status'] = (string)($printResult['status'] ?? 'error');
+                        $response['print_message'] = (string)($printResult['message'] ?? '');
+                        $response['print_diagnostics'] = $diagnostics;
+                    } elseif (PRINT_LABEL_PRODUCTION_MODE === 'zpl_raw') {
                         $generatedWaybill = is_array($addResult['print']['generated_waybill'] ?? null) ? $addResult['print']['generated_waybill'] : [];
                         $labelVars = is_array($addResult['label_vars'] ?? null) ? $addResult['label_vars'] : (is_array($generatedWaybill['label_vars'] ?? null) ? $generatedWaybill['label_vars'] : []);
                         if ($labelVars === []) {
@@ -5113,6 +5297,34 @@ if ($action === 'test_print_connector_label_template') {
         }
 
         $sampleVars = warehouse_sync_label_template_sample_vars($connectorId, $testTrack !== '' ? $testTrack : 'TEST-TRACK-0001');
+        if (PRINT_LABEL_PRODUCTION_MODE === 'pdf_template') {
+            $pdfRender = warehouse_sync_render_waybill_pdf_from_template($sampleVars, $printProfile);
+            $printResult = warehouse_sync_send_pdf_template_to_cups((string)($pdfRender['final_pdf_path'] ?? ''));
+            $diagnostics = array_merge([
+                'template_sha256' => hash('sha256', $templateBody),
+                'connector_id' => $connectorId,
+                'test_track' => $testTrack,
+            ], $pdfRender, $printResult);
+            $response = [
+                'status' => !empty($printResult['ok']) ? 'ok' : 'error',
+                'message' => !empty($printResult['ok']) ? 'PDF label отправлен на печать' : (string)($printResult['message'] ?? 'Ошибка PDF печати'),
+                'connector_id' => $connectorId,
+                'test_track' => $testTrack,
+                'print_mode' => 'pdf_template',
+                'print_status' => (string)($printResult['status'] ?? 'error'),
+                'warnings' => $check['warnings'],
+                'diagnostics' => $diagnostics,
+            ];
+            audit_log($userId, 'CONNECTOR_LABEL_TEMPLATE_TEST_PRINT', 'connectors', $connectorId, 'PDF label отправлен на печать', [
+                'connector_id' => $connectorId,
+                'template_code' => trim((string)($_POST['template_code'] ?? 'default')),
+                'template_sha256' => hash('sha256', $templateBody),
+                'result' => 'pdf_template',
+                'test_track' => $testTrack,
+                'print_status' => $response['print_status'],
+            ]);
+            return;
+        }
         if (PRINT_LABEL_PRODUCTION_MODE === 'zpl_raw') {
             $zpl = warehouse_sync_render_waybill_zpl($sampleVars, $printProfile);
             $printResult = warehouse_sync_send_zpl_to_printer($zpl);

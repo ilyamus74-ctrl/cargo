@@ -1008,7 +1008,7 @@ const CoreAPI = {
             }
         },
 'test_print_connector_label_template': (data) => {
-    if (data?.print_mode === 'zpl_raw') {
+    if (data?.print_mode === 'zpl_raw' || data?.print_mode === 'pdf_template') {
         const box = document.getElementById('connector-label-template-validation');
         const ok = String(data?.status || '').toLowerCase() === 'ok' && String(data?.print_status || '').toLowerCase() === 'ok';
         const message = String(data?.message || (ok ? 'Лейбл отправлен на печать' : 'Ошибка печати лейбла')).trim();
@@ -1017,7 +1017,7 @@ const CoreAPI = {
             const esc = (v) => String(v ?? '').replace(/[&<>"']/g, (ch) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[ch]));
             const rows = Object.entries(diagnostics).map(([k, v]) => `<tr><th>${esc(k)}</th><td><code>${esc(typeof v === 'object' ? JSON.stringify(v) : v)}</code></td></tr>`).join('');
             box.innerHTML = `<div class="${ok ? 'text-success' : 'text-danger'}"><strong>${esc(message)}</strong></div>`
-                + `<div class="small text-muted mt-1">print_mode=zpl_raw; transport=${esc(data?.zpl_transport || '')}; zpl_size=${esc(data?.zpl_size || '')}</div>`
+                + `<div class="small text-muted mt-1">print_mode=${esc(data?.print_mode || '')}; transport=${esc(data?.zpl_transport || data?.diagnostics?.cups_queue || '')}; size=${esc(data?.zpl_size || data?.diagnostics?.pdf_size || '')}</div>`
                 + (rows ? `<div class="table-responsive mt-2"><table class="table table-sm table-bordered mb-0"><tbody>${rows}</tbody></table></div>` : '');
         }
         CoreAPI.showToast?.(ok ? 'Лейбл отправлен на печать' : message, ok ? 'success' : 'warning');
@@ -3812,12 +3812,12 @@ const CoreAPI = {
             }
 
             CoreAPI.showToast?.('Посылка перемещена в контейнер.', 'success');
-            if (data?.print_mode === 'zpl_raw') {
+            if (data?.print_mode === 'zpl_raw' || data?.print_mode === 'pdf_template') {
                 const zplOk = String(data?.print_status || '').trim().toLowerCase() === 'ok';
                 CoreAPI.showToast?.(zplOk ? 'Лейбл отправлен на печать' : (String(data?.print_message || '').trim() || 'Печать лейбла завершилась с ошибкой.'), zplOk ? 'success' : 'warning');
             }
             const printStatus = String(data?.forwarder_sync?.add_result?.print?.status || data?.print_status || '').trim().toLowerCase();
-            if (printStatus === 'ok' && data?.print_mode !== 'zpl_raw') {
+            if (printStatus === 'ok' && data?.print_mode !== 'zpl_raw' && data?.print_mode !== 'pdf_template') {
                 CoreAPI.showToast?.('Лейбл отправлен на печать.', 'success');
                 const renderEngine = String(data?.forwarder_sync?.add_result?.print?.generated_waybill?.render_engine || '').trim();
                 if (renderEngine === 'simple-pdf-fallback') {
