@@ -750,7 +750,8 @@ function forwarder_add_package_to_container_build_html_label_from_verify(
     float $labelHeightCm = 15.0,
     bool $preferRasterImage = false,
     string $forwardNameArg = '',
-    string $countryDestArg = ''
+    string $countryDestArg = '',
+    bool $returnLabelHtml = false
 ): array
 {
     $templateCode = trim($labelTemplateCode) !== '' ? trim($labelTemplateCode) : 'default';
@@ -988,6 +989,21 @@ $countryDestRaw = match ($countryDestNorm) {
         'consignee_phone' => $consigneePhone,
         'total_invoice_price' => $totalWaybillInvoicePrice,
     ]);
+
+    if ($returnLabelHtml) {
+        return [
+            'ok' => true,
+            'error' => '',
+            'label_base64' => '',
+            'file_name' => 'waybill_' . preg_replace('/[^a-zA-Z0-9_-]+/', '_', $track) . '.html',
+            'invoice_url' => $invoiceUrl,
+            'qr_url' => $qrUrl,
+            'render_engine' => 'browser-html',
+            'template_code' => $templateCode,
+            'printable_html' => $html,
+            'generated_waybill_html' => $html,
+        ];
+    }
 
     if ($preferRasterImage) {
         $pngRender = forwarder_add_package_to_container_convert_html_to_png($html, $labelWidthCm, $labelHeightCm);
@@ -1250,6 +1266,8 @@ $printDevicesJson = forwarder_add_package_to_container_arg($args, 'print-devices
 $printDeviceKey = forwarder_add_package_to_container_arg($args, 'print-device-key', 'print_device_key');
 $printFileName = forwarder_add_package_to_container_arg($args, 'print-file-name', 'print_file_name');
 $labelBase64Arg = forwarder_add_package_to_container_arg($args, 'label-base64', 'label_base64');
+$printModeArg = strtolower(str_replace('_', '-', forwarder_add_package_to_container_arg($args, 'print-mode', 'print_mode')));
+$returnLabelHtml = forwarder_add_package_to_container_as_bool(forwarder_add_package_to_container_arg($args, 'return-label-html', 'return_label_html')) || $printModeArg === 'browser-html';
 
 $printLabelRetries = max(0, forwarder_add_package_to_container_as_int(
     forwarder_add_package_to_container_arg($args, 'print-label-retries', 'print_label_retries'),
@@ -1273,7 +1291,7 @@ $renderWidthMm = (float)forwarder_add_package_to_container_arg($args, 'render-wi
 $renderHeightMm = (float)forwarder_add_package_to_container_arg($args, 'render-height-mm', 'render_height_mm');
 $renderRotate = (int)forwarder_add_package_to_container_arg($args, 'render-rotate', 'render_rotate');
 $printRotate = (int)forwarder_add_package_to_container_arg($args, 'print-rotate', 'print_rotate');
-$printRasterize = forwarder_add_package_to_container_as_bool(
+$printRasterize = !$returnLabelHtml && forwarder_add_package_to_container_as_bool(
     forwarder_add_package_to_container_arg($args, 'print-rasterize', 'print_rasterize')
 );
 $labelTemplateBody = '';
@@ -1498,7 +1516,8 @@ if ($printRequested) {
     $renderHeightMm / 10,
     $printRasterize,
     $forwardNameArg,
-    $countryDestArg
+    $countryDestArg,
+    $returnLabelHtml
     );
 
     if ($labelBase64 === '' && !empty($generatedWaybill['ok']) && trim((string)($generatedWaybill['label_base64'] ?? '')) !== '') {
@@ -1564,6 +1583,7 @@ if ($printRequested) {
 
     if (
         $overallOk
+        && !$returnLabelHtml
         && $printToken !== ''
         && $selectedDeviceUid !== ''
         && ($labelBase64 !== '' || ($allowLabelUrl && $labelUrl !== ''))
@@ -1601,8 +1621,9 @@ if ($printRequested) {
         ];
     } else {
         $printResponsePayload = [
-            'ok' => false,
-            'status' => 'skipped',
+            'ok' => $returnLabelHtml,
+            'status' => $returnLabelHtml ? 'ready_for_browser_print' : 'skipped',
+            'print_mode' => $returnLabelHtml ? 'browser_html' : 'direct_cups_legacy',
             'http_status' => 0,
             'error' => 'print skipped: require successful add-flow, print-token, selected device and html/base64 label (url-label only with --allow-label-url=1)',
             'response' => null,
@@ -1666,6 +1687,10 @@ $result = [
     'render_rotate' => $renderRotate,
     'print_allow_label_url' => $allowLabelUrl,
     'print_rasterize' => $printRasterize ? 1 : 0,
+    'print_mode' => $returnLabelHtml ? 'browser_html' : 'direct_cups_legacy',
+    'print_status' => $returnLabelHtml ? 'ready_for_browser_print' : (string)($printResponsePayload['status'] ?? ''),
+    'printable_html' => $returnLabelHtml ? (string)($generatedWaybill['printable_html'] ?? '') : '',
+    'generated_waybill_html' => $returnLabelHtml ? (string)($generatedWaybill['generated_waybill_html'] ?? '') : '',
 ];
 
 

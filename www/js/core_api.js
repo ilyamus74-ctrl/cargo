@@ -785,9 +785,9 @@ const CoreAPI = {
             widthMm = Math.round(widthMm * 100) / 100;
             heightMm = Math.round(heightMm * 100) / 100;
 
-            const renderProfile = (data?.render_profile && typeof data.render_profile === 'object') ? data.render_profile : {};
-            const paperWidthMm = Number(renderProfile.print_paper_width_mm ?? data?.diagnostics?.print_paper_width_mm ?? 100);
-            const paperHeightMm = Number(renderProfile.print_paper_height_mm ?? data?.diagnostics?.print_paper_height_mm ?? 150);
+            const renderProfile = (data?.render_profile && typeof data.render_profile === 'object') ? data.render_profile : ((data?.print_profile && typeof data.print_profile === 'object') ? data.print_profile : {});
+            const paperWidthMm = Number(renderProfile.print_paper_width_mm ?? renderProfile.paper_width_mm ?? data?.diagnostics?.print_paper_width_mm ?? data?.diagnostics?.paper_width_mm ?? 100);
+            const paperHeightMm = Number(renderProfile.print_paper_height_mm ?? renderProfile.paper_height_mm ?? data?.diagnostics?.print_paper_height_mm ?? data?.diagnostics?.paper_height_mm ?? 150);
             const initialScale = Number(renderProfile.render_scale_percent ?? data?.diagnostics?.render_scale_percent ?? 100);
             const initialOffsetX = Number(renderProfile.render_offset_x_mm ?? data?.diagnostics?.render_offset_x_mm ?? 0);
             const initialOffsetY = Number(renderProfile.render_offset_y_mm ?? data?.diagnostics?.render_offset_y_mm ?? 0);
@@ -982,6 +982,16 @@ const CoreAPI = {
             previewWindow.document.write(doc);
             previewWindow.document.close();
             previewWindow.focus();
+            if (data?.auto_print) {
+                window.setTimeout(() => {
+                    try {
+                        previewWindow.focus();
+                        previewWindow.print();
+                    } catch (err) {
+                        console.warn('connector label browser print warning:', err);
+                    }
+                }, Number(data?.auto_print_delay_ms || 400));
+            }
         },
         'save_connector_label_template': async (data) => {
             alert(data.message || 'Шаблон сохранён');
@@ -998,6 +1008,14 @@ const CoreAPI = {
             }
         },
         'test_print_connector_label_template': (data) => {
+            if (data?.print_mode === 'browser_html' && typeof data?.printable_html === 'string') {
+                CoreAPI.handlers.actions.open_connector_label_template_print_preview({
+                    ...data,
+                    render_profile: data.render_profile || data.print_profile || {},
+                    auto_print: true,
+                    auto_print_delay_ms: 400,
+                });
+            }
             const box = document.getElementById('connector-label-template-validation');
             const message = String(data?.message || '').trim() || 'Тест печати выполнен';
             if (box) {
@@ -3765,7 +3783,21 @@ const CoreAPI = {
             }
 
             CoreAPI.showToast?.('Посылка перемещена в контейнер.', 'success');
-            const printStatus = String(data?.forwarder_sync?.add_result?.print?.status || '').trim().toLowerCase();
+            if (data?.print_mode === 'browser_html' && typeof data?.printable_html === 'string' && data.printable_html.trim() !== '') {
+                CoreAPI.handlers.actions.open_connector_label_template_print_preview({
+                    status: 'ok',
+                    message: 'HTML label готов к печати в браузере',
+                    print_mode: 'browser_html',
+                    printable_html: data.printable_html,
+                    render_profile: data.print_profile || {},
+                    print_profile: data.print_profile || {},
+                    diagnostics: data.diagnostics || {},
+                    auto_print: true,
+                    auto_print_delay_ms: 400,
+                });
+                CoreAPI.showToast?.('HTML-лейбл готов к печати в браузере.', 'success');
+            }
+            const printStatus = String(data?.forwarder_sync?.add_result?.print?.status || data?.print_status || '').trim().toLowerCase();
             if (printStatus === 'ok') {
                 CoreAPI.showToast?.('Лейбл отправлен на печать.', 'success');
                 const renderEngine = String(data?.forwarder_sync?.add_result?.print?.generated_waybill?.render_engine || '').trim();
@@ -3776,7 +3808,7 @@ const CoreAPI = {
                     );
                     this.playOutcomeSound('alert');
                 }
-            } else if (printStatus !== '' && printStatus !== 'skipped') {
+            } else if (printStatus !== '' && printStatus !== 'skipped' && printStatus !== 'ready_for_browser_print') {
                 const printMessage = String(data?.forwarder_sync?.add_result?.print?.message || data?.forwarder_sync?.add_result?.print?.error || '').trim();
                 CoreAPI.showToast?.(
                     printMessage !== '' ? `Печать лейбла: ${printMessage}` : 'Печать лейбла завершилась с ошибкой.',

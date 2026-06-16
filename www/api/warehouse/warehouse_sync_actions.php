@@ -1995,6 +1995,7 @@ if (!function_exists('warehouse_sync_queue_print_preview')) {
         return str_replace(['\\', '(', ')'], ['\\\\', '\(', '\)'], $encoded);
     }
 
+    /** @deprecated Browser HTML print is the default label path; keep only for legacy direct CUPS fallback. */
     function warehouse_sync_preview_html_to_simple_pdf(
         string $previewHtml,
         int $rotateDegrees = 0,
@@ -2086,6 +2087,7 @@ if (!function_exists('warehouse_sync_queue_print_preview')) {
         return $pdf;
     }
 
+    /** @deprecated Browser HTML print is the default label path; keep only for legacy direct CUPS fallback. */
     function warehouse_sync_preview_html_to_pdf_base64(
         string $previewHtml,
         float $labelWidthCm = 10.0,
@@ -2219,6 +2221,7 @@ if (!function_exists('warehouse_sync_queue_print_preview')) {
         @unlink($tmpPdfFile);
         return ['ok' => false, 'error' => implode('; ', $errors), 'pdf_base64' => ''];
     }
+    /** @deprecated Browser HTML print is the default label path; keep only for legacy direct CUPS fallback. */
     function warehouse_sync_preview_html_to_png_base64(
         string $previewHtml,
         float $labelWidthCm = 10.0,
@@ -2597,6 +2600,7 @@ if (!function_exists('warehouse_sync_label_render_defaults')) {
 }
 
 if (!function_exists('warehouse_sync_compose_physical_png_base64')) {
+    /** @deprecated Browser HTML print is the default label path; keep only for legacy direct CUPS fallback. */
     function warehouse_sync_compose_physical_png_base64(string $intermediatePngBase64, array $printProfile, int $dpi = 203): array
     {
         $binary = base64_decode($intermediatePngBase64, true);
@@ -4332,7 +4336,9 @@ if ($action === 'warehouse_item_out_confirm_send') {
                     'verify-number' => $trackingForForwarder,
                     'position' => $containerPosition,
                     'verify-check-package' => '1',
-                    'print-label' => $printLabelRequested ? '1' : '0',
+                    'print-label' => '1',
+                    'print-mode' => 'browser-html',
+                    'return-label-html' => '1',
                     'print-token' => $printToken,
                     'print-device-key' => $printDeviceKey,
                     'print-file-name' => 'label_' . (string)(preg_replace('/[^A-Za-z0-9._-]+/', '_', $trackingForForwarder) ?? 'track') . '.html',
@@ -4352,7 +4358,7 @@ if ($action === 'warehouse_item_out_confirm_send') {
                     'render-offset-x-mm' => (string)$renderProfile['render_offset_x_mm'],
                     'render-offset-y-mm' => (string)$renderProfile['render_offset_y_mm'],
                     'print-rotate' => (string)$printRotate,
-                    'print-rasterize' => '1',
+                    'print-rasterize' => '0',
                     'forward-name' => trim((string)($connector['name'] ?? '')),
                     'country-dest' => strtoupper(trim((string)($item['receiver_country_code'] ?? ''))),
                     'allow-label-url' => '0',
@@ -4411,6 +4417,26 @@ $lastAddResult = $addResult;
                         'add_result' => $addResult,
                         'snapshot_update' => $snapshotUpdate,
                     ];
+                    if (($addResult['print_mode'] ?? '') === 'browser_html' || ($addResult['print']['print_mode'] ?? '') === 'browser_html') {
+                        $generatedWaybill = is_array($addResult['print']['generated_waybill'] ?? null) ? $addResult['print']['generated_waybill'] : [];
+                        $printableHtml = (string)($addResult['printable_html'] ?? $addResult['generated_waybill_html'] ?? $generatedWaybill['printable_html'] ?? $generatedWaybill['generated_waybill_html'] ?? '');
+                        $response['print_mode'] = 'browser_html';
+                        $response['printable_html'] = $printableHtml;
+                        $response['print_profile'] = [
+                            'paper_width_mm' => $renderProfile['print_paper_width_mm'],
+                            'paper_height_mm' => $renderProfile['print_paper_height_mm'],
+                            'render_width_mm' => $renderProfile['render_width_mm'],
+                            'render_height_mm' => $renderProfile['render_height_mm'],
+                            'render_rotate' => $renderProfile['render_rotate'],
+                            'render_layout_mode' => $renderProfile['render_layout_mode'],
+                            'render_css_override' => $renderProfile['render_css_override'],
+                            'render_fit_mode' => $renderProfile['render_fit_mode'],
+                            'render_scale_percent' => $renderProfile['render_scale_percent'],
+                            'render_offset_x_mm' => $renderProfile['render_offset_x_mm'],
+                            'render_offset_y_mm' => $renderProfile['render_offset_y_mm'],
+                        ];
+                        $response['print_status'] = $printableHtml !== '' ? 'ready_for_browser_print' : 'browser_print_html_missing';
+                    }
                 }
             }
         }
@@ -4421,6 +4447,17 @@ $lastAddResult = $addResult;
             'add_result' => $lastAddResult,
         ];
     }
+
+    $browserPrintResponse = is_array($response ?? null) ? $response : [];
+    $response = array_merge([
+        'status' => 'ok',
+        'message' => 'Посылка успешно перемещена в контейнер',
+        'stock_item_id' => $stockItemId,
+        'tracking_no' => $trackingNo !== '' ? $trackingNo : (string)($item['tracking_no'] ?? $item['tuid'] ?? ''),
+        'warehouse_status' => $nextStatus,
+        'status_message' => $statusMessage,
+        'forwarder_sync' => $forwarderSync,
+    ], $browserPrintResponse);
 }
 
 
@@ -4669,17 +4706,11 @@ if ($action === 'test_print_connector_label_template') {
     $connectorId = (int)($_POST['connector_id'] ?? 0);
     $templateBody = (string)($_POST['template_body'] ?? '');
     $testTrack = trim((string)($_POST['test_track'] ?? 'TEST-TRACK-0001'));
-    $printDeviceKey = trim((string)($_POST['print_device_key'] ?? ''));
     $labelWidthCm = (float)($_POST['label_width_cm'] ?? 10);
     $labelHeightCm = (float)($_POST['label_height_cm'] ?? 15);
-    $printRotate = 0;
     $renderProfile = warehouse_sync_label_render_profile_from_array($_POST);
     $profileSource = 'post_print_profile';
-    $previewRasterizeRaw = strtolower(trim((string)($_POST['preview_rasterize'] ?? '1')));
-    $preferRasterImage = in_array($previewRasterizeRaw, ['1', 'true', 'yes', 'on'], true);
-    if (!in_array($printRotate, [0, 90, 180, 270], true)) {
-        $printRotate = 0;
-    }
+
     if ($labelWidthCm < 2.0 || $labelWidthCm > 30.0) {
         $response = ['status' => 'error', 'message' => 'label_width_cm должен быть в диапазоне 2..30 см'];
         return;
@@ -4694,13 +4725,13 @@ if ($action === 'test_print_connector_label_template') {
         $response = ['status' => 'error', 'message' => 'Коннектор не найден'];
         return;
     }
+
     $savedTemplate = warehouse_sync_resolve_label_template_code($dbcnx, $connector);
     if (!empty($savedTemplate['template_body'])) {
         $renderProfile = warehouse_sync_label_render_profile_from_array($savedTemplate);
         $profileSource = 'saved_template_print_profile';
     }
     $printProfile = warehouse_sync_build_print_profile_from_template($renderProfile);
-
 
     try {
         $check = warehouse_sync_validate_label_template_body($templateBody);
@@ -4721,108 +4752,64 @@ if ($action === 'test_print_connector_label_template') {
             return;
         }
 
-        $previewHtml = warehouse_sync_label_template_preview_html($templateBody, $connectorId, $labelWidthCm, $labelHeightCm, true, false);
-        $previewPdfRender = warehouse_sync_preview_html_to_pdf_base64($previewHtml, ((float)$printProfile['render_width_mm']) / 10, ((float)$printProfile['render_height_mm']) / 10, (int)$printProfile['render_rotate']);
-        $previewPdfBase64 = (string)($previewPdfRender['pdf_base64'] ?? '');
-        if ($previewPdfBase64 === '') {
-            $previewPdfBase64 = base64_encode(
-                warehouse_sync_preview_html_to_simple_pdf($previewHtml, (int)$printProfile['render_rotate'], ((float)$printProfile['render_width_mm']) / 10, ((float)$printProfile['render_height_mm']) / 10)
-            );
-        }
-
-        $previewImageRender = ['ok' => false, 'error' => '', 'png_base64' => ''];
-        $previewLabelBase64 = $previewPdfBase64;
-        $previewLabelMime = 'application/pdf';
-        $previewRenderEngine = $previewPdfBase64 === (string)($previewPdfRender['pdf_base64'] ?? '') ? 'html-to-pdf' : 'simple-pdf-fallback';
-        $composeDiagnostics = [];
-        if ($preferRasterImage) {
-            $previewImageRender = warehouse_sync_preview_html_to_png_base64($previewHtml, ((float)$printProfile['render_width_mm']) / 10, ((float)$printProfile['render_height_mm']) / 10);
-            $previewPngBase64 = (string)($previewImageRender['png_base64'] ?? '');
-            if ($previewPngBase64 !== '') {
-                $composedPreview = warehouse_sync_compose_physical_png_base64($previewPngBase64, $printProfile);
-                $composeDiagnostics = is_array($composedPreview['diagnostics'] ?? null) ? $composedPreview['diagnostics'] : [];
-                $previewLabelBase64 = (string)($composedPreview['png_base64'] ?? $previewPngBase64);
-                $previewLabelMime = 'image/png';
-                $previewRenderEngine = 'html-to-png+physical-compose';
-            }
-        }
-        $printResult = ['status' => 'skipped', 'message' => 'Отправка на принтер не запрошена'];
-        if ($printDeviceKey !== '') {
-            $printResult = warehouse_sync_queue_print_preview(
-                $printDeviceKey,
-                $previewHtml,
-                0,
-                ((float)$printProfile['paper_width_mm']) / 10,
-                ((float)$printProfile['paper_height_mm']) / 10,
-                (bool)$preferRasterImage,
-                $renderProfile
-            );
-        }
-
-        $message = 'Тест печати: сформирован preview шаблона.';
-        if ($printDeviceKey !== '') {
-            $message = strtolower((string)($printResult['status'] ?? '')) === 'ok'
-                ? 'Тест печати: preview сформирован и отправлен на принтер.'
-                : 'Тест печати: preview сформирован, но отправка на принтер завершилась ошибкой.';
-        }
-
-        $directDiagnostics = [];
-        if (isset($printResult['direct']) && is_array($printResult['direct'])) {
-            foreach ($printResult['direct'] as $directKey => $directValue) {
-                if (is_scalar($directValue) || $directValue === null) {
-                    $directDiagnostics['direct.' . (string)$directKey] = $directValue;
-                }
-            }
-        }
+        $printableHtml = warehouse_sync_render_label_template_body(
+            $templateBody,
+            warehouse_sync_label_template_sample_vars($connectorId, $testTrack !== '' ? $testTrack : 'TEST-TRACK-0001')
+        );
 
         $response = [
             'status' => 'ok',
-            'message' => $message,
+            'message' => 'HTML label готов к печати в браузере',
             'connector_id' => $connectorId,
             'test_track' => $testTrack,
-            'preview_html' => $previewHtml,
-            'label_base64' => $previewLabelBase64,
-            'label_base64_mime' => $previewLabelMime,
+            'print_mode' => 'browser_html',
+            'printable_html' => $printableHtml,
+            'preview_html' => warehouse_sync_label_template_preview_html($templateBody, $connectorId, $labelWidthCm, $labelHeightCm, true, false, $testTrack),
             'warnings' => $check['warnings'],
-            'print_result' => $printResult,
-            'diagnostics' => array_merge([
-                'template_sha256' => hash('sha256', $templateBody),
-                'preview_size' => strlen($previewHtml),
-                'preview_pdf_engine' => $previewPdfBase64 === (string)($previewPdfRender['pdf_base64'] ?? '') ? 'html-to-pdf' : 'simple-pdf-fallback',
-
-                'preview_image_engine' => ((string)($previewImageRender['png_base64'] ?? '') !== '') ? 'html-to-png' : '',
-                'preview_render_engine' => $previewRenderEngine,
-                'print_device_key' => $printDeviceKey,
-                'preview_rasterize' => $preferRasterImage ? 1 : 0,
-                'source_profile' => $profileSource,
+            'print_profile' => [
                 'paper_width_mm' => $printProfile['paper_width_mm'],
                 'paper_height_mm' => $printProfile['paper_height_mm'],
                 'render_width_mm' => $printProfile['render_width_mm'],
                 'render_height_mm' => $printProfile['render_height_mm'],
                 'render_rotate' => $printProfile['render_rotate'],
-                'layout_mode' => $printProfile['layout_mode'],
-                'css_override' => $printProfile['css_override'],
-                'fit_mode' => $printProfile['fit_mode'],
-                'scale_percent' => $printProfile['scale_percent'],
-                'offset_x_mm' => $printProfile['offset_x_mm'],
-                'offset_y_mm' => $printProfile['offset_y_mm'],
-                'cups_media_mm' => rtrim(rtrim(number_format((float)$printProfile['paper_width_mm'], 2, '.', ''), '0'), '.') . 'x' . rtrim(rtrim(number_format((float)$printProfile['paper_height_mm'], 2, '.', ''), '0'), '.'),
-                'cups_rotate_applied' => false,
-                'print_status' => (string)($printResult['status'] ?? ''),
-                'print_job_id' => (string)($printResult['job_id'] ?? ''),
-                'print_message' => (string)($printResult['message'] ?? ''),
-            ], $composeDiagnostics, $directDiagnostics),
+                'render_layout_mode' => $printProfile['layout_mode'],
+                'render_css_override' => $printProfile['css_override'],
+                'render_fit_mode' => $printProfile['fit_mode'],
+                'render_scale_percent' => $printProfile['scale_percent'],
+                'render_offset_x_mm' => $printProfile['offset_x_mm'],
+                'render_offset_y_mm' => $printProfile['offset_y_mm'],
+            ],
+            'render_profile' => $renderProfile,
+            'diagnostics' => [
+                'template_sha256' => hash('sha256', $templateBody),
+                'printable_size' => strlen($printableHtml),
+                'print_mode' => 'browser_html',
+                'renderer' => 'browser',
+                'server_rasterize' => false,
+                'direct_cups_used' => false,
+                'print_profile.source' => $profileSource,
+                'source_profile' => $profileSource,
+                'paper_width_mm' => $printProfile['paper_width_mm'],
+                'paper_height_mm' => $printProfile['paper_height_mm'],
+                'final_width_mm' => $printProfile['render_width_mm'],
+                'final_height_mm' => $printProfile['render_height_mm'],
+                'render_width_mm' => $printProfile['render_width_mm'],
+                'render_height_mm' => $printProfile['render_height_mm'],
+                'render_rotate' => $printProfile['render_rotate'],
+                'render_layout_mode' => $printProfile['layout_mode'],
+                'render_css_override' => $printProfile['css_override'],
+                'render_fit_mode' => $printProfile['fit_mode'],
+                'render_scale_percent' => $printProfile['scale_percent'],
+                'render_offset_x_mm' => $printProfile['offset_x_mm'],
+                'render_offset_y_mm' => $printProfile['offset_y_mm'],
+            ],
         ];
-        audit_log($userId, 'CONNECTOR_LABEL_TEMPLATE_TEST_PRINT', 'connectors', $connectorId, 'Тест печати шаблона выполнен', [
+        audit_log($userId, 'CONNECTOR_LABEL_TEMPLATE_TEST_PRINT', 'connectors', $connectorId, 'HTML label готов к печати в браузере', [
             'connector_id' => $connectorId,
             'template_code' => trim((string)($_POST['template_code'] ?? 'default')),
             'template_sha256' => hash('sha256', $templateBody),
-            'result' => 'ok',
+            'result' => 'browser_html',
             'test_track' => $testTrack,
-            'print_device_key' => $printDeviceKey,
-            'print_rotate' => $printRotate,
-            'label_width_cm' => $labelWidthCm,
-            'label_height_cm' => $labelHeightCm,
         ]);
     } catch (Throwable $e) {
         audit_log($userId, 'CONNECTOR_LABEL_TEMPLATE_TEST_PRINT', 'connectors', $connectorId, 'Ошибка теста печати шаблона', [
