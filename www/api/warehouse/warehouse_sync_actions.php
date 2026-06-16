@@ -2609,6 +2609,80 @@ if (!function_exists('warehouse_sync_fetch_connector_by_id')) {
     }
 }
 
+if (!function_exists('warehouse_sync_label_template_sample_vars')) {
+    function warehouse_sync_label_template_sample_vars(int $connectorId = 0, string $testTrack = 'TEST-TRACK-0001'): array
+    {
+        $previewForwardName = 'Forwarder';
+        $previewCountryDest = 'Azerbaijan';
+        $testTrack = trim($testTrack);
+        if ($testTrack === '') {
+            $testTrack = 'TEST-TRACK-0001';
+        }
+
+        try {
+            global $dbcnx;
+
+            if ($connectorId > 0 && $dbcnx instanceof mysqli) {
+                $stmtConnectorPreview = $dbcnx->prepare(
+                    "SELECT name, countries FROM connectors WHERE id = ? LIMIT 1"
+                );
+
+                if ($stmtConnectorPreview) {
+                    $stmtConnectorPreview->bind_param('i', $connectorId);
+                    $stmtConnectorPreview->execute();
+                    $connectorPreview = $stmtConnectorPreview->get_result()?->fetch_assoc();
+                    $stmtConnectorPreview->close();
+
+                    $connectorName = trim((string)($connectorPreview['name'] ?? ''));
+                    if ($connectorName !== '') {
+                        $previewForwardName = $connectorName;
+                    }
+
+                    $countryCode = strtoupper(trim((string)($connectorPreview['countries'] ?? '')));
+                    $countryCode = strtok($countryCode, ',') ?: $countryCode;
+                    $countryCode = strtoupper(trim($countryCode));
+
+                    $previewCountryDest = match ($countryCode) {
+                        'AZ', 'AZB', 'AZE' => 'Azerbaijan',
+                        'GE', 'GEO', 'TB', 'TBS' => 'Georgia',
+                        'KG', 'KGZ' => 'Kyrgyzstan',
+                        'DE', 'DEU' => 'Germany',
+                        default => $countryCode !== '' ? $countryCode : 'Azerbaijan',
+                    };
+                }
+            }
+        } catch (Throwable $e) {
+            // preview must not break the modal or print-preview preparation
+        }
+
+        return [
+            '{{track}}' => $testTrack,
+            '{{client_name}}' => 'Test Client',
+            '{{client}}' => 'Test Client',
+            '{{client_code}}' => 'CLI001',
+            '{{client_id}}' => '12345678',
+            '{{internal_id}}' => 'INT-00001',
+            '{{weight}}' => '1.000',
+            '{{amount}}' => '10.00 USD',
+            '{{country_dest}}' => $previewCountryDest,
+            '{{forward_name}}' => $previewForwardName,
+            '{{flight_departure}}' => 'HHN',
+            '{{flight_destination}}' => $previewCountryDest === 'Georgia' ? 'TBS' : 'GYD',
+            '{{flight_name}}' => 'AZ001',
+            '{{barcode_url}}' => 'https://barcode.tec-it.com/barcode.ashx?data=INT-00001&code=Code128&dpi=96',
+            '{{qr_img_html}}' => '<span style="font-size:12px;color:#777;">[QR preview]</span>',
+        ];
+    }
+}
+
+if (!function_exists('warehouse_sync_render_label_template_body')) {
+    function warehouse_sync_render_label_template_body(string $templateBody, array $vars): string
+    {
+        $rendered = strtr(trim($templateBody), $vars);
+        return preg_replace('/<script\\b[^>]*>(.*?)<\\/script>/is', '', $rendered) ?? $rendered;
+    }
+}
+
 if (!function_exists('warehouse_sync_label_template_preview_html')) {
     function warehouse_sync_label_template_preview_html(
         string $templateBody,
@@ -2616,71 +2690,14 @@ if (!function_exists('warehouse_sync_label_template_preview_html')) {
         ?float $labelWidthCm = null,
         ?float $labelHeightCm = null,
         bool $withDebugFrame = false,
-        bool $fitToLabel = false
+        bool $fitToLabel = false,
+        string $testTrack = 'TEST-TRACK-0001'
     ): string
     {
-$previewForwardName = 'Forwarder';
-$previewCountryDest = 'Azerbaijan';
-
-try {
-    global $dbcnx;
-
-    if ($connectorId > 0 && $dbcnx instanceof mysqli) {
-        $stmtConnectorPreview = $dbcnx->prepare(
-            "SELECT name, countries FROM connectors WHERE id = ? LIMIT 1"
-        );
-
-        if ($stmtConnectorPreview) {
-            $stmtConnectorPreview->bind_param('i', $connectorId);
-            $stmtConnectorPreview->execute();
-            $connectorPreview = $stmtConnectorPreview->get_result()?->fetch_assoc();
-            $stmtConnectorPreview->close();
-
-            $connectorName = trim((string)($connectorPreview['name'] ?? ''));
-            if ($connectorName !== '') {
-                $previewForwardName = $connectorName;
-            }
-
-            $countryCode = strtoupper(trim((string)($connectorPreview['countries'] ?? '')));
-            $countryCode = strtok($countryCode, ',') ?: $countryCode;
-            $countryCode = strtoupper(trim($countryCode));
-
-            $previewCountryDest = match ($countryCode) {
-                'AZ', 'AZB', 'AZE' => 'Azerbaijan',
-                'GE', 'GEO', 'TB', 'TBS' => 'Georgia',
-                'KG', 'KGZ' => 'Kyrgyzstan',
-                'DE', 'DEU' => 'Germany',
-                default => $countryCode !== '' ? $countryCode : 'Azerbaijan',
-            };
-        }
-    }
-} catch (Throwable $e) {
-    // preview must not break the modal
-}
-
-$sample = [
-    '{{track}}' => 'TEST-TRACK-0001',
-    '{{client_name}}' => 'Test Client',
-    '{{client}}' => 'Test Client',
-    '{{client_code}}' => 'CLI001',
-    '{{client_id}}' => '12345678',
-    '{{internal_id}}' => 'INT-00001',
-    '{{weight}}' => '1.000',
-    '{{amount}}' => '10.00 USD',
-    '{{country_dest}}' => $previewCountryDest,
-    '{{forward_name}}' => $previewForwardName,
-    '{{flight_departure}}' => 'HHN',
-    '{{flight_destination}}' => $previewCountryDest === 'Georgia' ? 'TBS' : 'GYD',
-    '{{flight_name}}' => 'AZ001',
-    '{{barcode_url}}' => 'https://barcode.tec-it.com/barcode.ashx?data=INT-00001&code=Code128&dpi=96',
-    '{{qr_img_html}}' => '<span style="font-size:12px;color:#777;">[QR preview]</span>',
-];
-
         $body = trim($templateBody);
         if ($body === '') {
             return '<span class="text-muted">Предпросмотр отсутствует: шаблон пуст.</span>';
         }
-
 
         $widthCm = (float)($labelWidthCm ?? 10.0);
         $heightCm = (float)($labelHeightCm ?? 15.0);
@@ -2691,9 +2708,10 @@ $sample = [
             $heightCm = 15.0;
         }
 
-        $rendered = strtr($body, $sample);
-        $rendered = preg_replace('/<script\\b[^>]*>(.*?)<\\/script>/is', '', $rendered) ?? $rendered;
-
+        $rendered = warehouse_sync_render_label_template_body(
+            $body,
+            warehouse_sync_label_template_sample_vars($connectorId, $testTrack)
+        );
 
         if ($fitToLabel) {
             $labelShell = '<div class="connector-label-preview-boundary" style="box-sizing: border-box; overflow: hidden; background: #fff; width: '
@@ -4246,11 +4264,70 @@ if ($action === 'validate_connector_label_template') {
     $templateBody = (string)($_POST['template_body'] ?? '');
     $labelWidthCm = (float)($_POST['label_width_cm'] ?? 10.0);
     $labelHeightCm = (float)($_POST['label_height_cm'] ?? 15.0);
+    $testTrack = (string)($_POST['test_track'] ?? 'TEST-TRACK-0001');
 
     $check = warehouse_sync_validate_label_template_body($templateBody);
     $check['connector_id'] = $connectorId;
-    $check['preview_html'] = warehouse_sync_label_template_preview_html($templateBody, $connectorId, $labelWidthCm, $labelHeightCm, true, false);
+    $check['preview_html'] = warehouse_sync_label_template_preview_html($templateBody, $connectorId, $labelWidthCm, $labelHeightCm, true, false, $testTrack);
     $response = $check;
+}
+
+if ($action === 'open_connector_label_template_print_preview') {
+    auth_require_login();
+    $connectorId = (int)($_POST['connector_id'] ?? 0);
+    $templateBody = (string)($_POST['template_body'] ?? '');
+    $testTrack = (string)($_POST['test_track'] ?? 'TEST-TRACK-0001');
+    $labelWidthCm = (float)($_POST['label_width_cm'] ?? 10.0);
+    $labelHeightCm = (float)($_POST['label_height_cm'] ?? 15.0);
+    $printRotate = (int)($_POST['print_rotate'] ?? 0);
+
+    $check = warehouse_sync_validate_label_template_body($templateBody);
+    if (!empty($check['errors'])) {
+        $response = [
+            'status' => 'error',
+            'message' => 'Шаблон не прошёл валидацию',
+            'errors' => $check['errors'],
+            'warnings' => $check['warnings'] ?? [],
+        ];
+        return;
+    }
+
+    if ($labelWidthCm < 2.0 || $labelWidthCm > 30.0) {
+        $labelWidthCm = 10.0;
+    }
+    if ($labelHeightCm < 2.0 || $labelHeightCm > 30.0) {
+        $labelHeightCm = 15.0;
+    }
+    if (!in_array($printRotate, [0, 90, 180, 270], true)) {
+        $printRotate = 0;
+    }
+
+    $finalWidthMm = (int)round($labelWidthCm * 10);
+    $finalHeightMm = (int)round($labelHeightCm * 10);
+    $printableHtml = warehouse_sync_render_label_template_body(
+        $templateBody,
+        warehouse_sync_label_template_sample_vars($connectorId, $testTrack)
+    );
+
+    $response = [
+        'status' => 'ok',
+        'message' => 'HTML preview готов',
+        'printable_html' => $printableHtml,
+        'label_width_cm' => $labelWidthCm,
+        'label_height_cm' => $labelHeightCm,
+        'print_rotate' => $printRotate,
+        'diagnostics' => [
+            'template_sha256' => hash('sha256', $templateBody),
+            'printable_size' => strlen($printableHtml),
+            'label_width_cm' => $labelWidthCm,
+            'label_height_cm' => $labelHeightCm,
+            'final_width_mm' => $finalWidthMm,
+            'final_height_mm' => $finalHeightMm,
+            'print_rotate' => $printRotate,
+            'connector_id' => $connectorId,
+            'test_track' => trim($testTrack) !== '' ? trim($testTrack) : 'TEST-TRACK-0001',
+        ],
+    ];
 }
 
 if ($action === 'save_connector_label_template') {

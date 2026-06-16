@@ -179,6 +179,7 @@ const CoreAPI = {
                 'save_connector_addons': (currentLink) => this.getFormById('connector-operations-form', currentLink),
                 'save_connector_label_template': (currentLink) => this.getFormById('connector-label-template-form', currentLink),
                 'validate_connector_label_template': (currentLink) => this.getFormById('connector-label-template-form', currentLink),
+                'open_connector_label_template_print_preview': (currentLink) => this.getFormById('connector-label-template-form', currentLink),
                 'test_print_connector_label_template': (currentLink) => this.getFormById('connector-label-template-form', currentLink),
 
                 'warehouse_sync_process_helper': () => {
@@ -764,6 +765,81 @@ const CoreAPI = {
                     preview.innerHTML = data.preview_html;
                 }
             }
+        },
+
+        'open_connector_label_template_print_preview': (data) => {
+            const printableHtml = (typeof data?.printable_html === 'string') ? data.printable_html : '';
+            if (printableHtml.trim() === '') {
+                alert(data?.message || 'Печатный HTML пуст');
+                return;
+            }
+
+            let widthMm = Number(data?.diagnostics?.final_width_mm ?? (Number(data?.label_width_cm) * 10));
+            let heightMm = Number(data?.diagnostics?.final_height_mm ?? (Number(data?.label_height_cm) * 10));
+            if (!Number.isFinite(widthMm) || widthMm <= 0 || widthMm > 300) {
+                widthMm = 100;
+            }
+            if (!Number.isFinite(heightMm) || heightMm <= 0 || heightMm > 300) {
+                heightMm = 150;
+            }
+            widthMm = Math.round(widthMm * 100) / 100;
+            heightMm = Math.round(heightMm * 100) / 100;
+
+            const rotate = Number.isFinite(Number(data?.print_rotate)) ? Number(data.print_rotate) : 0;
+            const escapeHtml = (value) => String(value ?? '').replace(/[&<>"]/g, (ch) => ({
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+            }[ch] || ch));
+            const toolbarText = `Размер: ${widthMm} x ${heightMm} mm, rotate ${rotate}°`;
+            const previewWindow = window.open('', 'connector_label_template_print_preview');
+            if (!previewWindow) {
+                alert('Не удалось открыть окно предпросмотра. Проверьте блокировку pop-up окон.');
+                return;
+            }
+
+            const doc = [
+                '<!doctype html>',
+                '<html lang="ru">',
+                '<head>',
+                '<meta charset="utf-8">',
+                '<meta name="viewport" content="width=device-width, initial-scale=1">',
+                '<title>Connector label print preview</title>',
+                '<style>',
+                `@page { size: ${widthMm}mm ${heightMm}mm; margin: 0; }`,
+                `html, body { margin: 0; padding: 0; width: ${widthMm}mm; min-height: ${heightMm}mm; background: #e9ecef; }`,
+                `.label-print-page { width: ${widthMm}mm; height: ${heightMm}mm; margin: 0; padding: 0; box-sizing: border-box; overflow: hidden; background: #fff; }`,
+                '@media screen {',
+                '  body { padding: 12px; }',
+                '  .print-toolbar { position: sticky; top: 0; margin-bottom: 12px; padding: 8px; background: #fff; border: 1px solid #ddd; font-family: Arial, sans-serif; font-size: 13px; }',
+                '  .label-print-page { outline: 1px dashed #999; }',
+                '}',
+                '@media print {',
+                `  html, body { background: #fff; width: ${widthMm}mm; height: ${heightMm}mm; }`,
+                '  body { padding: 0; }',
+                '  .print-toolbar { display: none !important; }',
+                '  .label-print-page { outline: none; }',
+                '}',
+                '</style>',
+                '</head>',
+                '<body>',
+                '<div class="print-toolbar">',
+                '<button type="button" onclick="window.print()">Печать</button> ',
+                '<button type="button" onclick="window.close()">Закрыть</button> ',
+                `<span>${escapeHtml(toolbarText)}</span>`,
+                '</div>',
+                '<div class="label-print-page">',
+                printableHtml,
+                '</div>',
+                '</body>',
+                '</html>',
+            ].join('\n');
+
+            previewWindow.document.open();
+            previewWindow.document.write(doc);
+            previewWindow.document.close();
+            previewWindow.focus();
         },
         'save_connector_label_template': async (data) => {
             alert(data.message || 'Шаблон сохранён');

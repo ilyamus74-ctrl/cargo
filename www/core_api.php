@@ -157,6 +157,7 @@ $routes = [
     'form_connector_label_template' => 'api/warehouse/warehouse_sync_actions.php',
     'save_connector_label_template' => 'api/warehouse/warehouse_sync_actions.php',
     'validate_connector_label_template' => 'api/warehouse/warehouse_sync_actions.php',
+    'open_connector_label_template_print_preview' => 'api/warehouse/warehouse_sync_actions.php',
     'test_print_connector_label_template' => 'api/warehouse/warehouse_sync_actions.php',
     'item_out'                  => 'api/warehouse/warehouse_sync_actions.php',
     'warehouse_item_out_to_send' => 'api/warehouse/warehouse_sync_actions.php',
