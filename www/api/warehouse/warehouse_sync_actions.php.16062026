@@ -2930,106 +2930,6 @@ if (!function_exists('warehouse_sync_zpl_text')) {
     }
 }
 
-if (!function_exists('zpl_escape')) {
-    function zpl_escape($text): string
-    {
-        return warehouse_sync_zpl_text((string)$text, 0);
-    }
-}
-
-if (!function_exists('warehouse_sync_zpl_landscape_origin')) {
-    function warehouse_sync_zpl_landscape_origin(int $x, int $y, int $w = 0): array
-    {
-        return [$y, max(0, 1200 - $x - $w)];
-    }
-}
-
-if (!function_exists('zpl_text')) {
-    function zpl_text($x, $y, $fontH, $fontW, $text, $maxChars = null): string
-    {
-        $value = zpl_escape((string)$text);
-        if ($maxChars !== null && (int)$maxChars > 0) {
-            $value = warehouse_sync_zpl_text($value, (int)$maxChars);
-        }
-        [$px, $py] = warehouse_sync_zpl_landscape_origin((int)$x, (int)$y);
-        return '^FO' . $px . ',' . $py . '^A0R,' . (int)$fontH . ',' . (int)$fontW . '^FD' . $value . '^FS';
-    }
-}
-
-if (!function_exists('zpl_box')) {
-    function zpl_box($x, $y, $w, $h, $thickness = 1): string
-    {
-        [$px, $py] = warehouse_sync_zpl_landscape_origin((int)$x, (int)$y, (int)$w);
-        return '^FO' . $px . ',' . $py . '^GB' . (int)$h . ',' . (int)$w . ',' . (int)$thickness . '^FS';
-    }
-}
-
-if (!function_exists('zpl_line_h')) {
-    function zpl_line_h($x, $y, $w, $thickness = 1): string
-    {
-        return zpl_box((int)$x, (int)$y, (int)$w, (int)$thickness, (int)$thickness);
-    }
-}
-
-if (!function_exists('zpl_line_v')) {
-    function zpl_line_v($x, $y, $h, $thickness = 1): string
-    {
-        return zpl_box((int)$x, (int)$y, (int)$thickness, (int)$h, (int)$thickness);
-    }
-}
-
-if (!function_exists('zpl_barcode_code128')) {
-    function zpl_barcode_code128($x, $y, $w, $h, $value): string
-    {
-        $safe = zpl_escape((string)$value);
-        $module = max(1, min(3, (int)floor(((int)$w) / max(80, strlen($safe) * 18))));
-        [$px, $py] = warehouse_sync_zpl_landscape_origin((int)$x, (int)$y);
-        return '^FO' . $px . ',' . $py . '^BY' . $module . ',2,60^BCR,' . (int)$h . ',N,N,N^FD' . $safe . '^FS';
-    }
-}
-
-if (!function_exists('zpl_qr')) {
-    function zpl_qr($x, $y, $value): string
-    {
-        [$px, $py] = warehouse_sync_zpl_landscape_origin((int)$x, (int)$y);
-        return '^FO' . $px . ',' . $py . '^BQR,2,5^FDQA,' . zpl_escape((string)$value) . '^FS';
-    }
-}
-
-if (!function_exists('warehouse_sync_zpl_wrap')) {
-    function warehouse_sync_zpl_wrap(string $text, int $charsPerLine, int $maxLines): array
-    {
-        $text = zpl_escape($text);
-        if ($text === '') {
-            return [''];
-        }
-        if (function_exists('mb_strlen') && function_exists('mb_substr')) {
-            $words = preg_split('/\s+/u', $text) ?: [];
-            $lines = [];
-            $line = '';
-            foreach ($words as $word) {
-                $candidate = $line === '' ? $word : $line . ' ' . $word;
-                if (mb_strlen($candidate, 'UTF-8') <= $charsPerLine) {
-                    $line = $candidate;
-                    continue;
-                }
-                if ($line !== '') {
-                    $lines[] = $line;
-                }
-                $line = mb_substr($word, 0, $charsPerLine, 'UTF-8');
-                if (count($lines) >= $maxLines) {
-                    break;
-                }
-            }
-            if ($line !== '' && count($lines) < $maxLines) {
-                $lines[] = $line;
-            }
-            return array_slice($lines, 0, $maxLines);
-        }
-        return array_slice(str_split($text, $charsPerLine), 0, $maxLines);
-    }
-}
-
 if (!function_exists('warehouse_sync_render_waybill_zpl')) {
     function warehouse_sync_render_waybill_zpl(array $vars, array $profile = []): string
     {
@@ -3040,11 +2940,11 @@ if (!function_exists('warehouse_sync_render_waybill_zpl')) {
         $internalId = warehouse_sync_label_var($vars, 'internal_id', $track);
         $weight = warehouse_sync_label_var($vars, 'weight', '0.000');
         $amount = warehouse_sync_label_var($vars, 'amount', '0.00');
-        $forwardName = warehouse_sync_label_var($vars, 'forward_name', 'DEV COLIBRI');
+        $forwardName = warehouse_sync_label_var($vars, 'forward_name', 'Forwarder');
         $countryDest = warehouse_sync_label_var($vars, 'country_dest', '');
-        $flightDeparture = warehouse_sync_label_var($vars, 'flight_departure', 'HHN');
-        $flightDestination = warehouse_sync_label_var($vars, 'flight_destination', 'GYD');
-        $flightName = warehouse_sync_label_var($vars, 'flight_name', 'AZ001');
+        $flightDeparture = warehouse_sync_label_var($vars, 'flight_departure', '');
+        $flightDestination = warehouse_sync_label_var($vars, 'flight_destination', '');
+        $flightName = warehouse_sync_label_var($vars, 'flight_name', '');
         $phone = warehouse_sync_label_var($vars, 'consignee_phone', warehouse_sync_label_var($vars, 'client_phone', ''));
         $address = warehouse_sync_label_var($vars, 'client_address', '');
         $volumeWeight = warehouse_sync_label_var($vars, 'volume_weight', '0.000');
@@ -3052,92 +2952,50 @@ if (!function_exists('warehouse_sync_render_waybill_zpl')) {
         $category = warehouse_sync_label_var($vars, 'category', '');
         $invoiceUsd = warehouse_sync_label_var($vars, 'invoice_usd', '0.00');
         $totalInvoice = warehouse_sync_label_var($vars, 'total_invoice_price', '0.00');
+
         $barcodeValue = warehouse_sync_zpl_text($internalId !== '' ? $internalId : $track, 48);
-        $shipper = trim($clientName . ($clientCode !== '' ? ' / ' . $clientCode : ''));
-        $route = trim($flightDeparture . ' / ' . $flightDestination, ' /');
-
-        $z = ['^XA', '^CI28', '^PW800', '^LL1200', '^LH0,0', '^MNN'];
-        $z[] = zpl_box(0, 0, 1200, 800, 3);
-        $z[] = zpl_line_v(528, 0, 800, 2);
-        $z[] = zpl_line_h(0, 90, 528, 2);
-        $z[] = zpl_line_h(528, 90, 672, 2);
-
-        $z[] = zpl_text(22, 20, 46, 44, 'WAYBILL', 14);
-        $z[] = zpl_text(22, 60, 17, 17, 'Payer account number', 28);
-        $z[] = zpl_text(225, 56, 22, 20, $clientCode !== '' ? $clientCode : $clientId, 24);
-        $z[] = zpl_text(350, 25, 19, 18, 'Charge Collect', 18);
-        $z[] = zpl_text(350, 55, 19, 18, 'Prepaid', 18);
-
-        $z[] = zpl_line_h(0, 255, 528, 2);
-        $z[] = zpl_text(16, 105, 20, 19, '2 From/Shipper', 18);
-        $z[] = zpl_text(25, 140, 25, 23, $shipper, 32);
-        foreach (warehouse_sync_zpl_wrap($address, 42, 2) as $i => $line) {
-            $z[] = zpl_text(25, 176 + $i * 28, 20, 18, $line, 42);
-        }
-        $z[] = zpl_text(25, 225, 18, 17, 'Postcode:  Phone: ' . $phone, 44);
-
-        $z[] = zpl_line_h(0, 465, 528, 2);
-        $z[] = zpl_text(16, 270, 20, 19, '3 To Consignee', 18);
-        $z[] = zpl_text(25, 305, 25, 23, $clientName, 34);
-        $z[] = zpl_text(25, 336, 18, 17, 'Personal ID: ' . $clientId, 38);
-        $z[] = zpl_text(25, 364, 18, 17, 'Consignee phone: ' . $phone, 42);
-        $z[] = zpl_text(25, 394, 18, 17, 'Delivery Address:', 24);
-        foreach (warehouse_sync_zpl_wrap($address, 46, 2) as $i => $line) {
-            $z[] = zpl_text(185, 394 + $i * 25, 18, 16, $line, 46);
-        }
-        $z[] = zpl_barcode_code128(105, 485, 330, 78, $barcodeValue);
-        $z[] = zpl_text(180, 575, 24, 22, $barcodeValue, 34);
-        $z[] = zpl_text(25, 625, 18, 16, 'Postcode / Country: ' . $countryDest, 44);
-        $z[] = zpl_text(25, 655, 18, 16, 'Contact person: ' . $clientName, 44);
-        $z[] = zpl_text(25, 735, 16, 15, 'TRACK: ' . $track, 50);
-
-        $z[] = zpl_text(560, 18, 54, 50, $forwardName !== '' ? $forwardName : 'DEV COLIBRI', 22);
-        $z[] = zpl_box(1030, 15, 130, 70, 2);
-        $z[] = zpl_text(1052, 31, 20, 18, 'CDN / QR', 12);
-        $z[] = zpl_qr(1100, 24, $track);
-        $z[] = zpl_text(560, 102, 38, 35, $route !== '' ? $route : 'HHN / GYD', 16);
-        $z[] = zpl_text(820, 108, 28, 26, $flightName, 18);
-
-        $z[] = zpl_line_h(528, 155, 672, 2);
-        $z[] = zpl_text(545, 122, 20, 19, '4 Shipment details', 22);
-        $cols = [528, 696, 864, 1032, 1200];
-        foreach ($cols as $cx) { $z[] = zpl_line_v($cx, 155, 145, 1); }
-        $z[] = zpl_line_h(528, 210, 672, 1);
-        $z[] = zpl_line_h(528, 300, 672, 2);
-        $z[] = zpl_text(545, 170, 17, 16, 'Packages', 14);
-        $z[] = zpl_text(713, 170, 17, 16, 'Gross weight', 16);
-        $z[] = zpl_text(881, 170, 17, 16, 'Volume weight', 16);
-        $z[] = zpl_text(1049, 170, 17, 16, 'Shipping price', 18);
-        $z[] = zpl_text(590, 232, 26, 24, '1', 8);
-        $z[] = zpl_text(722, 232, 24, 22, $weight, 14);
-        $z[] = zpl_text(890, 232, 24, 22, $volumeWeight, 14);
-        $z[] = zpl_text(1050, 232, 24, 22, $amount, 18);
-
-        $z[] = zpl_line_h(528, 360, 672, 2);
-        $z[] = zpl_text(545, 318, 18, 17, 'Transportation mode', 24);
-        $z[] = zpl_text(760, 315, 28, 26, 'By Air', 12);
-        $z[] = zpl_text(950, 318, 18, 17, 'MAWB / flight #', 20);
-        $z[] = zpl_text(1090, 315, 28, 26, $flightName, 18);
-
-        $z[] = zpl_line_h(528, 430, 672, 2);
-        $z[] = zpl_text(545, 382, 20, 19, '5 Full Description', 24);
-        foreach (warehouse_sync_zpl_wrap($description, 66, 3) as $i => $line) {
-            $z[] = zpl_text(545, 440 + $i * 30, 21, 19, $line, 66);
-        }
-        $z[] = zpl_line_h(528, 560, 672, 1);
-        $z[] = zpl_line_v(752, 560, 95, 1);
-        $z[] = zpl_line_v(976, 560, 95, 1);
-        $z[] = zpl_line_h(528, 610, 672, 1);
-        $z[] = zpl_text(545, 575, 17, 16, 'Category', 12);
-        $z[] = zpl_text(769, 575, 17, 16, 'Declared value', 18);
-        $z[] = zpl_text(993, 575, 17, 16, 'Total price', 16);
-        $z[] = zpl_text(545, 625, 22, 20, $category, 26);
-        $z[] = zpl_text(769, 625, 22, 20, $invoiceUsd, 20);
-        $z[] = zpl_text(993, 625, 22, 20, $totalInvoice, 20);
-        $z[] = zpl_text(545, 715, 15, 14, 'The sender confirms that this shipment does not contain prohibited items.', 78);
-        $z[] = zpl_text(545, 745, 15, 14, 'Generated as raw ZPL waybill layout: waybill_html_match_v2.', 74);
-        $z[] = '^XZ';
-        return implode("\n", $z) . "\n";
+        $lines = [
+            '^XA',
+            '^CI28',
+            '^PW800',
+            '^LL1200',
+            '^LH0,0',
+            '^FO20,20^GB760,1160,3^FS',
+            '^FO40,45^A0N,58,58^FDWAYBILL^FS',
+            '^FO520,42^A0N,28,28^FD' . warehouse_sync_zpl_text($forwardName, 24) . '^FS',
+            '^FO40,115^GB720,2,2^FS',
+            '^FO40,140^A0N,28,28^FDTRACK^FS',
+            '^FO160,132^A0N,42,42^FD' . warehouse_sync_zpl_text($track, 34) . '^FS',
+            '^FO40,205^BY3,2,110^BCN,110,Y,N,N^FD' . $barcodeValue . '^FS',
+            '^FO40,350^GB720,2,2^FS',
+            '^FO40,375^A0N,24,24^FDFROM / SHIPPER^FS',
+            '^FO40,410^A0N,31,31^FD' . warehouse_sync_zpl_text(trim($clientName . ' ' . $clientCode), 38) . '^FS',
+            '^FO40,450^A0N,26,26^FDClient ID: ' . warehouse_sync_zpl_text($clientId, 32) . '^FS',
+            '^FO40,485^A0N,26,26^FDInternal ID: ' . warehouse_sync_zpl_text($internalId, 32) . '^FS',
+            '^FO40,530^GB720,2,2^FS',
+            '^FO40,555^A0N,24,24^FDTO / CONSIGNEE^FS',
+            '^FO40,590^A0N,30,30^FD' . warehouse_sync_zpl_text(trim($clientName . ' ' . $clientCode), 38) . '^FS',
+            '^FO40,630^A0N,24,24^FDPhone: ' . warehouse_sync_zpl_text($phone, 42) . '^FS',
+            '^FO40,665^A0N,24,24^FDAddress: ' . warehouse_sync_zpl_text($address, 48) . '^FS',
+            '^FO40,710^GB720,2,2^FS',
+            '^FO40,735^A0N,24,24^FDSHIPMENT DETAILS^FS',
+            '^FO40,775^A0N,25,25^FDGross kg: ' . warehouse_sync_zpl_text($weight, 16) . '^FS',
+            '^FO300,775^A0N,25,25^FDVol kg: ' . warehouse_sync_zpl_text($volumeWeight, 16) . '^FS',
+            '^FO540,775^A0N,25,25^FDAmount: ' . warehouse_sync_zpl_text($amount, 18) . '^FS',
+            '^FO40,820^A0N,25,25^FDFlight: ' . warehouse_sync_zpl_text($flightName, 26) . '^FS',
+            '^FO300,820^A0N,25,25^FDRoute: ' . warehouse_sync_zpl_text($flightDeparture . ' -> ' . $flightDestination, 24) . '^FS',
+            '^FO40,865^A0N,25,25^FDCountry: ' . warehouse_sync_zpl_text($countryDest, 32) . '^FS',
+            '^FO40,910^GB720,2,2^FS',
+            '^FO40,935^A0N,24,24^FDCONTENTS^FS',
+            '^FO40,970^A0N,25,25^FD' . warehouse_sync_zpl_text($description, 56) . '^FS',
+            '^FO40,1015^A0N,25,25^FDCategory: ' . warehouse_sync_zpl_text($category, 24) . '^FS',
+            '^FO360,1015^A0N,25,25^FDInvoice USD: ' . warehouse_sync_zpl_text($invoiceUsd, 18) . '^FS',
+            '^FO40,1060^A0N,25,25^FDTotal price: ' . warehouse_sync_zpl_text($totalInvoice, 26) . '^FS',
+            '^FO600,1070^GB120,90,2^FS',
+            '^FO622,1102^A0N,26,26^FD[QR]^FS',
+            '^XZ',
+        ];
+        return implode("\n", $lines) . "\n";
     }
 }
 
@@ -4728,12 +4586,6 @@ $lastAddResult = $addResult;
                         $response['print_message'] = (string)($printResult['message'] ?? '');
                         $response['print_diagnostics'] = [
                             'printer_transport' => (string)($printResult['transport'] ?? PRINT_ZPL_TRANSPORT),
-                            'transport' => (string)($printResult['transport'] ?? PRINT_ZPL_TRANSPORT),
-                            'zpl_layout' => 'waybill_html_match_v2',
-                            'zpl_logical_width' => 1200,
-                            'zpl_logical_height' => 800,
-                            'physical_width_dots' => 800,
-                            'physical_height_dots' => 1200,
                             'cups_host' => (string)($printResult['cups_host'] ?? ''),
                             'cups_queue' => (string)($printResult['cups_queue'] ?? ''),
                             'zpl_size' => strlen($zpl),
@@ -5066,12 +4918,6 @@ if ($action === 'test_print_connector_label_template') {
                 'test_track' => $testTrack,
                 'print_mode' => 'zpl_raw',
                 'printer_transport' => (string)($printResult['transport'] ?? PRINT_ZPL_TRANSPORT),
-                'transport' => (string)($printResult['transport'] ?? PRINT_ZPL_TRANSPORT),
-                'zpl_layout' => 'waybill_html_match_v2',
-                'zpl_logical_width' => 1200,
-                'zpl_logical_height' => 800,
-                'physical_width_dots' => 800,
-                'physical_height_dots' => 1200,
                 'cups_host' => (string)($printResult['cups_host'] ?? ''),
                 'cups_queue' => (string)($printResult['cups_queue'] ?? ''),
                 'zpl_size' => strlen($zpl),
@@ -5086,12 +4932,6 @@ if ($action === 'test_print_connector_label_template') {
                 'print_mode' => 'zpl_raw',
                 'print_status' => (string)($printResult['status'] ?? 'error'),
                 'zpl_transport' => (string)($printResult['transport'] ?? PRINT_ZPL_TRANSPORT),
-                'transport' => (string)($printResult['transport'] ?? PRINT_ZPL_TRANSPORT),
-                'zpl_layout' => 'waybill_html_match_v2',
-                'zpl_logical_width' => 1200,
-                'zpl_logical_height' => 800,
-                'physical_width_dots' => 800,
-                'physical_height_dots' => 1200,
                 'zpl_size' => strlen($zpl),
                 'warnings' => $check['warnings'],
                 'diagnostics' => $diagnostics,
