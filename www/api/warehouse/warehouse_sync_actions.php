@@ -24,6 +24,12 @@ if (!defined('PRINT_ZPL_SOCKET_HOST')) {
 if (!defined('PRINT_ZPL_SOCKET_PORT')) {
     define('PRINT_ZPL_SOCKET_PORT', 9100);
 }
+if (!defined('ZPL_WAYBILL_ROTATE')) {
+    define('ZPL_WAYBILL_ROTATE', 'cw');
+}
+if (!defined('ZPL_WAYBILL_CORNER_DEBUG')) {
+    define('ZPL_WAYBILL_CORNER_DEBUG', true);
+}
 
 
 if (!function_exists('warehouse_sync_normalize_key')) {
@@ -2937,10 +2943,36 @@ if (!function_exists('zpl_escape')) {
     }
 }
 
-if (!function_exists('warehouse_sync_zpl_landscape_origin')) {
-    function warehouse_sync_zpl_landscape_origin(int $x, int $y, int $w = 0): array
+if (!function_exists('warehouse_sync_zpl_rotate_direction')) {
+    function warehouse_sync_zpl_rotate_direction(): string
     {
-        return [$y, max(0, 1200 - $x - $w)];
+        $direction = strtolower(trim((string)ZPL_WAYBILL_ROTATE));
+        return $direction === 'ccw' ? 'ccw' : 'cw';
+    }
+}
+
+if (!function_exists('warehouse_sync_zpl_rect')) {
+    function warehouse_sync_zpl_rect(int $x, int $y, int $w, int $h): array
+    {
+        $logicalW = 1200;
+        $logicalH = 800;
+        if (warehouse_sync_zpl_rotate_direction() === 'ccw') {
+            return [
+                max(0, $y),
+                max(0, $logicalW - $x - $w),
+                max(0, $h),
+                max(0, $w),
+                'B',
+            ];
+        }
+
+        return [
+            max(0, $logicalH - $y - $h),
+            max(0, $x),
+            max(0, $h),
+            max(0, $w),
+            'R',
+        ];
     }
 }
 
@@ -2951,16 +2983,16 @@ if (!function_exists('zpl_text')) {
         if ($maxChars !== null && (int)$maxChars > 0) {
             $value = warehouse_sync_zpl_text($value, (int)$maxChars);
         }
-        [$px, $py] = warehouse_sync_zpl_landscape_origin((int)$x, (int)$y);
-        return '^FO' . $px . ',' . $py . '^A0R,' . (int)$fontH . ',' . (int)$fontW . '^FD' . $value . '^FS';
+        [$px, $py, , , $orientation] = warehouse_sync_zpl_rect((int)$x, (int)$y, 1, 1);
+        return '^FO' . $px . ',' . $py . '^A0' . $orientation . ',' . (int)$fontH . ',' . (int)$fontW . '^FD' . $value . '^FS';
     }
 }
 
 if (!function_exists('zpl_box')) {
     function zpl_box($x, $y, $w, $h, $thickness = 1): string
     {
-        [$px, $py] = warehouse_sync_zpl_landscape_origin((int)$x, (int)$y, (int)$w);
-        return '^FO' . $px . ',' . $py . '^GB' . (int)$h . ',' . (int)$w . ',' . (int)$thickness . '^FS';
+        [$px, $py, $pw, $ph] = warehouse_sync_zpl_rect((int)$x, (int)$y, (int)$w, (int)$h);
+        return '^FO' . $px . ',' . $py . '^GB' . $pw . ',' . $ph . ',' . (int)$thickness . '^FS';
     }
 }
 
@@ -2983,16 +3015,32 @@ if (!function_exists('zpl_barcode_code128')) {
     {
         $safe = zpl_escape((string)$value);
         $module = max(1, min(3, (int)floor(((int)$w) / max(80, strlen($safe) * 18))));
-        [$px, $py] = warehouse_sync_zpl_landscape_origin((int)$x, (int)$y);
-        return '^FO' . $px . ',' . $py . '^BY' . $module . ',2,60^BCR,' . (int)$h . ',N,N,N^FD' . $safe . '^FS';
+        [$px, $py, , , $orientation] = warehouse_sync_zpl_rect((int)$x, (int)$y, (int)$w, (int)$h);
+        return '^FO' . $px . ',' . $py . '^BY' . $module . ',2,60^BC' . $orientation . ',' . (int)$h . ',N,N,N^FD' . $safe . '^FS';
     }
 }
 
 if (!function_exists('zpl_qr')) {
     function zpl_qr($x, $y, $value): string
     {
-        [$px, $py] = warehouse_sync_zpl_landscape_origin((int)$x, (int)$y);
-        return '^FO' . $px . ',' . $py . '^BQR,2,5^FDQA,' . zpl_escape((string)$value) . '^FS';
+        [$px, $py, , , $orientation] = warehouse_sync_zpl_rect((int)$x, (int)$y, 92, 92);
+        return '^FO' . $px . ',' . $py . '^BQ' . $orientation . ',2,5^FDQA,' . zpl_escape((string)$value) . '^FS';
+    }
+}
+
+if (!function_exists('warehouse_sync_zpl_diagnostics')) {
+    function warehouse_sync_zpl_diagnostics(string $zpl = ''): array
+    {
+        return [
+            'zpl_layout' => 'waybill_html_match_v3',
+            'zpl_rotate_direction' => warehouse_sync_zpl_rotate_direction(),
+            'logical_width' => 1200,
+            'logical_height' => 800,
+            'physical_width' => 800,
+            'physical_height' => 1200,
+            'corner_debug' => (bool)ZPL_WAYBILL_CORNER_DEBUG,
+            'zpl_size' => $zpl !== '' ? strlen($zpl) : 0,
+        ];
     }
 }
 
@@ -3057,10 +3105,16 @@ if (!function_exists('warehouse_sync_render_waybill_zpl')) {
         $route = trim($flightDeparture . ' / ' . $flightDestination, ' /');
 
         $z = ['^XA', '^CI28', '^PW800', '^LL1200', '^LH0,0', '^MNN'];
-        $z[] = zpl_box(0, 0, 1200, 800, 3);
-        $z[] = zpl_line_v(528, 0, 800, 2);
-        $z[] = zpl_line_h(0, 90, 528, 2);
-        $z[] = zpl_line_h(528, 90, 672, 2);
+        if ((bool)ZPL_WAYBILL_CORNER_DEBUG) {
+            $z[] = zpl_text(10, 10, 18, 17, 'TL', 2);
+            $z[] = zpl_text(1120, 10, 18, 17, 'TR', 2);
+            $z[] = zpl_text(10, 760, 18, 17, 'BL', 2);
+            $z[] = zpl_text(1120, 760, 18, 17, 'BR', 2);
+        }
+        $z[] = zpl_box(10, 10, 1180, 780, 3);
+        $z[] = zpl_line_v(538, 10, 780, 2);
+        $z[] = zpl_line_h(10, 90, 528, 2);
+        $z[] = zpl_line_h(538, 100, 652, 2);
 
         $z[] = zpl_text(22, 20, 46, 44, 'WAYBILL', 14);
         $z[] = zpl_text(22, 60, 17, 17, 'Payer account number', 28);
@@ -3135,7 +3189,7 @@ if (!function_exists('warehouse_sync_render_waybill_zpl')) {
         $z[] = zpl_text(769, 625, 22, 20, $invoiceUsd, 20);
         $z[] = zpl_text(993, 625, 22, 20, $totalInvoice, 20);
         $z[] = zpl_text(545, 715, 15, 14, 'The sender confirms that this shipment does not contain prohibited items.', 78);
-        $z[] = zpl_text(545, 745, 15, 14, 'Generated as raw ZPL waybill layout: waybill_html_match_v2.', 74);
+        $z[] = zpl_text(545, 745, 15, 14, 'Generated as raw ZPL waybill layout: waybill_html_match_v3.', 74);
         $z[] = '^XZ';
         return implode("\n", $z) . "\n";
     }
@@ -4729,11 +4783,13 @@ $lastAddResult = $addResult;
                         $response['print_diagnostics'] = [
                             'printer_transport' => (string)($printResult['transport'] ?? PRINT_ZPL_TRANSPORT),
                             'transport' => (string)($printResult['transport'] ?? PRINT_ZPL_TRANSPORT),
-                            'zpl_layout' => 'waybill_html_match_v2',
-                            'zpl_logical_width' => 1200,
-                            'zpl_logical_height' => 800,
-                            'physical_width_dots' => 800,
-                            'physical_height_dots' => 1200,
+                            'zpl_layout' => 'waybill_html_match_v3',
+                            'zpl_rotate_direction' => warehouse_sync_zpl_rotate_direction(),
+                            'logical_width' => 1200,
+                            'logical_height' => 800,
+                            'physical_width' => 800,
+                            'physical_height' => 1200,
+                            'corner_debug' => (bool)ZPL_WAYBILL_CORNER_DEBUG,
                             'cups_host' => (string)($printResult['cups_host'] ?? ''),
                             'cups_queue' => (string)($printResult['cups_queue'] ?? ''),
                             'zpl_size' => strlen($zpl),
@@ -5067,11 +5123,13 @@ if ($action === 'test_print_connector_label_template') {
                 'print_mode' => 'zpl_raw',
                 'printer_transport' => (string)($printResult['transport'] ?? PRINT_ZPL_TRANSPORT),
                 'transport' => (string)($printResult['transport'] ?? PRINT_ZPL_TRANSPORT),
-                'zpl_layout' => 'waybill_html_match_v2',
-                'zpl_logical_width' => 1200,
-                'zpl_logical_height' => 800,
-                'physical_width_dots' => 800,
-                'physical_height_dots' => 1200,
+                'zpl_layout' => 'waybill_html_match_v3',
+                'zpl_rotate_direction' => warehouse_sync_zpl_rotate_direction(),
+                'logical_width' => 1200,
+                'logical_height' => 800,
+                'physical_width' => 800,
+                'physical_height' => 1200,
+                'corner_debug' => (bool)ZPL_WAYBILL_CORNER_DEBUG,
                 'cups_host' => (string)($printResult['cups_host'] ?? ''),
                 'cups_queue' => (string)($printResult['cups_queue'] ?? ''),
                 'zpl_size' => strlen($zpl),
@@ -5087,11 +5145,13 @@ if ($action === 'test_print_connector_label_template') {
                 'print_status' => (string)($printResult['status'] ?? 'error'),
                 'zpl_transport' => (string)($printResult['transport'] ?? PRINT_ZPL_TRANSPORT),
                 'transport' => (string)($printResult['transport'] ?? PRINT_ZPL_TRANSPORT),
-                'zpl_layout' => 'waybill_html_match_v2',
-                'zpl_logical_width' => 1200,
-                'zpl_logical_height' => 800,
-                'physical_width_dots' => 800,
-                'physical_height_dots' => 1200,
+                'zpl_layout' => 'waybill_html_match_v3',
+                'zpl_rotate_direction' => warehouse_sync_zpl_rotate_direction(),
+                'logical_width' => 1200,
+                'logical_height' => 800,
+                'physical_width' => 800,
+                'physical_height' => 1200,
+                'corner_debug' => (bool)ZPL_WAYBILL_CORNER_DEBUG,
                 'zpl_size' => strlen($zpl),
                 'warnings' => $check['warnings'],
                 'diagnostics' => $diagnostics,
