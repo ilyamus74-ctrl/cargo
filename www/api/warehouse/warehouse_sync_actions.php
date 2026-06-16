@@ -4431,6 +4431,15 @@ if ($action === 'test_print_connector_label_template') {
                 : 'Тест печати: preview сформирован, но отправка на принтер завершилась ошибкой.';
         }
 
+        $directDiagnostics = [];
+        if (isset($printResult['direct']) && is_array($printResult['direct'])) {
+            foreach ($printResult['direct'] as $directKey => $directValue) {
+                if (is_scalar($directValue) || $directValue === null) {
+                    $directDiagnostics['direct.' . (string)$directKey] = $directValue;
+                }
+            }
+        }
+
         $response = [
             'status' => 'ok',
             'message' => $message,
@@ -4441,7 +4450,7 @@ if ($action === 'test_print_connector_label_template') {
             'label_base64_mime' => $previewLabelMime,
             'warnings' => $check['warnings'],
             'print_result' => $printResult,
-            'diagnostics' => [
+            'diagnostics' => array_merge([
                 'template_sha256' => hash('sha256', $templateBody),
                 'preview_size' => strlen($previewHtml),
                 'preview_pdf_engine' => $previewPdfBase64 === (string)($previewPdfRender['pdf_base64'] ?? '') ? 'html-to-pdf' : 'simple-pdf-fallback',
@@ -4456,7 +4465,7 @@ if ($action === 'test_print_connector_label_template') {
                 'print_status' => (string)($printResult['status'] ?? ''),
                 'print_job_id' => (string)($printResult['job_id'] ?? ''),
                 'print_message' => (string)($printResult['message'] ?? ''),
-            ],
+            ], $directDiagnostics),
         ];
         audit_log($userId, 'CONNECTOR_LABEL_TEMPLATE_TEST_PRINT', 'connectors', $connectorId, 'Тест печати шаблона выполнен', [
             'connector_id' => $connectorId,

@@ -45,6 +45,13 @@ function print_direct_cups_enabled(): bool
         && trim((string)(defined('PRINT_DIRECT_CUPS_QUEUE') ? PRINT_DIRECT_CUPS_QUEUE : '')) !== '';
 }
 
+
+function print_direct_cups_print_scaling(): string
+{
+    $value = strtolower(trim((string)(defined('PRINT_DIRECT_CUPS_PRINT_SCALING') ? PRINT_DIRECT_CUPS_PRINT_SCALING : 'fill')));
+    return in_array($value, ['fill', 'fit', 'none'], true) ? $value : 'fill';
+}
+
 function print_decode_label_to_temp_file(array $job): array
 {
     $fileName = trim((string)($job['file_name'] ?? 'label.pdf'));
@@ -133,52 +140,76 @@ function print_direct_cups_send(array $job): array
 {
     $cupsHost = trim((string)(defined('PRINT_DIRECT_CUPS_HOST') ? PRINT_DIRECT_CUPS_HOST : ''));
     $cupsQueue = trim((string)(defined('PRINT_DIRECT_CUPS_QUEUE') ? PRINT_DIRECT_CUPS_QUEUE : ''));
+    $labelWidthCm = isset($job['label_width_cm']) ? (float)$job['label_width_cm'] : 0.0;
+    $labelHeightCm = isset($job['label_height_cm']) ? (float)$job['label_height_cm'] : 0.0;
+    $rotate = isset($job['rotate']) ? (int)$job['rotate'] : 0;
+    if (!in_array($rotate, [0, 90, 180, 270], true)) {
+        $rotate = 0;
+    }
+
+    $finalWidthCm = $labelWidthCm;
+    $finalHeightCm = $labelHeightCm;
+    if ($finalWidthCm > 0 && $finalHeightCm > 0 && in_array($rotate, [90, 270], true)) {
+        [$finalWidthCm, $finalHeightCm] = [$finalHeightCm, $finalWidthCm];
+    }
+    $finalWidthMm = $finalWidthCm > 0 ? (int)round($finalWidthCm * 10) : null;
+    $finalHeightMm = $finalHeightCm > 0 ? (int)round($finalHeightCm * 10) : null;
+    $printScaling = print_direct_cups_print_scaling();
+
+    $diagnostics = [
+        'lp_command' => '',
+        'command_output' => '',
+        'exit_code' => null,
+        'cups_host' => $cupsHost,
+        'cups_queue' => $cupsQueue,
+        'label_width_cm' => $labelWidthCm,
+        'label_height_cm' => $labelHeightCm,
+        'final_width_mm' => $finalWidthMm,
+        'final_height_mm' => $finalHeightMm,
+        'rotate' => $rotate,
+        'print_scaling' => $printScaling,
+        'raw_mode' => false,
+        'file_suffix' => '',
+    ];
+
     if ($cupsHost === '' || $cupsQueue === '') {
-        return [
+        return array_merge($diagnostics, [
             'ok' => false,
             'status' => 'error',
             'message' => 'direct CUPS host/queue is not configured',
-            'exit_code' => null,
-            'cups_host' => $cupsHost,
-            'cups_queue' => $cupsQueue,
-            'command_output' => '',
-        ];
+        ]);
     }
 
     $decoded = print_decode_label_to_temp_file($job);
     if (!($decoded['ok'] ?? false)) {
-        return [
+        return array_merge($diagnostics, [
             'ok' => false,
             'status' => 'error',
             'message' => (string)($decoded['message'] ?? 'failed to prepare label'),
-            'exit_code' => null,
-            'cups_host' => $cupsHost,
-            'cups_queue' => $cupsQueue,
-            'command_output' => '',
-        ];
+        ]);
     }
 
     $tmpFile = (string)$decoded['path'];
     $extension = (string)$decoded['extension'];
+    $rawMode = $extension === 'zpl';
+    $diagnostics['raw_mode'] = $rawMode;
+    $diagnostics['file_suffix'] = $extension;
+
     $options = [];
-    if ($extension === 'zpl') {
+    if ($rawMode) {
         $options[] = '-o ' . escapeshellarg('raw');
     } else {
+        if ($finalWidthMm !== null && $finalHeightMm !== null) {
+            $options[] = '-o ' . escapeshellarg('media=Custom.' . $finalWidthMm . 'x' . $finalHeightMm . 'mm');
+        }
+        $options[] = '-o ' . escapeshellarg('print-scaling=' . $printScaling);
         foreach (['fit-to-page', 'position=center', 'page-left=0', 'page-right=0', 'page-top=0', 'page-bottom=0'] as $option) {
             $options[] = '-o ' . escapeshellarg($option);
         }
-    }
-
-    $widthCm = isset($job['label_width_cm']) ? (float)$job['label_width_cm'] : 0.0;
-    $heightCm = isset($job['label_height_cm']) ? (float)$job['label_height_cm'] : 0.0;
-    $rotate = isset($job['rotate']) ? (int)$job['rotate'] : 0;
-    if ($widthCm > 0 && $heightCm > 0) {
-        $widthMm = (int)round($widthCm * 10);
-        $heightMm = (int)round($heightCm * 10);
-        if (in_array($rotate, [90, 270], true)) {
-            [$widthMm, $heightMm] = [$heightMm, $widthMm];
+        if ($finalWidthCm > 0 && $finalHeightCm > 0) {
+            $orientation = $finalWidthCm >= $finalHeightCm ? 4 : 3;
+            $options[] = '-o ' . escapeshellarg('orientation-requested=' . $orientation);
         }
-        $options[] = '-o ' . escapeshellarg('media=Custom.' . $widthMm . 'x' . $heightMm . 'mm');
     }
 
     $cmd = 'lp'
@@ -187,22 +218,21 @@ function print_direct_cups_send(array $job): array
         . ($options ? ' ' . implode(' ', $options) : '')
         . ' ' . escapeshellarg($tmpFile)
         . ' 2>&1';
+    $diagnostics['lp_command'] = $cmd;
 
     $output = [];
     $exitCode = 0;
     exec($cmd, $output, $exitCode);
     @unlink($tmpFile);
     $commandOutput = trim(implode("\n", $output));
+    $diagnostics['command_output'] = $commandOutput;
+    $diagnostics['exit_code'] = $exitCode;
 
-    return [
+    return array_merge($diagnostics, [
         'ok' => $exitCode === 0,
         'status' => $exitCode === 0 ? 'ok' : 'error',
         'message' => $exitCode === 0 ? 'sent to direct CUPS' : 'lp failed',
-        'exit_code' => $exitCode,
-        'cups_host' => $cupsHost,
-        'cups_queue' => $cupsQueue,
-        'command_output' => $commandOutput,
-    ];
+    ]);
 }
 
 function print_read_queue(string $deviceUid): array
