@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-04-08 16:11:45
+/* Smarty version 5.3.1, created on 2026-06-16 12:14:50
   from 'file:cells_NA_API_connector_label_template_modal.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_69d67e41b45a03_21195514',
+  'unifunc' => 'content_6a313e3ad409e9_48920206',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '837d386e7f61a5e4cbaacc48d56efa349bdf1327' => 
     array (
       0 => 'cells_NA_API_connector_label_template_modal.html',
-      1 => 1775664468,
+      1 => 1781611924,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_69d67e41b45a03_21195514 (\Smarty\Template $_smarty_tpl) {
+function content_6a313e3ad409e9_48920206 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?><form id="connector-label-template-form">
   <input type="hidden" name="connector_id" value="<?php echo $_smarty_tpl->getSmarty()->getModifierCallback('escape')((($tmp = $_smarty_tpl->getValue('connector')['id'] ?? null)===null||$tmp==='' ? 0 ?? null : $tmp), 'htmlattr');?>
@@ -167,6 +167,11 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
       </button>
       <button type="button" class="btn btn-outline-secondary js-core-link" data-core-action="validate_connector_label_template">
         Проверить шаблон
+      </button>
+      <button type="button"
+              class="btn btn-outline-primary js-core-link"
+              data-core-action="open_connector_label_template_print_preview">
+        Открыть HTML для печати
       </button>
       <button type="button" class="btn btn-outline-info js-core-link" data-core-action="test_print_connector_label_template">
         Тест печати шаблона

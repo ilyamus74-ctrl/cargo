@@ -2662,8 +2662,19 @@ if (!function_exists('warehouse_sync_label_template_sample_vars')) {
             '{{client_code}}' => 'CLI001',
             '{{client_id}}' => '12345678',
             '{{internal_id}}' => 'INT-00001',
+            '{{seller}}' => 'Test Seller',
+            '{{consignee_phone}}' => '+994501234567',
+            '{{client_address}}' => 'Baku, Test street 10',
             '{{weight}}' => '1.000',
+            '{{volume_weight}}' => '1.200',
             '{{amount}}' => '10.00 USD',
+            '{{description}}' => 'Test goods description',
+            '{{category}}' => 'Clothes',
+            '{{invoice_usd}}' => '10.00',
+            '{{total_invoice_price}}' => '10.00 EUR',
+            '{{declared_value}}' => '10.00 EUR',
+            '{{invoice_price}}' => '10.00',
+            '{{shipping_price}}' => '10.00 USD',
             '{{country_dest}}' => $previewCountryDest,
             '{{forward_name}}' => $previewForwardName,
             '{{flight_departure}}' => 'HHN',
@@ -4282,12 +4293,11 @@ if ($action === 'open_connector_label_template_print_preview') {
     $printRotate = (int)($_POST['print_rotate'] ?? 0);
 
     $check = warehouse_sync_validate_label_template_body($templateBody);
-    if (!empty($check['errors'])) {
+    if (trim($templateBody) === '') {
         $response = [
             'status' => 'error',
-            'message' => 'Шаблон не прошёл валидацию',
-            'errors' => $check['errors'],
-            'warnings' => $check['warnings'] ?? [],
+            'message' => 'Шаблон пустой',
+            'errors' => ['Шаблон пустой.'],
         ];
         return;
     }
@@ -4311,14 +4321,22 @@ if ($action === 'open_connector_label_template_print_preview') {
 
     $response = [
         'status' => 'ok',
-        'message' => 'HTML preview готов',
+        'message' => !empty($check['errors'])
+            ? 'HTML preview готов, но валидатор нашёл замечания'
+            : 'HTML preview готов',
         'printable_html' => $printableHtml,
+        'validation_status' => (string)($check['status'] ?? 'ok'),
+        'validation_errors' => $check['errors'] ?? [],
+        'validation_warnings' => $check['warnings'] ?? [],
         'label_width_cm' => $labelWidthCm,
         'label_height_cm' => $labelHeightCm,
         'print_rotate' => $printRotate,
         'diagnostics' => [
             'template_sha256' => hash('sha256', $templateBody),
             'printable_size' => strlen($printableHtml),
+            'validation_status' => (string)($check['status'] ?? 'ok'),
+            'validation_errors' => $check['errors'] ?? [],
+            'validation_warnings' => $check['warnings'] ?? [],
             'label_width_cm' => $labelWidthCm,
             'label_height_cm' => $labelHeightCm,
             'final_width_mm' => $finalWidthMm,

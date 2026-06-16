@@ -792,7 +792,39 @@ const CoreAPI = {
                 '>': '&gt;',
                 '"': '&quot;',
             }[ch] || ch));
+            const validationErrors = Array.isArray(data?.validation_errors)
+                ? data.validation_errors
+                : (Array.isArray(data?.diagnostics?.validation_errors) ? data.diagnostics.validation_errors : []);
+            const validationWarnings = Array.isArray(data?.validation_warnings)
+                ? data.validation_warnings
+                : (Array.isArray(data?.diagnostics?.validation_warnings) ? data.diagnostics.validation_warnings : []);
+            const validationStatus = String(data?.validation_status ?? data?.diagnostics?.validation_status ?? 'ok');
+            const validationBox = document.getElementById('connector-label-template-validation');
+            if (validationBox) {
+                const boxParts = [];
+                if (validationErrors.length > 0) {
+                    boxParts.push(`<div class="text-danger"><strong>Ошибки валидатора:</strong><ul class="mb-1">${validationErrors.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul></div>`);
+                }
+                if (validationWarnings.length > 0) {
+                    boxParts.push(`<div class="text-warning"><strong>Предупреждения:</strong><ul class="mb-1">${validationWarnings.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul></div>`);
+                }
+                if (boxParts.length === 0) {
+                    boxParts.push(`<div class="text-success">${escapeHtml(data?.message || 'HTML preview готов')}</div>`);
+                }
+                validationBox.innerHTML = boxParts.join('');
+            }
+
             const toolbarText = `Размер: ${widthMm} x ${heightMm} mm, rotate ${rotate}°`;
+            const toolbarValidation = [];
+            if (validationErrors.length > 0) {
+                toolbarValidation.push(`<div style="color:#b00020;margin-top:6px;"><strong>Ошибки валидатора:</strong><ul style="margin:4px 0 0 18px;padding:0;">${validationErrors.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul></div>`);
+            }
+            if (validationWarnings.length > 0) {
+                toolbarValidation.push(`<div style="color:#9a6700;margin-top:6px;"><strong>Предупреждения:</strong><ul style="margin:4px 0 0 18px;padding:0;">${validationWarnings.map((item) => `<li>${escapeHtml(item)}</li>`).join('')}</ul></div>`);
+            }
+            if (toolbarValidation.length === 0) {
+                toolbarValidation.push(`<div style="color:#198754;margin-top:6px;">${escapeHtml(data?.message || 'HTML preview готов')}</div>`);
+            }
             const previewWindow = window.open('', 'connector_label_template_print_preview');
             if (!previewWindow) {
                 alert('Не удалось открыть окно предпросмотра. Проверьте блокировку pop-up окон.');
@@ -827,7 +859,8 @@ const CoreAPI = {
                 '<div class="print-toolbar">',
                 '<button type="button" onclick="window.print()">Печать</button> ',
                 '<button type="button" onclick="window.close()">Закрыть</button> ',
-                `<span>${escapeHtml(toolbarText)}</span>`,
+                `<span>${escapeHtml(toolbarText)} · validation: ${escapeHtml(validationStatus)}</span>`,
+                toolbarValidation.join(''),
                 '</div>',
                 '<div class="label-print-page">',
                 printableHtml,
