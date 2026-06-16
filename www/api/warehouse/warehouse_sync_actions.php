@@ -1995,29 +1995,6 @@ if (!function_exists('warehouse_sync_queue_print_preview')) {
         return str_replace(['\\', '(', ')'], ['\\\\', '\(', '\)'], $encoded);
     }
 
-
-    function warehouse_sync_preview_render_fit_mode(?string $mode = null): string
-    {
-        $value = strtolower(trim((string)($mode ?? (defined('PRINT_DIRECT_CUPS_RENDER_FIT_MODE') ? PRINT_DIRECT_CUPS_RENDER_FIT_MODE : 'cover'))));
-        return in_array($value, ['contain', 'cover', 'none'], true) ? $value : 'cover';
-    }
-
-    function warehouse_sync_prepare_print_html_for_capture(string $html, float $widthCm, float $heightCm, int $targetWidthPx, int $targetHeightPx, string $fitMode): string
-    {
-        $fitMode = warehouse_sync_preview_render_fit_mode($fitMode);
-        $widthMm = number_format($widthCm * 10.0, 2, '.', '');
-        $heightMm = number_format($heightCm * 10.0, 2, '.', '');
-        $css = '@page{size:' . $widthMm . 'mm ' . $heightMm . 'mm;margin:0;}'
-            . 'html,body{width:' . $widthMm . 'mm!important;height:' . $heightMm . 'mm!important;margin:0!important;padding:0!important;overflow:hidden!important;background:#fff!important;}'
-            . '*,*:before,*:after{box-sizing:border-box;}'
-            . '#__label_page{width:100%!important;height:100%!important;margin:0!important;padding:0!important;box-sizing:border-box!important;overflow:hidden!important;transform-origin:top left!important;background:#fff!important;}'
-            . '.__label_content{transform-origin:top left!important;}'
-            . '.connector-label-preview-boundary{border:none!important;padding:0!important;margin:0!important;width:100%!important;height:100%!important;max-width:none!important;max-height:none!important;overflow:hidden!important;}';
-        $script = '<script>(function(){function apply(){var page=document.getElementById("__label_page");if(!page)return;var c=page.firstElementChild;if(!c)return;c.style.transform="none";var tw=' . (int)$targetWidthPx . ',th=' . (int)$targetHeightPx . ';var cw=Math.max(c.scrollWidth,c.offsetWidth,c.getBoundingClientRect().width,1);var ch=Math.max(c.scrollHeight,c.offsetHeight,c.getBoundingClientRect().height,1);var mode=' . json_encode($fitMode) . ';var scale=mode==="cover"?Math.max(tw/cw,th/ch):(mode==="contain"?Math.min(tw/cw,th/ch):1);if(!isFinite(scale)||scale<=0)scale=1;c.style.transform="scale("+scale+")";page.setAttribute("data-render-content-width-px",String(Math.round(cw)));page.setAttribute("data-render-content-height-px",String(Math.round(ch)));page.setAttribute("data-render-scale",String(scale));page.setAttribute("data-render-fit-mode",mode);}window.addEventListener("load",function(){apply();setTimeout(apply,200);setTimeout(apply,800);});})();</script>';
-        $body = '<div id="__label_page"><div class="__label_content">' . $html . '</div></div>';
-        return '<!doctype html><html><head><meta charset="utf-8"><style>' . $css . '</style>' . $script . '</head><body>' . $body . '</body></html>';
-    }
-
     function warehouse_sync_preview_html_to_simple_pdf(
         string $previewHtml,
         int $rotateDegrees = 0,
@@ -2132,10 +2109,8 @@ if (!function_exists('warehouse_sync_queue_print_preview')) {
 
         $widthCss = number_format($widthCm, 2, '.', '');
         $heightCss = number_format($heightCm, 2, '.', '');
-        $widthMmCss = number_format($widthCm * 10.0, 2, '.', '');
-        $heightMmCss = number_format($heightCm * 10.0, 2, '.', '');
-        $printCss = '@page { size: ' . $widthMmCss . 'mm ' . $heightMmCss . 'mm; margin: 0; }'
-            . ' html, body { margin: 0; padding: 0; width: ' . $widthMmCss . 'mm; height: ' . $heightMmCss . 'mm; overflow: hidden; }'
+        $printCss = '@page { size: ' . $widthCss . 'cm ' . $heightCss . 'cm; margin: 0; }'
+            . ' html, body { margin: 0; padding: 0; width: ' . $widthCss . 'cm; height: ' . $heightCss . 'cm; }'
             . ' body { background: #fff; -webkit-print-color-adjust: exact; print-color-adjust: exact; overflow: hidden; }';
         if (stripos($html, '<html') === false || stripos($html, '<body') === false) {
             $html = '<!doctype html><html><head><meta charset="utf-8"><title>Connector Label Preview</title><style>' . $printCss . '</style></head><body>'
@@ -2247,8 +2222,7 @@ if (!function_exists('warehouse_sync_queue_print_preview')) {
     function warehouse_sync_preview_html_to_png_base64(
         string $previewHtml,
         float $labelWidthCm = 10.0,
-        float $labelHeightCm = 15.0,
-        string $fitMode = 'contain'
+        float $labelHeightCm = 15.0
     ): array
     {
         $html = trim($previewHtml);
@@ -2267,19 +2241,6 @@ if (!function_exists('warehouse_sync_queue_print_preview')) {
 
         $widthPx = max(300, (int)round(($widthCm / 2.54) * 300));
         $heightPx = max(200, (int)round(($heightCm / 2.54) * 300));
-        $fitMode = warehouse_sync_preview_render_fit_mode($fitMode);
-        $html = warehouse_sync_prepare_print_html_for_capture($html, $widthCm, $heightCm, $widthPx, $heightPx, $fitMode);
-        $diagnostics = [
-            'render_target_width_px' => $widthPx,
-            'render_target_height_px' => $heightPx,
-            'render_content_width_px' => null,
-            'render_content_height_px' => null,
-            'render_scale' => null,
-            'render_fit_mode' => $fitMode,
-            'render_has_debug_frame' => stripos($previewHtml, 'border: 1px dashed') !== false,
-            'generated_png_bytes' => 0,
-            'generated_png_dimensions' => '',
-        ];
 
         $tmpDir = sys_get_temp_dir();
         $tmpHtml = tempnam($tmpDir, 'ws_preview_html_');
@@ -2315,10 +2276,7 @@ if (!function_exists('warehouse_sync_queue_print_preview')) {
             if (is_string($pngBinary) && $pngBinary !== '') {
                 @unlink($tmpHtmlFile);
                 @unlink($tmpPngFile);
-                $info = @getimagesizefromstring($pngBinary);
-                $diagnostics['generated_png_bytes'] = strlen($pngBinary);
-                if (is_array($info)) { $diagnostics['generated_png_dimensions'] = (int)$info[0] . 'x' . (int)$info[1]; }
-                return ['ok' => true, 'error' => '', 'png_base64' => base64_encode($pngBinary), 'diagnostics' => $diagnostics];
+                return ['ok' => true, 'error' => '', 'png_base64' => base64_encode($pngBinary)];
             }
             $errors[] = 'wkhtmltoimage failed: ' . trim((string)$output);
         } else {
@@ -2357,31 +2315,9 @@ if (!function_exists('warehouse_sync_queue_print_preview')) {
             $output = shell_exec($envPrefix . ' ' . $cmd);
             $pngBinary = @file_get_contents($tmpPngFile);
             if (is_string($pngBinary) && $pngBinary !== '') {
-                $dumpCmd = escapeshellarg($chromeBinary)
-                    . ' --headless --disable-gpu --no-sandbox --disable-dev-shm-usage --allow-file-access-from-files'
-                    . ' --disable-crash-reporter --user-data-dir=' . escapeshellarg($chromeUserDataDir . '-dump')
-                    . ' --crash-dumps-dir=' . escapeshellarg($chromeCrashDir)
-                    . ' --window-size=' . (int)$widthPx . ',' . (int)$heightPx
-                    . ' --virtual-time-budget=1200 --dump-dom '
-                    . escapeshellarg($fileUrl) . ' 2>/dev/null';
-                $dumpedDom = shell_exec($envPrefix . ' ' . $dumpCmd);
-                if (is_string($dumpedDom) && $dumpedDom !== '') {
-                    foreach ([
-                        'render_content_width_px' => 'data-render-content-width-px',
-                        'render_content_height_px' => 'data-render-content-height-px',
-                        'render_scale' => 'data-render-scale',
-                    ] as $diagKey => $attrName) {
-                        if (preg_match('/' . preg_quote($attrName, '/') . '=(["\'])(.*?)\1/i', $dumpedDom, $m) === 1) {
-                            $diagnostics[$diagKey] = $diagKey === 'render_scale' ? (float)$m[2] : (int)$m[2];
-                        }
-                    }
-                }
                 @unlink($tmpHtmlFile);
                 @unlink($tmpPngFile);
-                $info = @getimagesizefromstring($pngBinary);
-                $diagnostics['generated_png_bytes'] = strlen($pngBinary);
-                if (is_array($info)) { $diagnostics['generated_png_dimensions'] = (int)$info[0] . 'x' . (int)$info[1]; }
-                return ['ok' => true, 'error' => '', 'png_base64' => base64_encode($pngBinary), 'diagnostics' => $diagnostics];
+                return ['ok' => true, 'error' => '', 'png_base64' => base64_encode($pngBinary)];
             }
             $errors[] = 'headless chrome screenshot failed: ' . trim((string)$output);
         } else {
@@ -2390,7 +2326,7 @@ if (!function_exists('warehouse_sync_queue_print_preview')) {
 
         @unlink($tmpHtmlFile);
         @unlink($tmpPngFile);
-        return ['ok' => false, 'error' => implode('; ', $errors), 'png_base64' => '', 'diagnostics' => $diagnostics];
+        return ['ok' => false, 'error' => implode('; ', $errors), 'png_base64' => ''];
     }
 
     function warehouse_sync_queue_print_preview(
@@ -2427,8 +2363,7 @@ if (!function_exists('warehouse_sync_queue_print_preview')) {
 
         $preferRaster = (bool)$preferRasterImage;
         if ($preferRaster) {
-            $renderFitMode = (function_exists('print_direct_cups_enabled') && print_direct_cups_enabled()) ? warehouse_sync_preview_render_fit_mode(null) : 'contain';
-            $renderPng = warehouse_sync_preview_html_to_png_base64($previewHtml, $labelWidthCm, $labelHeightCm, $renderFitMode);
+            $renderPng = warehouse_sync_preview_html_to_png_base64($previewHtml, $labelWidthCm, $labelHeightCm);
             $labelBase64 = (string)($renderPng['png_base64'] ?? '');
             $renderEngine = 'html-to-png';
             $renderMessage = trim((string)($renderPng['error'] ?? ''));
@@ -2467,7 +2402,6 @@ if (!function_exists('warehouse_sync_queue_print_preview')) {
                 'job_id' => $jobId,
                 'render_engine' => $renderEngine,
                 'render_message' => $renderMessage,
-                'render_diagnostics' => isset($renderPng) && is_array($renderPng) ? ($renderPng['diagnostics'] ?? []) : [],
                 'direct' => $direct,
             ];
         }
@@ -4457,12 +4391,11 @@ if ($action === 'test_print_connector_label_template') {
         }
 
         $previewHtml = warehouse_sync_label_template_preview_html($templateBody, $connectorId, $labelWidthCm, $labelHeightCm, true, false);
-        $printHtml = warehouse_sync_label_template_preview_html($templateBody, $connectorId, $labelWidthCm, $labelHeightCm, false, true);
-        $previewPdfRender = warehouse_sync_preview_html_to_pdf_base64($printHtml, $labelWidthCm, $labelHeightCm, $printRotate);
+        $previewPdfRender = warehouse_sync_preview_html_to_pdf_base64($previewHtml, $labelWidthCm, $labelHeightCm, $printRotate);
         $previewPdfBase64 = (string)($previewPdfRender['pdf_base64'] ?? '');
         if ($previewPdfBase64 === '') {
             $previewPdfBase64 = base64_encode(
-                warehouse_sync_preview_html_to_simple_pdf($printHtml, $printRotate, $labelWidthCm, $labelHeightCm)
+                warehouse_sync_preview_html_to_simple_pdf($previewHtml, $printRotate, $labelWidthCm, $labelHeightCm)
             );
         }
 
@@ -4471,7 +4404,7 @@ if ($action === 'test_print_connector_label_template') {
         $previewLabelMime = 'application/pdf';
         $previewRenderEngine = $previewPdfBase64 === (string)($previewPdfRender['pdf_base64'] ?? '') ? 'html-to-pdf' : 'simple-pdf-fallback';
         if ($preferRasterImage) {
-            $previewImageRender = warehouse_sync_preview_html_to_png_base64($printHtml, $labelWidthCm, $labelHeightCm, 'cover');
+            $previewImageRender = warehouse_sync_preview_html_to_png_base64($previewHtml, $labelWidthCm, $labelHeightCm);
             $previewPngBase64 = (string)($previewImageRender['png_base64'] ?? '');
             if ($previewPngBase64 !== '') {
                 $previewLabelBase64 = $previewPngBase64;
@@ -4483,7 +4416,7 @@ if ($action === 'test_print_connector_label_template') {
         if ($printDeviceKey !== '') {
             $printResult = warehouse_sync_queue_print_preview(
                 $printDeviceKey,
-                $printHtml,
+                $previewHtml,
                 $printRotate,
                 $labelWidthCm,
                 $labelHeightCm,
@@ -4532,15 +4465,6 @@ if ($action === 'test_print_connector_label_template') {
                 'print_status' => (string)($printResult['status'] ?? ''),
                 'print_job_id' => (string)($printResult['job_id'] ?? ''),
                 'print_message' => (string)($printResult['message'] ?? ''),
-                'render_target_width_px' => $previewImageRender['diagnostics']['render_target_width_px'] ?? ($printResult['render_diagnostics']['render_target_width_px'] ?? null),
-                'render_target_height_px' => $previewImageRender['diagnostics']['render_target_height_px'] ?? ($printResult['render_diagnostics']['render_target_height_px'] ?? null),
-                'render_content_width_px' => $previewImageRender['diagnostics']['render_content_width_px'] ?? ($printResult['render_diagnostics']['render_content_width_px'] ?? null),
-                'render_content_height_px' => $previewImageRender['diagnostics']['render_content_height_px'] ?? ($printResult['render_diagnostics']['render_content_height_px'] ?? null),
-                'render_scale' => $previewImageRender['diagnostics']['render_scale'] ?? ($printResult['render_diagnostics']['render_scale'] ?? null),
-                'render_fit_mode' => $previewImageRender['diagnostics']['render_fit_mode'] ?? ($printResult['render_diagnostics']['render_fit_mode'] ?? ''),
-                'render_has_debug_frame' => $previewImageRender['diagnostics']['render_has_debug_frame'] ?? ($printResult['render_diagnostics']['render_has_debug_frame'] ?? null),
-                'generated_png_bytes' => $previewImageRender['diagnostics']['generated_png_bytes'] ?? ($printResult['render_diagnostics']['generated_png_bytes'] ?? null),
-                'generated_png_dimensions' => $previewImageRender['diagnostics']['generated_png_dimensions'] ?? ($printResult['render_diagnostics']['generated_png_dimensions'] ?? ''),
             ], $directDiagnostics),
         ];
         audit_log($userId, 'CONNECTOR_LABEL_TEMPLATE_TEST_PRINT', 'connectors', $connectorId, 'Тест печати шаблона выполнен', [
