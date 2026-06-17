@@ -3253,8 +3253,9 @@ if (!function_exists('warehouse_sync_waybill_zpl_vector_template_map')) {
     function warehouse_sync_waybill_zpl_vector_template_map(array $vars): array
     {
         $get = static fn(string $key, string $default = ''): string => warehouse_sync_label_var($vars, $key, $default);
-        $internalId = $get('internal_id', $get('track', ''));
-        $barcode = $get('barcode', $get('barcode_url', $internalId));
+        $track = $get('track', '');
+        $internalId = $get('internal_id', $track);
+        $barcode = $get('barcode', $internalId !== '' ? $internalId : $track);
         $qrPayload = $get('qr_payload', $get('qr_img_html', $internalId));
         $forwardName = $get('forward_name', 'DEV COLIBRI');
         return [
@@ -3274,7 +3275,8 @@ if (!function_exists('warehouse_sync_waybill_zpl_vector_template_map')) {
             'VAR_5FINVOICED_5FUSD' => [$get('invoice_usd'), 20],
             'VAR_5FTOTAL_5FINVOICED_5FP' => [$get('total_invoice_price'), 24],
             'VAR_5FINTERNAL_5FID' => [$internalId, 40],
-            'VAR_5FBARCODE_5FURL' => [$barcode !== '' ? $barcode : $internalId, 96],
+            'VAR_5FBARCODE_5FURL' => [$barcode !== '' ? $barcode : ($internalId !== '' ? $internalId : $track), 96],
+            'VAR_5FBARCODE_5FVALUE' => [$barcode !== '' ? $barcode : ($internalId !== '' ? $internalId : $track), 96],
             'VAR_5FQR_5FIMG_5FHTML' => [$qrPayload !== '' ? $qrPayload : $internalId, 96],
             'VAR_5FFORWARD_5FNAME' => [$forwardName !== '' ? $forwardName : 'DEV COLIBRI', 40],
         ];
@@ -3300,12 +3302,17 @@ if (!function_exists('warehouse_sync_render_waybill_zpl_vector_template_diagnost
         $zpl = strtr($template, $replace);
         preg_match_all('/VAR(?:_5F|_)[A-Z0-9_]+/', $zpl, $matches);
         $unresolved = array_values(array_unique($matches[0] ?? []));
+        preg_match('/\^BC([RBN]),/i', $template, $barcodeOrientationMatch);
+        $barcodeValue = (string)($map['VAR_5FBARCODE_5FVALUE'][0] ?? '');
         return [
             'zpl' => $zpl,
             'print_mode' => 'zpl_vector_template',
             'template_path' => $path,
             'template_size' => strlen($template),
             'zpl_size' => strlen($zpl),
+            'barcode_rendered' => strpos($template, '^BC') !== false && $barcodeValue !== '',
+            'barcode_value' => $barcodeValue,
+            'barcode_orientation' => strtoupper((string)($barcodeOrientationMatch[1] ?? '')),
             'transport' => (string)PRINT_ZPL_TRANSPORT,
             'cups_host' => (string)PRINT_ZPL_CUPS_HOST,
             'cups_queue' => (string)PRINT_ZPL_CUPS_QUEUE,
