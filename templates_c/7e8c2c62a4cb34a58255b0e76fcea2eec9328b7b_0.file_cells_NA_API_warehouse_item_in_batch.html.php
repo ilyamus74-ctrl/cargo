@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-06-17 11:04:05
+/* Smarty version 5.3.1, created on 2026-06-17 11:27:42
   from 'file:cells_NA_API_warehouse_item_in_batch.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_6a327f257a62d8_17279235',
+  'unifunc' => 'content_6a3284aec508b4_13767021',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '7e8c2c62a4cb34a58255b0e76fcea2eec9328b7b' => 
     array (
       0 => 'cells_NA_API_warehouse_item_in_batch.html',
-      1 => 1781693376,
+      1 => 1781695657,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_6a327f257a62d8_17279235 (\Smarty\Template $_smarty_tpl) {
+function content_6a3284aec508b4_13767021 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>
 
@@ -44,7 +44,7 @@ $_smarty_current_dir = '/home/cells/web/templates';
     <input type="text" class="form-control" id="trackingNo" name="tracking_no" required autofocus>
   </div>
 
-  <div class="col-md-4">
+  <div class="col-md-4" style="display:none">
      <label for="carrierName" class="form-label">Перевозчик</label>
      <select class="form-select" id="carrierName" name="carrier_name">
        <option value="">— выберите —</option>

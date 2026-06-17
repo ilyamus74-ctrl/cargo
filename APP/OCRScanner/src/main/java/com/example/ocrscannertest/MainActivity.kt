@@ -1323,6 +1323,9 @@ class MainActivity : ComponentActivity() {
     }
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
         val keyCode = event.keyCode
+        val isEnterKey =
+            keyCode == KeyEvent.KEYCODE_ENTER ||
+                    keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER
 
         if (isSoftKeyboardHoldToggleKey(keyCode, event)) {
             Log.i(
@@ -1347,6 +1350,7 @@ class MainActivity : ComponentActivity() {
 
         if (
             softKeyboardHoldEnabledRuntime &&
+            !isEnterKey &&
             event.action == KeyEvent.ACTION_DOWN &&
             isSoftKeyboardHoldInjectableKey(event)
         ) {
@@ -1361,6 +1365,7 @@ class MainActivity : ComponentActivity() {
 
         if (
             softKeyboardHoldEnabledRuntime &&
+            !isEnterKey &&
             event.action == KeyEvent.ACTION_UP &&
             isSoftKeyboardHoldInjectableKey(event)
         ) {
@@ -1494,6 +1499,34 @@ class MainActivity : ComponentActivity() {
         }
 
         if (!softKeyboardHoldEnabledRuntime && handleHardwareKeyboardWedge(event)) {
+            return true
+        }
+
+        if (isEnterKey) {
+            Log.i(
+                "SCAN_QR_DIAG",
+                "enter_key_native dispatch action=${event.action} repeat=${event.repeatCount} softHold=$softKeyboardHoldEnabledRuntime onSingle=${onEnterSingle != null} onDouble=${onEnterDouble != null}"
+            )
+
+            if (event.action == KeyEvent.ACTION_DOWN && event.repeatCount == 0) {
+                hideKeyboardForActiveWebView("enter_native_control")
+
+                enterButtonDispatcher.onEnter(
+                    single = {
+                        Log.i("SCAN_QR_DIAG", "enter_single_native callback=${onEnterSingle != null}")
+                        onEnterSingle?.invoke()
+                    },
+                    double = {
+                        Log.i("SCAN_QR_DIAG", "enter_double_native callback=${onEnterDouble != null}")
+                        if (onEnterDouble != null) {
+                            onEnterDouble?.invoke()
+                        } else {
+                            runItemInP2DoubleFallback()
+                        }
+                    }
+                )
+            }
+
             return true
         }
 
@@ -1860,6 +1893,7 @@ class MainActivity : ComponentActivity() {
         val keyCode = event.keyCode
 
         if (isSoftKeyboardHoldToggleKey(keyCode, event)) return false
+        if (keyCode == KeyEvent.KEYCODE_ENTER || keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER) return false
 
         return when (keyCode) {
             KeyEvent.KEYCODE_DEL,
@@ -3680,6 +3714,7 @@ fun AppRoot() {
                 true
             }
             "add_new_item" -> {
+                Log.i("SCAN_QR_DIAG", "add_item native op=add_new_item")
                 prepareFormForNextScanInWebView(webView)
                 true
             }
@@ -10492,6 +10527,7 @@ fun handleNativeWebOp(
             true
         }
         "add_new_item" -> {
+            Log.i("SCAN_QR_DIAG", "add_item native op=add_new_item")
             prepareFormForNextScanInWebView(webView)
             true
         }
