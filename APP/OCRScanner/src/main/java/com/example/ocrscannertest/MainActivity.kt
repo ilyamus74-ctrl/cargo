@@ -508,7 +508,8 @@ private class VolumeButtonDispatcher(
     private var lastVolumeUpTs: Long = 0L
     private var pendingVolumeDown: Runnable? = null
     private var pendingVolumeUp: Runnable? = null
-
+    private var lastEnterTs: Long = 0L
+    private var pendingEnter: Runnable? = null
     fun onVolumeDown(single: (() -> Unit)?, double: (() -> Unit)?) {
         val now = System.currentTimeMillis()
         val delta = now - lastVolumeDownTs
@@ -579,6 +580,37 @@ private class VolumeButtonDispatcher(
         handler.postDelayed(runnable, VOLUME_DOUBLE_TAP_WINDOW_MS)
         println("### VolumeUp: scheduled single tap (wait ${VOLUME_DOUBLE_TAP_WINDOW_MS}ms)")
     }
+
+    fun onEnter(single: (() -> Unit)?, double: (() -> Unit)?) {
+        val now = System.currentTimeMillis()
+        val delta = now - lastEnterTs
+        if (delta in 0..VOLUME_DOUBLE_TAP_WINDOW_MS) {
+            pendingEnter?.let {
+                handler.removeCallbacks(it)
+                println("### Enter: cancelled pending single tap")
+            }
+            pendingEnter = null
+            lastEnterTs = 0L
+
+            println("### Enter: DOUBLE tap detected!")
+            handler.post {
+                debugToast(context, "ENTER DOUBLE")
+            }
+            double?.invoke()
+            return
+        }
+
+        lastEnterTs = now
+        val runnable = Runnable {
+            pendingEnter = null
+            println("### Enter: executing SINGLE tap (delayed)")
+            debugToast(context, "ENTER SINGLE")
+            single?.invoke()
+        }
+        pendingEnter = runnable
+        handler.postDelayed(runnable, VOLUME_DOUBLE_TAP_WINDOW_MS)
+        println("### Enter: scheduled single tap (wait ${VOLUME_DOUBLE_TAP_WINDOW_MS}ms)")
+    }
 }
 
 class MainActivity : ComponentActivity() {
@@ -587,6 +619,8 @@ class MainActivity : ComponentActivity() {
         var onVolDownDouble: (() -> Unit)? = null
         var onVolUpSingle: (() -> Unit)? = null
         var onVolUpDouble: (() -> Unit)? = null
+        var onEnterSingle: (() -> Unit)? = null
+        var onEnterDouble: (() -> Unit)? = null
         var onScanLeftSingle: (() -> Unit)? = null
         var onScanRightSingle: (() -> Unit)? = null
         var onScanPistolSingle: (() -> Unit)? = null
@@ -599,6 +633,7 @@ class MainActivity : ComponentActivity() {
     }
 
     private lateinit var volumeButtonDispatcher: VolumeButtonDispatcher
+    private lateinit var enterButtonDispatcher: VolumeButtonDispatcher
     private lateinit var p2ButtonDispatcher: VolumeButtonDispatcher
     private val hardwareScanBuffer = StringBuilder()
     private var hardwareScanLastCharTs: Long = 0L
@@ -2471,6 +2506,11 @@ class MainActivity : ComponentActivity() {
                 return true
             }
 
+            KeyEvent.KEYCODE_ENTER, KeyEvent.KEYCODE_NUMPAD_ENTER -> {
+                enterButtonDispatcher.onEnter(onEnterSingle, onEnterDouble)
+                return true
+            }
+
             KeyEvent.KEYCODE_F9 -> {
                 if (!interceptHardwareTriggerKeys) return false
                 return triggerFirstAvailable(onScanPistolSingle, onScanLeftSingle, onScanRightSingle, onVolDownSingle)
@@ -2527,8 +2567,8 @@ class MainActivity : ComponentActivity() {
 
         val repeat = event?.repeatCount ?: 0
 
-        // глушим авто-повтор ТОЛЬКО для кнопок громкости
-        if (repeat > 0 && (keyCode == KeyEvent.KEYCODE_VOLUME_DOWN || keyCode == KeyEvent.KEYCODE_VOLUME_UP)) {
+        // глушим авто-повтор для аппаратных кнопок, чтобы long press не выполнял действие многократно
+        if (repeat > 0 && (keyCode == KeyEvent.KEYCODE_VOLUME_DOWN || keyCode == KeyEvent.KEYCODE_VOLUME_UP || keyCode == KeyEvent.KEYCODE_ENTER || keyCode == KeyEvent.KEYCODE_NUMPAD_ENTER)) {
             return true
         }
 
@@ -2574,6 +2614,7 @@ class MainActivity : ComponentActivity() {
 
         // init volume dispatcher with context (for Toast)
         volumeButtonDispatcher = VolumeButtonDispatcher(this)
+        enterButtonDispatcher = VolumeButtonDispatcher(this)
         p2ButtonDispatcher = VolumeButtonDispatcher(this)
        // экран не гаснет — поведение киоска
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
@@ -3733,6 +3774,9 @@ fun AppRoot() {
                 MainActivity.onVolUpSingle = { dispatchContextFlowAction("vol_up_single") }
                 MainActivity.onVolUpDouble = { dispatchContextFlowAction("vol_up_double") }
 
+                MainActivity.onEnterSingle = { dispatchContextFlowAction("enter_single") }
+                MainActivity.onEnterDouble = { dispatchContextFlowAction("enter_double") }
+
                 MainActivity.onScanLeftSingle = null
                 MainActivity.onScanRightSingle = null
                 MainActivity.onScanPistolSingle = null
@@ -3754,6 +3798,8 @@ fun AppRoot() {
                 MainActivity.onVolDownDouble = { dispatchButtonAction(buttonMappings["vol_down_double"]) }
                 MainActivity.onVolUpSingle = { dispatchButtonAction(buttonMappings["vol_up_single"]) }
                 MainActivity.onVolUpDouble = { dispatchButtonAction(buttonMappings["vol_up_double"]) }
+                MainActivity.onEnterSingle = { dispatchButtonAction(buttonMappings["enter_single"]) }
+                MainActivity.onEnterDouble = { dispatchButtonAction(buttonMappings["enter_double"]) }
                 MainActivity.onScanLeftSingle = { dispatchButtonAction(buttonMappings["scan_left_single"]) }
                 MainActivity.onScanRightSingle = { dispatchButtonAction(buttonMappings["scan_right_single"]) }
                 MainActivity.onScanPistolSingle = { dispatchButtonAction(buttonMappings["scan_pistol_single"]) }
@@ -3779,12 +3825,16 @@ fun AppRoot() {
                     MainActivity.onVolDownDouble = { dispatchContextFlowAction("vol_down_double") }
                     MainActivity.onVolUpSingle = { dispatchContextFlowAction("vol_up_single") }
                     MainActivity.onVolUpDouble = { dispatchContextFlowAction("vol_up_double") }
+                    MainActivity.onEnterSingle = { dispatchContextFlowAction("enter_single") }
+                    MainActivity.onEnterDouble = { dispatchContextFlowAction("enter_double") }
                     MainActivity.onP1Single = { dispatchContextFlowAction("p1_single") }
                     MainActivity.onP2Single = { dispatchContextFlowAction("p2_single") }
                 } else {
                     MainActivity.onVolDownDouble = null
                     MainActivity.onVolUpSingle = null
                     MainActivity.onVolUpDouble = null
+                    MainActivity.onEnterSingle = null
+                    MainActivity.onEnterDouble = null
                     MainActivity.onP1Single = null
                     MainActivity.onP2Single = null
                 }
@@ -3805,12 +3855,16 @@ fun AppRoot() {
                     MainActivity.onVolDownDouble = { dispatchContextFlowAction("vol_down_double") }
                     MainActivity.onVolUpSingle = { dispatchContextFlowAction("vol_up_single") }
                     MainActivity.onVolUpDouble = { dispatchContextFlowAction("vol_up_double") }
+                    MainActivity.onEnterSingle = { dispatchContextFlowAction("enter_single") }
+                    MainActivity.onEnterDouble = { dispatchContextFlowAction("enter_double") }
                     MainActivity.onP1Single = { dispatchContextFlowAction("p1_single") }
                     MainActivity.onP2Single = { dispatchContextFlowAction("p2_single") }
                 } else {
                     MainActivity.onVolDownDouble = null
                     MainActivity.onVolUpSingle = null
                     MainActivity.onVolUpDouble = null
+                    MainActivity.onEnterSingle = null
+                    MainActivity.onEnterDouble = null
                     MainActivity.onP1Single = null
                     MainActivity.onP2Single = null
                 }
@@ -3829,6 +3883,8 @@ fun AppRoot() {
                     MainActivity.onVolDownDouble = { dispatchFlowAction("vol_down_double") }
                     MainActivity.onVolUpSingle = { dispatchFlowAction("vol_up_single") }
                     MainActivity.onVolUpDouble = { dispatchFlowAction("vol_up_double") }
+                    MainActivity.onEnterSingle = { dispatchFlowAction("enter_single") }
+                    MainActivity.onEnterDouble = { dispatchFlowAction("enter_double") }
 
                     MainActivity.onScanLeftSingle = null
                     MainActivity.onScanRightSingle = null
@@ -3846,6 +3902,8 @@ fun AppRoot() {
                     MainActivity.onVolDownDouble = { dispatchContextFlowAction("vol_down_double") }
                     MainActivity.onVolUpSingle = { dispatchContextFlowAction("vol_up_single") }
                     MainActivity.onVolUpDouble = { dispatchContextFlowAction("vol_up_double") }
+                    MainActivity.onEnterSingle = { dispatchContextFlowAction("enter_single") }
+                    MainActivity.onEnterDouble = { dispatchContextFlowAction("enter_double") }
 
                     MainActivity.onScanLeftSingle = null
                     MainActivity.onScanRightSingle = null
@@ -3913,6 +3971,14 @@ fun AppRoot() {
                             warehouseInConfirm()
                         }
                     }
+
+                    MainActivity.onEnterSingle = null
+                    MainActivity.onEnterDouble = {
+                        if (isWarehouseIn) {
+                            webViewRef?.let { web -> prepareFormForNextScanInWebView(web) }
+                            warehouseScanStep = WarehouseScanStep.BARCODE
+                        }
+                    }
                     MainActivity.onVolUpDouble = {
                         if (isWarehouseIn) {
                             webViewRef?.let { web -> clearParcelFormInWebView(web) }
@@ -3976,6 +4042,8 @@ fun AppRoot() {
                 MainActivity.onVolDownDouble = null
                 MainActivity.onVolUpSingle = null
                 MainActivity.onVolUpDouble = null
+                MainActivity.onEnterSingle = null
+                MainActivity.onEnterDouble = null
                 MainActivity.onScanLeftSingle = null
                 MainActivity.onScanRightSingle = null
                 MainActivity.onScanPistolSingle = null
