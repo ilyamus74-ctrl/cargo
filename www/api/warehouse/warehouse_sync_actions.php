@@ -2916,7 +2916,12 @@ if (!function_exists('warehouse_sync_label_template_sample_vars')) {
             '{{country_dest}}' => $previewCountryDest,
             '{{forward_name}}' => $previewForwardName,
             '{{flight_departure}}' => 'HHN',
-            '{{flight_destination}}' => $previewCountryDest === 'Georgia' ? 'TBS' : 'GYD',
+            '{{receiver_country_code}}' => $previewCountryDest === 'Georgia' ? 'GE' : ($previewCountryDest === 'Kyrgyzstan' ? 'KG' : 'AZ'),
+            '{{flight_destination}}' => 'GYD',
+            'flight_departure' => 'HHN',
+            'flight_destination' => 'GYD',
+            'country_dest' => $previewCountryDest,
+            'client_address' => 'Baku, Test street 10',
             '{{flight_name}}' => 'AZ001',
             '{{barcode_url}}' => 'https://barcode.tec-it.com/barcode.ashx?data=INT-00001&code=Code128&dpi=96',
             '{{qr_img_html}}' => '<span style="font-size:12px;color:#777;">[QR preview]</span>',
@@ -2936,6 +2941,118 @@ if (!function_exists('warehouse_sync_label_var')) {
             return trim((string)$vars[$wrapped]);
         }
         return $default;
+    }
+}
+
+
+if (!function_exists('warehouse_sync_is_airport_like_code')) {
+    function warehouse_sync_is_airport_like_code(string $value): bool
+    {
+        return preg_match('/^[A-Z]{3}$/', strtoupper(trim($value))) === 1;
+    }
+}
+
+if (!function_exists('warehouse_sync_resolve_label_airport_from_db')) {
+    function warehouse_sync_resolve_label_airport_from_db(string $country, ?mysqli $dbcnx = null): array
+    {
+        $country = strtoupper(trim($country));
+        if ($country === '' || !($dbcnx instanceof mysqli)) {
+            return ['', ''];
+        }
+
+        $airportColumns = ['airport_code', 'iata_code', 'destination_airport', 'flight_destination', 'destination_code'];
+        $countryColumns = ['country_code', 'receiver_country_code', 'country_dest_code', 'code', 'iso_code', 'iso2', 'country_dest', 'receiver_country', 'name', 'country_name'];
+        $tables = ['countries', 'country', 'dest_country', 'destination_countries', 'connector_countries', 'addons_operations_config', 'operations_config', 'connectors'];
+
+        foreach ($tables as $table) {
+            $columns = warehouse_sync_table_columns($dbcnx, $table);
+            if ($columns === []) {
+                continue;
+            }
+            $airportColumn = warehouse_sync_find_column($columns, $airportColumns);
+            $countryColumn = warehouse_sync_find_column($columns, $countryColumns);
+            if ($airportColumn === '' || $countryColumn === '') {
+                continue;
+            }
+
+            $safeTable = '`' . str_replace('`', '``', $table) . '`';
+            $safeAirport = '`' . str_replace('`', '``', $airportColumn) . '`';
+            $safeCountry = '`' . str_replace('`', '``', $countryColumn) . '`';
+            $stmt = $dbcnx->prepare("SELECT {$safeAirport} AS airport FROM {$safeTable} WHERE UPPER(TRIM({$safeCountry})) = ? AND TRIM(COALESCE({$safeAirport}, '')) <> '' LIMIT 1");
+            if (!$stmt) {
+                continue;
+            }
+            $stmt->bind_param('s', $country);
+            $stmt->execute();
+            $row = $stmt->get_result()?->fetch_assoc();
+            $stmt->close();
+
+            $airport = strtoupper(trim((string)($row['airport'] ?? '')));
+            if (warehouse_sync_is_airport_like_code($airport)) {
+                return [$airport, $table . '.' . $airportColumn];
+            }
+        }
+
+        return ['', ''];
+    }
+}
+
+if (!function_exists('warehouse_sync_resolve_label_airports')) {
+    function warehouse_sync_resolve_label_airports(array $vars, ?mysqli $dbcnx = null): array
+    {
+        $departure = warehouse_sync_label_var($vars, 'flight_departure', '');
+        $departure = $departure !== '' ? strtoupper(trim($departure)) : 'HHN';
+        if (!warehouse_sync_is_airport_like_code($departure)) {
+            $departure = 'HHN';
+        }
+
+        $destination = strtoupper(trim(warehouse_sync_label_var($vars, 'flight_destination', '')));
+        if (warehouse_sync_is_airport_like_code($destination)) {
+            return ['departure' => $departure, 'destination' => $destination, 'source' => 'flight_destination'];
+        }
+
+        $country = '';
+        foreach (['receiver_country_code', 'country_code', 'country_dest_code', 'country_dest', 'receiver_country'] as $key) {
+            $country = warehouse_sync_label_var($vars, $key, '');
+            if (trim($country) !== '') {
+                break;
+            }
+        }
+        $countryKey = warehouse_sync_normalize_key($country);
+
+        [$dbAirport, $dbSource] = warehouse_sync_resolve_label_airport_from_db($countryKey, $dbcnx);
+        if ($dbAirport !== '') {
+            return ['departure' => $departure, 'destination' => $dbAirport, 'source' => $dbSource];
+        }
+
+        $fallbackMap = [
+            'AZ' => 'GYD',
+            'AZE' => 'GYD',
+            'AZERBAIJAN' => 'GYD',
+            'GE' => 'TBS',
+            'GEO' => 'TBS',
+            'GEORGIA' => 'TBS',
+            'KG' => 'FRU',
+            'KGZ' => 'FRU',
+            'KYRGYZSTAN' => 'FRU',
+        ];
+
+        return [
+            'departure' => $departure,
+            'destination' => $fallbackMap[$countryKey] ?? '',
+            'source' => isset($fallbackMap[$countryKey]) ? 'country_map' : 'unresolved',
+        ];
+    }
+}
+
+if (!function_exists('warehouse_sync_normalize_label_airport_vars')) {
+    function warehouse_sync_normalize_label_airport_vars(array $vars, ?mysqli $dbcnx = null): array
+    {
+        $airports = warehouse_sync_resolve_label_airports($vars, $dbcnx);
+        $vars['flight_departure'] = $airports['departure'];
+        $vars['flight_destination'] = $airports['destination'];
+        $vars['label_airport_source'] = $airports['source'];
+        return $vars;
     }
 }
 
@@ -3099,6 +3216,8 @@ if (!function_exists('warehouse_sync_zpl_wrap')) {
 if (!function_exists('warehouse_sync_render_waybill_zpl')) {
     function warehouse_sync_render_waybill_zpl(array $vars, array $profile = []): string
     {
+        global $dbcnx;
+        $vars = warehouse_sync_normalize_label_airport_vars($vars, $dbcnx instanceof mysqli ? $dbcnx : null);
         $track = warehouse_sync_label_var($vars, 'track', 'TEST-TRACK-0001');
         $clientName = warehouse_sync_label_var($vars, 'client_name', warehouse_sync_label_var($vars, 'client', ''));
         $clientCode = warehouse_sync_label_var($vars, 'client_code');
@@ -3252,6 +3371,8 @@ if (!function_exists('warehouse_sync_zpl_vector_template_path')) {
 if (!function_exists('warehouse_sync_waybill_zpl_vector_template_map')) {
     function warehouse_sync_waybill_zpl_vector_template_map(array $vars): array
     {
+        global $dbcnx;
+        $vars = warehouse_sync_normalize_label_airport_vars($vars, $dbcnx instanceof mysqli ? $dbcnx : null);
         $get = static fn(string $key, string $default = ''): string => warehouse_sync_label_var($vars, $key, $default);
         $track = $get('track', '');
         $internalId = $get('internal_id', $track);
@@ -3263,6 +3384,7 @@ if (!function_exists('warehouse_sync_waybill_zpl_vector_template_map')) {
             'VAR_5FCLIENT_5FCODE' => [$get('client_code'), 24],
             'VAR_5FCLIENT_5FID' => [$get('client_id'), 24],
             'VAR_5FCONSIGNEE_5FPHONE' => [$get('consignee_phone'), 32],
+            'VAR_5FCLIENT_5FADDRESS' => [$get('client_address'), 72],
             'VAR_5FCOUNTRY_5FDEST' => [$get('country_dest'), 32],
             'VAR_5FFLIGHT_5FD' => [$get('flight_departure', 'HHN'), 12],
             'VAR_5FFLIGHT_5FDESTIN' => [$get('flight_destination', 'GYD'), 12],
@@ -3286,6 +3408,8 @@ if (!function_exists('warehouse_sync_waybill_zpl_vector_template_map')) {
 if (!function_exists('warehouse_sync_render_waybill_zpl_vector_template_diagnostics')) {
     function warehouse_sync_render_waybill_zpl_vector_template_diagnostics(array $vars, array $profile = []): array
     {
+        global $dbcnx;
+        $vars = warehouse_sync_normalize_label_airport_vars($vars, $dbcnx instanceof mysqli ? $dbcnx : null);
         $path = (string)($profile['template_path'] ?? warehouse_sync_zpl_vector_template_path());
         if ($path === '' || !is_file($path) || !is_readable($path)) {
             throw new RuntimeException('ZPL vector template not found or not readable: ' . $path);
@@ -3313,6 +3437,11 @@ if (!function_exists('warehouse_sync_render_waybill_zpl_vector_template_diagnost
             'barcode_rendered' => strpos($template, '^BC') !== false && $barcodeValue !== '',
             'barcode_value' => $barcodeValue,
             'barcode_orientation' => strtoupper((string)($barcodeOrientationMatch[1] ?? '')),
+            'label_flight_departure' => warehouse_sync_label_var($vars, 'flight_departure', ''),
+            'label_flight_destination' => warehouse_sync_label_var($vars, 'flight_destination', ''),
+            'label_country_dest' => warehouse_sync_label_var($vars, 'country_dest', ''),
+            'label_receiver_country_code' => warehouse_sync_label_var($vars, 'receiver_country_code', warehouse_sync_label_var($vars, 'country_code', '')),
+            'label_airport_source' => warehouse_sync_label_var($vars, 'label_airport_source', ''),
             'transport' => (string)PRINT_ZPL_TRANSPORT,
             'cups_host' => (string)PRINT_ZPL_CUPS_HOST,
             'cups_queue' => (string)PRINT_ZPL_CUPS_QUEUE,
@@ -3335,6 +3464,8 @@ if (!function_exists('warehouse_sync_render_waybill_zpl_vector_template')) {
 if (!function_exists('warehouse_sync_send_vector_template_waybill')) {
     function warehouse_sync_send_vector_template_waybill(array $vars, array $profile = []): array
     {
+        global $dbcnx;
+        $vars = warehouse_sync_normalize_label_airport_vars($vars, $dbcnx instanceof mysqli ? $dbcnx : null);
         $render = warehouse_sync_render_waybill_zpl_vector_template_diagnostics($vars, $profile);
         $zpl = (string)$render['zpl'];
         @file_put_contents('/tmp/last_waybill_vector_template.zpl', $zpl);
