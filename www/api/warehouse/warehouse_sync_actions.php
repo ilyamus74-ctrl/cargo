@@ -7,7 +7,11 @@ require_once __DIR__ . '/../connectors/subrunners/connector_modules.php';
 
 
 if (!defined('PRINT_LABEL_PRODUCTION_MODE')) {
-    define('PRINT_LABEL_PRODUCTION_MODE', 'pdf_template');
+    define('PRINT_LABEL_PRODUCTION_MODE', 'zpl_vector_template');
+}
+
+if (!defined('PRINT_ZPL_VECTOR_TEMPLATE_PATH')) {
+    define('PRINT_ZPL_VECTOR_TEMPLATE_PATH', 'web/storage/label_templates/dev_colibri_waybill_vector_cw90_template.zpl');
 }
 if (!defined('PRINT_ZPL_TRANSPORT')) {
     define('PRINT_ZPL_TRANSPORT', 'cups');
@@ -3209,6 +3213,140 @@ if (!function_exists('warehouse_sync_render_waybill_zpl')) {
     }
 }
 
+if (!function_exists('warehouse_sync_zpl_fh_escape')) {
+    function warehouse_sync_zpl_fh_escape(string $text, int $maxLength = 0): string
+    {
+        $text = html_entity_decode(strip_tags($text), ENT_QUOTES | ENT_HTML5, 'UTF-8');
+        $text = preg_replace('/\s+/u', ' ', trim($text)) ?? trim($text);
+        if ($maxLength > 0 && function_exists('mb_substr')) {
+            $text = mb_substr($text, 0, $maxLength, 'UTF-8');
+        } elseif ($maxLength > 0) {
+            $text = substr($text, 0, $maxLength);
+        }
+        return str_replace(['_', '^', '~'], ['_5F', '_5E', '_7E'], trim($text));
+    }
+}
+
+if (!function_exists('warehouse_sync_zpl_vector_template_path')) {
+    function warehouse_sync_zpl_vector_template_path(): string
+    {
+        $configured = trim((string)PRINT_ZPL_VECTOR_TEMPLATE_PATH);
+        $candidates = [];
+        if ($configured !== '') {
+            $candidates[] = $configured;
+            $candidates[] = dirname(__DIR__, 3) . '/' . ltrim($configured, '/');
+            if (str_starts_with($configured, 'web/storage/')) {
+                $candidates[] = dirname(__DIR__, 3) . '/storage/' . substr($configured, strlen('web/storage/'));
+            }
+        }
+        $candidates[] = dirname(__DIR__, 3) . '/storage/label_templates/waybill_vector_filled_cw90_template.zpl';
+        foreach ($candidates as $path) {
+            if ($path !== '' && is_file($path) && is_readable($path)) {
+                return $path;
+            }
+        }
+        return $configured;
+    }
+}
+
+if (!function_exists('warehouse_sync_waybill_zpl_vector_template_map')) {
+    function warehouse_sync_waybill_zpl_vector_template_map(array $vars): array
+    {
+        $get = static fn(string $key, string $default = ''): string => warehouse_sync_label_var($vars, $key, $default);
+        $internalId = $get('internal_id', $get('track', ''));
+        $barcode = $get('barcode', $get('barcode_url', $internalId));
+        $qrPayload = $get('qr_payload', $get('qr_img_html', $internalId));
+        $forwardName = $get('forward_name', 'DEV COLIBRI');
+        return [
+            'VAR_5FCLIENT_5FNAME' => [$get('client_name', $get('client', '')), 48],
+            'VAR_5FCLIENT_5FCODE' => [$get('client_code'), 24],
+            'VAR_5FCLIENT_5FID' => [$get('client_id'), 24],
+            'VAR_5FCONSIGNEE_5FPHONE' => [$get('consignee_phone'), 32],
+            'VAR_5FCOUNTRY_5FDEST' => [$get('country_dest'), 32],
+            'VAR_5FFLIGHT_5FD' => [$get('flight_departure', 'HHN'), 12],
+            'VAR_5FFLIGHT_5FDESTIN' => [$get('flight_destination', 'GYD'), 12],
+            'VAR_5FFLIGHT_5FNAME' => [$get('flight_name'), 24],
+            'VAR_5FWEIGHT' => [$get('weight'), 16],
+            'VAR_5FVOLUME_5FWEIGHT' => [$get('volume_weight'), 16],
+            'VAR_5FAMOUNT' => [$get('amount'), 24],
+            'VAR_5FDESCRIPTION' => [$get('description'), 96],
+            'VAR_5FCATEGORY' => [$get('category'), 32],
+            'VAR_5FINVOICED_5FUSD' => [$get('invoice_usd'), 20],
+            'VAR_5FTOTAL_5FINVOICED_5FP' => [$get('total_invoice_price'), 24],
+            'VAR_5FINTERNAL_5FID' => [$internalId, 40],
+            'VAR_5FBARCODE_5FURL' => [$barcode !== '' ? $barcode : $internalId, 96],
+            'VAR_5FQR_5FIMG_5FHTML' => [$qrPayload !== '' ? $qrPayload : $internalId, 96],
+            'VAR_5FFORWARD_5FNAME' => [$forwardName !== '' ? $forwardName : 'DEV COLIBRI', 40],
+        ];
+    }
+}
+
+if (!function_exists('warehouse_sync_render_waybill_zpl_vector_template_diagnostics')) {
+    function warehouse_sync_render_waybill_zpl_vector_template_diagnostics(array $vars, array $profile = []): array
+    {
+        $path = (string)($profile['template_path'] ?? warehouse_sync_zpl_vector_template_path());
+        if ($path === '' || !is_file($path) || !is_readable($path)) {
+            throw new RuntimeException('ZPL vector template not found or not readable: ' . $path);
+        }
+        $template = file_get_contents($path);
+        if (!is_string($template)) {
+            throw new RuntimeException('Failed to read ZPL vector template: ' . $path);
+        }
+        $map = warehouse_sync_waybill_zpl_vector_template_map($vars);
+        $replace = [];
+        foreach ($map as $token => [$value, $maxLength]) {
+            $replace[$token] = warehouse_sync_zpl_fh_escape((string)$value, (int)$maxLength);
+        }
+        $zpl = strtr($template, $replace);
+        preg_match_all('/VAR(?:_5F|_)[A-Z0-9_]+/', $zpl, $matches);
+        $unresolved = array_values(array_unique($matches[0] ?? []));
+        return [
+            'zpl' => $zpl,
+            'print_mode' => 'zpl_vector_template',
+            'template_path' => $path,
+            'template_size' => strlen($template),
+            'zpl_size' => strlen($zpl),
+            'transport' => (string)PRINT_ZPL_TRANSPORT,
+            'cups_host' => (string)PRINT_ZPL_CUPS_HOST,
+            'cups_queue' => (string)PRINT_ZPL_CUPS_QUEUE,
+            'template_sha256' => hash('sha256', $template),
+            'variables_replaced_count' => count($replace),
+            'unresolved_tokens' => $unresolved,
+            'warning' => $unresolved !== [] ? 'Final ZPL still contains unresolved VAR_ tokens' : '',
+        ];
+    }
+}
+
+if (!function_exists('warehouse_sync_render_waybill_zpl_vector_template')) {
+    function warehouse_sync_render_waybill_zpl_vector_template(array $vars, array $profile = []): string
+    {
+        $render = warehouse_sync_render_waybill_zpl_vector_template_diagnostics($vars, $profile);
+        return (string)$render['zpl'];
+    }
+}
+
+if (!function_exists('warehouse_sync_send_vector_template_waybill')) {
+    function warehouse_sync_send_vector_template_waybill(array $vars, array $profile = []): array
+    {
+        $render = warehouse_sync_render_waybill_zpl_vector_template_diagnostics($vars, $profile);
+        $zpl = (string)$render['zpl'];
+        @file_put_contents('/tmp/last_waybill_vector_template.zpl', $zpl);
+        unset($render['zpl']);
+        $printResult = warehouse_sync_send_zpl_to_printer($zpl);
+        return array_merge($render, [
+            'debug_copy_path' => '/tmp/last_waybill_vector_template.zpl',
+            'lp_exit_code' => (int)($printResult['exit_code'] ?? 0),
+            'lp_output' => (string)($printResult['command_output'] ?? ''),
+            'transport' => (string)($printResult['transport'] ?? PRINT_ZPL_TRANSPORT),
+            'cups_host' => (string)($printResult['cups_host'] ?? PRINT_ZPL_CUPS_HOST),
+            'cups_queue' => (string)($printResult['cups_queue'] ?? PRINT_ZPL_CUPS_QUEUE),
+            'print_ok' => !empty($printResult['ok']),
+            'print_status' => (string)($printResult['status'] ?? 'error'),
+            'print_message' => (string)($printResult['message'] ?? ''),
+        ]);
+    }
+}
+
 if (!function_exists('warehouse_sync_send_zpl_to_printer')) {
     function warehouse_sync_send_zpl_to_printer(string $zpl, array $config = []): array
     {
@@ -4939,7 +5077,19 @@ $lastAddResult = $addResult;
                         'add_result' => $addResult,
                         'snapshot_update' => $snapshotUpdate,
                     ];
-                    if (PRINT_LABEL_PRODUCTION_MODE === 'pdf_template') {
+                    if (PRINT_LABEL_PRODUCTION_MODE === 'zpl_vector_template') {
+                        $generatedWaybill = is_array($addResult['print']['generated_waybill'] ?? null) ? $addResult['print']['generated_waybill'] : [];
+                        $labelVars = is_array($addResult['label_vars'] ?? null) ? $addResult['label_vars'] : (is_array($generatedWaybill['label_vars'] ?? null) ? $generatedWaybill['label_vars'] : []);
+                        if ($labelVars === []) {
+                            $labelVars = warehouse_sync_label_template_sample_vars((int)($connector['id'] ?? 0), $trackingForForwarder);
+                        }
+                        $diagnostics = warehouse_sync_send_vector_template_waybill($labelVars, $renderProfile);
+                        $response['print_mode'] = 'zpl_vector_template';
+                        $response['print_status'] = (string)($diagnostics['print_status'] ?? 'error');
+                        $response['print_transport'] = (string)($diagnostics['transport'] ?? PRINT_ZPL_TRANSPORT);
+                        $response['print_message'] = (string)($diagnostics['print_message'] ?? '');
+                        $response['print_diagnostics'] = $diagnostics;
+                    } elseif (PRINT_LABEL_PRODUCTION_MODE === 'pdf_template') {
                         $generatedWaybill = is_array($addResult['print']['generated_waybill'] ?? null) ? $addResult['print']['generated_waybill'] : [];
                         $labelVars = is_array($addResult['label_vars'] ?? null) ? $addResult['label_vars'] : (is_array($generatedWaybill['label_vars'] ?? null) ? $generatedWaybill['label_vars'] : []);
                         if ($labelVars === []) {
@@ -5297,6 +5447,32 @@ if ($action === 'test_print_connector_label_template') {
         }
 
         $sampleVars = warehouse_sync_label_template_sample_vars($connectorId, $testTrack !== '' ? $testTrack : 'TEST-TRACK-0001');
+        if (PRINT_LABEL_PRODUCTION_MODE === 'zpl_vector_template') {
+            $diagnostics = warehouse_sync_send_vector_template_waybill($sampleVars, $printProfile);
+            $response = [
+                'status' => !empty($diagnostics['print_ok']) ? 'ok' : 'error',
+                'message' => !empty($diagnostics['print_ok']) ? 'ZPL vector template отправлен на печать' : (string)($diagnostics['print_message'] ?? 'Ошибка ZPL vector template печати'),
+                'connector_id' => $connectorId,
+                'test_track' => $testTrack,
+                'print_mode' => 'zpl_vector_template',
+                'print_status' => (string)($diagnostics['print_status'] ?? 'error'),
+                'transport' => (string)($diagnostics['transport'] ?? PRINT_ZPL_TRANSPORT),
+                'warnings' => array_values(array_filter(array_merge($check['warnings'], [(string)($diagnostics['warning'] ?? '')]))),
+                'diagnostics' => array_merge([
+                    'connector_id' => $connectorId,
+                    'test_track' => $testTrack,
+                ], $diagnostics),
+            ];
+            audit_log($userId, 'CONNECTOR_LABEL_TEMPLATE_TEST_PRINT', 'connectors', $connectorId, 'ZPL vector template отправлен на печать', [
+                'connector_id' => $connectorId,
+                'template_code' => trim((string)($_POST['template_code'] ?? 'default')),
+                'template_sha256' => (string)($diagnostics['template_sha256'] ?? ''),
+                'result' => 'zpl_vector_template',
+                'test_track' => $testTrack,
+                'print_status' => $response['print_status'],
+            ]);
+            return;
+        }
         if (PRINT_LABEL_PRODUCTION_MODE === 'pdf_template') {
             $pdfRender = warehouse_sync_render_waybill_pdf_from_template($sampleVars, $printProfile);
             $printResult = warehouse_sync_send_pdf_template_to_cups((string)($pdfRender['final_pdf_path'] ?? ''));
