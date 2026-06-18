@@ -71,10 +71,13 @@ function forwarder_report_import_load_connector(int $connectorId): array
     }
     require_once $bootstrap;
 
-    global $dbcnx;
+    if ((!isset($dbcnx) || !($dbcnx instanceof mysqli)) && isset($GLOBALS['dbcnx']) && $GLOBALS['dbcnx'] instanceof mysqli) {
+        $dbcnx = $GLOBALS['dbcnx'];
+    }
     if (!isset($dbcnx) || !($dbcnx instanceof mysqli)) {
         throw new RuntimeException('DB connection $dbcnx is not available');
     }
+    $GLOBALS['dbcnx'] = $dbcnx;
     $dbcnx->set_charset('utf8mb4');
 
     $stmt = $dbcnx->prepare('SELECT * FROM connectors WHERE id = ? LIMIT 1');
