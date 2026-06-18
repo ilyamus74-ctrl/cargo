@@ -52,6 +52,7 @@ $routes = [
     'save_system_task'      => 'api/system/system_tasks_actions.php',
     'delete_system_task'    => 'api/system/system_tasks_actions.php',
     'run_system_tasks_now'  => 'api/system/system_tasks_actions.php',
+    'run_system_task_now'   => 'api/system/system_tasks_actions.php',
 
     // ========== CONNECTORS ==========
     'view_connectors'       => 'api/connectors/connector_actions.php',

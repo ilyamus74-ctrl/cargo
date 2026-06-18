@@ -1860,6 +1860,10 @@ const CoreAPI = {
             alert(data.message || 'Выполнено');
             await CoreAPI.ui.reloadList('system_tasks');
         },
+        'run_system_task_now': async (data) => {
+            alert(data.message || 'Выполнено');
+            await CoreAPI.ui.reloadList(data.reload_action || 'system_tasks');
+        },
         'form_cell_forwarder_mappings': (data) => {
             const modal = document.querySelector('#fullscreenModal');
             const body = modal?.querySelector('.modal-body');

@@ -95,6 +95,10 @@
                   <td><small>{$task.last_run_at|default:'-'}</small><br><small>{$task.last_status|default:''}</small></td>
                   <td><small>{$task.next_run_at|default:'-'}</small></td>
                   <td class="text-end">
+                    <button type="button" class="btn btn-sm btn-outline-success js-core-link"
+                            data-core-action="run_system_task_now"
+                            data-task-id="{$task.id}"
+                            data-confirm="Выполнить задание {$task.code|escape} сейчас?{if $task.is_enabled != 1} Задание disabled, но будет запущено вручную.{/if}">Run</button>
                     <button type="button" class="btn btn-sm btn-outline-primary js-system-task-edit"
                             data-task-id="{$task.id}"
                             data-task-code="{$task.code|escape}"

@@ -328,6 +328,110 @@ function system_tasks_run_due(mysqli $dbcnx, int $systemUserId = 0): array
     return ['ran' => $ran, 'errors' => $errors];
 }
 
+
+function system_tasks_run_one(mysqli $dbcnx, int $taskId, int $systemUserId = 0): array
+{
+    system_tasks_ensure_tables($dbcnx);
+
+    $stmt = $dbcnx->prepare("SELECT * FROM system_tasks WHERE id = ? LIMIT 1");
+    if (!$stmt) {
+        throw new RuntimeException('Failed to prepare system task lookup: ' . $dbcnx->error);
+    }
+    $stmt->bind_param('i', $taskId);
+    $stmt->execute();
+    $task = $stmt->get_result()->fetch_assoc();
+    $stmt->close();
+
+    if (!$task) {
+        return [
+            'status' => 'error',
+            'message' => 'Task not found',
+            'context' => ['task_id' => $taskId],
+        ];
+    }
+
+    if ((int)($task['is_running'] ?? 0) === 1) {
+        return [
+            'status' => 'error',
+            'message' => 'Task is already running',
+            'context' => ['task_id' => $taskId, 'code' => (string)($task['code'] ?? '')],
+        ];
+    }
+
+    $lockStmt = $dbcnx->prepare("UPDATE system_tasks SET is_running = 1 WHERE id = ? AND is_running = 0");
+    if (!$lockStmt) {
+        throw new RuntimeException('Failed to prepare system task lock: ' . $dbcnx->error);
+    }
+    $lockStmt->bind_param('i', $taskId);
+    $lockStmt->execute();
+    $locked = $lockStmt->affected_rows > 0;
+    $lockStmt->close();
+
+    if (!$locked) {
+        return [
+            'status' => 'error',
+            'message' => 'Task is already running',
+            'context' => ['task_id' => $taskId, 'code' => (string)($task['code'] ?? '')],
+        ];
+    }
+
+    $runStatus = 'ok';
+    $runMessage = 'done';
+    $context = [
+        'manual_run' => true,
+        'task_id' => $taskId,
+        'code' => (string)($task['code'] ?? ''),
+    ];
+
+    if ((int)($task['is_enabled'] ?? 0) === 0) {
+        $context['manual_run_disabled_task'] = true;
+    }
+
+    try {
+        $result = system_tasks_execute($dbcnx, $task, $systemUserId);
+        $runStatus = ($result['status'] ?? 'ok') === 'ok' ? 'ok' : 'error';
+        $runMessage = (string)($result['message'] ?? 'done');
+        if (is_array($result['context'] ?? null)) {
+            $context = $context + ['execution_context' => $result['context']];
+        }
+    } catch (Throwable $e) {
+        $runStatus = 'error';
+        $runMessage = $e->getMessage();
+        $context['exception'] = get_class($e);
+    }
+
+    $contextJson = json_encode($context, JSON_UNESCAPED_UNICODE);
+
+    $runStmt = $dbcnx->prepare("INSERT INTO system_task_runs (task_id, status, message, context_json, finished_at)
+                                VALUES (?, ?, ?, ?, NOW())");
+    if ($runStmt) {
+        $runStmt->bind_param('isss', $taskId, $runStatus, $runMessage, $contextJson);
+        $runStmt->execute();
+        $runStmt->close();
+    }
+
+    $interval = max(1, (int)($task['interval_minutes'] ?? 60));
+    $upd = $dbcnx->prepare("UPDATE system_tasks
+                           SET is_running = 0,
+                               last_run_at = NOW(),
+                               next_run_at = DATE_ADD(NOW(), INTERVAL ? MINUTE),
+                               last_status = ?,
+                               last_message = ?
+                           WHERE id = ?");
+    if (!$upd) {
+        throw new RuntimeException('Failed to prepare system task update: ' . $dbcnx->error);
+    }
+    $upd->bind_param('issi', $interval, $runStatus, $runMessage, $taskId);
+    $upd->execute();
+    $upd->close();
+
+    return [
+        'status' => $runStatus === 'ok' ? 'ok' : 'error',
+        'message' => 'Task ' . (string)($task['code'] ?? ('#' . $taskId)) . ' executed: ' . $runStatus . ((int)($task['is_enabled'] ?? 0) === 0 ? ' (disabled task was run manually)' : ''),
+        'context' => $context,
+    ];
+}
+
 function system_tasks_execute(mysqli $dbcnx, array $task, int $systemUserId = 0): array
 {
     $action = trim((string)($task['endpoint_action'] ?? ''));

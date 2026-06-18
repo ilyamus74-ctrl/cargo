@@ -164,3 +164,21 @@ if ($action === 'run_system_tasks_now') {
         'stats' => $stats,
     ];
 }
+
+if ($action === 'run_system_task_now') {
+    $taskId = (int)($_POST['task_id'] ?? 0);
+    if ($taskId <= 0) {
+        $response = ['status' => 'error', 'message' => 'task_id required'];
+        return;
+    }
+
+    $result = system_tasks_run_one($dbcnx, $taskId, (int)($user['id'] ?? 0));
+
+    $response = [
+        'status' => $result['status'] ?? 'ok',
+        'message' => $result['message'] ?? 'Task executed',
+        'result' => $result,
+        'reload' => true,
+        'reload_action' => 'system_tasks',
+    ];
+}
