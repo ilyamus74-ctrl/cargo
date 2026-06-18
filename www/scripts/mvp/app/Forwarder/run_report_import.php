@@ -208,6 +208,13 @@ function forwarder_report_import_pick_value(array $row, array $aliases): string
     return '';
 }
 
+function forwarder_report_import_clean_track(string $value): string
+{
+    $value = trim($value);
+    $value = trim($value, " \t\n\r\0\x0B\"'");
+    return trim($value);
+}
+
 function forwarder_report_import_float(string $value): ?float
 {
     $value = trim(str_replace(["\xc2\xa0", ' '], '', $value));
@@ -219,25 +226,26 @@ function forwarder_report_import_normalize_row(array $row, int $rowNo): ?array
 {
     $normalized = [
         'client_id' => forwarder_report_import_pick_value($row, ['client_id', 'client id', 'customer id', 'müştəri id', 'musteri id', 'код клиента']),
-        'client_name' => forwarder_report_import_pick_value($row, ['client_name', 'client name', 'customer', 'receiver', 'fullname', 'full name', 'фио', 'получатель']),
-        'forwarder_internal_no' => forwarder_report_import_pick_value($row, ['forwarder_internal_no', 'internal no', 'order no', 'package no', 'parcel no', 'id', 'no']),
-        'tracking_no' => forwarder_report_import_pick_value($row, ['tracking_no', 'tracking', 'track', 'barcode', 'tracking number', 'трек', 'трек номер']),
+        'client_name' => forwarder_report_import_pick_value($row, ['client_name', 'client name', 'client', 'customer', 'receiver', 'fullname', 'full name', 'фио', 'получатель']),
+        'forwarder_internal_no' => forwarder_report_import_clean_track(forwarder_report_import_pick_value($row, ['cbr_number', 'cbr number', 'forwarder_internal_no', 'internal no', 'order no', 'package no', 'parcel no'])),
+        'tracking_no' => forwarder_report_import_clean_track(forwarder_report_import_pick_value($row, ['tracking_no', 'tracking', 'track', 'barcode', 'tracking number', 'трек', 'трек номер'])),
         'declaration_status' => forwarder_report_import_pick_value($row, ['declaration_status', 'declaration status', 'status', 'статус']),
-        'forwarder_position_code' => strtoupper(forwarder_report_import_pick_value($row, ['forwarder_position_code', 'position', 'position_code', 'cell', 'place', 'shelf', 'позиция', 'ячейка'])),
+        'forwarder_position_code' => strtoupper(forwarder_report_import_clean_track(forwarder_report_import_pick_value($row, ['forwarder_position_code', 'storage', 'position', 'position_code', 'cell', 'place', 'shelf', 'позиция', 'ячейка']))),
         'category' => forwarder_report_import_pick_value($row, ['category', 'категория']),
         'seller' => forwarder_report_import_pick_value($row, ['seller', 'shop', 'store', 'merchant', 'продавец']),
         'invoice_currency' => forwarder_report_import_pick_value($row, ['currency', 'invoice_currency', 'валюта']),
-        'invoice_uploaded' => forwarder_report_import_pick_value($row, ['invoice_uploaded', 'invoice uploaded', 'invoice', 'инвойс']),
-        'remote_created_at' => forwarder_report_import_pick_value($row, ['created_at', 'created', 'date', 'created date']),
+        'invoice_uploaded' => forwarder_report_import_pick_value($row, ['invoice_uploaded', 'invoice_file_exists', 'invoice uploaded', 'invoice_status', 'invoice', 'инвойс']),
+        'remote_created_at' => forwarder_report_import_pick_value($row, ['invoice_uploaded_date', 'declaration_date', 'created_at', 'created', 'date']),
         'remote_updated_at' => forwarder_report_import_pick_value($row, ['updated_at', 'updated', 'updated date']),
         'report_row_no' => $rowNo,
         'raw_report_row' => $row,
     ];
+    $normalized['report_date'] = $normalized['remote_created_at'];
     $weight = forwarder_report_import_float(forwarder_report_import_pick_value($row, ['weight_kg', 'weight', 'kg', 'вес']));
     if ($weight !== null) {
         $normalized['weight_kg'] = $weight;
     }
-    $invoice = forwarder_report_import_float(forwarder_report_import_pick_value($row, ['invoice_amount', 'amount', 'price', 'value', 'сумма']));
+    $invoice = forwarder_report_import_float(forwarder_report_import_pick_value($row, ['invoice_amount', 'invoice_price', 'amount', 'price', 'value', 'сумма']));
     if ($invoice !== null) {
         $normalized['invoice_amount'] = $invoice;
     }
@@ -429,6 +437,22 @@ function forwarder_report_import_parse_body(string $body, string $contentType): 
     return forwarder_report_import_parse_csv($body);
 }
 
+function forwarder_report_import_diagnostic_sample_rows(array $rows, int $limit = 3): array
+{
+    $sample = [];
+    foreach (array_slice($rows, 0, $limit) as $row) {
+        $sample[] = [
+            'client_name' => (string)($row['client_name'] ?? ''),
+            'forwarder_internal_no' => (string)($row['forwarder_internal_no'] ?? ''),
+            'tracking_no' => (string)($row['tracking_no'] ?? ''),
+            'forwarder_position_code' => (string)($row['forwarder_position_code'] ?? ''),
+            'invoice_amount' => $row['invoice_amount'] ?? null,
+            'invoice_uploaded' => (string)($row['invoice_uploaded'] ?? ''),
+        ];
+    }
+    return $sample;
+}
+
 $args = forwarder_report_import_args($_SERVER['argv'] ?? []);
 $connectorId = (int)(forwarder_report_import_arg($args, 'connector-id', 'connector_id') ?: 0);
 $connector = [];
@@ -536,6 +560,7 @@ try {
     }
 
     $rows = forwarder_report_import_parse_body($body, $contentType);
+    $sampleRows = forwarder_report_import_diagnostic_sample_rows($rows);
     if ($saveRaw) {
         $debugFiles['normalized_rows'] = forwarder_report_import_debug_write($debugDir, 'normalized_rows.json', json_encode($rows, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT) . PHP_EOL);
     }
@@ -567,6 +592,7 @@ try {
             'raw_size' => strlen($body),
             'rows_total' => count($rows),
             'filtered_service_rows' => (int)($GLOBALS['forwarder_report_import_filtered_service_rows'] ?? 0),
+            'sample_rows' => $sampleRows,
             'debug_files' => array_filter($debugFiles),
         ],
     ]);
