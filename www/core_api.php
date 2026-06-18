@@ -105,6 +105,10 @@ $routes = [
     'delete_cell'          => 'api/warehouse/warehouse_cells_actions.php',
     'form_edit_cell'       => 'api/warehouse/warehouse_cells_actions.php',
     'save_cell'            => 'api/warehouse/warehouse_cells_actions.php',
+    'form_cell_forwarder_mappings' => 'api/warehouse/warehouse_cells_actions.php',
+    'save_cell_forwarder_mapping'  => 'api/warehouse/warehouse_cells_actions.php',
+    'delete_cell_forwarder_mapping'=> 'api/warehouse/warehouse_cells_actions.php',
+    'sync_forwarder_positions'     => 'api/warehouse/warehouse_cells_actions.php',
     // ========== WAREHOUSE - Item In ==========
     'warehouse_item_in'       => 'api/warehouse/warehouse_item_in_actions.php',
     'item_in'                 => 'api/warehouse/warehouse_item_in_actions.php',
