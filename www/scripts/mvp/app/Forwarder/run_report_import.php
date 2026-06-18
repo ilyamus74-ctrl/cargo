@@ -65,7 +65,7 @@ function forwarder_report_import_load_connector(int $connectorId): array
         throw new RuntimeException('Invalid connector-id');
     }
 
-    $bootstrap = realpath(__DIR__ . '/../../../../../bootstrap.php');
+    $bootstrap = realpath(__DIR__ . '/../../../../bootstrap.php');
     if (!$bootstrap || !is_file($bootstrap)) {
         throw new RuntimeException('Application bootstrap.php not found');
     }
