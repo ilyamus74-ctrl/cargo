@@ -98,7 +98,29 @@
                     <option value="ASC">ASC</option>
                   </select>
                 </div>
+                <div class="col-12 col-md-4 col-xl-2">
+                  <label class="form-label small mb-1" for="warehouse-items-registry-date-type">Фильтр даты</label>
+                  <select id="warehouse-items-registry-date-type" class="form-select form-select-sm">
+                    <option value="" selected>Не выбран</option>
+                    <option value="created_at_local">Создана у нас</option>
+                    <option value="forwarder_date">Дата у форварда</option>
+                    <option value="forwarder_synced_at">Синхронизация с форвардом</option>
+                  </select>
+                </div>
+                <div class="col-6 col-md-3 col-xl-2">
+                  <label class="form-label small mb-1" for="warehouse-items-registry-date-from">Дата с</label>
+                  <input type="date" id="warehouse-items-registry-date-from" class="form-control form-control-sm">
+                </div>
+                <div class="col-6 col-md-3 col-xl-2">
+                  <label class="form-label small mb-1" for="warehouse-items-registry-date-to">Дата по</label>
+                  <input type="date" id="warehouse-items-registry-date-to" class="form-control form-control-sm">
+                </div>
+                <div class="col-12 col-md-5 col-xl-2 d-flex gap-2">
+                  <button type="button" id="warehouse-items-registry-date-apply" class="btn btn-primary btn-sm flex-fill">Применить</button>
+                  <button type="button" id="warehouse-items-registry-date-reset" class="btn btn-outline-secondary btn-sm flex-fill">Сбросить</button>
+                </div>
               </div>
+              <div id="warehouse-items-registry-date-summary" class="small text-muted mb-2 d-none"></div>
 
               <div class="table-responsive">
                 <table class="table table-sm align-middle users-table">

@@ -233,6 +233,31 @@ if (!function_exists('warehouse_stock_registry_bind_concat')) {
 }
 
 
+
+if (!function_exists('warehouse_stock_normalize_filter_date')) {
+    function warehouse_stock_normalize_filter_date(string $value): string
+    {
+        $value = trim($value);
+        return preg_match('/^\d{4}-\d{2}-\d{2}$/', $value) === 1 ? $value : '';
+    }
+}
+
+if (!function_exists('warehouse_stock_apply_date_range_filter')) {
+    function warehouse_stock_apply_date_range_filter(array &$conditions, string &$types, array &$params, string $fieldSql, string $dateFrom, string $dateTo): void
+    {
+        if ($dateFrom !== '') {
+            $conditions[] = "{$fieldSql} >= ?";
+            $types .= 's';
+            $params[] = $dateFrom . ' 00:00:00';
+        }
+        if ($dateTo !== '') {
+            $conditions[] = "{$fieldSql} < DATE_ADD(?, INTERVAL 1 DAY)";
+            $types .= 's';
+            $params[] = $dateTo . ' 00:00:00';
+        }
+    }
+}
+
 if (!function_exists('warehouse_stock_history_mask_sensitive')) {
     function warehouse_stock_history_mask_sensitive($data)
     {
@@ -844,6 +869,12 @@ if ($action === 'warehouse_items_registry') {
         $sortBy = 'created_at_local';
     }
     $search = trim((string)($_POST['search'] ?? ''));
+    $dateType = trim((string)($_POST['date_type'] ?? ''));
+    $dateFrom = warehouse_stock_normalize_filter_date((string)($_POST['date_from'] ?? ''));
+    $dateTo = warehouse_stock_normalize_filter_date((string)($_POST['date_to'] ?? ''));
+    if (!in_array($dateType, ['created_at_local', 'forwarder_date', 'forwarder_synced_at'], true)) {
+        $dateType = '';
+    }
 
     $hasOutTable = warehouse_stock_table_exists($dbcnx, 'warehouse_item_out');
     $hasInTable = warehouse_stock_table_exists($dbcnx, 'warehouse_item_in');
@@ -867,6 +898,7 @@ if ($action === 'warehouse_items_registry') {
     $stockSourceOrigin = warehouse_stock_registry_col($dbcnx, 'warehouse_item_stock', 'wi', 'source_origin', "''");
     $stockConnectorId = warehouse_stock_registry_col($dbcnx, 'warehouse_item_stock', 'wi', 'connector_id');
     $stockForwarderReportItemId = warehouse_stock_registry_col($dbcnx, 'warehouse_item_stock', 'wi', 'forwarder_report_item_id');
+    $stockForwarderSyncedAt = warehouse_stock_registry_col($dbcnx, 'warehouse_item_stock', 'wi', 'forwarder_synced_at');
     $friDeclarationStatus = warehouse_stock_registry_col($dbcnx, 'forwarder_report_items', 'fri', 'declaration_status', "''");
     $fri2DeclarationStatus = warehouse_stock_registry_col($dbcnx, 'forwarder_report_items', 'fri2', 'declaration_status', "''");
     $friReportDate = warehouse_stock_registry_col($dbcnx, 'forwarder_report_items', 'fri', 'report_date');
@@ -911,7 +943,8 @@ if ($action === 'warehouse_items_registry') {
             COALESCE({$friDeclarationStatus}, {$fri2DeclarationStatus}) AS forwarder_declaration_status,
             COALESCE({$friReportDate}, {$fri2ReportDate}) AS forwarder_report_date,
             COALESCE({$friRemoteCreatedAt}, {$fri2RemoteCreatedAt}) AS forwarder_remote_created_at,
-            COALESCE({$friRemoteCreatedAt}, {$friReportDate}, {$fri2RemoteCreatedAt}, {$fri2ReportDate}) AS forwarder_effective_date,
+            {$stockForwarderSyncedAt} AS forwarder_synced_at,
+            COALESCE({$friRemoteCreatedAt}, CONCAT({$friReportDate}, ' 00:00:00'), {$fri2RemoteCreatedAt}, CONCAT({$fri2ReportDate}, ' 00:00:00')) AS forwarder_effective_date,
             COALESCE({$friClientId}, {$fri2ClientId}) AS forwarder_client_id,
             COALESCE({$friClientName}, {$fri2ClientName}) AS forwarder_client_name,
             {$stockCellId} AS cell_id,
@@ -978,6 +1011,7 @@ if ($action === 'warehouse_items_registry') {
                 '' AS forwarder_declaration_status,
                 NULL AS forwarder_report_date,
                 NULL AS forwarder_remote_created_at,
+                NULL AS forwarder_synced_at,
                 NULL AS forwarder_effective_date,
                 '' AS forwarder_client_id,
                 '' AS forwarder_client_name,
@@ -1032,7 +1066,8 @@ if ($action === 'warehouse_items_registry') {
                 COALESCE({$friDeclarationStatus}, {$fri2DeclarationStatus}) AS forwarder_declaration_status,
                 COALESCE({$friReportDate}, {$fri2ReportDate}) AS forwarder_report_date,
                 COALESCE({$friRemoteCreatedAt}, {$fri2RemoteCreatedAt}) AS forwarder_remote_created_at,
-                COALESCE({$friRemoteCreatedAt}, {$friReportDate}, {$fri2RemoteCreatedAt}, {$fri2ReportDate}) AS forwarder_effective_date,
+                {$stockForwarderSyncedAt} AS forwarder_synced_at,
+            COALESCE({$friRemoteCreatedAt}, CONCAT({$friReportDate}, ' 00:00:00'), {$fri2RemoteCreatedAt}, CONCAT({$fri2ReportDate}, ' 00:00:00')) AS forwarder_effective_date,
                 COALESCE({$friClientId}, {$fri2ClientId}) AS forwarder_client_id,
                 COALESCE({$friClientName}, {$fri2ClientName}) AS forwarder_client_name,
                 {$stockCellId} AS cell_id,
@@ -1104,6 +1139,15 @@ if ($action === 'warehouse_items_registry') {
     } elseif ($registeredFilter === 'empty') {
         $conditions[] = 'registry.forwarder_registered_at IS NULL';
     }
+    if ($dateType !== '' && ($dateFrom !== '' || $dateTo !== '')) {
+        $dateFields = [
+            'created_at_local' => 'registry.created_at_local',
+            'forwarder_date' => 'registry.forwarder_effective_date',
+            'forwarder_synced_at' => 'registry.forwarder_synced_at',
+        ];
+        warehouse_stock_apply_date_range_filter($conditions, $types, $params, $dateFields[$dateType], $dateFrom, $dateTo);
+    }
+
     if ($search !== '') {
         $conditions[] = "(
             registry.tracking_no LIKE ?
@@ -1443,6 +1487,20 @@ if ($action === 'item_stock_in_storage') {
     $sort = $sortRaw === 'ASC' ? 'ASC' : 'DESC';
 
     $search = trim((string)($_POST['search'] ?? ''));
+    $dateType = trim((string)($_POST['date_type'] ?? ''));
+    $dateFrom = warehouse_stock_normalize_filter_date((string)($_POST['date_from'] ?? ''));
+    $dateTo = warehouse_stock_normalize_filter_date((string)($_POST['date_to'] ?? ''));
+    if (!in_array($dateType, ['created_at_local', 'forwarder_date', 'forwarder_synced_at'], true)) {
+        $dateType = '';
+    }
+    $stockForwarderSyncedAt = warehouse_stock_registry_col($dbcnx, 'warehouse_item_stock', 'wi', 'forwarder_synced_at');
+    $stockConnectorId = warehouse_stock_registry_col($dbcnx, 'warehouse_item_stock', 'wi', 'connector_id');
+    $stockForwarderReportItemId = warehouse_stock_registry_col($dbcnx, 'warehouse_item_stock', 'wi', 'forwarder_report_item_id');
+    $friReportDate = warehouse_stock_registry_col($dbcnx, 'forwarder_report_items', 'fri', 'report_date');
+    $fri2ReportDate = warehouse_stock_registry_col($dbcnx, 'forwarder_report_items', 'fri2', 'report_date');
+    $friRemoteCreatedAt = warehouse_stock_registry_col($dbcnx, 'forwarder_report_items', 'fri', 'remote_created_at');
+    $fri2RemoteCreatedAt = warehouse_stock_registry_col($dbcnx, 'forwarder_report_items', 'fri2', 'remote_created_at');
+    $forwarderEffectiveDateSql = "COALESCE({$friRemoteCreatedAt}, CONCAT({$friReportDate}, ' 00:00:00'), {$fri2RemoteCreatedAt}, CONCAT({$fri2ReportDate}, ' 00:00:00'))";
     $hasOutTable = warehouse_stock_has_out_table($dbcnx);
     $outJoinSql = $hasOutTable ? 'LEFT JOIN warehouse_item_out wo ON wo.stock_item_id = wi.id' : '';
 
@@ -1463,6 +1521,15 @@ if ($action === 'item_stock_in_storage') {
         $params[] = $userId;
     }
 
+    if ($dateType !== '' && ($dateFrom !== '' || $dateTo !== '')) {
+        $dateFields = [
+            'created_at_local' => 'wi.created_at',
+            'forwarder_date' => $forwarderEffectiveDateSql,
+            'forwarder_synced_at' => $stockForwarderSyncedAt,
+        ];
+        warehouse_stock_apply_date_range_filter($conditions, $types, $params, $dateFields[$dateType], $dateFrom, $dateTo);
+    }
+
     if ($search !== '') {
         $conditions[] = "(wi.receiver_name LIKE ? OR wi.tracking_no LIKE ?)";
         $like = '%' .  $search . '%';
@@ -1478,6 +1545,8 @@ if ($action === 'item_stock_in_storage') {
         FROM warehouse_item_stock wi
         {$outJoinSql}
         LEFT JOIN cells c ON c.id = wi.cell_id
+        LEFT JOIN forwarder_report_items fri ON fri.id = {$stockForwarderReportItemId}
+        LEFT JOIN forwarder_report_items fri2 ON fri2.connector_id = {$stockConnectorId} AND fri2.tracking_no = wi.tracking_no
         {$whereSql}
     ";
     $total = 0;
@@ -1511,6 +1580,8 @@ if ($action === 'item_stock_in_storage') {
         {$outJoinSql}
         LEFT JOIN users u ON u.id = wi.user_id
         LEFT JOIN cells c ON c.id = wi.cell_id
+        LEFT JOIN forwarder_report_items fri ON fri.id = {$stockForwarderReportItemId}
+        LEFT JOIN forwarder_report_items fri2 ON fri2.connector_id = {$stockConnectorId} AND fri2.tracking_no = wi.tracking_no
         {$whereSql}
         ORDER BY wi.created_at {$sort}
     ";

@@ -2904,9 +2904,15 @@ const CoreAPI = {
             this.limitSelect = root.querySelector('#warehouse-items-registry-limit');
             this.sortSelect = root.querySelector('#warehouse-items-registry-sort');
             this.sortBySelect = root.querySelector('#warehouse-items-registry-sort-by');
+            this.dateTypeSelect = root.querySelector('#warehouse-items-registry-date-type');
+            this.dateFromInput = root.querySelector('#warehouse-items-registry-date-from');
+            this.dateToInput = root.querySelector('#warehouse-items-registry-date-to');
+            this.dateApplyBtn = root.querySelector('#warehouse-items-registry-date-apply');
+            this.dateResetBtn = root.querySelector('#warehouse-items-registry-date-reset');
+            this.dateSummary = root.querySelector('#warehouse-items-registry-date-summary');
             this.sentinel = root.querySelector('#warehouse-items-registry-sentinel');
 
-            if (!this.tbody || !this.total || !this.searchInput || !this.stateSelect || !this.sourceSelect || !this.forwarderStatusSelect || !this.forwarderRegisteredSelect || !this.limitSelect || !this.sortSelect || !this.sortBySelect || !this.sentinel) {
+            if (!this.tbody || !this.total || !this.searchInput || !this.stateSelect || !this.sourceSelect || !this.forwarderStatusSelect || !this.forwarderRegisteredSelect || !this.limitSelect || !this.sortSelect || !this.sortBySelect || !this.dateTypeSelect || !this.dateFromInput || !this.dateToInput || !this.dateApplyBtn || !this.dateResetBtn || !this.dateSummary || !this.sentinel) {
                 return;
             }
 
@@ -2917,6 +2923,9 @@ const CoreAPI = {
             this.state.limit = this.limitSelect.value || '50';
             this.state.sort = this.sortSelect.value || 'DESC';
             this.state.sortBy = this.sortBySelect.value || 'created_at_local';
+            this.state.dateType = this.dateTypeSelect.value || '';
+            this.state.dateFrom = this.dateFromInput.value || '';
+            this.state.dateTo = this.dateToInput.value || '';
             this.state.search = this.searchInput.value.trim();
             this.state.offset = 0;
             this.state.done = false;
@@ -2947,6 +2956,24 @@ const CoreAPI = {
             bindSelect(this.sortSelect, 'sort', 'DESC');
             bindSelect(this.sortBySelect, 'sortBy', 'created_at_local');
 
+            this.dateApplyBtn.addEventListener('click', () => {
+                this.state.dateType = this.dateTypeSelect.value || '';
+                this.state.dateFrom = this.dateFromInput.value || '';
+                this.state.dateTo = this.dateToInput.value || '';
+                this.updateDateSummary();
+                this.resetAndLoad();
+            });
+            this.dateResetBtn.addEventListener('click', () => {
+                this.dateTypeSelect.value = '';
+                this.dateFromInput.value = '';
+                this.dateToInput.value = '';
+                this.state.dateType = '';
+                this.state.dateFrom = '';
+                this.state.dateTo = '';
+                this.updateDateSummary();
+                this.resetAndLoad();
+            });
+
             this.searchInput.addEventListener('input', () => {
                 if (this.searchTimer) {
                     clearTimeout(this.searchTimer);
@@ -2972,7 +2999,26 @@ const CoreAPI = {
             }, { rootMargin: '200px' });
             this.observer.observe(this.sentinel);
         },
+        updateDateSummary() {
+            if (!this.dateSummary) return;
+            const labels = {
+                created_at_local: 'Создана у нас',
+                forwarder_date: 'Дата у форварда',
+                forwarder_synced_at: 'Синхронизация с форвардом'
+            };
+            const label = labels[this.state.dateType] || '';
+            if (!label || (!this.state.dateFrom && !this.state.dateTo)) {
+                this.dateSummary.textContent = '';
+                this.dateSummary.classList.add('d-none');
+                return;
+            }
+            const from = this.state.dateFrom || '...';
+            const to = this.state.dateTo || '...';
+            this.dateSummary.textContent = `Фильтр даты: ${label}, ${from} — ${to}`;
+            this.dateSummary.classList.remove('d-none');
+        },
         resetAndLoad() {
+            this.updateDateSummary();
             this.state.offset = 0;
             this.state.done = false;
             const columnCount = this.tbody.closest('table')?.querySelectorAll('thead th').length || 12;
@@ -3007,6 +3053,9 @@ const CoreAPI = {
             fd.append('offset', String(this.state.offset));
             fd.append('sort', this.state.sort);
             fd.append('sort_by', this.state.sortBy);
+            fd.append('date_type', this.state.dateType || '');
+            fd.append('date_from', this.state.dateFrom || '');
+            fd.append('date_to', this.state.dateTo || '');
             fd.append('search', this.state.search);
 
             try {

@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-06-18 12:58:15
+/* Smarty version 5.3.1, created on 2026-06-18 14:50:30
   from 'file:cells_NA_API_warehouse_item_stock.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_6a33eb674a6671_78332486',
+  'unifunc' => 'content_6a3405b6994719_36323759',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '78897f2abfb53919d027b02d7f6e77f4dd3c7bcd' => 
     array (
       0 => 'cells_NA_API_warehouse_item_stock.html',
-      1 => 1781787397,
+      1 => 1781794175,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_6a33eb674a6671_78332486 (\Smarty\Template $_smarty_tpl) {
+function content_6a3405b6994719_36323759 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>
     <div class="pagetitle">
@@ -122,7 +122,29 @@ $_smarty_current_dir = '/home/cells/web/templates';
                     <option value="ASC">ASC</option>
                   </select>
                 </div>
+                <div class="col-12 col-md-4 col-xl-2">
+                  <label class="form-label small mb-1" for="warehouse-items-registry-date-type">Фильтр даты</label>
+                  <select id="warehouse-items-registry-date-type" class="form-select form-select-sm">
+                    <option value="" selected>Не выбран</option>
+                    <option value="created_at_local">Создана у нас</option>
+                    <option value="forwarder_date">Дата у форварда</option>
+                    <option value="forwarder_synced_at">Синхронизация с форвардом</option>
+                  </select>
+                </div>
+                <div class="col-6 col-md-3 col-xl-2">
+                  <label class="form-label small mb-1" for="warehouse-items-registry-date-from">Дата с</label>
+                  <input type="date" id="warehouse-items-registry-date-from" class="form-control form-control-sm">
+                </div>
+                <div class="col-6 col-md-3 col-xl-2">
+                  <label class="form-label small mb-1" for="warehouse-items-registry-date-to">Дата по</label>
+                  <input type="date" id="warehouse-items-registry-date-to" class="form-control form-control-sm">
+                </div>
+                <div class="col-12 col-md-5 col-xl-2 d-flex gap-2">
+                  <button type="button" id="warehouse-items-registry-date-apply" class="btn btn-primary btn-sm flex-fill">Применить</button>
+                  <button type="button" id="warehouse-items-registry-date-reset" class="btn btn-outline-secondary btn-sm flex-fill">Сбросить</button>
+                </div>
               </div>
+              <div id="warehouse-items-registry-date-summary" class="small text-muted mb-2 d-none"></div>
 
               <div class="table-responsive">
                 <table class="table table-sm align-middle users-table">
