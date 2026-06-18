@@ -100,7 +100,7 @@
                             data-task-code="{$task.code|escape}"
                             data-task-name="{$task.name|escape}"
                             data-task-description="{$task.description|escape}"
-                            data-task-payload="{$task.payload_json|default:''|escape}"
+                            data-task-payload="{$task.payload_json|default:''|escape:'htmlall':'UTF-8'}"
                             data-task-endpoint="{$task.endpoint_action|escape}"
                             data-task-interval="{$task.interval_minutes}"
                             data-task-enabled="{$task.is_enabled}">Edit</button>
