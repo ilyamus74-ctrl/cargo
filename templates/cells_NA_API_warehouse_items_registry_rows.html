@@ -39,6 +39,8 @@
     <td>{$item.forwarder_name|default:'—'|escape}</td>
     <td>
       {if $item.cell_address}{$item.cell_address|escape}{else}—{/if}
+      {if !$item.cell_address && $item.forwarder_position_code}<div class="text-warning small">Не сопоставлено: {$item.forwarder_position_code|escape}</div>{/if}
+      {if $item.forwarder_position_code}<div class="small text-muted">Forwarder: {$item.forwarder_position_code|escape}</div>{/if}
       {if $item.container_name}
         <div class="small text-muted">{$item.container_name|escape}</div>
       {/if}

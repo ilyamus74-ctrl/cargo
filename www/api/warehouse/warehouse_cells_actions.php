@@ -7,10 +7,49 @@ declare(strict_types=1);
  */
 
 // Доступны: $action, $user, $dbcnx, $smarty
+require_once __DIR__ . '/warehouse_forwarder_sync_helpers.php';
 
 $response = ['status' => 'error', 'message' => 'Unknown warehouse cells action'];
+warehouse_forwarder_ensure_sync_tables($dbcnx);
 
 switch ($action) {
+    case 'sync_forwarder_positions':
+        $connectorId = (int)($_POST['connector_id'] ?? 0);
+        if ($connectorId <= 0) { $response = ['status'=>'error','message'=>'connector_id обязателен']; break; }
+        $response = ['status'=>'ok','diagnostics'=>warehouse_forwarder_sync_positions($dbcnx, $connectorId)];
+        break;
+
+    case 'form_cell_forwarder_mappings':
+        warehouse_forwarder_ensure_sync_tables($dbcnx);
+        $cellId = (int)($_POST['cell_id'] ?? 0);
+        $stmt = $dbcnx->prepare('SELECT id, code FROM cells WHERE id=? LIMIT 1');
+        $stmt->bind_param('i', $cellId); $stmt->execute(); $cell = $stmt->get_result()->fetch_assoc(); $stmt->close();
+        if (!$cell) { $response = ['status'=>'error','message'=>'Ячейка не найдена']; break; }
+        $connectorCountrySelect = warehouse_forwarder_column_exists($dbcnx, 'connectors', 'country_code') ? ', country_code' : ", '' AS country_code";
+        $connectors=[]; if($r=$dbcnx->query('SELECT id,name' . $connectorCountrySelect . ' FROM connectors ORDER BY name')){while($x=$r->fetch_assoc())$connectors[]=$x;$r->free();}
+        $positions=[]; if($r=$dbcnx->query('SELECT connector_id,position_code,position_label FROM forwarder_positions WHERE is_active=1 ORDER BY connector_id, position_code')){while($x=$r->fetch_assoc())$positions[]=$x;$r->free();}
+        $mappings=[]; $stmt=$dbcnx->prepare('SELECT m.*, c.name AS connector_name FROM warehouse_cell_forwarder_map m LEFT JOIN connectors c ON c.id=m.connector_id WHERE m.cell_id=? ORDER BY c.name,m.forwarder_position_code'); $stmt->bind_param('i',$cellId); $stmt->execute(); $rr=$stmt->get_result(); while($x=$rr->fetch_assoc())$mappings[]=$x; $stmt->close();
+        $smarty->assign('cell',$cell); $smarty->assign('connectors',$connectors); $smarty->assign('forwarder_positions',$positions); $smarty->assign('mappings',$mappings);
+        ob_start(); $smarty->display('cells_NA_API_warehouse_cell_forwarder_mappings.html'); $html=ob_get_clean();
+        $response=['status'=>'ok','html'=>$html];
+        break;
+
+    case 'save_cell_forwarder_mapping':
+        warehouse_forwarder_ensure_sync_tables($dbcnx);
+        $cellId=(int)($_POST['cell_id']??0); $connectorId=(int)($_POST['connector_id']??0); $code=warehouse_forwarder_norm_code((string)($_POST['forwarder_position_code']??''));
+        $country=strtoupper(trim((string)($_POST['country_code']??''))); $active=!empty($_POST['is_active'])?1:0; $comment=trim((string)($_POST['comment']??''));
+        if($cellId<=0||$connectorId<=0||$code===''){ $response=['status'=>'error','message'=>'Заполните ячейку, коннектор и позицию форварда']; break; }
+        $stmt=$dbcnx->prepare('INSERT INTO warehouse_cell_forwarder_map (connector_id,forwarder_position_code,cell_id,country_code,is_active,comment) VALUES (?,?,?,?,?,?) ON DUPLICATE KEY UPDATE cell_id=VALUES(cell_id), country_code=VALUES(country_code), is_active=VALUES(is_active), comment=VALUES(comment)');
+        $stmt->bind_param('isisis',$connectorId,$code,$cellId,$country,$active,$comment); $stmt->execute(); $stmt->close();
+        $response=['status'=>'ok','message'=>'Связь сохранена'];
+        break;
+
+    case 'delete_cell_forwarder_mapping':
+        warehouse_forwarder_ensure_sync_tables($dbcnx);
+        $mappingId=(int)($_POST['mapping_id']??0); $stmt=$dbcnx->prepare('DELETE FROM warehouse_cell_forwarder_map WHERE id=? LIMIT 1'); $stmt->bind_param('i',$mappingId); $stmt->execute(); $stmt->close();
+        $response=['status'=>'ok','message'=>'Связь удалена'];
+        break;
+
     case 'setting_cells':
         // если нужно ограничить только админами – раскомментируешь
         // if (!auth_has_role('ADMIN')) {
@@ -23,7 +62,7 @@ switch ($action) {
         // если нужно что-то подтянуть из БД — потом сюда добавим SELECT
         // пример заготовки:
          $cells = [];
-         if ($res = $dbcnx->query("SELECT id, code, qr_payload, qr_file, description FROM cells ORDER BY code")) {
+         if ($res = $dbcnx->query("SELECT c.id, c.code, c.qr_payload, c.qr_file, c.description, GROUP_CONCAT(CONCAT(COALESCE(conn.name, CONCAT('Connector #', m.connector_id)), ': ', m.forwarder_position_code) ORDER BY conn.name SEPARATOR '||') AS forwarder_mappings FROM cells c LEFT JOIN warehouse_cell_forwarder_map m ON m.cell_id = c.id AND m.is_active = 1 LEFT JOIN connectors conn ON conn.id = m.connector_id GROUP BY c.id, c.code, c.qr_payload, c.qr_file, c.description ORDER BY c.code")) {
              while ($row = $res->fetch_assoc()) {
                  $cells[] = $row;
              }
@@ -196,9 +235,12 @@ case 'add_new_cells':
         }
         // Перечитываем список ячеек
         $cells = [];
-        $sql = "SELECT id, code, qr_payload, qr_file, description
-                  FROM cells
-              ORDER BY code";
+        $sql = "SELECT c.id, c.code, c.qr_payload, c.qr_file, c.description, GROUP_CONCAT(CONCAT(COALESCE(conn.name, CONCAT('Connector #', m.connector_id)), ': ', m.forwarder_position_code) ORDER BY conn.name SEPARATOR '||') AS forwarder_mappings
+                  FROM cells c
+                  LEFT JOIN warehouse_cell_forwarder_map m ON m.cell_id = c.id AND m.is_active = 1
+                  LEFT JOIN connectors conn ON conn.id = m.connector_id
+                 GROUP BY c.id, c.code, c.qr_payload, c.qr_file, c.description
+                 ORDER BY c.code";
         if ($res2 = $dbcnx->query($sql)) {
             while ($row = $res2->fetch_assoc()) {
                 $cells[] = $row;
@@ -360,9 +402,12 @@ case 'add_new_cells':
         );
         // Перечитываем список ячеек
         $cells = [];
-        $sql = "SELECT id, code, qr_payload, qr_file, description
-                  FROM cells
-              ORDER BY code";
+        $sql = "SELECT c.id, c.code, c.qr_payload, c.qr_file, c.description, GROUP_CONCAT(CONCAT(COALESCE(conn.name, CONCAT('Connector #', m.connector_id)), ': ', m.forwarder_position_code) ORDER BY conn.name SEPARATOR '||') AS forwarder_mappings
+                  FROM cells c
+                  LEFT JOIN warehouse_cell_forwarder_map m ON m.cell_id = c.id AND m.is_active = 1
+                  LEFT JOIN connectors conn ON conn.id = m.connector_id
+                 GROUP BY c.id, c.code, c.qr_payload, c.qr_file, c.description
+                 ORDER BY c.code";
         if ($res2 = $dbcnx->query($sql)) {
             while ($row = $res2->fetch_assoc()) {
                 $cells[] = $row;

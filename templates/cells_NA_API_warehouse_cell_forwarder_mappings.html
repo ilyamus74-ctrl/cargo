@@ -1,0 +1,52 @@
+<div class="warehouse-cell-forwarder-mappings">
+  <h5>Связи форвардов для ячейки {$cell.code|escape}</h5>
+  <form class="row g-2 mb-3" id="cell-forwarder-mapping-form">
+    <input type="hidden" name="cell_id" value="{$cell.id}">
+    <div class="col-md-3">
+      <label class="form-label">Connector</label>
+      <select class="form-select" name="connector_id" required>
+        {foreach $connectors as $connector}
+          <option value="{$connector.id}">{$connector.name|escape}</option>
+        {/foreach}
+      </select>
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">Country</label>
+      <input type="text" class="form-control" name="country_code" placeholder="optional">
+    </div>
+    <div class="col-md-3">
+      <label class="form-label">Forwarder position</label>
+      <select class="form-select" name="forwarder_position_code" required>
+        {foreach $forwarder_positions as $position}
+          <option value="{$position.position_code|escape}" data-connector-id="{$position.connector_id}">{$position.position_code|escape}{if $position.position_label} — {$position.position_label|escape}{/if}</option>
+        {/foreach}
+      </select>
+    </div>
+    <div class="col-md-2">
+      <label class="form-label">Comment</label>
+      <input type="text" class="form-control" name="comment">
+    </div>
+    <div class="col-md-1 d-flex align-items-end">
+      <label class="form-check mb-2"><input class="form-check-input" type="checkbox" name="is_active" value="1" checked> active</label>
+    </div>
+    <div class="col-12">
+      <button type="button" class="btn btn-primary js-core-link" data-core-action="save_cell_forwarder_mapping">Сохранить связь</button>
+    </div>
+  </form>
+  <table class="table table-sm">
+    <thead><tr><th>Connector</th><th>Position</th><th>Country</th><th>Status</th><th>Comment</th><th></th></tr></thead>
+    <tbody>
+      {foreach $mappings as $mapping}
+        <tr>
+          <td>{$mapping.connector_name|default:$mapping.connector_id|escape}</td>
+          <td><span class="badge bg-info text-dark">{$mapping.forwarder_position_code|escape}</span></td>
+          <td>{$mapping.country_code|default:'—'|escape}</td>
+          <td>{if $mapping.is_active}active{else}inactive{/if}</td>
+          <td>{$mapping.comment|default:''|escape}</td>
+          <td><button type="button" class="btn btn-sm btn-outline-danger js-core-link" data-core-action="delete_cell_forwarder_mapping" data-mapping-id="{$mapping.id}">Удалить</button></td>
+        </tr>
+      {/foreach}
+      {if !$mappings}<tr><td colspan="6" class="text-muted">Связей нет</td></tr>{/if}
+    </tbody>
+  </table>
+</div>

@@ -7,6 +7,8 @@ declare(strict_types=1);
 // Доступны:  $action, $user, $dbcnx, $smarty
 $response = ['status' => 'error', 'message' => 'Unknown warehouse stock action'];
 require_once __DIR__ . '/warehouse_forwarder_registration_helpers.php';
+require_once __DIR__ . '/warehouse_forwarder_sync_helpers.php';
+warehouse_forwarder_ensure_sync_tables($dbcnx);
 
 
 if (!function_exists('warehouse_stock_ensure_addons_column')) {
@@ -888,6 +890,7 @@ if ($action === 'warehouse_items_registry') {
             {$stockCreatedAt} AS created_at,
             {$stockCellId} AS cell_id,
             c.code AS cell_address,
+            wi.forwarder_position_code,
             {$stockContainer} AS container_name,
             {$stockOutStatus} AS out_status,
             CASE
@@ -943,6 +946,7 @@ if ($action === 'warehouse_items_registry') {
                 {$inCreatedAt} AS created_at,
                 NULL AS cell_id,
                 NULL AS cell_address,
+                NULL AS forwarder_position_code,
                 NULL AS container_name,
                 NULL AS out_status,
                 'in_progress' AS warehouse_state,
@@ -987,6 +991,7 @@ if ($action === 'warehouse_items_registry') {
                 {$outCreatedAt} AS created_at,
                 {$stockCellId} AS cell_id,
                 c.code AS cell_address,
+                wi.forwarder_position_code,
                 {$outContainer} AS container_name,
                 {$outStatus} AS out_status,
                 CASE
@@ -1452,7 +1457,8 @@ if ($action === 'item_stock_in_storage') {
             wi.created_at AS stored_at,
             wi.user_id,
             u.full_name AS user_name,
-            c.code AS cell_address
+            c.code AS cell_address,
+            wi.forwarder_position_code
         FROM warehouse_item_stock wi
         {$outJoinSql}
         LEFT JOIN users u ON u.id = wi.user_id

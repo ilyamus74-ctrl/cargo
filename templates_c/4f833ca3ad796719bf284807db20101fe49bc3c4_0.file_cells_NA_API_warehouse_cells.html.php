@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-03-19 07:25:46
+/* Smarty version 5.3.1, created on 2026-06-18 07:40:37
   from 'file:cells_NA_API_warehouse_cells.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_69bba4faa894d8_87939502',
+  'unifunc' => 'content_6a33a0f515e5f6_64418932',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '4f833ca3ad796719bf284807db20101fe49bc3c4' => 
     array (
       0 => 'cells_NA_API_warehouse_cells.html',
-      1 => 1769462457,
+      1 => 1781768427,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_69bba4faa894d8_87939502 (\Smarty\Template $_smarty_tpl) {
+function content_6a33a0f515e5f6_64418932 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>    <div class="pagetitle">
       <h1>Warehouse Cells</h1>
@@ -95,6 +95,7 @@ $_smarty_current_dir = '/home/cells/web/templates';
                     <th scope="col"></th>
                     <th scope="col">QR_payload</th>
                     <th scope="col">Description</th>
+                    <th scope="col">Связи форвардов</th>
                     <th scope="col"></th>
                   </tr>
                 </thead>
@@ -122,6 +123,14 @@ $foreach0DoElse = false;
 </td>
                     <td><?php echo $_smarty_tpl->getValue('value')['description'];?>
 </td>
+                    <td>
+                      <?php if ($_smarty_tpl->getValue('value')['forwarder_mappings']) {?>
+                        <span class="badge bg-info text-dark me-1"><?php echo htmlspecialchars((string)$_smarty_tpl->getSmarty()->getModifierCallback('replace')($_smarty_tpl->getValue('value')['forwarder_mappings'],'||',', '), ENT_QUOTES, 'UTF-8', true);?>
+</span>
+                      <?php } else { ?><span class="text-muted">нет связей</span><?php }?>
+                      <button type="button" class="btn btn-sm btn-outline-primary js-core-link ms-1" data-core-action="form_cell_forwarder_mappings" data-cell-id="<?php echo $_smarty_tpl->getValue('value')['id'];?>
+">Связи форвардов</button>
+                    </td>
                     <td>
                       <?php if ($_smarty_tpl->getValue('value')['qr_file']) {?>
                         <button type="button"
@@ -164,8 +173,7 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
                     </div>
                     <div class="modal-footer">
                       <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                      <!--<button type="button" class="btn btn-primary">Save changes</button>
--->
+                      <!--<button type="button" class="btn btn-primary">Save changes</button>-->
                     </div>
                   </div>
                 </div>

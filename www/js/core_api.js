@@ -139,6 +139,10 @@ const CoreAPI = {
                 'form_edit_device': () => this.withAttribute('device_id', link),
                 'form_edit_tool_stock': () => this.withAttribute('tool_id', link),
                 'form_edit_cell': () => this.withAttribute('cell_id', link),
+                'form_cell_forwarder_mappings': () => this.withAttribute('cell_id', link),
+                'save_cell_forwarder_mapping': (currentLink) => this.getFormById('cell-forwarder-mapping-form', currentLink),
+                'delete_cell_forwarder_mapping': () => this.withAttribute('mapping_id', link),
+                'sync_forwarder_positions': () => this.withAttribute('connector_id', link),
                 'form_edit_connector': () => this.withAttribute('connector_id', link),
                 'test_connector': () => this.withAttribute('connector_id', link),
                 'form_connector_label_template': () => this.withAttribute('connector_id', link),
@@ -1826,6 +1830,26 @@ const CoreAPI = {
         'run_system_tasks_now': async (data) => {
             alert(data.message || 'Выполнено');
             await CoreAPI.ui.reloadList('system_tasks');
+        },
+        'form_cell_forwarder_mappings': (data) => {
+            const modal = document.querySelector('#fullscreenModal');
+            const body = modal?.querySelector('.modal-body');
+            const title = modal?.querySelector('.modal-title');
+            if (title) title.textContent = 'Связи форвардов';
+            if (body && data.html) body.innerHTML = data.html;
+            if (modal && typeof bootstrap !== 'undefined') bootstrap.Modal.getOrCreateInstance(modal).show();
+        },
+        'save_cell_forwarder_mapping': async (data) => {
+            CoreAPI.ui.showToast(data.message || 'Связь сохранена', 'success');
+            await CoreAPI.ui.reloadList('setting_cells');
+        },
+        'delete_cell_forwarder_mapping': async (data) => {
+            CoreAPI.ui.showToast(data.message || 'Связь удалена', 'success');
+            await CoreAPI.ui.reloadList('setting_cells');
+        },
+        'sync_forwarder_positions': (data) => {
+            CoreAPI.ui.showToast(data.message || 'Позиции синхронизированы', 'success');
+            console.log('sync_forwarder_positions', data.diagnostics || data);
         },
         // === DEFAULT - все остальные ===
         'default': (data) => {

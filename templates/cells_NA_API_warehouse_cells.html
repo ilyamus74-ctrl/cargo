@@ -71,6 +71,7 @@
                     <th scope="col"></th>
                     <th scope="col">QR_payload</th>
                     <th scope="col">Description</th>
+                    <th scope="col">Связи форвардов</th>
                     <th scope="col"></th>
                   </tr>
                 </thead>
@@ -87,6 +88,12 @@
                      </td>
                     <td>{$value.qr_payload}</td>
                     <td>{$value.description}</td>
+                    <td>
+                      {if $value.forwarder_mappings}
+                        <span class="badge bg-info text-dark me-1">{$value.forwarder_mappings|replace:'||':', '|escape}</span>
+                      {else}<span class="text-muted">нет связей</span>{/if}
+                      <button type="button" class="btn btn-sm btn-outline-primary js-core-link ms-1" data-core-action="form_cell_forwarder_mappings" data-cell-id="{$value.id}">Связи форвардов</button>
+                    </td>
                     <td>
                       {if $value.qr_file}
                         <button type="button"
@@ -122,7 +129,7 @@
                     </div>
                     <div class="modal-footer">
                       <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                      <!--<button type="button" class="btn btn-primary">Save changes</button>-->
+                      <!--<button type="button" class="btn btn-primary">Save changes</button>-->
                     </div>
                   </div>
                 </div>

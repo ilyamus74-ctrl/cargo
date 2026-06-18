@@ -1,5 +1,6 @@
 <?php
 declare(strict_types=1);
+require_once __DIR__ . '/../warehouse/warehouse_forwarder_sync_helpers.php';
 
 function system_tasks_ensure_tables(mysqli $dbcnx): void
 {
@@ -108,6 +109,11 @@ function system_tasks_endpoint_registry(): array
         'group' => 'forwarder',
         'name' => 'Forwarder report bot: only outgoing',
         'description' => 'По истории report-таблиц переводит warehouse_item_out в sended, если форвард уже показал shipped-статус.',
+        ],
+        'forwarder_report_import' => [
+            'group' => 'forwarder',
+            'name' => 'Forwarder report import',
+            'description' => 'Импортирует report items форварда в warehouse_item_stock с mapping позиций на локальные ячейки.',
         ],
     ];
 }
@@ -346,6 +352,9 @@ function system_tasks_execute(mysqli $dbcnx, array $task, int $systemUserId = 0)
     if ($action === 'forwarder_report_bot_outgoing') {
         return system_tasks_run_forwarder_report_bot_outgoing($dbcnx, $task);
     }
+    if ($action === 'forwarder_report_import') {
+        return system_tasks_run_forwarder_report_import($dbcnx, $task);
+    }
     return [
         'status' => 'error',
 
@@ -433,6 +442,183 @@ function system_tasks_run_connector_clients_sync(mysqli $dbcnx, array $task): ar
             'all' => $all,
             'limit' => $limit,
             'summary' => $decoded,
+        ],
+    ];
+}
+
+
+function system_tasks_run_forwarder_report_import(mysqli $dbcnx, array $task): array
+{
+    $payloadRaw = trim((string)($task['payload_json'] ?? ''));
+    $payload = $payloadRaw !== '' ? json_decode($payloadRaw, true) : [];
+    if (!is_array($payload)) {
+        $payload = [];
+    }
+
+    $emptySummary = [
+        'rows_total' => 0,
+        'report_items_upserted' => 0,
+        'stock_created' => 0,
+        'stock_updated' => 0,
+        'mapped_to_cells' => 0,
+        'unmapped_positions' => 0,
+        'errors' => [],
+    ];
+
+    $aggregate = $emptySummary;
+    $connectorResults = [];
+
+    // Test/manual mode is still supported, but production mode below fetches reports itself.
+    if (isset($payload['rows']) && is_array($payload['rows'])) {
+        $connectorId = (int)($payload['connector_id'] ?? 0);
+        if ($connectorId <= 0) {
+            return ['status' => 'error', 'message' => 'forwarder_report_import rows mode requires payload.connector_id', 'context' => ['payload' => $payload]];
+        }
+        $summary = warehouse_forwarder_import_report_items($dbcnx, $connectorId, $payload['rows']);
+        return [
+            'status' => empty($summary['errors']) ? 'ok' : 'error',
+            'message' => system_tasks_forwarder_report_import_message($summary),
+            'context' => ['mode' => 'payload_rows', 'connector_id' => $connectorId, 'summary' => $summary],
+        ];
+    }
+
+    $connectors = system_tasks_forwarder_report_import_connectors($dbcnx, $payload);
+    if (!$connectors) {
+        return [
+            'status' => 'ok',
+            'message' => 'forwarder_report_import: no active connectors',
+            'context' => ['summary' => $aggregate, 'connectors' => []],
+        ];
+    }
+
+    foreach ($connectors as $connector) {
+        $connectorId = (int)($connector['id'] ?? 0);
+        $connectorName = (string)($connector['name'] ?? ('connector #' . $connectorId));
+        $result = system_tasks_forwarder_report_import_fetch_rows($connector, $payload);
+        $rows = is_array($result['rows'] ?? null) ? $result['rows'] : [];
+        if (($result['status'] ?? '') !== 'ok') {
+            $aggregate['errors'][] = $connectorName . ': ' . (string)($result['message'] ?? 'report fetch failed');
+            $connectorResults[] = $result + ['connector_id' => $connectorId, 'connector_name' => $connectorName];
+            continue;
+        }
+
+        $summary = warehouse_forwarder_import_report_items($dbcnx, $connectorId, $rows);
+        foreach (['rows_total', 'report_items_upserted', 'stock_created', 'stock_updated', 'mapped_to_cells', 'unmapped_positions'] as $key) {
+            $aggregate[$key] += (int)($summary[$key] ?? 0);
+        }
+        foreach ((array)($summary['errors'] ?? []) as $error) {
+            $aggregate['errors'][] = $connectorName . ': ' . (string)$error;
+        }
+        $connectorResults[] = [
+            'connector_id' => $connectorId,
+            'connector_name' => $connectorName,
+            'fetch' => $result,
+            'summary' => $summary,
+        ];
+    }
+
+    return [
+        'status' => empty($aggregate['errors']) ? 'ok' : 'error',
+        'message' => system_tasks_forwarder_report_import_message($aggregate),
+        'context' => ['mode' => 'mvp_fetch', 'summary' => $aggregate, 'connectors' => $connectorResults],
+    ];
+}
+
+function system_tasks_forwarder_report_import_message(array $summary): string
+{
+    return 'forwarder_report_import done; rows_total=' . (int)($summary['rows_total'] ?? 0)
+        . '; report_items_upserted=' . (int)($summary['report_items_upserted'] ?? 0)
+        . '; stock_created=' . (int)($summary['stock_created'] ?? 0)
+        . '; stock_updated=' . (int)($summary['stock_updated'] ?? 0)
+        . '; mapped_to_cells=' . (int)($summary['mapped_to_cells'] ?? 0)
+        . '; unmapped_positions=' . (int)($summary['unmapped_positions'] ?? 0)
+        . '; errors=' . count((array)($summary['errors'] ?? []));
+}
+
+function system_tasks_forwarder_report_import_connectors(mysqli $dbcnx, array $payload): array
+{
+    $connectorId = (int)($payload['connector_id'] ?? 0);
+    $where = 'WHERE is_active = 1';
+    if ($connectorId > 0) {
+        $where .= ' AND id = ' . $connectorId;
+    }
+    $systemTypeSelect = warehouse_forwarder_column_exists($dbcnx, 'connectors', 'system_type') ? ', system_type' : ", '' AS system_type";
+    $countrySelect = warehouse_forwarder_column_exists($dbcnx, 'connectors', 'country_code') ? ', country_code' : ", '' AS country_code";
+    $sql = 'SELECT id, name, base_url, auth_username, auth_password, is_active' . $systemTypeSelect . $countrySelect . ' FROM connectors ' . $where . ' ORDER BY id ASC';
+    $connectors = [];
+    if ($res = $dbcnx->query($sql)) {
+        while ($row = $res->fetch_assoc()) {
+            if (trim((string)($row['base_url'] ?? '')) === '' || trim((string)($row['auth_username'] ?? '')) === '' || trim((string)($row['auth_password'] ?? '')) === '') {
+                continue;
+            }
+            $connectors[] = $row;
+        }
+        $res->free();
+    }
+    return $connectors;
+}
+
+function system_tasks_forwarder_report_import_fetch_rows(array $connector, array $payload): array
+{
+    $scriptPath = realpath(__DIR__ . '/../../scripts/mvp/app/Forwarder/run_report_import.php');
+    if (!$scriptPath || !is_file($scriptPath)) {
+        return ['status' => 'error', 'message' => 'run_report_import.php not found', 'rows' => []];
+    }
+
+    $from = trim((string)($payload['from_date'] ?? $payload['from'] ?? ''));
+    $to = trim((string)($payload['to_date'] ?? $payload['to'] ?? ''));
+    if ($to === '') {
+        $to = date('Y-m-d');
+    }
+    if ($from === '') {
+        $daysBack = max(0, min(31, (int)($payload['days_back'] ?? 1)));
+        $from = date('Y-m-d', strtotime('-' . $daysBack . ' day'));
+    }
+
+    $args = [
+        '--base-url=' . (string)($connector['base_url'] ?? ''),
+        '--login=' . (string)($connector['auth_username'] ?? ''),
+        '--password=' . (string)($connector['auth_password'] ?? ''),
+        '--from=' . $from,
+        '--to=' . $to,
+        '--session-file=' . sys_get_temp_dir() . '/forwarder_report_import_' . (int)($connector['id'] ?? 0) . '.json',
+    ];
+    foreach (['page_path' => 'page-path', 'post_path' => 'post-path'] as $payloadKey => $argName) {
+        if (isset($payload[$payloadKey]) && trim((string)$payload[$payloadKey]) !== '') {
+            $args[] = '--' . $argName . '=' . trim((string)$payload[$payloadKey]);
+        }
+    }
+
+    $cmd = escapeshellarg(PHP_BINARY ?: 'php') . ' ' . escapeshellarg($scriptPath);
+    foreach ($args as $arg) {
+        [$key, $value] = explode('=', $arg, 2);
+        $cmd .= ' ' . $key . '=' . escapeshellarg($value);
+    }
+    $cmd .= ' 2>&1';
+
+    $output = shell_exec($cmd);
+    $outputText = trim((string)$output);
+    $decoded = json_decode($outputText, true);
+    if (!is_array($decoded)) {
+        return [
+            'status' => 'error',
+            'message' => 'MVP report importer returned invalid JSON',
+            'rows' => [],
+            'diagnostics' => ['output' => mb_substr($outputText, 0, 2000, 'UTF-8')],
+        ];
+    }
+
+    $remoteStatus = strtoupper(trim((string)($decoded['status'] ?? '')));
+    return [
+        'status' => $remoteStatus === 'OK' ? 'ok' : 'error',
+        'message' => (string)($decoded['message'] ?? $remoteStatus),
+        'rows' => is_array($decoded['rows'] ?? null) ? $decoded['rows'] : [],
+        'rows_total' => (int)($decoded['rows_total'] ?? 0),
+        'diagnostics' => [
+            'remote_status' => $remoteStatus,
+            'from_date' => $decoded['from_date'] ?? $from,
+            'to_date' => $decoded['to_date'] ?? $to,
+            'remote_diagnostics' => $decoded['diagnostics'] ?? [],
         ],
     ];
 }

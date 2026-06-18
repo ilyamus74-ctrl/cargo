@@ -8,7 +8,8 @@
         {$parcel.parcel_uid|default:'—'}
       </button>
     </td>
-    <td>{$parcel.cell_address|default:'—'}</td>
+    <td>{$parcel.cell_address|default:'—'}{if !$parcel.cell_address && $parcel.forwarder_position_code}<div class="text-warning small">Не сопоставлено: {$parcel.forwarder_position_code|escape}</div>{/if}</td>
+    <td>{if $parcel.forwarder_position_code}<span class="badge bg-secondary">{$parcel.forwarder_position_code|escape}</span>{else}—{/if}</td>
     {if $current_user.role == 'ADMIN'}
       <td>{$parcel.user_name|default:'—'}</td>
     {/if}
@@ -17,7 +18,7 @@
 {/foreach}
 {if !$parcels_in_storage && $show_empty}
   <tr>
-    <td colspan="{if $current_user.role == 'ADMIN'}4{else}3{/if}" class="text-center text-muted">
+    <td colspan="{if $current_user.role == 'ADMIN'}5{else}4{/if}" class="text-center text-muted">
       Нет посылок на складе
     </td>
   </tr>
