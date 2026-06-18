@@ -3511,7 +3511,9 @@ if (!function_exists('warehouse_sync_send_zpl_to_printer')) {
         $file = $tmp . '.zpl';
         @rename($tmp, $file);
         file_put_contents($file, $zpl);
-        $cmd = 'lp -h ' . escapeshellarg($host) . ' -d ' . escapeshellarg($queue) . ' -o raw ' . escapeshellarg($file) . ' 2>&1';
+        $lpCmd = 'lp -h ' . escapeshellarg($host) . ' -d ' . escapeshellarg($queue) . ' -o raw ' . escapeshellarg($file) . ' 2>&1';
+        $timeoutBin = trim((string)@shell_exec('command -v timeout 2>/dev/null'));
+        $cmd = $timeoutBin !== '' ? escapeshellarg($timeoutBin) . ' 5s ' . $lpCmd : $lpCmd;
         $out = [];
         $exit = 0;
         @exec($cmd, $out, $exit);
@@ -4978,24 +4980,21 @@ if ($action === 'warehouse_item_out_confirm_send') {
     $containerId = trim((string)($_POST['container_id'] ?? ''));
     $containerName = trim((string)($_POST['container_name'] ?? ''));
     $shipmentCell = trim((string)($_POST['shipment_cell'] ?? ''));
-    $printLabelRequested = (string)($_POST['print_label'] ?? '') === '1';
     $printToken = trim((string)($_POST['print_token'] ?? ''));
     $printDeviceKey = trim((string)($_POST['print_device_key'] ?? ''));
 
+    $timingTracking = $trackingNo;
+    $logTiming = static function (string $stage) use (&$timingTracking): void {
+        error_log('OUT_CONFIRM_TIMING tracking=' . $timingTracking . ' ' . $stage . '=' . sprintf('%.6F', microtime(true)));
+    };
 
     if ($stockItemId <= 0) {
-        $response = [
-            'status' => 'error',
-            'message' => 'Не найдена посылка для подтверждения',
-        ];
+        $response = ['status' => 'error', 'message' => 'Не найдена посылка для подтверждения'];
         return;
     }
 
     if ($containerId === '' && $containerName === '') {
-        $response = [
-            'status' => 'error',
-            'message' => 'Сначала выберите контейнер',
-        ];
+        $response = ['status' => 'error', 'message' => 'Сначала выберите контейнер'];
         return;
     }
 
@@ -5030,20 +5029,13 @@ if ($action === 'warehouse_item_out_confirm_send') {
     }
 
     if (!$item) {
-        $response = [
-            'status' => 'error',
-            'message' => 'Посылка не найдена в отгрузке',
-        ];
+        $response = ['status' => 'error', 'message' => 'Посылка не найдена в отгрузке'];
         return;
     }
 
     $currentStatus = strtolower(trim((string)($item['status'] ?? '')));
     if (!in_array($currentStatus, ['to_send', 'sended'], true)) {
-        $response = [
-            'status' => 'error',
-//            'message' => 'Подтверждение доступно только для статуса to_send',
-            'message' => 'Подтверждение доступно только для статусов to_send или sended',
-        ];
+        $response = ['status' => 'error', 'message' => 'Подтверждение доступно только для статусов to_send или sended'];
         return;
     }
 
@@ -5056,240 +5048,187 @@ if ($action === 'warehouse_item_out_confirm_send') {
     if ($shipmentCell !== '') {
         $statusMessage .= ' (ячейка ' . $shipmentCell . ')';
     }
-    $nextStatus = $currentStatus === 'to_send' ? 'sended' : $currentStatus;
+    $nextStatus = 'sended';
+    $trackingForForwarder = trim($trackingNo !== '' ? $trackingNo : (string)($item['tracking_no'] ?? $item['tuid'] ?? ''));
+    $timingTracking = $trackingForForwarder;
+    $containerPosition = trim($containerId !== '' ? $containerId : $containerDisplay);
+    $flightRecordId = max(0, (int)($_POST['flight_record_id'] ?? 0));
 
-    $sqlUpdate = "
-        UPDATE warehouse_item_out
-        SET
-            status = ?,
-            status_message = ?,
-            shipment_cell = ?,
-            shipped_flight_no = ?,
-            shipped_container_name = ?,
-            status_updated_at = NOW()
-        WHERE stock_item_id = ?
-        LIMIT 1
-    ";
-    $stmtUpdate = $dbcnx->prepare($sqlUpdate);
-    if (!$stmtUpdate) {
+    if ($trackingForForwarder === '' || $containerPosition === '' || $flightRecordId <= 0) {
         $response = [
             'status' => 'error',
-            'message' => 'Не удалось подготовить обновление',
+            'forwarder_add_status' => 'error',
+            'print_status' => 'skipped',
+            'message' => 'Не хватает данных для подтверждения у форварда',
         ];
         return;
     }
 
-    $stmtUpdate->bind_param('sssssi', $nextStatus, $statusMessage, $shipmentCell, $flightDisplay, $containerDisplay, $stockItemId);
-    $stmtUpdate->execute();
-    $updateError = (int)$stmtUpdate->errno;
-    $stmtUpdate->close();
-
-    if ($updateError !== 0) {
-        $response = [
-            'status' => 'error',
-            'message' => 'Не удалось обновить данные отгрузки. Попробуйте ещё раз.',
-        ];
-        return;
-    }
-
-    if (function_exists('audit_log')) {
-        audit_log((int)($current['id'] ?? 0), 'WAREHOUSE_ITEM_OUT_CONFIRMED', 'warehouse_item_out', $stockItemId, 'Посылка отправлена в контейнер', [
-            'tracking_no' => $trackingNo !== '' ? $trackingNo : (string)($item['tracking_no'] ?? $item['tuid'] ?? ''),
-            'shipment_cell' => $shipmentCell,
-            'flight_no' => $flightDisplay,
-            'container_name' => $containerDisplay,
-        ]);
-    }
-
-    $forwarderSync = [
-        'status' => 'skipped',
-        'message' => 'snapshot форварда не обновлялся',
-    ];
     $lastAddResult = null;
     try {
-//        $trackingForForwarder = trim((string)($item['tracking_no'] ?? $item['tuid'] ?? $trackingNo));
-        $trackingForForwarder = trim($trackingNo !== '' ? $trackingNo : (string)($item['tracking_no'] ?? $item['tuid'] ?? ''));
-        $containerPosition = trim($containerId !== '' ? $containerId : $containerDisplay);
-        $flightRecordId = max(0, (int)($_POST['flight_record_id'] ?? 0));
-        if ($trackingForForwarder !== '' && $containerPosition !== '' && $flightRecordId > 0) {
-            $connector = warehouse_sync_resolve_permitted_connector($dbcnx, $item, 0);
-            $baseUrl = trim((string)($connector['base_url'] ?? ''));
-            $login = trim((string)($connector['auth_username'] ?? ''));
-            $password = trim((string)($connector['auth_password'] ?? ''));
-
-            if ($baseUrl !== '' && $login !== '' && $password !== '') {
-                $labelTemplate = warehouse_sync_resolve_label_template_code($dbcnx, $connector);
-                $labelTemplateCode = trim((string)($labelTemplate['template_code'] ?? 'default'));
-                $labelTemplateBody = trim((string)($labelTemplate['template_body'] ?? ''));
-                $labelWidthCm = (float)($labelTemplate['label_width_cm'] ?? 10.0);
-                $labelHeightCm = (float)($labelTemplate['label_height_cm'] ?? 15.0);
-                $printRotate = (int)($labelTemplate['print_rotate'] ?? 0);
-                $renderProfile = warehouse_sync_label_render_profile_from_array($labelTemplate);
-                $addResult = warehouse_sync_exec_forwarder_cli_script('run_add_package_to_container.php', [
-                    'base-url' => $baseUrl,
-                    'login' => $login,
-                    'password' => $password,
-                    'track' => $trackingForForwarder,
-                    'verify-number' => $trackingForForwarder,
-                    'position' => $containerPosition,
-                    'verify-check-package' => '1',
-                    'print-label' => '1',
-                    'print-mode' => 'zpl_raw',
-                    'return-label-html' => '0',
-                    'return-label-vars' => '1',
-                    'print-token' => $printToken,
-                    'print-device-key' => $printDeviceKey,
-                    'print-file-name' => 'label_' . (string)(preg_replace('/[^A-Za-z0-9._-]+/', '_', $trackingForForwarder) ?? 'track') . '.html',
-                    'label-template-code' => $labelTemplateCode,
-                    'label-template-body-base64' => $labelTemplateBody !== '' ? base64_encode($labelTemplateBody) : '',
-                    'label-width-cm' => (string)$labelWidthCm,
-                    'label-height-cm' => (string)$labelHeightCm,
-                    'print-paper-width-mm' => (string)$renderProfile['print_paper_width_mm'],
-                    'print-paper-height-mm' => (string)$renderProfile['print_paper_height_mm'],
-                    'render-width-mm' => (string)$renderProfile['render_width_mm'],
-                    'render-height-mm' => (string)$renderProfile['render_height_mm'],
-                    'render-rotate' => (string)$renderProfile['render_rotate'],
-                    'render-layout-mode' => (string)$renderProfile['render_layout_mode'],
-                    'render-css-override' => (string)$renderProfile['render_css_override'],
-                    'render-fit-mode' => (string)$renderProfile['render_fit_mode'],
-                    'render-scale-percent' => (string)$renderProfile['render_scale_percent'],
-                    'render-offset-x-mm' => (string)$renderProfile['render_offset_x_mm'],
-                    'render-offset-y-mm' => (string)$renderProfile['render_offset_y_mm'],
-                    'print-rotate' => (string)$printRotate,
-                    'print-rasterize' => '0',
-                    'forward-name' => trim((string)($connector['name'] ?? '')),
-                    'country-dest' => strtoupper(trim((string)($item['receiver_country_code'] ?? ''))),
-                    'allow-label-url' => '0',
-                    'print-label-retries' => '5',
-                    'print-label-retry-delay-ms' => '1200',
-                ]);
-$lastAddResult = $addResult;
-                $lastAddResult = $addResult;
-                $addStatus = strtolower(trim((string)($addResult['status'] ?? '')));
-
-                if ($addStatus !== 'ok') {
-                    $forwarderSync = [
-                        'status' => 'error',
-                        'message' => trim((string)($addResult['message'] ?? 'Не удалось добавить посылку в контейнер форварда')),
-                        'add_result' => $addResult,
-                    ];
-
-                    error_log('FORWARDER_ADD_TO_CONTAINER_ERROR ' . json_encode([
-                        'tracking_no' => $trackingForForwarder,
-                        'container_position' => $containerPosition,
-                        'connector_id' => (int)($connector['id'] ?? 0),
-                        'connector_name' => (string)($connector['name'] ?? ''),
-                        'add_status' => $addStatus,
-                        'add_result' => $addResult,
-                    ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
-                } else {
-                    $snapshotResult = warehouse_sync_exec_forwarder_cli_script('run_list_container.php', [
-                        'base-url' => $baseUrl,
-                        'login' => $login,
-                        'password' => $password,
-                        'position' => $containerPosition,
-                        'all-pages' => '1',
-                    ]);
-
-                    $snapshotStatus = strtolower(trim((string)($snapshotResult['status'] ?? '')));
-
-                    if ($snapshotStatus === 'ok' || $snapshotStatus === 'warning') {
-                        $snapshotUpdate = warehouse_sync_update_forwarder_snapshot_for_container(
-                            $dbcnx,
-                            (int)($connector['id'] ?? 0),
-                            $flightRecordId,
-                            $containerPosition,
-                            $snapshotResult
-                        );
-                    } else {
-                        $snapshotUpdate = [
-                            'status' => 'warning',
-                            'message' => trim((string)($snapshotResult['message'] ?? 'Snapshot контейнера не обновлён')),
-                            'snapshot_result' => $snapshotResult,
-                        ];
-                    }
-
-                    $forwarderSync = [
-                        'status' => 'ok',
-                        'message' => 'Посылка добавлена в контейнер форварда',
-                        'add_result' => $addResult,
-                        'snapshot_update' => $snapshotUpdate,
-                    ];
-                    if (PRINT_LABEL_PRODUCTION_MODE === 'zpl_vector_template') {
-                        $generatedWaybill = is_array($addResult['print']['generated_waybill'] ?? null) ? $addResult['print']['generated_waybill'] : [];
-                        $labelVars = is_array($addResult['label_vars'] ?? null) ? $addResult['label_vars'] : (is_array($generatedWaybill['label_vars'] ?? null) ? $generatedWaybill['label_vars'] : []);
-                        if ($labelVars === []) {
-                            $labelVars = warehouse_sync_label_template_sample_vars((int)($connector['id'] ?? 0), $trackingForForwarder);
-                        }
-                        $diagnostics = warehouse_sync_send_vector_template_waybill($labelVars, $renderProfile);
-                        $response['print_mode'] = 'zpl_vector_template';
-                        $response['print_status'] = (string)($diagnostics['print_status'] ?? 'error');
-                        $response['print_transport'] = (string)($diagnostics['transport'] ?? PRINT_ZPL_TRANSPORT);
-                        $response['print_message'] = (string)($diagnostics['print_message'] ?? '');
-                        $response['print_diagnostics'] = $diagnostics;
-                    } elseif (PRINT_LABEL_PRODUCTION_MODE === 'pdf_template') {
-                        $generatedWaybill = is_array($addResult['print']['generated_waybill'] ?? null) ? $addResult['print']['generated_waybill'] : [];
-                        $labelVars = is_array($addResult['label_vars'] ?? null) ? $addResult['label_vars'] : (is_array($generatedWaybill['label_vars'] ?? null) ? $generatedWaybill['label_vars'] : []);
-                        if ($labelVars === []) {
-                            $labelVars = warehouse_sync_label_template_sample_vars((int)($connector['id'] ?? 0), $trackingForForwarder);
-                        }
-                        $pdfRender = warehouse_sync_render_waybill_pdf_from_template($labelVars, $renderProfile);
-                        $printResult = warehouse_sync_send_pdf_template_to_cups((string)($pdfRender['final_pdf_path'] ?? ''));
-                        $diagnostics = array_merge($pdfRender, $printResult);
-                        $response['print_mode'] = 'pdf_template';
-                        $response['print_status'] = (string)($printResult['status'] ?? 'error');
-                        $response['print_message'] = (string)($printResult['message'] ?? '');
-                        $response['print_diagnostics'] = $diagnostics;
-                    } elseif (PRINT_LABEL_PRODUCTION_MODE === 'zpl_raw') {
-                        $generatedWaybill = is_array($addResult['print']['generated_waybill'] ?? null) ? $addResult['print']['generated_waybill'] : [];
-                        $labelVars = is_array($addResult['label_vars'] ?? null) ? $addResult['label_vars'] : (is_array($generatedWaybill['label_vars'] ?? null) ? $generatedWaybill['label_vars'] : []);
-                        if ($labelVars === []) {
-                            $labelVars = warehouse_sync_label_template_sample_vars((int)($connector['id'] ?? 0), $trackingForForwarder);
-                        }
-                        $zpl = warehouse_sync_render_waybill_zpl($labelVars, $renderProfile);
-                        $printResult = warehouse_sync_send_zpl_to_printer($zpl);
-                        $response['print_mode'] = 'zpl_raw';
-                        $response['print_status'] = (string)($printResult['status'] ?? 'error');
-                        $response['print_transport'] = (string)($printResult['transport'] ?? PRINT_ZPL_TRANSPORT);
-                        $response['print_message'] = (string)($printResult['message'] ?? '');
-                        $response['print_diagnostics'] = [
-                            'printer_transport' => (string)($printResult['transport'] ?? PRINT_ZPL_TRANSPORT),
-                            'transport' => (string)($printResult['transport'] ?? PRINT_ZPL_TRANSPORT),
-                            'zpl_layout' => 'waybill_html_match_v3',
-                            'zpl_rotate_direction' => warehouse_sync_zpl_rotate_direction(),
-                            'logical_width' => 1200,
-                            'logical_height' => 800,
-                            'physical_width' => 800,
-                            'physical_height' => 1200,
-                            'corner_debug' => (bool)ZPL_WAYBILL_CORNER_DEBUG,
-                            'cups_host' => (string)($printResult['cups_host'] ?? ''),
-                            'cups_queue' => (string)($printResult['cups_queue'] ?? ''),
-                            'zpl_size' => strlen($zpl),
-                            'exit_code' => (int)($printResult['exit_code'] ?? 0),
-                            'command_output' => (string)($printResult['command_output'] ?? ''),
-                        ];
-                    }
-                }
-            }
+        $connector = warehouse_sync_resolve_permitted_connector($dbcnx, $item, 0);
+        $baseUrl = trim((string)($connector['base_url'] ?? ''));
+        $login = trim((string)($connector['auth_username'] ?? ''));
+        $password = trim((string)($connector['auth_password'] ?? ''));
+        if ($baseUrl === '' || $login === '' || $password === '') {
+            throw new RuntimeException('Не настроены доступы к форварду');
         }
+
+        $labelTemplate = warehouse_sync_resolve_label_template_code($dbcnx, $connector);
+        $labelTemplateCode = trim((string)($labelTemplate['template_code'] ?? 'default'));
+        $labelTemplateBody = trim((string)($labelTemplate['template_body'] ?? ''));
+        $labelWidthCm = (float)($labelTemplate['label_width_cm'] ?? 10.0);
+        $labelHeightCm = (float)($labelTemplate['label_height_cm'] ?? 15.0);
+        $printRotate = (int)($labelTemplate['print_rotate'] ?? 0);
+        $renderProfile = warehouse_sync_label_render_profile_from_array($labelTemplate);
+        $sessionFile = dirname(__DIR__, 2) . '/storage/forwarder_sessions/connector_' . (int)($connector['id'] ?? 0) . '.cookie';
+
+        $logTiming('before_add_package');
+        $addResult = warehouse_sync_exec_forwarder_cli_script('run_add_package_to_container.php', [
+            'base-url' => $baseUrl,
+            'login' => $login,
+            'password' => $password,
+            'session-file' => $sessionFile,
+            'track' => $trackingForForwarder,
+            'verify-number' => $trackingForForwarder,
+            'position' => $containerPosition,
+            'verify-check-package' => '1',
+            'print-label' => '0',
+            'print-mode' => 'none',
+            'return-label-html' => '0',
+            'return-label-vars' => '1',
+            'print-token' => $printToken,
+            'print-device-key' => $printDeviceKey,
+            'print-file-name' => 'label_' . (string)(preg_replace('/[^A-Za-z0-9._-]+/', '_', $trackingForForwarder) ?? 'track') . '.html',
+            'label-template-code' => $labelTemplateCode,
+            'label-template-body-base64' => $labelTemplateBody !== '' ? base64_encode($labelTemplateBody) : '',
+            'label-width-cm' => (string)$labelWidthCm,
+            'label-height-cm' => (string)$labelHeightCm,
+            'print-paper-width-mm' => (string)$renderProfile['print_paper_width_mm'],
+            'print-paper-height-mm' => (string)$renderProfile['print_paper_height_mm'],
+            'render-width-mm' => (string)$renderProfile['render_width_mm'],
+            'render-height-mm' => (string)$renderProfile['render_height_mm'],
+            'render-rotate' => (string)$renderProfile['render_rotate'],
+            'render-layout-mode' => (string)$renderProfile['render_layout_mode'],
+            'render-css-override' => (string)$renderProfile['render_css_override'],
+            'render-fit-mode' => (string)$renderProfile['render_fit_mode'],
+            'render-scale-percent' => (string)$renderProfile['render_scale_percent'],
+            'render-offset-x-mm' => (string)$renderProfile['render_offset_x_mm'],
+            'render-offset-y-mm' => (string)$renderProfile['render_offset_y_mm'],
+            'print-rotate' => (string)$printRotate,
+            'print-rasterize' => '0',
+            'forward-name' => trim((string)($connector['name'] ?? '')),
+            'country-dest' => strtoupper(trim((string)($item['receiver_country_code'] ?? ''))),
+            'allow-label-url' => '0',
+            'print-label-retries' => '0',
+            'print-label-retry-delay-ms' => '0',
+        ]);
+        $lastAddResult = $addResult;
+        $logTiming('after_add_package');
+        $addStatus = strtolower(trim((string)($addResult['status'] ?? '')));
+        if ($addStatus !== 'ok') {
+            $logTiming('before_response');
+            $response = [
+                'status' => 'error',
+                'forwarder_add_status' => 'error',
+                'print_status' => 'skipped',
+                'message' => trim((string)($addResult['message'] ?? 'Не удалось добавить посылку в контейнер форварда')),
+                'forwarder_sync' => ['status' => 'error', 'add_result' => $addResult],
+            ];
+            return;
+        }
+
+        $logTiming('before_db_update');
+        $sqlUpdate = "
+            UPDATE warehouse_item_out
+            SET status = ?, status_message = ?, shipment_cell = ?, shipped_flight_no = ?, shipped_container_name = ?, status_updated_at = NOW()
+            WHERE stock_item_id = ?
+            LIMIT 1
+        ";
+        $stmtUpdate = $dbcnx->prepare($sqlUpdate);
+        if (!$stmtUpdate) {
+            throw new RuntimeException('Не удалось подготовить обновление');
+        }
+        $stmtUpdate->bind_param('sssssi', $nextStatus, $statusMessage, $shipmentCell, $flightDisplay, $containerDisplay, $stockItemId);
+        $stmtUpdate->execute();
+        $updateError = (int)$stmtUpdate->errno;
+        $stmtUpdate->close();
+        $logTiming('after_db_update');
+        if ($updateError !== 0) {
+            throw new RuntimeException('Не удалось обновить данные отгрузки. Попробуйте ещё раз.');
+        }
+
+        if (function_exists('audit_log')) {
+            audit_log((int)($current['id'] ?? 0), 'WAREHOUSE_ITEM_OUT_CONFIRMED', 'warehouse_item_out', $stockItemId, 'Посылка отправлена в контейнер', [
+                'tracking_no' => $trackingForForwarder,
+                'shipment_cell' => $shipmentCell,
+                'flight_no' => $flightDisplay,
+                'container_name' => $containerDisplay,
+            ]);
+        }
+
+        $generatedWaybill = is_array($addResult['print']['generated_waybill'] ?? null) ? $addResult['print']['generated_waybill'] : [];
+        $labelVars = is_array($addResult['label_vars'] ?? null) ? $addResult['label_vars'] : (is_array($generatedWaybill['label_vars'] ?? null) ? $generatedWaybill['label_vars'] : []);
+        if ($labelVars === []) {
+            $labelVars = warehouse_sync_label_template_sample_vars((int)($connector['id'] ?? 0), $trackingForForwarder);
+        }
+
+        $printMode = PRINT_LABEL_PRODUCTION_MODE;
+        $printStatus = 'skipped';
+        $printMessage = '';
+        $diagnostics = [];
+        $logTiming('before_print');
+        if ($printMode === 'zpl_vector_template') {
+            $diagnostics = warehouse_sync_send_vector_template_waybill($labelVars, $renderProfile);
+            $printStatus = (string)($diagnostics['print_status'] ?? 'error');
+            $printMessage = (string)($diagnostics['print_message'] ?? '');
+        } elseif ($printMode === 'pdf_template') {
+            $pdfRender = warehouse_sync_render_waybill_pdf_from_template($labelVars, $renderProfile);
+            $printResult = warehouse_sync_send_pdf_template_to_cups((string)($pdfRender['final_pdf_path'] ?? ''));
+            $diagnostics = array_merge($pdfRender, $printResult);
+            $printStatus = (string)($printResult['status'] ?? 'error');
+            $printMessage = (string)($printResult['message'] ?? '');
+        } elseif ($printMode === 'zpl_raw') {
+            $zpl = warehouse_sync_render_waybill_zpl($labelVars, $renderProfile);
+            $printResult = warehouse_sync_send_zpl_to_printer($zpl);
+            $diagnostics = $printResult + ['zpl_size' => strlen($zpl)];
+            $printStatus = (string)($printResult['status'] ?? 'error');
+            $printMessage = (string)($printResult['message'] ?? '');
+        }
+        $logTiming('after_print');
+
+        $printOk = strtolower(trim($printStatus)) === 'ok';
+        $logTiming('before_response');
+        $response = [
+            'status' => $printOk ? 'ok' : 'error',
+            'forwarder_add_status' => 'ok',
+            'local_status' => $nextStatus,
+            'print_status' => $printOk ? 'ok' : 'error',
+            'message' => $printOk ? 'Посылка подтверждена у форварда и лейбл напечатан' : 'Посылка подтверждена у форварда, но лейбл не напечатан',
+            'print_message' => $printMessage,
+            'print_mode' => $printMode,
+            'print_diagnostics' => $diagnostics,
+            'stock_item_id' => $stockItemId,
+            'tracking_no' => $trackingForForwarder,
+            'warehouse_status' => $nextStatus,
+            'status_message' => $statusMessage,
+            'forwarder_sync' => [
+                'status' => 'ok',
+                'message' => 'Посылка добавлена в контейнер форварда; snapshot обновляется системной задачей',
+                'add_result' => $addResult,
+                'snapshot_update' => ['status' => 'skipped', 'message' => 'Snapshot не выполняется в request подтверждения'],
+            ],
+        ];
     } catch (Throwable $e) {
-        $forwarderSync = [
+        $logTiming('before_response');
+        $response = [
             'status' => 'error',
+            'forwarder_add_status' => $lastAddResult ? (string)($lastAddResult['status'] ?? 'error') : 'error',
+            'print_status' => 'skipped',
             'message' => $e->getMessage(),
-            'add_result' => $lastAddResult,
+            'forwarder_sync' => ['status' => 'error', 'message' => $e->getMessage(), 'add_result' => $lastAddResult],
         ];
     }
-
-    $browserPrintResponse = is_array($response ?? null) ? $response : [];
-    $response = array_merge([
-        'status' => 'ok',
-        'message' => 'Посылка успешно перемещена в контейнер',
-        'stock_item_id' => $stockItemId,
-        'tracking_no' => $trackingNo !== '' ? $trackingNo : (string)($item['tracking_no'] ?? $item['tuid'] ?? ''),
-        'warehouse_status' => $nextStatus,
-        'status_message' => $statusMessage,
-        'forwarder_sync' => $forwarderSync,
-    ], $browserPrintResponse);
 }
 
 

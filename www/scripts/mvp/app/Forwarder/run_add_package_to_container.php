@@ -1433,6 +1433,26 @@ $alreadyInSelectedContainer = $position !== ''
 
 $overallOk = $changeOk || $alreadyInSelectedContainer;
 
+$generatedWaybill = [];
+if (!$printRequested && $returnLabelVars) {
+    $publicBaseUrl = forwarder_add_package_to_container_resolve_public_base_url(
+        $labelUrlBaseArg !== '' ? $labelUrlBaseArg : $config->baseUrl()
+    );
+    $generatedWaybill = forwarder_add_package_to_container_build_html_label_from_verify(
+        $verifyJson,
+        $track,
+        $publicBaseUrl,
+        $labelTemplateCode,
+        $labelTemplateBody,
+        $renderWidthMm / 10,
+        $renderHeightMm / 10,
+        false,
+        $forwardNameArg,
+        $countryDestArg,
+        false
+    );
+}
+
 $printResponsePayload = null;
 if ($printRequested) {
     $printUrl = $printUrl !== '' ? $printUrl : 'https://tls.cargocells.com/api/print/submit.php';

@@ -120,6 +120,11 @@ function system_tasks_endpoint_registry(): array
             'name' => 'Forwarder positions sync',
             'description' => 'Синхронизирует позиции/ячейки форвардов в forwarder_positions.',
         ],
+        'forwarder_session_keepalive' => [
+            'group' => 'forwarder',
+            'name' => 'Forwarder session keepalive',
+            'description' => 'Прогревает cookie-сессию форварда в storage/forwarder_sessions/connector_<id>.cookie.',
+        ],
     ];
 }
 
@@ -205,6 +210,24 @@ function system_tasks_seed_defaults(mysqli $dbcnx): void
             'description' => 'Перепроверяет статусы half_sync/error в warehouse_item_out и обновляет до confirmed_sync/error.',
             'endpoint_action' => 'warehouse_sync_reconcile',
             'interval_minutes' => 30,
+        ],
+        [
+            'code' => 'forwarder_session_keepalive_colibri_5m',
+            'name' => 'Forwarder session keepalive: COLIBRI',
+            'description' => 'Поддерживает cookie-сессию COLIBRI для быстрых операций сканирования.',
+            'endpoint_action' => 'forwarder_session_keepalive',
+            'payload_json' => '{"connector_id":2}',
+            'interval_minutes' => 5,
+            'is_enabled' => 1,
+        ],
+        [
+            'code' => 'forwarder_session_keepalive_aser_5m',
+            'name' => 'Forwarder session keepalive: ASER',
+            'description' => 'Поддерживает cookie-сессию ASER для быстрых операций сканирования.',
+            'endpoint_action' => 'forwarder_session_keepalive',
+            'payload_json' => '{"connector_id":7}',
+            'interval_minutes' => 5,
+            'is_enabled' => 1,
         ],
         [
             'code' => 'forwarder_positions_sync_daily',
@@ -640,10 +663,61 @@ function system_tasks_execute(mysqli $dbcnx, array $task, int $systemUserId = 0)
     if ($action === 'forwarder_positions_sync') {
         return system_tasks_run_forwarder_positions_sync($dbcnx, $task);
     }
+    if ($action === 'forwarder_session_keepalive') {
+        return system_tasks_run_forwarder_session_keepalive($dbcnx, $task);
+    }
     return [
         'status' => 'error',
 
         'message' => 'Unhandled endpoint_action: ' . $action,
+    ];
+}
+
+
+function system_tasks_run_forwarder_session_keepalive(mysqli $dbcnx, array $task): array
+{
+    $payload = json_decode((string)($task['payload_json'] ?? '{}'), true);
+    $payload = is_array($payload) ? $payload : [];
+    $connectorId = (int)($payload['connector_id'] ?? 0);
+    if ($connectorId <= 0) {
+        return ['status' => 'error', 'message' => 'connector_id is required'];
+    }
+
+    $stmt = $dbcnx->prepare('SELECT id, name, base_url, auth_username, auth_password FROM connectors WHERE id = ? LIMIT 1');
+    if (!$stmt) {
+        return ['status' => 'error', 'message' => 'connector lookup prepare failed'];
+    }
+    $stmt->bind_param('i', $connectorId);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    $connector = $res ? ($res->fetch_assoc() ?: null) : null;
+    $stmt->close();
+    if (!$connector) {
+        return ['status' => 'error', 'message' => 'connector not found'];
+    }
+
+    $scriptPath = dirname(__DIR__, 2) . '/scripts/mvp/app/Forwarder/run_flight_list.php';
+    $sessionFile = dirname(__DIR__, 2) . '/storage/forwarder_sessions/connector_' . $connectorId . '.cookie';
+    $execution = system_tasks_run_command_capture([
+        system_tasks_php_cli_binary(),
+        '-d',
+        'display_errors=0',
+        $scriptPath,
+        '--base-url=' . (string)($connector['base_url'] ?? ''),
+        '--login=' . (string)($connector['auth_username'] ?? ''),
+        '--password=' . (string)($connector['auth_password'] ?? ''),
+        '--connector-id=' . $connectorId,
+        '--session-file=' . $sessionFile,
+        '--write-mode=none',
+    ]);
+
+    $ok = (int)($execution['exit_code'] ?? 1) === 0;
+    return [
+        'status' => $ok ? 'ok' : 'error',
+        'message' => $ok ? 'forwarder session keepalive ok' : 'forwarder session keepalive failed',
+        'connector_id' => $connectorId,
+        'session_file' => $sessionFile,
+        'execution' => $execution,
     ];
 }
 

@@ -4065,6 +4065,7 @@ const CoreAPI = {
             if (this.modalConfirmButton) {
                 this.modalConfirmButton.disabled = true;
                 this.modalConfirmButton.textContent = auto ? 'Автоподтверждение...' : 'Сохраняем...';
+                this.setModalMessage('info', 'Проверяем посылку у форварда...');
             }
 
             const fd = new FormData();
@@ -4091,12 +4092,24 @@ const CoreAPI = {
             let data = null;
             try {
                 data = await CoreAPI.client.call(fd);
+                this.setModalMessage('info', 'Печатаем лейбл...');
+                if (data?.forwarder_add_status === 'ok' && String(data?.print_status || '').trim().toLowerCase() === 'error') {
+                    this.setModalMessage('danger', 'Ошибка печати. Посылка подтверждена, но наклейка не напечатана.');
+                    CoreAPI.showToast?.(String(data?.print_message || '').trim() || 'Посылка подтверждена, но лейбл не напечатан.', 'warning');
+                    this.playOutcomeSound('alert');
+                    if (this.modalConfirmButton) {
+                        this.modalConfirmButton.disabled = false;
+                        this.modalConfirmButton.textContent = 'Повторить печать';
+                    }
+                    return;
+                }
                 if (!data || data.status !== 'ok') {
                     throw new Error(data?.message || 'confirm_failed');
                 }
+                this.setModalMessage('success', 'Лейбл напечатан');
             } catch (err) {
                 console.error('core_api fetch error (warehouse_item_out_confirm_send):', err);
-                this.setModalMessage('danger', 'Не удалось подтвердить перемещение в контейнер. Попробуйте ещё раз.');
+                this.setModalMessage('danger', data?.message ? this.escapeHtml(data.message) : 'Не удалось подтвердить перемещение в контейнер. Попробуйте ещё раз.');
                 this.playOutcomeSound('alert');
                 if (this.modalConfirmButton) {
                     this.modalConfirmButton.disabled = false;
@@ -4151,7 +4164,7 @@ const CoreAPI = {
                 this.playOutcomeSound('alert');
             }
 
-            this.setModalMessage('success', 'Посылка успешно перемещена в контейнер. Закрываем окно...');
+            this.setModalMessage('success', 'Лейбл напечатан. Закрываем окно...');
             window.setTimeout(() => {
                 this.hideModal();
             }, auto ? 2000 : 0);
