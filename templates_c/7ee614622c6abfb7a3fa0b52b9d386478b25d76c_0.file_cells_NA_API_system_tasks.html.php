@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-03-17 11:08:59
+/* Smarty version 5.3.1, created on 2026-06-18 13:43:13
   from 'file:cells_NA_API_system_tasks.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_69b9364b83eed6_81291560',
+  'unifunc' => 'content_6a33f5f168b584_41648803',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '7ee614622c6abfb7a3fa0b52b9d386478b25d76c' => 
     array (
       0 => 'cells_NA_API_system_tasks.html',
-      1 => 1772824701,
+      1 => 1781790186,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_69b9364b83eed6_81291560 (\Smarty\Template $_smarty_tpl) {
+function content_6a33f5f168b584_41648803 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?><div class="container-fluid py-3">
   <div class="d-flex justify-content-between align-items-center mb-3">
@@ -65,6 +65,11 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
             <div class="mb-2">
               <label class="form-label" for="system_task_interval">Интервал (мин.)</label>
               <input type="number" min="1" class="form-control form-control-sm" name="interval_minutes" id="system_task_interval" value="60">
+            </div>
+            <div class="mb-2">
+              <label class="form-label" for="system_task_payload">Payload JSON</label>
+              <textarea class="form-control form-control-sm font-monospace" name="payload_json" id="system_task_payload" rows="5" placeholder="connector_id: 2"></textarea>
+              <small class="text-muted">Необязательный JSON payload для endpoint_action.</small>
             </div>
             <div class="mb-2">
               <label class="form-label" for="system_task_description">Описание</label>
@@ -153,6 +158,8 @@ m</td>
                             data-task-name="<?php echo htmlspecialchars((string)$_smarty_tpl->getValue('task')['name'], ENT_QUOTES, 'UTF-8', true);?>
 "
                             data-task-description="<?php echo htmlspecialchars((string)$_smarty_tpl->getValue('task')['description'], ENT_QUOTES, 'UTF-8', true);?>
+"
+                            data-task-payload="<?php echo htmlentities(mb_convert_encoding((string)(($tmp = $_smarty_tpl->getValue('task')['payload_json'] ?? null)===null||$tmp==='' ? '' ?? null : $tmp), 'UTF-8', 'UTF-8'), ENT_QUOTES, 'UTF-8', true);?>
 "
                             data-task-endpoint="<?php echo htmlspecialchars((string)$_smarty_tpl->getValue('task')['endpoint_action'], ENT_QUOTES, 'UTF-8', true);?>
 "
