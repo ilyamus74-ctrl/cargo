@@ -65,19 +65,12 @@ function forwarder_report_import_load_connector(int $connectorId): array
         throw new RuntimeException('Invalid connector-id');
     }
 
-    $bootstrap = realpath(__DIR__ . '/../../../../bootstrap.php');
-    if (!$bootstrap || !is_file($bootstrap)) {
-        throw new RuntimeException('Application bootstrap.php not found');
+    global $dbcnx;
+    require_once __DIR__ . '/../../../../../configs/connectDB.php';
+    if (!($dbcnx instanceof mysqli)) {
+        throw new RuntimeException('DB connection is not available after connectDB.php');
     }
-    require_once $bootstrap;
 
-    if ((!isset($dbcnx) || !($dbcnx instanceof mysqli)) && isset($GLOBALS['dbcnx']) && $GLOBALS['dbcnx'] instanceof mysqli) {
-        $dbcnx = $GLOBALS['dbcnx'];
-    }
-    if (!isset($dbcnx) || !($dbcnx instanceof mysqli)) {
-        throw new RuntimeException('DB connection $dbcnx is not available');
-    }
-    $GLOBALS['dbcnx'] = $dbcnx;
     $dbcnx->set_charset('utf8mb4');
 
     $stmt = $dbcnx->prepare('SELECT * FROM connectors WHERE id = ? LIMIT 1');
@@ -104,6 +97,14 @@ function forwarder_report_import_first_connector_value(array $connector, string 
         }
     }
     return '';
+}
+
+function forwarder_report_import_normalize_base_url(string $url): string
+{
+    $url = trim($url);
+    $url = rtrim($url, '/');
+    $url = preg_replace('#/login$#i', '', $url);
+    return $url;
 }
 
 function forwarder_report_import_is_service_message(string $value): bool
@@ -433,6 +434,8 @@ $connectorId = (int)(forwarder_report_import_arg($args, 'connector-id', 'connect
 $connector = [];
 $connectorName = '';
 $connectorCountries = '';
+$connectorBaseUrlRaw = '';
+$connectorBaseUrlNormalized = '';
 if ($connectorId > 0) {
     try {
         $connector = forwarder_report_import_load_connector($connectorId);
@@ -447,7 +450,9 @@ if ($connectorId > 0) {
     }
     $connectorName = (string)($connector['name'] ?? '');
     $connectorCountries = forwarder_report_import_first_connector_value($connector, 'countries', 'country_code', 'country');
-    $baseUrl = forwarder_report_import_first_connector_value($connector, 'base_url');
+    $connectorBaseUrlRaw = forwarder_report_import_first_connector_value($connector, 'base_url', 'url');
+    $baseUrl = forwarder_report_import_normalize_base_url($connectorBaseUrlRaw);
+    $connectorBaseUrlNormalized = $baseUrl;
     $login = forwarder_report_import_first_connector_value($connector, 'auth_username', 'login', 'username');
     $password = forwarder_report_import_first_connector_value($connector, 'auth_password', 'password');
 } else {
@@ -520,6 +525,9 @@ try {
             'rows' => [],
             'rows_total' => 0,
             'diagnostics' => [
+                'connector_base_url_raw' => $connectorBaseUrlRaw,
+                'connector_base_url_normalized' => $connectorBaseUrlNormalized,
+                'login_url_expected' => $baseUrl !== '' ? rtrim($baseUrl, '/') . '/login' : '',
                 'http_status' => $statusCode,
                 'content_type' => $contentType,
                 'body_preview' => mb_substr(trim(preg_replace('/\s+/u', ' ', $body) ?? ''), 0, 500, 'UTF-8'),
@@ -547,6 +555,9 @@ try {
             'connector_name' => $connectorName,
             'connector_countries' => $connectorCountries,
             'base_url' => $baseUrl,
+            'connector_base_url_raw' => $connectorBaseUrlRaw,
+            'connector_base_url_normalized' => $connectorBaseUrlNormalized,
+            'login_url_expected' => $baseUrl !== '' ? rtrim($baseUrl, '/') . '/login' : '',
             'from_date' => $fromDate,
             'to_date' => $toDate,
             'page_path' => $pagePath,
@@ -563,6 +574,11 @@ try {
     forwarder_report_import_json_exit([
         'status' => 'ERROR',
         'message' => $e->getMessage(),
+        'diagnostics' => [
+            'connector_base_url_raw' => $connectorBaseUrlRaw ?? '',
+            'connector_base_url_normalized' => $connectorBaseUrlNormalized ?? '',
+            'login_url_expected' => isset($baseUrl) && $baseUrl !== '' ? rtrim($baseUrl, '/') . '/login' : '',
+        ],
         'rows' => [],
         'rows_total' => 0,
     ], 1);
