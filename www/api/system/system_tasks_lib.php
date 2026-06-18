@@ -377,6 +377,72 @@ function system_tasks_run_one_response_message(array $task, int $taskId, string 
     return 'Task ' . $code . ' failed: ' . $detail . ($disabledTask ? ' (disabled task was run manually)' : '');
 }
 
+
+function system_tasks_php_cli_binary(): string
+{
+    $candidates = [
+        getenv('PHP_CLI_BINARY') ?: '',
+        '/usr/bin/php',
+        '/bin/php',
+        PHP_BINDIR . '/php',
+    ];
+
+    foreach ($candidates as $candidate) {
+        $candidate = trim((string)$candidate);
+        if ($candidate === '') {
+            continue;
+        }
+
+        if (is_file($candidate) && is_executable($candidate)) {
+            $base = strtolower(basename($candidate));
+            if ($base !== 'php-fpm' && $base !== 'php-cgi' && $base !== 'cgi-fcgi') {
+                return $candidate;
+            }
+        }
+    }
+
+    $resolved = trim((string)shell_exec('command -v php 2>/dev/null'));
+    if ($resolved !== '' && is_executable($resolved)) {
+        return $resolved;
+    }
+
+    throw new RuntimeException('PHP CLI binary not found');
+}
+
+function system_tasks_run_command_capture(array $cmdParts): array
+{
+    $cmd = implode(' ', array_map('escapeshellarg', $cmdParts));
+    $descriptorSpec = [
+        0 => ['pipe', 'r'],
+        1 => ['pipe', 'w'],
+        2 => ['pipe', 'w'],
+    ];
+
+    $process = proc_open($cmd, $descriptorSpec, $pipes);
+    if (!is_resource($process)) {
+        return [
+            'cmd' => $cmd,
+            'stdout' => '',
+            'stderr' => 'proc_open failed',
+            'exit_code' => 127,
+        ];
+    }
+
+    fclose($pipes[0]);
+    $stdout = stream_get_contents($pipes[1]);
+    fclose($pipes[1]);
+    $stderr = stream_get_contents($pipes[2]);
+    fclose($pipes[2]);
+    $exitCode = proc_close($process);
+
+    return [
+        'cmd' => $cmd,
+        'stdout' => (string)$stdout,
+        'stderr' => (string)$stderr,
+        'exit_code' => (int)$exitCode,
+    ];
+}
+
 function system_tasks_decode_json_output(string $outputText, string $source, array $extraContext = []): array
 {
     $trimmed = trim($outputText);
@@ -654,7 +720,7 @@ function system_tasks_run_connector_clients_sync(mysqli $dbcnx, array $task): ar
         ];
     }
 
-    $phpBinary = PHP_BINARY ?: 'php';
+    $phpBinary = system_tasks_php_cli_binary();
 
     $cmd = escapeshellarg($phpBinary)
         . ' ' . escapeshellarg($scriptPath)
@@ -821,26 +887,40 @@ function system_tasks_forwarder_report_import_fetch_rows_by_connector_id(int $co
         return ['status' => 'error', 'message' => 'run_report_import.php not found', 'rows' => []];
     }
 
-    $stderrFile = tempnam(sys_get_temp_dir(), 'forwarder_report_import_stderr_');
-    $cmd = escapeshellarg(PHP_BINARY ?: 'php')
-        . ' -d display_errors=0'
-        . ' ' . escapeshellarg($scriptPath)
-        . ' --connector-id=' . escapeshellarg((string)$connectorId)
-        . ' --from-date=' . escapeshellarg($fromDate)
-        . ' --to-date=' . escapeshellarg($toDate)
-        . ' --json-only=1'
-        . ' --quiet=1'
-        . ($stderrFile ? ' 2>' . escapeshellarg($stderrFile) : ' 2>/dev/null');
+    $phpBinary = system_tasks_php_cli_binary();
+    $execution = system_tasks_run_command_capture([
+        $phpBinary,
+        '-d',
+        'display_errors=0',
+        $scriptPath,
+        '--connector-id=' . (string)$connectorId,
+        '--from-date=' . $fromDate,
+        '--to-date=' . $toDate,
+        '--json-only=1',
+        '--quiet=1',
+    ]);
 
-    $output = shell_exec($cmd);
-    $outputText = trim((string)$output);
-    $stderrText = $stderrFile && is_file($stderrFile) ? trim((string)file_get_contents($stderrFile)) : '';
-    if ($stderrFile) {
-        @unlink($stderrFile);
+    $outputText = trim((string)$execution['stdout']);
+    $stderrText = trim((string)$execution['stderr']);
+    if ((int)$execution['exit_code'] !== 0) {
+        return [
+            'status' => 'error',
+            'message' => 'run_report_import.php failed with exit_code=' . (int)$execution['exit_code'],
+            'rows' => [],
+            'diagnostics' => [
+                'cmd' => $execution['cmd'],
+                'exit_code' => (int)$execution['exit_code'],
+                'stdout_preview' => mb_substr($outputText, 0, 1000, 'UTF-8'),
+                'stderr_preview' => mb_substr($stderrText, 0, 1000, 'UTF-8'),
+            ],
+        ];
     }
+
     $parsed = system_tasks_decode_json_output($outputText, 'run_report_import.php', [
-        'cmd' => $cmd,
-        'stderr' => mb_substr($stderrText, 0, 4000, 'UTF-8'),
+        'cmd' => $execution['cmd'],
+        'exit_code' => (int)$execution['exit_code'],
+        'stdout_preview' => mb_substr($outputText, 0, 1000, 'UTF-8'),
+        'stderr_preview' => mb_substr($stderrText, 0, 1000, 'UTF-8'),
     ]);
     if (($parsed['status'] ?? '') !== 'ok') {
         return [
@@ -930,16 +1010,32 @@ function system_tasks_forwarder_report_import_fetch_rows(array $connector, array
         }
     }
 
-    $cmd = escapeshellarg(PHP_BINARY ?: 'php') . ' -d display_errors=0 ' . escapeshellarg($scriptPath);
+    $cmdParts = [system_tasks_php_cli_binary(), '-d', 'display_errors=0', $scriptPath];
     foreach ($args as $arg) {
-        [$key, $value] = explode('=', $arg, 2);
-        $cmd .= ' ' . $key . '=' . escapeshellarg($value);
+        $cmdParts[] = $arg;
     }
-    $cmd .= ' 2>&1';
-
-    $output = shell_exec($cmd);
-    $outputText = trim((string)$output);
-    $parsed = system_tasks_decode_json_output($outputText, 'run_report_import.php', ['cmd' => $cmd]);
+    $execution = system_tasks_run_command_capture($cmdParts);
+    $outputText = trim((string)$execution['stdout']);
+    $stderrText = trim((string)$execution['stderr']);
+    if ((int)$execution['exit_code'] !== 0) {
+        return [
+            'status' => 'error',
+            'message' => 'run_report_import.php failed with exit_code=' . (int)$execution['exit_code'],
+            'rows' => [],
+            'diagnostics' => [
+                'cmd' => $execution['cmd'],
+                'exit_code' => (int)$execution['exit_code'],
+                'stdout_preview' => mb_substr($outputText, 0, 1000, 'UTF-8'),
+                'stderr_preview' => mb_substr($stderrText, 0, 1000, 'UTF-8'),
+            ],
+        ];
+    }
+    $parsed = system_tasks_decode_json_output($outputText, 'run_report_import.php', [
+        'cmd' => $execution['cmd'],
+        'exit_code' => (int)$execution['exit_code'],
+        'stdout_preview' => mb_substr($outputText, 0, 1000, 'UTF-8'),
+        'stderr_preview' => mb_substr($stderrText, 0, 1000, 'UTF-8'),
+    ]);
     if (($parsed['status'] ?? '') !== 'ok') {
         return [
             'status' => 'error',
@@ -986,7 +1082,7 @@ function system_tasks_run_forwarder_report_bot_outgoing(mysqli $dbcnx, array $ta
         ];
     }
 
-    $phpBinary = PHP_BINARY ?: 'php';
+    $phpBinary = system_tasks_php_cli_binary();
 
     $cmd = escapeshellarg($phpBinary)
         . ' ' . escapeshellarg($scriptPath)
