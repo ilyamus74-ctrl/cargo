@@ -115,6 +115,11 @@ function system_tasks_endpoint_registry(): array
             'name' => 'Forwarder report import',
             'description' => 'Импортирует report items форварда в warehouse_item_stock с mapping позиций на локальные ячейки.',
         ],
+        'forwarder_positions_sync' => [
+            'group' => 'forwarder',
+            'name' => 'Forwarder positions sync',
+            'description' => 'Синхронизирует позиции/ячейки форвардов в forwarder_positions.',
+        ],
     ];
 }
 
@@ -195,6 +200,14 @@ function system_tasks_seed_defaults(mysqli $dbcnx): void
             'description' => 'Перепроверяет статусы half_sync/error в warehouse_item_out и обновляет до confirmed_sync/error.',
             'endpoint_action' => 'warehouse_sync_reconcile',
             'interval_minutes' => 30,
+        ],
+        [
+            'code' => 'forwarder_positions_sync_daily',
+            'name' => 'Forwarder positions sync (раз в день)',
+            'description' => 'Подтягивает позиции активных форвардов и обновляет forwarder_positions.',
+            'endpoint_action' => 'forwarder_positions_sync',
+            'payload_json' => '{"all_active":true}',
+            'interval_minutes' => 1440,
         ],
 
     ];
@@ -355,10 +368,46 @@ function system_tasks_execute(mysqli $dbcnx, array $task, int $systemUserId = 0)
     if ($action === 'forwarder_report_import') {
         return system_tasks_run_forwarder_report_import($dbcnx, $task);
     }
+    if ($action === 'forwarder_positions_sync') {
+        return system_tasks_run_forwarder_positions_sync($dbcnx, $task);
+    }
     return [
         'status' => 'error',
 
         'message' => 'Unhandled endpoint_action: ' . $action,
+    ];
+}
+
+function system_tasks_run_forwarder_positions_sync(mysqli $dbcnx, array $task): array
+{
+    $payloadRaw = trim((string)($task['payload_json'] ?? ''));
+    $payload = $payloadRaw !== '' ? json_decode($payloadRaw, true) : [];
+    if (!is_array($payload)) $payload = [];
+    $ids = [];
+    if (isset($payload['connector_ids']) && is_array($payload['connector_ids'])) foreach ($payload['connector_ids'] as $id) if ((int)$id > 0) $ids[(int)$id] = true;
+    if (isset($payload['connector_id']) && (int)$payload['connector_id'] > 0) $ids[(int)$payload['connector_id']] = true;
+    $where = !empty($payload['all_active']) || !$ids ? 'WHERE is_active=1' : 'WHERE id IN (' . implode(',', array_keys($ids)) . ')';
+    $summary = ['connectors_total'=>0,'connectors_processed'=>0,'positions_found'=>0,'positions_inserted'=>0,'positions_updated'=>0,'errors'=>[]];
+    $details = [];
+    if ($res = $dbcnx->query('SELECT id,name FROM connectors ' . $where . ' ORDER BY id ASC')) {
+        while ($row = $res->fetch_assoc()) {
+            $summary['connectors_total']++;
+            $connectorId = (int)($row['id'] ?? 0);
+            if ($connectorId <= 0) continue;
+            $diag = warehouse_forwarder_sync_positions($dbcnx, $connectorId);
+            $summary['connectors_processed']++;
+            $summary['positions_found'] += (int)($diag['found_count'] ?? 0);
+            $summary['positions_inserted'] += (int)($diag['inserted'] ?? 0);
+            $summary['positions_updated'] += (int)($diag['updated'] ?? 0);
+            foreach ((array)($diag['errors'] ?? []) as $error) $summary['errors'][] = ($row['name'] ?? ('#'.$connectorId)) . ': ' . $error;
+            $details[] = ['connector_id'=>$connectorId,'connector_name'=>(string)($row['name'] ?? ''),'diagnostics'=>$diag];
+        }
+        $res->free();
+    }
+    return [
+        'status' => empty($summary['errors']) ? 'ok' : 'error',
+        'message' => 'forwarder_positions_sync done; connectors_processed=' . $summary['connectors_processed'] . '; positions_found=' . $summary['positions_found'] . '; errors=' . count($summary['errors']),
+        'context' => ['summary'=>$summary,'connectors'=>$details],
     ];
 }
 
@@ -502,6 +551,21 @@ function system_tasks_run_forwarder_report_import(mysqli $dbcnx, array $task): a
             continue;
         }
 
+        warehouse_forwarder_ensure_sync_tables($dbcnx);
+        $positionsNeedSync = true;
+        $posStmt = $dbcnx->prepare("SELECT COUNT(*) AS cnt, MAX(last_seen_at) AS max_seen FROM forwarder_positions WHERE connector_id=?");
+        if ($posStmt) {
+            $posStmt->bind_param('i', $connectorId);
+            $posStmt->execute();
+            $posRow = $posStmt->get_result()->fetch_assoc() ?: [];
+            $posStmt->close();
+            $positionsNeedSync = ((int)($posRow['cnt'] ?? 0) === 0) || strtotime((string)($posRow['max_seen'] ?? '1970-01-01')) < time() - 86400;
+        }
+        $positionsSync = null;
+        if ($positionsNeedSync) {
+            $positionsSync = warehouse_forwarder_sync_positions($dbcnx, $connectorId);
+        }
+
         $summary = warehouse_forwarder_import_report_items($dbcnx, $connectorId, $rows);
         foreach (['rows_total', 'report_items_upserted', 'stock_created', 'stock_updated', 'mapped_to_cells', 'unmapped_positions'] as $key) {
             $aggregate[$key] += (int)($summary[$key] ?? 0);
@@ -513,6 +577,7 @@ function system_tasks_run_forwarder_report_import(mysqli $dbcnx, array $task): a
             'connector_id' => $connectorId,
             'connector_name' => $connectorName,
             'fetch' => $result,
+            'positions_sync' => $positionsSync,
             'summary' => $summary,
         ];
     }

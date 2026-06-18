@@ -142,7 +142,14 @@ const CoreAPI = {
                 'form_cell_forwarder_mappings': () => this.withAttribute('cell_id', link),
                 'save_cell_forwarder_mapping': (currentLink) => this.getFormById('cell-forwarder-mapping-form', currentLink),
                 'delete_cell_forwarder_mapping': () => this.withAttribute('mapping_id', link),
-                'sync_forwarder_positions': () => this.withAttribute('connector_id', link),
+                'sync_forwarder_positions': () => {
+                    const fd = this.withAttribute('connector_id', link);
+                    const formConnector = link?.closest?.('form')?.querySelector?.('[name="connector_id"]');
+                    if (formConnector && formConnector.value) {
+                        fd.set('connector_id', formConnector.value);
+                    }
+                    return fd;
+                },
                 'form_edit_connector': () => this.withAttribute('connector_id', link),
                 'test_connector': () => this.withAttribute('connector_id', link),
                 'form_connector_label_template': () => this.withAttribute('connector_id', link),
@@ -1847,9 +1854,26 @@ const CoreAPI = {
             CoreAPI.ui.showToast(data.message || 'Связь удалена', 'success');
             await CoreAPI.ui.reloadList('setting_cells');
         },
-        'sync_forwarder_positions': (data) => {
+        'sync_forwarder_positions': async (data) => {
+            const diag = data.diagnostics || {};
             CoreAPI.ui.showToast(data.message || 'Позиции синхронизированы', 'success');
-            console.log('sync_forwarder_positions', data.diagnostics || data);
+            const text = `found=${diag.found_count ?? 0}, inserted=${diag.inserted ?? 0}, updated=${diag.updated ?? 0}, source=${diag.source || 'unknown'}`;
+            const diagEl = document.querySelector('#forwarder-positions-sync-diagnostics');
+            if (diagEl) diagEl.textContent = text;
+            const cellInput = document.querySelector('#cell-forwarder-mapping-form input[name="cell_id"]');
+            if (cellInput && cellInput.value) {
+                const fd = new FormData();
+                fd.append('cell_id', cellInput.value);
+                try {
+                    fd.append('action', 'form_cell_forwarder_mappings');
+                    const refreshed = await CoreAPI.client.call(fd);
+                    const body = document.querySelector('#fullscreenModal .modal-body');
+                    if (body && refreshed?.html) body.innerHTML = refreshed.html;
+                } catch (e) {
+                    console.warn('forwarder positions modal refresh failed', e);
+                }
+            }
+            console.log('sync_forwarder_positions', diag);
         },
         // === DEFAULT - все остальные ===
         'default': (data) => {

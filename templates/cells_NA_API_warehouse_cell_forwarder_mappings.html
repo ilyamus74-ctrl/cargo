@@ -4,9 +4,9 @@
     <input type="hidden" name="cell_id" value="{$cell.id}">
     <div class="col-md-3">
       <label class="form-label">Connector</label>
-      <select class="form-select" name="connector_id" required>
+      <select class="form-select" name="connector_id" id="forwarder-mapping-connector" required>
         {foreach $connectors as $connector}
-          <option value="{$connector.id}">{$connector.name|escape}</option>
+          <option value="{$connector.id}">{$connector.display_label|default:$connector.name|escape}</option>
         {/foreach}
       </select>
     </div>
@@ -16,11 +16,16 @@
     </div>
     <div class="col-md-3">
       <label class="form-label">Forwarder position</label>
-      <select class="form-select" name="forwarder_position_code" required>
+      <input name="forwarder_position_code"
+             class="form-control"
+             list="forwarder-position-options"
+             required
+             placeholder="PSB010">
+      <datalist id="forwarder-position-options">
         {foreach $forwarder_positions as $position}
-          <option value="{$position.position_code|escape}" data-connector-id="{$position.connector_id}">{$position.position_code|escape}{if $position.position_label} — {$position.position_label|escape}{/if}</option>
+          <option value="{$position.position_code|escape}" data-connector-id="{$position.connector_id}" label="{if $position.position_label}{$position.position_label|escape}{else}{$position.position_code|escape}{/if}">
         {/foreach}
-      </select>
+      </datalist>
     </div>
     <div class="col-md-2">
       <label class="form-label">Comment</label>
@@ -31,8 +36,21 @@
     </div>
     <div class="col-12">
       <button type="button" class="btn btn-primary js-core-link" data-core-action="save_cell_forwarder_mapping">Сохранить связь</button>
+      <button type="button" class="btn btn-outline-secondary js-core-link ms-2" data-core-action="sync_forwarder_positions" data-connector-id="" id="forwarder-positions-sync-btn">Обновить позиции</button>
+      <span class="text-muted small ms-2" id="forwarder-positions-sync-diagnostics">{if !$forwarder_positions}Список позиций пуст — нажмите «Обновить позиции» или введите код вручную.{/if}</span>
     </div>
   </form>
+  <script>
+    (function(){
+      var root = document.currentScript.closest('.warehouse-cell-forwarder-mappings');
+      if (!root) return;
+      var select = root.querySelector('#forwarder-mapping-connector');
+      var button = root.querySelector('#forwarder-positions-sync-btn');
+      function syncButtonConnector(){ if (select && button) button.setAttribute('data-connector-id', select.value || ''); }
+      if (select) select.addEventListener('change', syncButtonConnector);
+      syncButtonConnector();
+    })();
+  </script>
   <table class="table table-sm">
     <thead><tr><th>Connector</th><th>Position</th><th>Country</th><th>Status</th><th>Comment</th><th></th></tr></thead>
     <tbody>

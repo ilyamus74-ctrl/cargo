@@ -26,7 +26,8 @@ switch ($action) {
         $stmt->bind_param('i', $cellId); $stmt->execute(); $cell = $stmt->get_result()->fetch_assoc(); $stmt->close();
         if (!$cell) { $response = ['status'=>'error','message'=>'Ячейка не найдена']; break; }
         $connectorCountrySelect = warehouse_forwarder_column_exists($dbcnx, 'connectors', 'country_code') ? ', country_code' : ", '' AS country_code";
-        $connectors=[]; if($r=$dbcnx->query('SELECT id,name' . $connectorCountrySelect . ' FROM connectors ORDER BY name')){while($x=$r->fetch_assoc())$connectors[]=$x;$r->free();}
+        $connectorBaseUrlSelect = warehouse_forwarder_column_exists($dbcnx, 'connectors', 'base_url') ? ', base_url' : ", '' AS base_url";
+        $connectors=[]; if($r=$dbcnx->query('SELECT id,name' . $connectorCountrySelect . $connectorBaseUrlSelect . ' FROM connectors ORDER BY name, id')){while($x=$r->fetch_assoc()){$host=parse_url((string)($x['base_url']??''), PHP_URL_HOST) ?: (string)($x['base_url']??''); $country=trim((string)($x['country_code']??'')); $x['display_label']='#'.(int)$x['id'].' '.(string)($x['name']??'').($country!==''?' ['.strtoupper($country).']':'').($host!==''?' '.$host:''); $connectors[]=$x;}$r->free();}
         $positions=[]; if($r=$dbcnx->query('SELECT connector_id,position_code,position_label FROM forwarder_positions WHERE is_active=1 ORDER BY connector_id, position_code')){while($x=$r->fetch_assoc())$positions[]=$x;$r->free();}
         $mappings=[]; $stmt=$dbcnx->prepare('SELECT m.*, c.name AS connector_name FROM warehouse_cell_forwarder_map m LEFT JOIN connectors c ON c.id=m.connector_id WHERE m.cell_id=? ORDER BY c.name,m.forwarder_position_code'); $stmt->bind_param('i',$cellId); $stmt->execute(); $rr=$stmt->get_result(); while($x=$rr->fetch_assoc())$mappings[]=$x; $stmt->close();
         $smarty->assign('cell',$cell); $smarty->assign('connectors',$connectors); $smarty->assign('forwarder_positions',$positions); $smarty->assign('mappings',$mappings);

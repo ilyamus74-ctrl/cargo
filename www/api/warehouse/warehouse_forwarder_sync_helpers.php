@@ -28,6 +28,14 @@ function warehouse_forwarder_ensure_sync_tables(mysqli $dbcnx): void
         updated_at DATETIME NULL DEFAULT NULL ON UPDATE CURRENT_TIMESTAMP, PRIMARY KEY (id),
         UNIQUE KEY uq_connector_position (connector_id, position_code), KEY idx_connector_active (connector_id, is_active)
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    foreach ([
+        'missing_since' => "ALTER TABLE forwarder_positions ADD COLUMN missing_since DATETIME NULL AFTER last_seen_at",
+        'sync_source' => "ALTER TABLE forwarder_positions ADD COLUMN sync_source VARCHAR(64) NULL AFTER missing_since",
+    ] as $col => $sql) {
+        if (!warehouse_forwarder_column_exists($dbcnx, 'forwarder_positions', $col)) {
+            $dbcnx->query($sql);
+        }
+    }
     $dbcnx->query("CREATE TABLE IF NOT EXISTS warehouse_cell_forwarder_map (
         id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT, connector_id INT NOT NULL, forwarder_position_code VARCHAR(64) NOT NULL,
         cell_id INT NOT NULL, country_code VARCHAR(16) NULL, is_active TINYINT(1) NOT NULL DEFAULT 1, comment VARCHAR(255) NULL,
@@ -73,18 +81,47 @@ function warehouse_forwarder_resolve_local_cell(mysqli $dbcnx, int $connectorId,
 
 function warehouse_forwarder_sync_positions(mysqli $dbcnx, int $connectorId): array
 {
-    warehouse_forwarder_ensure_sync_tables($dbcnx); $diag=['found_count'=>0,'inserted'=>0,'updated'=>0,'deactivated'=>0,'errors'=>[]];
+    warehouse_forwarder_ensure_sync_tables($dbcnx); $diag=['found_count'=>0,'inserted'=>0,'updated'=>0,'missing_marked'=>0,'source'=>'remote_collector','source_url'=>null,'errors'=>[]];
     $connector = null; $stmt=$dbcnx->prepare('SELECT * FROM connectors WHERE id=? LIMIT 1'); if($stmt){$stmt->bind_param('i',$connectorId);$stmt->execute();$connector=$stmt->get_result()->fetch_assoc();$stmt->close();}
-    $html = ''; $sourceUrl = 'https://backend.colibri.az/collector';
-    $addons=json_decode((string)($connector['addons_json']??''),true); if(!is_array($addons)) $addons=[];
-    if (!empty($addons['collector_html'])) $html=(string)$addons['collector_html'];
-    if ($html === '' && function_exists('curl_init')) {
-        $ch=curl_init($sourceUrl); curl_setopt_array($ch,[CURLOPT_RETURNTRANSFER=>true,CURLOPT_FOLLOWLOCATION=>true,CURLOPT_TIMEOUT=>30,CURLOPT_SSL_VERIFYPEER=>false]); $got=curl_exec($ch); if(is_string($got)) $html=$got; curl_close($ch);
+    if (!$connector) { $diag['errors'][] = 'connector_not_found'; return $diag; }
+    $baseUrl = rtrim((string)($connector['base_url'] ?? ''), '/');
+    $sourceUrl = ($baseUrl !== '' ? $baseUrl : 'https://backend.colibri.az') . '/collector';
+    $diag['source_url'] = $sourceUrl;
+    $html = '';
+    if ($baseUrl !== '' && trim((string)($connector['auth_username'] ?? '')) !== '' && trim((string)($connector['auth_password'] ?? '')) !== '') {
+        try {
+            require_once dirname(__DIR__, 2) . '/scripts/mvp/app/Forwarder/bootstrap.php';
+            $oldEnv = [];
+            foreach (['DEV_COLIBRI_BASE_URL','DEV_COLIBRI_LOGIN','DEV_COLIBRI_PASSWORD','FORWARDER_BASE_URL','FORWARDER_LOGIN','FORWARDER_PASSWORD','FORWARDER_SESSION_FILE'] as $key) $oldEnv[$key] = getenv($key);
+            putenv('DEV_COLIBRI_BASE_URL=' . $baseUrl); putenv('FORWARDER_BASE_URL=' . $baseUrl);
+            putenv('DEV_COLIBRI_LOGIN=' . (string)$connector['auth_username']); putenv('FORWARDER_LOGIN=' . (string)$connector['auth_username']);
+            putenv('DEV_COLIBRI_PASSWORD=' . (string)$connector['auth_password']); putenv('FORWARDER_PASSWORD=' . (string)$connector['auth_password']);
+            putenv('FORWARDER_SESSION_FILE=' . sys_get_temp_dir() . '/forwarder_positions_' . $connectorId . '.json');
+            $config = new \App\Forwarder\Config\ForwarderConfig();
+            $logger = new \App\Forwarder\Logging\ForwarderLogger('warehouse-forwarder-positions-' . $connectorId . '-' . date('YmdHis'));
+            $httpClient = new \App\Forwarder\Http\ForwarderHttpClient($config);
+            $session = new \App\Forwarder\Http\SessionManager();
+            $loginService = new \App\Forwarder\Services\LoginService($config, $httpClient, $session, $logger);
+            $sessionClient = new \App\Forwarder\Http\ForwarderSessionClient($config, $httpClient, $session, $loginService, $logger);
+            $response = $sessionClient->requestWithSession('GET', '/collector', [], false);
+            if ((int)($response['status_code'] ?? 0) >= 200 && (int)($response['status_code'] ?? 0) < 400) $html = (string)($response['body'] ?? '');
+            else $diag['errors'][] = 'collector_fetch_status_' . (int)($response['status_code'] ?? 0);
+        } catch (Throwable $e) { $diag['errors'][] = 'collector_fetch_error: ' . $e->getMessage();
+        } finally {
+            foreach (($oldEnv ?? []) as $key => $value) { $value === false ? putenv($key) : putenv($key . '=' . $value); }
+        }
+    } else {
+        $diag['errors'][] = 'connector_credentials_missing';
     }
     $codes=[]; if($html!==''){ libxml_use_internal_errors(true); $dom=new DOMDocument(); @$dom->loadHTML($html); $xp=new DOMXPath($dom); foreach($xp->query("//select[@id='position_select']//option") as $opt){$code=warehouse_forwarder_norm_code($opt->getAttribute('value') ?: $opt->textContent); if($code!=='' && $code!=='0') $codes[$code]=trim($opt->textContent);}}
-    if (!$codes) { for($i=1;$i<=50;$i++) $codes[sprintf('PSB%03d',$i)]=sprintf('PSB%03d',$i); $diag['errors'][]='collector_html_unavailable_used_psb_fallback'; }
-    $seen=[]; foreach($codes as $code=>$label){$seen[]=$code; $raw=json_encode(['code'=>$code,'label'=>$label],JSON_UNESCAPED_UNICODE); $stmt=$dbcnx->prepare("INSERT INTO forwarder_positions (connector_id,position_code,position_label,is_active,source_url,raw_json,last_seen_at) VALUES (?,?,?,?,?,?,NOW()) ON DUPLICATE KEY UPDATE position_label=VALUES(position_label), is_active=1, source_url=VALUES(source_url), raw_json=VALUES(raw_json), last_seen_at=NOW()"); $active=1; $stmt->bind_param('ississ',$connectorId,$code,$label,$active,$sourceUrl,$raw); $stmt->execute(); $stmt->affected_rows===1?$diag['inserted']++:$diag['updated']++; $stmt->close(); }
-    $diag['found_count']=count($seen); if($seen){$in="'".implode("','",array_map([$dbcnx,'real_escape_string'],$seen))."'"; $dbcnx->query("UPDATE forwarder_positions SET is_active=0 WHERE connector_id=".(int)$connectorId." AND position_code NOT IN ($in) AND is_active=1"); $diag['deactivated']=$dbcnx->affected_rows;} return $diag;
+    $isColibri = stripos($baseUrl, 'backend.colibri.az') !== false || stripos((string)($connector['name'] ?? ''), 'COLIBRI') !== false;
+    if (!$codes && $isColibri) { for($i=1;$i<=50;$i++) $codes[sprintf('PSB%03d',$i)]=sprintf('PSB%03d',$i); $diag['source']='fallback_psb_range'; $diag['errors'][]='collector_html_unavailable_used_psb_fallback'; }
+    $hasMissing = warehouse_forwarder_column_exists($dbcnx,'forwarder_positions','missing_since'); $hasSyncSource = warehouse_forwarder_column_exists($dbcnx,'forwarder_positions','sync_source');
+    $seen=[]; foreach($codes as $code=>$label){$seen[]=$code; $raw=json_encode(['code'=>$code,'label'=>$label,'source'=>$diag['source']],JSON_UNESCAPED_UNICODE); $sql="INSERT INTO forwarder_positions (connector_id,position_code,position_label,is_active,source_url,raw_json,last_seen_at".($hasMissing?',missing_since':'').($hasSyncSource?',sync_source':'').") VALUES (?,?,?,?,?,?,NOW()".($hasMissing?',NULL':'').($hasSyncSource?',?':'').") ON DUPLICATE KEY UPDATE position_label=VALUES(position_label), is_active=1, source_url=VALUES(source_url), raw_json=VALUES(raw_json), last_seen_at=NOW(), updated_at=NOW()".($hasMissing?', missing_since=NULL':'').($hasSyncSource?', sync_source=VALUES(sync_source)':''); $stmt=$dbcnx->prepare($sql); $active=1; if($hasSyncSource){$src=(string)$diag['source']; $stmt->bind_param('ississs',$connectorId,$code,$label,$active,$sourceUrl,$raw,$src);} else {$stmt->bind_param('ississ',$connectorId,$code,$label,$active,$sourceUrl,$raw);} $stmt->execute(); $stmt->affected_rows===1?$diag['inserted']++:$diag['updated']++; $stmt->close(); }
+    $diag['found_count']=count($seen);
+    if($seen && $hasMissing){$in="'".implode("','",array_map([$dbcnx,'real_escape_string'],$seen))."'"; $dbcnx->query("UPDATE forwarder_positions SET missing_since=COALESCE(missing_since,NOW()), updated_at=NOW() WHERE connector_id=".(int)$connectorId." AND position_code NOT IN ($in) AND missing_since IS NULL"); $diag['missing_marked']=$dbcnx->affected_rows;}
+    if($seen && warehouse_forwarder_column_exists($dbcnx,'connectors','addons_json')){ $addons=json_decode((string)($connector['addons_json']??''),true); if(!is_array($addons))$addons=[]; $addons['forwarder_positions_cache']=['synced_at'=>date('Y-m-d H:i:s'),'source_url'=>$sourceUrl,'positions'=>$seen]; $json=json_encode($addons,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES); $st=$dbcnx->prepare('UPDATE connectors SET addons_json=? WHERE id=? LIMIT 1'); if($st){$st->bind_param('si',$json,$connectorId);$st->execute();$st->close();}}
+    return $diag;
 }
 
 function warehouse_forwarder_import_report_items(mysqli $dbcnx, int $connectorId, array $rows): array
