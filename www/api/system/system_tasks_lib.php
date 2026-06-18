@@ -136,19 +136,6 @@ function system_tasks_is_known_endpoint_action(string $action): bool
 function system_tasks_seed_defaults(mysqli $dbcnx): void
 {
 
-    $hasRows = false;
-    $countRes = $dbcnx->query("SELECT COUNT(*) AS cnt FROM system_tasks");
-    if ($countRes) {
-        $countRow = $countRes->fetch_assoc();
-        $hasRows = ((int)($countRow['cnt'] ?? 0)) > 0;
-        $countRes->free();
-    }
-    if ($hasRows) {
-        return;
-    }
-
-
-
     $defaults = [
         [
             'code' => 'operation_1_hourly',
@@ -170,6 +157,24 @@ function system_tasks_seed_defaults(mysqli $dbcnx): void
             'description' => 'Для активных коннекторов запускает report (или entrypoint), скачивает и импортирует репорты. Через payload_json можно указать operation_id и connector_id(s).',
             'endpoint_action' => 'connectors_report_operation_1',
             'interval_minutes' => 60,
+        ],
+        [
+            'code' => 'forwarder_report_import_colibri_hourly',
+            'name' => 'Forwarder report import: COLIBRI',
+            'description' => 'Импортирует reverse-import report COLIBRI в forwarder_report_items и warehouse_item_stock.',
+            'endpoint_action' => 'forwarder_report_import',
+            'payload_json' => '{"connector_id":2,"from_date":"2025-06-11","to_date":"today","commit":true,"sync_positions_if_stale_hours":24}',
+            'interval_minutes' => 60,
+            'is_enabled' => 1,
+        ],
+        [
+            'code' => 'forwarder_report_import_aser_hourly',
+            'name' => 'Forwarder report import: ASER',
+            'description' => 'Импортирует reverse-import report ASER в forwarder_report_items и warehouse_item_stock. Отключено до ручной проверки ASER.',
+            'endpoint_action' => 'forwarder_report_import',
+            'payload_json' => '{"connector_id":7,"from_date":"2025-06-11","to_date":"today","commit":true,"sync_positions_if_stale_hours":24}',
+            'interval_minutes' => 60,
+            'is_enabled' => 0,
         ],
         [
             'code' => 'connector_clients_sync_aser_az_hourly',
@@ -221,7 +226,7 @@ function system_tasks_seed_defaults(mysqli $dbcnx): void
                 interval_minutes = VALUES(interval_minutes)";
 */
     $sql = "INSERT IGNORE INTO system_tasks (code, name, description, endpoint_action, payload_json, interval_minutes, is_enabled, next_run_at)
-            VALUES (?, ?, ?, ?, ?, ?, 1, NOW())";
+            VALUES (?, ?, ?, ?, ?, ?, ?, NOW())";
     $stmt = $dbcnx->prepare($sql);
     if (!$stmt) {
         throw new RuntimeException('system_tasks seed prepare failed');
@@ -229,14 +234,16 @@ function system_tasks_seed_defaults(mysqli $dbcnx): void
 
     foreach ($defaults as $task) {
         $payloadJson = $task['payload_json'] ?? null;
+        $isEnabled = (int)($task['is_enabled'] ?? 1);
         $stmt->bind_param(
-            'sssssi',
+            'sssssii',
             $task['code'],
             $task['name'],
             $task['description'],
             $task['endpoint_action'],
             $payloadJson,
-            $task['interval_minutes']
+            $task['interval_minutes'],
+            $isEnabled
         );
         $stmt->execute();
     }
@@ -366,7 +373,7 @@ function system_tasks_execute(mysqli $dbcnx, array $task, int $systemUserId = 0)
         return system_tasks_run_forwarder_report_bot_outgoing($dbcnx, $task);
     }
     if ($action === 'forwarder_report_import') {
-        return system_tasks_run_forwarder_report_import($dbcnx, $task);
+        return system_tasks_run_forwarder_report_import($dbcnx, $task, $systemUserId);
     }
     if ($action === 'forwarder_positions_sync') {
         return system_tasks_run_forwarder_positions_sync($dbcnx, $task);
@@ -496,15 +503,51 @@ function system_tasks_run_connector_clients_sync(mysqli $dbcnx, array $task): ar
 }
 
 
-function system_tasks_run_forwarder_report_import(mysqli $dbcnx, array $task): array
+function system_tasks_run_forwarder_report_import(mysqli $dbcnx, array $task, int $systemUserId = 0): array
 {
     $payloadRaw = trim((string)($task['payload_json'] ?? ''));
     $payload = $payloadRaw !== '' ? json_decode($payloadRaw, true) : [];
     if (!is_array($payload)) {
-        $payload = [];
+        return [
+            'status' => 'error',
+            'message' => 'forwarder_report_import requires valid payload_json',
+            'context' => ['errors' => ['Invalid payload_json']],
+        ];
     }
 
-    $emptySummary = [
+    $connectorIds = [];
+    if (isset($payload['connector_id']) && (int)$payload['connector_id'] > 0) {
+        $connectorIds[(int)$payload['connector_id']] = true;
+    }
+    if (isset($payload['connector_ids']) && is_array($payload['connector_ids'])) {
+        foreach ($payload['connector_ids'] as $connectorId) {
+            if ((int)$connectorId > 0) {
+                $connectorIds[(int)$connectorId] = true;
+            }
+        }
+    }
+
+    if (!$connectorIds) {
+        return [
+            'status' => 'error',
+            'message' => 'forwarder_report_import requires connector_id or connector_ids',
+            'context' => ['errors' => ['connector_id is empty']],
+        ];
+    }
+
+    $fromDate = trim((string)($payload['from_date'] ?? $payload['from'] ?? ''));
+    if ($fromDate === '') {
+        $fromDate = date('Y-m-d');
+    }
+    $toDate = trim((string)($payload['to_date'] ?? $payload['to'] ?? ''));
+    if ($toDate === '' || strtolower($toDate) === 'today') {
+        $toDate = date('Y-m-d');
+    }
+    $staleHours = max(0, (int)($payload['sync_positions_if_stale_hours'] ?? 24));
+
+    $aggregate = [
+        'connector_id' => count($connectorIds) === 1 ? (int)array_key_first($connectorIds) : null,
+        'connector_ids' => array_map('intval', array_keys($connectorIds)),
         'rows_total' => 0,
         'report_items_upserted' => 0,
         'stock_created' => 0,
@@ -513,56 +556,21 @@ function system_tasks_run_forwarder_report_import(mysqli $dbcnx, array $task): a
         'unmapped_positions' => 0,
         'errors' => [],
     ];
-
-    $aggregate = $emptySummary;
     $connectorResults = [];
 
-    // Test/manual mode is still supported, but production mode below fetches reports itself.
-    if (isset($payload['rows']) && is_array($payload['rows'])) {
-        $connectorId = (int)($payload['connector_id'] ?? 0);
-        if ($connectorId <= 0) {
-            return ['status' => 'error', 'message' => 'forwarder_report_import rows mode requires payload.connector_id', 'context' => ['payload' => $payload]];
-        }
-        $summary = warehouse_forwarder_import_report_items($dbcnx, $connectorId, $payload['rows']);
-        return [
-            'status' => empty($summary['errors']) ? 'ok' : 'error',
-            'message' => system_tasks_forwarder_report_import_message($summary),
-            'context' => ['mode' => 'payload_rows', 'connector_id' => $connectorId, 'summary' => $summary],
-        ];
-    }
-
-    $connectors = system_tasks_forwarder_report_import_connectors($dbcnx, $payload);
-    if (!$connectors) {
-        return [
-            'status' => 'ok',
-            'message' => 'forwarder_report_import: no active connectors',
-            'context' => ['summary' => $aggregate, 'connectors' => []],
-        ];
-    }
-
-    foreach ($connectors as $connector) {
-        $connectorId = (int)($connector['id'] ?? 0);
-        $connectorName = (string)($connector['name'] ?? ('connector #' . $connectorId));
-        $result = system_tasks_forwarder_report_import_fetch_rows($connector, $payload);
-        $rows = is_array($result['rows'] ?? null) ? $result['rows'] : [];
-        if (($result['status'] ?? '') !== 'ok') {
-            $aggregate['errors'][] = $connectorName . ': ' . (string)($result['message'] ?? 'report fetch failed');
-            $connectorResults[] = $result + ['connector_id' => $connectorId, 'connector_name' => $connectorName];
+    foreach (array_keys($connectorIds) as $connectorId) {
+        $connectorId = (int)$connectorId;
+        $fetch = system_tasks_forwarder_report_import_fetch_rows_by_connector_id($connectorId, $fromDate, $toDate);
+        $rows = is_array($fetch['rows'] ?? null) ? $fetch['rows'] : [];
+        if (($fetch['status'] ?? '') !== 'ok') {
+            $aggregate['errors'][] = 'connector_id=' . $connectorId . ': ' . (string)($fetch['message'] ?? 'report fetch failed');
+            $connectorResults[] = ['connector_id' => $connectorId, 'fetch' => $fetch];
             continue;
         }
 
         warehouse_forwarder_ensure_sync_tables($dbcnx);
-        $positionsNeedSync = true;
-        $posStmt = $dbcnx->prepare("SELECT COUNT(*) AS cnt, MAX(last_seen_at) AS max_seen FROM forwarder_positions WHERE connector_id=?");
-        if ($posStmt) {
-            $posStmt->bind_param('i', $connectorId);
-            $posStmt->execute();
-            $posRow = $posStmt->get_result()->fetch_assoc() ?: [];
-            $posStmt->close();
-            $positionsNeedSync = ((int)($posRow['cnt'] ?? 0) === 0) || strtotime((string)($posRow['max_seen'] ?? '1970-01-01')) < time() - 86400;
-        }
         $positionsSync = null;
-        if ($positionsNeedSync) {
+        if ($staleHours > 0 && system_tasks_forwarder_positions_are_stale($dbcnx, $connectorId, $staleHours)) {
             $positionsSync = warehouse_forwarder_sync_positions($dbcnx, $connectorId);
         }
 
@@ -571,27 +579,95 @@ function system_tasks_run_forwarder_report_import(mysqli $dbcnx, array $task): a
             $aggregate[$key] += (int)($summary[$key] ?? 0);
         }
         foreach ((array)($summary['errors'] ?? []) as $error) {
-            $aggregate['errors'][] = $connectorName . ': ' . (string)$error;
+            $aggregate['errors'][] = 'connector_id=' . $connectorId . ': ' . (string)$error;
         }
         $connectorResults[] = [
             'connector_id' => $connectorId,
-            'connector_name' => $connectorName,
-            'fetch' => $result,
+            'from_date' => $fromDate,
+            'to_date' => $toDate,
+            'fetch' => $fetch,
             'positions_sync' => $positionsSync,
             'summary' => $summary,
         ];
     }
 
+    $errorsCount = count($aggregate['errors']);
+    $status = $errorsCount === 0 ? 'ok' : ($aggregate['rows_total'] > 0 ? 'partial_error' : 'error');
+
     return [
-        'status' => empty($aggregate['errors']) ? 'ok' : 'error',
+        'status' => $status,
         'message' => system_tasks_forwarder_report_import_message($aggregate),
-        'context' => ['mode' => 'mvp_fetch', 'summary' => $aggregate, 'connectors' => $connectorResults],
+        'context' => $aggregate + ['from_date' => $fromDate, 'to_date' => $toDate, 'connectors' => $connectorResults],
+    ];
+}
+
+function system_tasks_forwarder_positions_are_stale(mysqli $dbcnx, int $connectorId, int $staleHours): bool
+{
+    $stmt = $dbcnx->prepare("SELECT COUNT(*) AS cnt, MAX(last_seen_at) AS max_seen FROM forwarder_positions WHERE connector_id = ?");
+    if (!$stmt) {
+        return true;
+    }
+    $stmt->bind_param('i', $connectorId);
+    $stmt->execute();
+    $row = $stmt->get_result()->fetch_assoc() ?: [];
+    $stmt->close();
+    if ((int)($row['cnt'] ?? 0) === 0) {
+        return true;
+    }
+    $maxSeen = strtotime((string)($row['max_seen'] ?? ''));
+    return !$maxSeen || $maxSeen < time() - ($staleHours * 3600);
+}
+
+function system_tasks_forwarder_report_import_fetch_rows_by_connector_id(int $connectorId, string $fromDate, string $toDate): array
+{
+    $scriptPath = realpath(__DIR__ . '/../../scripts/mvp/app/Forwarder/run_report_import.php');
+    if (!$scriptPath || !is_file($scriptPath)) {
+        return ['status' => 'error', 'message' => 'run_report_import.php not found', 'rows' => []];
+    }
+
+    $stderrFile = tempnam(sys_get_temp_dir(), 'forwarder_report_import_stderr_');
+    $cmd = escapeshellarg(PHP_BINARY ?: 'php')
+        . ' ' . escapeshellarg($scriptPath)
+        . ' --connector-id=' . escapeshellarg((string)$connectorId)
+        . ' --from-date=' . escapeshellarg($fromDate)
+        . ' --to-date=' . escapeshellarg($toDate)
+        . ' --json-only=1'
+        . ($stderrFile ? ' 2>' . escapeshellarg($stderrFile) : ' 2>/dev/null');
+
+    $output = shell_exec($cmd);
+    $outputText = trim((string)$output);
+    $stderrText = $stderrFile && is_file($stderrFile) ? trim((string)file_get_contents($stderrFile)) : '';
+    if ($stderrFile) {
+        @unlink($stderrFile);
+    }
+    $decoded = json_decode($outputText, true);
+    if (!is_array($decoded)) {
+        return [
+            'status' => 'error',
+            'message' => 'MVP report importer returned invalid JSON',
+            'rows' => [],
+            'diagnostics' => [
+                'cmd' => $cmd,
+                'output' => mb_substr($outputText, 0, 4000, 'UTF-8'),
+                'stderr' => mb_substr($stderrText, 0, 4000, 'UTF-8'),
+            ],
+        ];
+    }
+
+    $remoteStatus = strtoupper(trim((string)($decoded['status'] ?? '')));
+    return [
+        'status' => $remoteStatus === 'OK' ? 'ok' : 'error',
+        'message' => (string)($decoded['message'] ?? $remoteStatus),
+        'rows' => is_array($decoded['rows'] ?? null) ? $decoded['rows'] : [],
+        'rows_total' => (int)($decoded['rows_total'] ?? 0),
+        'diagnostics' => $decoded['diagnostics'] ?? [],
     ];
 }
 
 function system_tasks_forwarder_report_import_message(array $summary): string
 {
-    return 'forwarder_report_import done; rows_total=' . (int)($summary['rows_total'] ?? 0)
+    return 'forwarder_report_import done; connector_id=' . (string)($summary['connector_id'] ?? implode(',', (array)($summary['connector_ids'] ?? [])))
+        . '; rows=' . (int)($summary['rows_total'] ?? 0)
         . '; report_items_upserted=' . (int)($summary['report_items_upserted'] ?? 0)
         . '; stock_created=' . (int)($summary['stock_created'] ?? 0)
         . '; stock_updated=' . (int)($summary['stock_updated'] ?? 0)

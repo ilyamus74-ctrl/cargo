@@ -154,6 +154,11 @@ function forwarder_report_import_raw_extension(string $body, string $contentType
 
 function forwarder_report_import_json_exit(array $payload, int $code = 0): void
 {
+    if (!empty($GLOBALS['forwarder_report_import_json_only'])) {
+        while (ob_get_level() > 0) {
+            ob_end_clean();
+        }
+    }
     echo json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT) . PHP_EOL;
     exit($code);
 }
@@ -454,6 +459,13 @@ function forwarder_report_import_diagnostic_sample_rows(array $rows, int $limit 
 }
 
 $args = forwarder_report_import_args($_SERVER['argv'] ?? []);
+$jsonOnly = forwarder_report_import_arg($args, 'json-only', 'json_only', 'quiet') !== '';
+if ($jsonOnly) {
+    $GLOBALS['forwarder_report_import_json_only'] = true;
+    ini_set('display_errors', '0');
+    ini_set('log_errors', '1');
+    ob_start();
+}
 $connectorId = (int)(forwarder_report_import_arg($args, 'connector-id', 'connector_id') ?: 0);
 $connector = [];
 $connectorName = '';

@@ -74,6 +74,7 @@ if ($action === 'save_system_task') {
     $endpointAction = trim((string)($_POST['endpoint_action'] ?? ''));
     $intervalMinutes = max(1, (int)($_POST['interval_minutes'] ?? 60));
     $isEnabled = system_tasks_parse_checkbox_flag($_POST['is_enabled'] ?? 0);
+    $payloadJson = trim((string)($_POST['payload_json'] ?? ''));
 
     if ($code === '' || $name === '' || $endpointAction === '') {
         $response = ['status' => 'error', 'message' => 'code, name и endpoint_action обязательны'];
@@ -89,12 +90,18 @@ if ($action === 'save_system_task') {
         return;
     }
 
+    if ($payloadJson !== '' && json_decode($payloadJson, true) === null && json_last_error() !== JSON_ERROR_NONE) {
+        $response = ['status' => 'error', 'message' => 'payload_json содержит некорректный JSON: ' . json_last_error_msg()];
+        return;
+    }
+
     if ($taskId > 0) {
         $stmt = $dbcnx->prepare("UPDATE system_tasks
                                  SET code = ?,
                                      name = ?,
                                      description = ?,
                                      endpoint_action = ?,
+                                     payload_json = ?,
                                      interval_minutes = ?,
                                      is_enabled = ?,
                                      next_run_at = CASE
@@ -105,7 +112,8 @@ if ($action === 'save_system_task') {
         if (!$stmt) {
             throw new RuntimeException('save_system_task update prepare failed');
         }
-        $stmt->bind_param('ssssiiii', $code, $name, $description, $endpointAction, $intervalMinutes, $isEnabled, $isEnabled, $taskId);
+        $payloadDb = $payloadJson !== '' ? $payloadJson : null;
+        $stmt->bind_param('sssssiiii', $code, $name, $description, $endpointAction, $payloadDb, $intervalMinutes, $isEnabled, $isEnabled, $taskId);
         $ok = $stmt->execute();
         $stmt->close();
 
@@ -115,12 +123,13 @@ if ($action === 'save_system_task') {
         return;
     }
 
-    $stmt = $dbcnx->prepare("INSERT INTO system_tasks (code, name, description, endpoint_action, interval_minutes, is_enabled, next_run_at)
-                             VALUES (?, ?, ?, ?, ?, ?, NOW())");
+    $stmt = $dbcnx->prepare("INSERT INTO system_tasks (code, name, description, endpoint_action, payload_json, interval_minutes, is_enabled, next_run_at)
+                             VALUES (?, ?, ?, ?, ?, ?, ?, NOW())");
     if (!$stmt) {
         throw new RuntimeException('save_system_task insert prepare failed');
     }
-    $stmt->bind_param('ssssii', $code, $name, $description, $endpointAction, $intervalMinutes, $isEnabled);
+    $payloadDb = $payloadJson !== '' ? $payloadJson : null;
+    $stmt->bind_param('sssssii', $code, $name, $description, $endpointAction, $payloadDb, $intervalMinutes, $isEnabled);
     $ok = $stmt->execute();
     $stmt->close();
 

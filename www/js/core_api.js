@@ -693,6 +693,8 @@ const CoreAPI = {
             form.querySelector('[name="code"]').value = button.getAttribute('data-task-code') || '';
             form.querySelector('[name="name"]').value = button.getAttribute('data-task-name') || '';
             form.querySelector('[name="description"]').value = button.getAttribute('data-task-description') || '';
+            const payload = form.querySelector('[name="payload_json"]');
+            if (payload) payload.value = button.getAttribute('data-task-payload') || '';
             form.querySelector('[name="endpoint_action"]').value = button.getAttribute('data-task-endpoint') || '';
             form.querySelector('[name="interval_minutes"]').value = button.getAttribute('data-task-interval') || '60';
             form.querySelector('[name="is_enabled"]').checked = button.getAttribute('data-task-enabled') === '1';
@@ -707,6 +709,8 @@ const CoreAPI = {
             if (enabled) enabled.checked = true;
             const interval = form.querySelector('[name="interval_minutes"]');
             if (interval) interval.value = '60';
+            const payload = form.querySelector('[name="payload_json"]');
+            if (payload) payload.value = '';
         }
     },
 
