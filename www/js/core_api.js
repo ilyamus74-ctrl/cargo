@@ -366,6 +366,95 @@ const CoreAPI = {
             delete button.dataset.coreBusy;
         },
 
+        ensureBlockingOverlayStyles() {
+            if (document.getElementById('core-blocking-overlay-styles')) return;
+
+            const style = document.createElement('style');
+            style.id = 'core-blocking-overlay-styles';
+            style.textContent = `
+                .core-blocking-overlay {
+                    position: fixed;
+                    inset: 0;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    padding: 16px;
+                    background: rgba(0, 0, 0, 0.35);
+                    z-index: 200000;
+                }
+                .core-blocking-overlay-card {
+                    min-width: min(360px, 100%);
+                    max-width: 520px;
+                    padding: 24px;
+                    border-radius: 12px;
+                    background: #fff;
+                    box-shadow: 0 1rem 3rem rgba(0, 0, 0, 0.25);
+                    text-align: center;
+                }
+            `;
+            document.head.appendChild(style);
+        },
+
+        showBlockingOverlay(message, submessage = '') {
+            this.ensureBlockingOverlayStyles();
+            let overlay = document.getElementById('core-blocking-overlay');
+            if (!overlay) {
+                overlay = document.createElement('div');
+                overlay.id = 'core-blocking-overlay';
+                overlay.className = 'core-blocking-overlay';
+                overlay.setAttribute('role', 'alertdialog');
+                overlay.setAttribute('aria-modal', 'true');
+                document.body.appendChild(overlay);
+            }
+
+            overlay.innerHTML = `
+                <div class="core-blocking-overlay-card">
+                    <div class="spinner-border" role="status" aria-hidden="true"></div>
+                    <div class="mt-3 fw-semibold" data-core-blocking-message></div>
+                    <div class="small text-muted" data-core-blocking-submessage></div>
+                </div>
+            `;
+            overlay.querySelector('[data-core-blocking-message]').textContent = message || 'Выполняется...';
+            const submessageEl = overlay.querySelector('[data-core-blocking-submessage]');
+            submessageEl.textContent = submessage || '';
+            submessageEl.hidden = !submessage;
+            document.body.dataset.coreBlockingOverlay = '1';
+        },
+
+        hideBlockingOverlay() {
+            document.getElementById('core-blocking-overlay')?.remove();
+            delete document.body.dataset.coreBlockingOverlay;
+        },
+
+        setSystemTaskButtonsLocked(isLocked, exceptButton = null) {
+            const buttons = document.querySelectorAll(
+                '.js-core-link[data-core-action="run_system_task_now"], ' +
+                '.js-core-link[data-core-action="run_system_tasks_now"], ' +
+                '.js-core-link[data-core-action="delete_system_task"], ' +
+                '.js-system-task-edit'
+            );
+
+            buttons.forEach((button) => {
+                if (button === exceptButton) return;
+                if (isLocked) {
+                    if (typeof button.dataset.systemTaskLockDisabled === 'undefined') {
+                        button.dataset.systemTaskLockDisabled = button.disabled ? '1' : '0';
+                    }
+                    button.disabled = true;
+                    button.classList.add('disabled');
+                    return;
+                }
+
+                if (typeof button.dataset.systemTaskLockDisabled !== 'undefined') {
+                    button.disabled = button.dataset.systemTaskLockDisabled === '1';
+                    if (button.dataset.systemTaskLockDisabled !== '1') {
+                        button.classList.remove('disabled');
+                    }
+                    delete button.dataset.systemTaskLockDisabled;
+                }
+            });
+        },
+
         setCommitBatchBusy(button, isBusy) {
             if (!button) return;
             const batchUid = button.getAttribute('data-batch-uid') || '';
@@ -1977,7 +2066,19 @@ const CoreAPI = {
             }
             const action = link.getAttribute('data-core-action');
             if (!action) return;
-                        if (action === 'warehouse_move_batch_assign') {
+
+            const heavySystemTaskActions = ['run_system_task_now', 'run_system_tasks_now'];
+            const isHeavySystemTaskAction = heavySystemTaskActions.includes(action);
+            if (isHeavySystemTaskAction && document.body.dataset.coreBlockingOverlay === '1') {
+                return;
+            }
+
+            const confirmMessage = link.getAttribute('data-confirm') || '';
+            if (confirmMessage && !confirm(confirmMessage)) {
+                return;
+            }
+
+            if (action === 'warehouse_move_batch_assign') {
                 const cellSelect = document.getElementById('warehouse-move-batch-cell');
                 if (!cellSelect || !cellSelect.value) {
                     alert('Выберите ячейку склада');
@@ -2093,6 +2194,14 @@ const CoreAPI = {
             if (action === 'commit_item_in_batch') {
                 CoreAPI.ui.setCommitBatchBusy(link, true);
             }
+            if (isHeavySystemTaskAction) {
+                CoreAPI.ui.setButtonBusy(link, true, 'Выполняется...');
+                CoreAPI.ui.setSystemTaskButtonsLocked(true, link);
+                CoreAPI.ui.showBlockingOverlay(
+                    'Выполняется системное задание...',
+                    'Не закрывайте страницу. Это может занять до минуты.'
+                );
+            }
             try {
                 const data = await CoreAPI.client.call(formData);
                 if (!data || data.status !== 'ok') {
@@ -2181,6 +2290,12 @@ const CoreAPI = {
                 // Fallback для commit_item_in_batch
                 if (action === 'commit_item_in_batch') {
                     CoreAPI.ui.reloadList('warehouse_item_in');
+                }
+            } finally {
+                if (isHeavySystemTaskAction) {
+                    CoreAPI.ui.hideBlockingOverlay();
+                    CoreAPI.ui.setButtonBusy(link, false);
+                    CoreAPI.ui.setSystemTaskButtonsLocked(false, link);
                 }
             }
         },
