@@ -126,6 +126,7 @@ const CoreAPI = {
                 'save_menu_item': () => this.getFormById('menu-item-form'),
                 'save_system_task': () => this.getFormById('system-task-form'),
                 'delete_system_task': () => this.withAttribute('task_id', link),
+                'run_system_task_now': () => this.withAttribute('task_id', link),
                 'save_connector': (currentLink) => {
                     const fd = this.getFormById('connector-form');
                     if (currentLink && currentLink.getAttribute('data-delete') === '1') {
