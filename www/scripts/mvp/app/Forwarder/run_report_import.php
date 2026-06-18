@@ -464,6 +464,7 @@ if ($jsonOnly) {
     $GLOBALS['forwarder_report_import_json_only'] = true;
     ini_set('display_errors', '0');
     ini_set('log_errors', '1');
+    ini_set('error_log', 'php://stderr');
     ob_start();
 }
 $connectorId = (int)(forwarder_report_import_arg($args, 'connector-id', 'connector_id') ?: 0);
@@ -507,6 +508,9 @@ forwarder_report_import_set_env('FORWARDER_SESSION_TTL_SECONDS', forwarder_repor
 
 $fromDate = forwarder_report_import_arg($args, 'from-date', 'from_date', 'date-from', 'date_from', 'from') ?: date('Y-m-d');
 $toDate = forwarder_report_import_arg($args, 'to-date', 'to_date', 'date-to', 'date_to', 'to') ?: date('Y-m-d');
+if (strtolower($toDate) === 'today') {
+    $toDate = date('Y-m-d');
+}
 $pagePath = forwarder_report_import_arg($args, 'page-path', 'page_path') ?: '/collector/reports/all_packages';
 $postPath = forwarder_report_import_arg($args, 'post-path', 'post_path') ?: $pagePath;
 $debugDir = forwarder_report_import_arg($args, 'debug-dir', 'debug_dir');

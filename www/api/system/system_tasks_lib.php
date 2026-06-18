@@ -329,6 +329,82 @@ function system_tasks_run_due(mysqli $dbcnx, int $systemUserId = 0): array
 }
 
 
+
+function system_tasks_error_detail_from_result(array $result): string
+{
+    $details = [];
+    $message = trim((string)($result['message'] ?? ''));
+    if ($message !== '') {
+        $details[] = $message;
+    }
+
+    $context = is_array($result['context'] ?? null) ? $result['context'] : [];
+    $errors = [];
+    if (isset($context['errors']) && is_array($context['errors'])) {
+        $errors = $context['errors'];
+    } elseif (isset($context['execution_context']['errors']) && is_array($context['execution_context']['errors'])) {
+        $errors = $context['execution_context']['errors'];
+    }
+    foreach ($errors as $error) {
+        $errorText = trim(is_scalar($error) ? (string)$error : json_encode($error, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+        if ($errorText !== '') {
+            $details[] = $errorText;
+        }
+    }
+
+    if (isset($context['exception']) && is_array($context['exception'])) {
+        $exceptionMessage = trim((string)($context['exception']['message'] ?? ''));
+        if ($exceptionMessage !== '') {
+            $details[] = $exceptionMessage;
+        }
+    }
+
+    $details = array_values(array_unique($details));
+    return implode('; ', $details);
+}
+
+function system_tasks_run_one_response_message(array $task, int $taskId, string $runStatus, string $runMessage, array $result, bool $disabledTask): string
+{
+    $code = (string)($task['code'] ?? ('#' . $taskId));
+    if ($runStatus === 'ok') {
+        return 'Task ' . $code . ' executed: ok' . ($runMessage !== '' && $runMessage !== 'done' ? ' — ' . $runMessage : '') . ($disabledTask ? ' (disabled task was run manually)' : '');
+    }
+
+    $detail = system_tasks_error_detail_from_result($result);
+    if ($detail === '') {
+        $detail = $runMessage !== '' ? $runMessage : 'error';
+    }
+    return 'Task ' . $code . ' failed: ' . $detail . ($disabledTask ? ' (disabled task was run manually)' : '');
+}
+
+function system_tasks_decode_json_output(string $outputText, string $source, array $extraContext = []): array
+{
+    $trimmed = trim($outputText);
+    $jsonText = $trimmed;
+    if ($jsonText !== '' && $jsonText[0] !== '{') {
+        $pos = strpos($jsonText, '{');
+        if ($pos !== false) {
+            $jsonText = substr($jsonText, $pos);
+        }
+    }
+
+    $decoded = json_decode($jsonText, true);
+    if (is_array($decoded)) {
+        return ['status' => 'ok', 'decoded' => $decoded, 'json_offset' => $jsonText === $trimmed ? 0 : strpos($trimmed, '{')];
+    }
+
+    $startsWith = mb_substr($trimmed, 0, 120, 'UTF-8');
+    return [
+        'status' => 'error',
+        'message' => 'JSON parse failed from ' . $source . ': ' . json_last_error_msg() . ($startsWith !== '' ? '; output starts with ' . $startsWith : '; output is empty'),
+        'decoded' => null,
+        'context' => $extraContext + [
+            'json_error' => json_last_error_msg(),
+            'output_first_1000' => mb_substr($trimmed, 0, 1000, 'UTF-8'),
+        ],
+    ];
+}
+
 function system_tasks_run_one(mysqli $dbcnx, int $taskId, int $systemUserId = 0): array
 {
     system_tasks_ensure_tables($dbcnx);
@@ -392,12 +468,22 @@ function system_tasks_run_one(mysqli $dbcnx, int $taskId, int $systemUserId = 0)
         $runStatus = ($result['status'] ?? 'ok') === 'ok' ? 'ok' : 'error';
         $runMessage = (string)($result['message'] ?? 'done');
         if (is_array($result['context'] ?? null)) {
-            $context = $context + ['execution_context' => $result['context']];
+            $context['execution_context'] = $result['context'];
+            foreach (['errors', 'connector_id', 'connector_ids', 'rows_total', 'report_items_upserted', 'stock_created', 'stock_updated', 'mapped_to_cells', 'unmapped_positions'] as $contextKey) {
+                if (array_key_exists($contextKey, $result['context'])) {
+                    $context[$contextKey] = $result['context'][$contextKey];
+                }
+            }
         }
     } catch (Throwable $e) {
         $runStatus = 'error';
         $runMessage = $e->getMessage();
-        $context['exception'] = get_class($e);
+        $context['exception'] = [
+            'class' => get_class($e),
+            'message' => $e->getMessage(),
+            'file' => $e->getFile(),
+            'line' => $e->getLine(),
+        ];
     }
 
     $contextJson = json_encode($context, JSON_UNESCAPED_UNICODE);
@@ -425,9 +511,15 @@ function system_tasks_run_one(mysqli $dbcnx, int $taskId, int $systemUserId = 0)
     $upd->execute();
     $upd->close();
 
-    return [
+    $responseResult = [
         'status' => $runStatus === 'ok' ? 'ok' : 'error',
-        'message' => 'Task ' . (string)($task['code'] ?? ('#' . $taskId)) . ' executed: ' . $runStatus . ((int)($task['is_enabled'] ?? 0) === 0 ? ' (disabled task was run manually)' : ''),
+        'message' => $runMessage,
+        'context' => $context,
+    ];
+
+    return [
+        'status' => $responseResult['status'],
+        'message' => system_tasks_run_one_response_message($task, $taskId, $runStatus, $runMessage, $responseResult, (int)($task['is_enabled'] ?? 0) === 0),
         'context' => $context,
     ];
 }
@@ -731,11 +823,13 @@ function system_tasks_forwarder_report_import_fetch_rows_by_connector_id(int $co
 
     $stderrFile = tempnam(sys_get_temp_dir(), 'forwarder_report_import_stderr_');
     $cmd = escapeshellarg(PHP_BINARY ?: 'php')
+        . ' -d display_errors=0'
         . ' ' . escapeshellarg($scriptPath)
         . ' --connector-id=' . escapeshellarg((string)$connectorId)
         . ' --from-date=' . escapeshellarg($fromDate)
         . ' --to-date=' . escapeshellarg($toDate)
         . ' --json-only=1'
+        . ' --quiet=1'
         . ($stderrFile ? ' 2>' . escapeshellarg($stderrFile) : ' 2>/dev/null');
 
     $output = shell_exec($cmd);
@@ -744,19 +838,19 @@ function system_tasks_forwarder_report_import_fetch_rows_by_connector_id(int $co
     if ($stderrFile) {
         @unlink($stderrFile);
     }
-    $decoded = json_decode($outputText, true);
-    if (!is_array($decoded)) {
+    $parsed = system_tasks_decode_json_output($outputText, 'run_report_import.php', [
+        'cmd' => $cmd,
+        'stderr' => mb_substr($stderrText, 0, 4000, 'UTF-8'),
+    ]);
+    if (($parsed['status'] ?? '') !== 'ok') {
         return [
             'status' => 'error',
-            'message' => 'MVP report importer returned invalid JSON',
+            'message' => (string)($parsed['message'] ?? 'JSON parse failed from run_report_import.php'),
             'rows' => [],
-            'diagnostics' => [
-                'cmd' => $cmd,
-                'output' => mb_substr($outputText, 0, 4000, 'UTF-8'),
-                'stderr' => mb_substr($stderrText, 0, 4000, 'UTF-8'),
-            ],
+            'diagnostics' => $parsed['context'] ?? [],
         ];
     }
+    $decoded = $parsed['decoded'];
 
     $remoteStatus = strtoupper(trim((string)($decoded['status'] ?? '')));
     return [
@@ -821,6 +915,8 @@ function system_tasks_forwarder_report_import_fetch_rows(array $connector, array
     }
 
     $args = [
+        '--json-only=1',
+        '--quiet=1',
         '--base-url=' . (string)($connector['base_url'] ?? ''),
         '--login=' . (string)($connector['auth_username'] ?? ''),
         '--password=' . (string)($connector['auth_password'] ?? ''),
@@ -834,7 +930,7 @@ function system_tasks_forwarder_report_import_fetch_rows(array $connector, array
         }
     }
 
-    $cmd = escapeshellarg(PHP_BINARY ?: 'php') . ' ' . escapeshellarg($scriptPath);
+    $cmd = escapeshellarg(PHP_BINARY ?: 'php') . ' -d display_errors=0 ' . escapeshellarg($scriptPath);
     foreach ($args as $arg) {
         [$key, $value] = explode('=', $arg, 2);
         $cmd .= ' ' . $key . '=' . escapeshellarg($value);
@@ -843,15 +939,16 @@ function system_tasks_forwarder_report_import_fetch_rows(array $connector, array
 
     $output = shell_exec($cmd);
     $outputText = trim((string)$output);
-    $decoded = json_decode($outputText, true);
-    if (!is_array($decoded)) {
+    $parsed = system_tasks_decode_json_output($outputText, 'run_report_import.php', ['cmd' => $cmd]);
+    if (($parsed['status'] ?? '') !== 'ok') {
         return [
             'status' => 'error',
-            'message' => 'MVP report importer returned invalid JSON',
+            'message' => (string)($parsed['message'] ?? 'JSON parse failed from run_report_import.php'),
             'rows' => [],
-            'diagnostics' => ['output' => mb_substr($outputText, 0, 2000, 'UTF-8')],
+            'diagnostics' => $parsed['context'] ?? [],
         ];
     }
+    $decoded = $parsed['decoded'];
 
     $remoteStatus = strtoupper(trim((string)($decoded['status'] ?? '')));
     return [
