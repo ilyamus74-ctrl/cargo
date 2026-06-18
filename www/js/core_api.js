@@ -511,21 +511,39 @@ const CoreAPI = {
          * Закрыть модальное окно
          */
         closeModal() {
-            const modalEl = document.getElementById('fullscreenModal');
-            if (modalEl && window.bootstrap?.Modal) {
-                const modal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
-                modal.hide();
-                setTimeout(() => this.cleanupModalBackdrops(), 300);
-                return;
-            }
-                        this.cleanupModalBackdrops();
+            const openModals = document.querySelectorAll('.modal.show');
+
+            openModals.forEach((modalEl) => {
+                try {
+                    if (window.bootstrap && bootstrap.Modal) {
+                        const instance = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+                        instance.hide();
+                    } else {
+                        modalEl.classList.remove('show');
+                        modalEl.style.display = 'none';
+                        modalEl.setAttribute('aria-hidden', 'true');
+                        modalEl.removeAttribute('aria-modal');
+                    }
+                } catch (e) {
+                    console.warn('Modal hide failed', e);
+                }
+            });
+
+            setTimeout(() => {
+                this.cleanupModalBackdrops();
+
+                document.querySelectorAll('.modal.show').forEach((el) => {
+                    el.classList.remove('show');
+                    el.style.display = 'none';
+                    el.setAttribute('aria-hidden', 'true');
+                    el.removeAttribute('aria-modal');
+                });
+            }, 150);
         },
         /**
          * Очистить зависшие затемнения/классы модалки
          */
         cleanupModalBackdrops() {
-            const openModal = document.querySelector('.modal.show');
-            if (openModal) return;
             document.querySelectorAll('.modal-backdrop').forEach((backdrop) => backdrop.remove());
             document.body.classList.remove('modal-open');
             document.body.style.removeProperty('padding-right');
@@ -1847,10 +1865,12 @@ const CoreAPI = {
             if (modal && typeof bootstrap !== 'undefined') bootstrap.Modal.getOrCreateInstance(modal).show();
         },
         'save_cell_forwarder_mapping': async (data) => {
+            CoreAPI.ui.closeModal();
             CoreAPI.ui.showToast(data.message || 'Связь сохранена', 'success');
             await CoreAPI.ui.reloadList('setting_cells');
         },
         'delete_cell_forwarder_mapping': async (data) => {
+            CoreAPI.ui.closeModal();
             CoreAPI.ui.showToast(data.message || 'Связь удалена', 'success');
             await CoreAPI.ui.reloadList('setting_cells');
         },
@@ -2137,6 +2157,9 @@ const CoreAPI = {
                 // Вызываем обработчик
                 const handler = CoreAPI.handlers[action] || CoreAPI.handlers['default'];
                 await handler(data, link, formData);
+                if (document.querySelectorAll('.modal.show').length === 0) {
+                    CoreAPI.ui.cleanupModalBackdrops?.();
+                }
             } catch (err) {
                 if (action === 'commit_item_in_batch') {
                     CoreAPI.ui.setCommitBatchBusy(link, false);
