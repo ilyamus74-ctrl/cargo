@@ -66,6 +66,41 @@ function warehouse_forwarder_ensure_sync_tables(mysqli $dbcnx): void
     }
 }
 
+
+function warehouse_forwarder_sql_date_or_null($value): ?string
+{
+    $s = trim((string)$value);
+    if ($s === '' || $s === '0000-00-00') {
+        return null;
+    }
+
+    if (preg_match('/^\d{4}-\d{2}-\d{2}/', $s, $m)) {
+        return $m[0];
+    }
+
+    $ts = strtotime($s);
+    return $ts ? date('Y-m-d', $ts) : null;
+}
+
+function warehouse_forwarder_sql_datetime_or_null($value): ?string
+{
+    $s = trim((string)$value);
+    if ($s === '' || $s === '0000-00-00' || $s === '0000-00-00 00:00:00') {
+        return null;
+    }
+
+    if (preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}/', $s, $m)) {
+        return $m[0];
+    }
+
+    if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $s)) {
+        return $s . ' 00:00:00';
+    }
+
+    $ts = strtotime($s);
+    return $ts ? date('Y-m-d H:i:s', $ts) : null;
+}
+
 function warehouse_forwarder_norm_code(string $v): string { return strtoupper(trim($v)); }
 function warehouse_forwarder_pick(array $row, array $keys): string { foreach ($keys as $k) if (isset($row[$k]) && trim((string)$row[$k]) !== '') return trim((string)$row[$k]); return ''; }
 function warehouse_forwarder_num($v): ?float { $s=str_replace(',','.',trim((string)$v)); return is_numeric($s)?(float)$s:null; }
@@ -128,16 +163,20 @@ function warehouse_forwarder_import_report_items(mysqli $dbcnx, int $connectorId
 {
     warehouse_forwarder_ensure_sync_tables($dbcnx); $summary=['rows_total'=>count($rows),'report_items_upserted'=>0,'stock_created'=>0,'stock_updated'=>0,'mapped_to_cells'=>0,'unmapped_positions'=>0,'errors'=>[]];
     $conn=['name'=>'','country_code'=>'']; $connectorCountrySelect = warehouse_forwarder_column_exists($dbcnx, 'connectors', 'country_code') ? ', country_code' : ", '' AS country_code"; $st=$dbcnx->prepare('SELECT name' . $connectorCountrySelect . ' FROM connectors WHERE id=? LIMIT 1'); if($st){$st->bind_param('i',$connectorId);$st->execute();$conn=$st->get_result()->fetch_assoc()?:$conn;$st->close();}
+    $stockHasUserId = warehouse_forwarder_column_exists($dbcnx, 'warehouse_item_stock', 'user_id');
+    $stockHasCommitted = warehouse_forwarder_column_exists($dbcnx, 'warehouse_item_stock', 'committed');
     foreach($rows as $idx=>$row){ try{ if(!is_array($row)) continue; $tracking=warehouse_forwarder_pick($row,['tracking_no','tracking','track','barcode','tuid']); $internal=warehouse_forwarder_pick($row,['forwarder_internal_no','internal_no','order_no']); if($tracking==='') $tracking=$internal; $tracking=trim($tracking); if($tracking===''){ $summary['errors'][]='row '.($idx+1).': empty tracking_no'; continue; }
         $pos=warehouse_forwarder_norm_code(warehouse_forwarder_pick($row,['forwarder_position_code','position','position_code','cell','place'])); $clientId=warehouse_forwarder_pick($row,['client_id','client','customer_id']); $clientName=warehouse_forwarder_pick($row,['client_name','receiver_name','name']); $weight=warehouse_forwarder_num($row['weight_kg']??($row['weight']??null)); $raw=json_encode($row,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
-        $stmt=$dbcnx->prepare("INSERT INTO forwarder_report_items (connector_id,report_uid,tracking_no,forwarder_internal_no,client_id,client_name,declaration_status,forwarder_position_code,weight_kg,category,seller,invoice_amount,invoice_currency,invoice_uploaded,report_date,raw_json,last_seen_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?, ?,NOW()) ON DUPLICATE KEY UPDATE report_uid=VALUES(report_uid), forwarder_internal_no=VALUES(forwarder_internal_no), client_id=VALUES(client_id), client_name=VALUES(client_name), declaration_status=VALUES(declaration_status), forwarder_position_code=VALUES(forwarder_position_code), weight_kg=VALUES(weight_kg), category=VALUES(category), seller=VALUES(seller), invoice_amount=VALUES(invoice_amount), invoice_currency=VALUES(invoice_currency), invoice_uploaded=VALUES(invoice_uploaded), report_date=VALUES(report_date), raw_json=VALUES(raw_json), last_seen_at=NOW()");
-        $reportUid=warehouse_forwarder_pick($row,['report_uid','report_id']); $decl=warehouse_forwarder_pick($row,['declaration_status','status']); $cat=warehouse_forwarder_pick($row,['category']); $seller=warehouse_forwarder_pick($row,['seller','shop']); $inv=warehouse_forwarder_num($row['invoice_amount']??null); $cur=warehouse_forwarder_pick($row,['invoice_currency','currency']); $upl=warehouse_forwarder_pick($row,['invoice_uploaded']); $rdate=warehouse_forwarder_pick($row,['report_date']);
-        $stmt->bind_param('isssssssdssdssss',$connectorId,$reportUid,$tracking,$internal,$clientId,$clientName,$decl,$pos,$weight,$cat,$seller,$inv,$cur,$upl,$rdate,$raw); $stmt->execute(); $reportId=$stmt->insert_id ?: (int)($dbcnx->query("SELECT id FROM forwarder_report_items WHERE connector_id=".(int)$connectorId." AND tracking_no='".$dbcnx->real_escape_string($tracking)."' LIMIT 1")->fetch_assoc()['id']??0); $summary['report_items_upserted']++; $stmt->close();
+        $stmt=$dbcnx->prepare("INSERT INTO forwarder_report_items (connector_id,report_uid,tracking_no,forwarder_internal_no,client_id,client_name,declaration_status,forwarder_position_code,weight_kg,category,seller,invoice_amount,invoice_currency,invoice_uploaded,remote_created_at,remote_updated_at,report_date,raw_json,last_seen_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,NOW()) ON DUPLICATE KEY UPDATE report_uid=VALUES(report_uid), forwarder_internal_no=VALUES(forwarder_internal_no), client_id=VALUES(client_id), client_name=VALUES(client_name), declaration_status=VALUES(declaration_status), forwarder_position_code=VALUES(forwarder_position_code), weight_kg=VALUES(weight_kg), category=VALUES(category), seller=VALUES(seller), invoice_amount=VALUES(invoice_amount), invoice_currency=VALUES(invoice_currency), invoice_uploaded=VALUES(invoice_uploaded), remote_created_at=VALUES(remote_created_at), remote_updated_at=VALUES(remote_updated_at), report_date=VALUES(report_date), raw_json=VALUES(raw_json), last_seen_at=NOW()");
+        $reportUid=warehouse_forwarder_pick($row,['report_uid','report_id']); $decl=warehouse_forwarder_pick($row,['declaration_status','status']); $cat=warehouse_forwarder_pick($row,['category']); $seller=warehouse_forwarder_pick($row,['seller','shop']); $inv=warehouse_forwarder_num($row['invoice_amount']??null); $cur=warehouse_forwarder_pick($row,['invoice_currency','currency']); $upl=warehouse_forwarder_pick($row,['invoice_uploaded']);
+        $remoteCreated=warehouse_forwarder_sql_datetime_or_null($row['remote_created_at']??($row['created_at']??null)); $remoteUpdated=warehouse_forwarder_sql_datetime_or_null($row['remote_updated_at']??($row['updated_at']??null)); $rdate=warehouse_forwarder_sql_date_or_null($row['report_date']??null);
+        $stmt->bind_param('isssssssdssdssssss',$connectorId,$reportUid,$tracking,$internal,$clientId,$clientName,$decl,$pos,$weight,$cat,$seller,$inv,$cur,$upl,$remoteCreated,$remoteUpdated,$rdate,$raw); $stmt->execute(); $reportId=$stmt->insert_id ?: (int)($dbcnx->query("SELECT id FROM forwarder_report_items WHERE connector_id=".(int)$connectorId." AND tracking_no='".$dbcnx->real_escape_string($tracking)."' LIMIT 1")->fetch_assoc()['id']??0); $summary['report_items_upserted']++; $stmt->close();
         $cellId = $pos!=='' ? warehouse_forwarder_resolve_local_cell($dbcnx,$connectorId,$pos,(string)($conn['country_code']??'')) : null; if($cellId) $summary['mapped_to_cells']++; elseif($pos!=='') $summary['unmapped_positions']++;
-        $find=$dbcnx->prepare("SELECT id, addons_json FROM warehouse_item_stock WHERE tracking_no=? OR tuid=? OR JSON_CONTAINS(COALESCE(addons_json,'{}'), JSON_QUOTE(?), '$.forwarder_internal_no') LIMIT 1"); $find->bind_param('sss',$tracking,$tracking,$internal); $find->execute(); $existing=$find->get_result()->fetch_assoc(); $find->close();
-        $addons=['forwarder_report'=>$row,'forwarder_internal_no'=>$internal]; $addonsJson=json_encode($addons,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
-        if($existing){ $sql="UPDATE warehouse_item_stock SET receiver_name=COALESCE(NULLIF(?,''),receiver_name), receiver_address=COALESCE(NULLIF(?,''),receiver_address), weight_kg=COALESCE(?,weight_kg), addons_json=?, connector_id=?, forwarder_report_item_id=?, forwarder_position_code=?, forwarder_synced_at=NOW()" . ($cellId!==null ? ", cell_id=".(int)$cellId : ", cell_id=NULL") . " WHERE id=? LIMIT 1"; $stmt=$dbcnx->prepare($sql); $id=(int)$existing['id']; $stmt->bind_param('ssdsiisi',$clientName,$clientId,$weight,$addonsJson,$connectorId,$reportId,$pos,$id); $stmt->execute(); $stmt->close(); $summary['stock_updated']++; $stockId=$id; }
-        else { $tuid=$tracking!==''?$tracking:$internal; $stmt=$dbcnx->prepare("INSERT INTO warehouse_item_stock (created_at,tuid,tracking_no,receiver_country_code,receiver_name,receiver_company,receiver_address,weight_kg,cell_id,addons_json,source_origin,connector_id,forwarder_report_item_id,forwarder_position_code,forwarder_synced_at) VALUES (NOW(),?,?,?,?,?,?,?,?,?,'forwarder_report',?,?,?,NOW())"); $cid=$cellId; $country=(string)($conn['country_code']??''); $cname=(string)($conn['name']??''); $stmt->bind_param('sssssdissiis',$tuid,$tracking,$country,$clientName,$cname,$clientId,$weight,$cid,$addonsJson,$connectorId,$reportId,$pos); $stmt->execute(); $stockId=$stmt->insert_id; $stmt->close(); $summary['stock_created']++; }
+        $find=$dbcnx->prepare("SELECT id, addons_json FROM warehouse_item_stock WHERE connector_id=? AND tracking_no=? AND source_origin='forwarder_report' LIMIT 1"); $find->bind_param('is',$connectorId,$tracking); $find->execute(); $existing=$find->get_result()->fetch_assoc(); $find->close();
+        if(!$existing){ $find=$dbcnx->prepare("SELECT id, addons_json FROM warehouse_item_stock WHERE tracking_no=? LIMIT 1"); $find->bind_param('s',$tracking); $find->execute(); $existing=$find->get_result()->fetch_assoc(); $find->close(); }
+        $existingAddons = $existing ? json_decode((string)($existing['addons_json'] ?? ''), true) : []; if(!is_array($existingAddons)) $existingAddons=[]; $addons=array_merge($existingAddons,['forwarder_report'=>$row,'forwarder_internal_no'=>$internal]); $addonsJson=json_encode($addons,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
+        if($existing){ $sql="UPDATE warehouse_item_stock SET receiver_name=COALESCE(NULLIF(?,''),receiver_name), receiver_address=COALESCE(NULLIF(?,''),receiver_address), weight_kg=COALESCE(?,weight_kg), addons_json=?, source_origin='forwarder_report', connector_id=?, forwarder_report_item_id=?, forwarder_position_code=?, forwarder_synced_at=NOW()" . ($cellId!==null ? ", cell_id=".(int)$cellId : "") . " WHERE id=? LIMIT 1"; $stmt=$dbcnx->prepare($sql); $id=(int)$existing['id']; $stmt->bind_param('ssdsiisi',$clientName,$clientId,$weight,$addonsJson,$connectorId,$reportId,$pos,$id); $stmt->execute(); $stmt->close(); $summary['stock_updated']++; $stockId=$id; }
+        else { $tuid=$tracking; $batchUid=99990000+$connectorId; $uidCreated=9999; $baseCols=['created_at','batch_uid','uid_created','tuid','tracking_no','receiver_country_code','receiver_name','receiver_company','receiver_address','weight_kg','cell_id','addons_json','source_origin','connector_id','forwarder_report_item_id','forwarder_position_code','forwarder_synced_at']; $extraCols=[]; if($stockHasUserId)$extraCols[]='user_id'; if($stockHasCommitted)$extraCols[]='committed'; $cols=array_merge($baseCols,$extraCols); $placeholders=['NOW()','?','?','?','?','?','?','?','?','?','?','?','\'forwarder_report\'','?','?','?','NOW()']; foreach($extraCols as $_)$placeholders[]='?'; $sql="INSERT INTO warehouse_item_stock (`".implode('`,`',$cols)."`) VALUES (".implode(',',$placeholders).")"; $stmt=$dbcnx->prepare($sql); $cid=$cellId; $country=(string)($conn['country_code']??''); $cname=(string)($conn['name']??''); if($stockHasUserId && $stockHasCommitted){$committed=1; $stmt->bind_param('iisssssdissiisii',$batchUid,$uidCreated,$tuid,$tracking,$country,$clientName,$cname,$clientId,$weight,$cid,$addonsJson,$connectorId,$reportId,$pos,$uidCreated,$committed);} elseif($stockHasUserId){$stmt->bind_param('iisssssdissiisi',$batchUid,$uidCreated,$tuid,$tracking,$country,$clientName,$cname,$clientId,$weight,$cid,$addonsJson,$connectorId,$reportId,$pos,$uidCreated);} elseif($stockHasCommitted){$committed=1; $stmt->bind_param('iisssssdissiisi',$batchUid,$uidCreated,$tuid,$tracking,$country,$clientName,$cname,$clientId,$weight,$cid,$addonsJson,$connectorId,$reportId,$pos,$committed);} else {$stmt->bind_param('iisssssdissiis',$batchUid,$uidCreated,$tuid,$tracking,$country,$clientName,$cname,$clientId,$weight,$cid,$addonsJson,$connectorId,$reportId,$pos);} $stmt->execute(); $stockId=$stmt->insert_id; $stmt->close(); $summary['stock_created']++; }
         $audit=json_encode(['row'=>$row,'stock_item_id'=>$stockId,'mapped_cell_id'=>$cellId],JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES); $stmt=$dbcnx->prepare("INSERT INTO warehouse_sync_audit (item_id,tracking_no,forwarder,country_code,status,message,response_json) VALUES (?,?,?,?, 'imported_from_forwarder','Created from forwarder report',?)"); $f=(string)($conn['name']??''); $country=(string)($conn['country_code']??''); $stmt->bind_param('issss',$stockId,$tracking,$f,$country,$audit); $stmt->execute(); $stmt->close();
     } catch (Throwable $e) { $summary['errors'][]='row '.($idx+1).': '.$e->getMessage(); }} return $summary;
 }
