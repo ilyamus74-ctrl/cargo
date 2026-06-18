@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-06-18 13:52:48
+/* Smarty version 5.3.1, created on 2026-06-18 13:59:44
   from 'file:cells_NA_API_system_tasks.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_6a33f830b32585_62329202',
+  'unifunc' => 'content_6a33f9d0446719_05439153',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '7ee614622c6abfb7a3fa0b52b9d386478b25d76c' => 
     array (
       0 => 'cells_NA_API_system_tasks.html',
-      1 => 1781790659,
+      1 => 1781791171,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_6a33f830b32585_62329202 (\Smarty\Template $_smarty_tpl) {
+function content_6a33f9d0446719_05439153 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?><div class="container-fluid py-3">
   <div class="d-flex justify-content-between align-items-center mb-3">
@@ -117,12 +117,11 @@ $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
             <tr>
               <th>ID</th>
               <th>Code</th>
-              <th>Endpoint</th>
-              <th>Every</th>
-              <th>Enabled</th>
-              <th>Last</th>
-              <th>Next</th>
-              <th></th>
+              <th class="text-nowrap">Endpoint</th>
+              <th class="text-nowrap">Every</th>
+              <th class="text-nowrap">Enabled</th>
+              <th class="text-nowrap">Last</th>
+              <th class="text-nowrap">Next</th>
             </tr>
             </thead>
             <tbody>
@@ -136,56 +135,59 @@ $foreach2DoElse = false;
                 <tr>
                   <td><?php echo $_smarty_tpl->getValue('task')['id'];?>
 </td>
-                  <td><code><?php echo htmlspecialchars((string)$_smarty_tpl->getValue('task')['code'], ENT_QUOTES, 'UTF-8', true);?>
-</code><br><small><?php echo htmlspecialchars((string)$_smarty_tpl->getValue('task')['name'], ENT_QUOTES, 'UTF-8', true);?>
-</small></td>
-                  <td><code><?php echo htmlspecialchars((string)$_smarty_tpl->getValue('task')['endpoint_action'], ENT_QUOTES, 'UTF-8', true);?>
+                  <td class="system-task-main-cell">
+                    <code><?php echo htmlspecialchars((string)$_smarty_tpl->getValue('task')['code'], ENT_QUOTES, 'UTF-8', true);?>
+</code><br>
+                    <small><?php echo htmlspecialchars((string)$_smarty_tpl->getValue('task')['name'], ENT_QUOTES, 'UTF-8', true);?>
+</small>
+                    <div class="mt-1 d-flex flex-wrap gap-1">
+                      <button type="button" class="btn btn-sm btn-outline-success js-core-link"
+                              data-core-action="run_system_task_now"
+                              data-task-id="<?php echo $_smarty_tpl->getValue('task')['id'];?>
+"
+                              data-confirm="Выполнить задание <?php echo htmlspecialchars((string)$_smarty_tpl->getValue('task')['code'], ENT_QUOTES, 'UTF-8', true);?>
+ сейчас?<?php if ($_smarty_tpl->getValue('task')['is_enabled'] != 1) {?> Задание disabled, но будет запущено вручную.<?php }?>">Run</button>
+                      <button type="button" class="btn btn-sm btn-outline-primary js-system-task-edit"
+                              data-task-id="<?php echo $_smarty_tpl->getValue('task')['id'];?>
+"
+                              data-task-code="<?php echo htmlspecialchars((string)$_smarty_tpl->getValue('task')['code'], ENT_QUOTES, 'UTF-8', true);?>
+"
+                              data-task-name="<?php echo htmlspecialchars((string)$_smarty_tpl->getValue('task')['name'], ENT_QUOTES, 'UTF-8', true);?>
+"
+                              data-task-description="<?php echo htmlspecialchars((string)$_smarty_tpl->getValue('task')['description'], ENT_QUOTES, 'UTF-8', true);?>
+"
+                              data-task-payload="<?php echo htmlentities(mb_convert_encoding((string)(($tmp = $_smarty_tpl->getValue('task')['payload_json'] ?? null)===null||$tmp==='' ? '' ?? null : $tmp), 'UTF-8', 'UTF-8'), ENT_QUOTES, 'UTF-8', true);?>
+"
+                              data-task-endpoint="<?php echo htmlspecialchars((string)$_smarty_tpl->getValue('task')['endpoint_action'], ENT_QUOTES, 'UTF-8', true);?>
+"
+                              data-task-interval="<?php echo $_smarty_tpl->getValue('task')['interval_minutes'];?>
+"
+                              data-task-enabled="<?php echo $_smarty_tpl->getValue('task')['is_enabled'];?>
+">Edit</button>
+                      <button type="button" class="btn btn-sm btn-outline-danger js-core-link"
+                              data-core-action="delete_system_task"
+                              data-task-id="<?php echo $_smarty_tpl->getValue('task')['id'];?>
+"
+                              data-confirm="Удалить задание <?php echo htmlspecialchars((string)$_smarty_tpl->getValue('task')['code'], ENT_QUOTES, 'UTF-8', true);?>
+?">Del</button>
+                    </div>
+                  </td>
+                  <td class="text-nowrap"><code><?php echo htmlspecialchars((string)$_smarty_tpl->getValue('task')['endpoint_action'], ENT_QUOTES, 'UTF-8', true);?>
 </code></td>
-                  <td><?php echo $_smarty_tpl->getValue('task')['interval_minutes'];?>
+                  <td class="text-nowrap"><?php echo $_smarty_tpl->getValue('task')['interval_minutes'];?>
 m</td>
-                  <td><?php if ($_smarty_tpl->getValue('task')['is_enabled'] == 1) {?><span class="badge bg-success">yes</span><?php } else { ?><span class="badge bg-secondary">no</span><?php }?></td>
-                  <td><small><?php echo (($tmp = $_smarty_tpl->getValue('task')['last_run_at'] ?? null)===null||$tmp==='' ? '-' ?? null : $tmp);?>
+                  <td class="text-nowrap"><?php if ($_smarty_tpl->getValue('task')['is_enabled'] == 1) {?><span class="badge bg-success">yes</span><?php } else { ?><span class="badge bg-secondary">no</span><?php }?></td>
+                  <td class="text-nowrap"><small><?php echo (($tmp = $_smarty_tpl->getValue('task')['last_run_at'] ?? null)===null||$tmp==='' ? '-' ?? null : $tmp);?>
 </small><br><small><?php echo (($tmp = $_smarty_tpl->getValue('task')['last_status'] ?? null)===null||$tmp==='' ? '' ?? null : $tmp);?>
 </small></td>
-                  <td><small><?php echo (($tmp = $_smarty_tpl->getValue('task')['next_run_at'] ?? null)===null||$tmp==='' ? '-' ?? null : $tmp);?>
+                  <td class="text-nowrap"><small><?php echo (($tmp = $_smarty_tpl->getValue('task')['next_run_at'] ?? null)===null||$tmp==='' ? '-' ?? null : $tmp);?>
 </small></td>
-                  <td class="text-end">
-                    <button type="button" class="btn btn-sm btn-outline-success js-core-link"
-                            data-core-action="run_system_task_now"
-                            data-task-id="<?php echo $_smarty_tpl->getValue('task')['id'];?>
-"
-                            data-confirm="Выполнить задание <?php echo htmlspecialchars((string)$_smarty_tpl->getValue('task')['code'], ENT_QUOTES, 'UTF-8', true);?>
- сейчас?<?php if ($_smarty_tpl->getValue('task')['is_enabled'] != 1) {?> Задание disabled, но будет запущено вручную.<?php }?>">Run</button>
-                    <button type="button" class="btn btn-sm btn-outline-primary js-system-task-edit"
-                            data-task-id="<?php echo $_smarty_tpl->getValue('task')['id'];?>
-"
-                            data-task-code="<?php echo htmlspecialchars((string)$_smarty_tpl->getValue('task')['code'], ENT_QUOTES, 'UTF-8', true);?>
-"
-                            data-task-name="<?php echo htmlspecialchars((string)$_smarty_tpl->getValue('task')['name'], ENT_QUOTES, 'UTF-8', true);?>
-"
-                            data-task-description="<?php echo htmlspecialchars((string)$_smarty_tpl->getValue('task')['description'], ENT_QUOTES, 'UTF-8', true);?>
-"
-                            data-task-payload="<?php echo htmlentities(mb_convert_encoding((string)(($tmp = $_smarty_tpl->getValue('task')['payload_json'] ?? null)===null||$tmp==='' ? '' ?? null : $tmp), 'UTF-8', 'UTF-8'), ENT_QUOTES, 'UTF-8', true);?>
-"
-                            data-task-endpoint="<?php echo htmlspecialchars((string)$_smarty_tpl->getValue('task')['endpoint_action'], ENT_QUOTES, 'UTF-8', true);?>
-"
-                            data-task-interval="<?php echo $_smarty_tpl->getValue('task')['interval_minutes'];?>
-"
-                            data-task-enabled="<?php echo $_smarty_tpl->getValue('task')['is_enabled'];?>
-">Edit</button>
-                    <button type="button" class="btn btn-sm btn-outline-danger js-core-link"
-                            data-core-action="delete_system_task"
-                            data-task-id="<?php echo $_smarty_tpl->getValue('task')['id'];?>
-"
-                            data-confirm="Удалить задание <?php echo htmlspecialchars((string)$_smarty_tpl->getValue('task')['code'], ENT_QUOTES, 'UTF-8', true);?>
-?">Del</button>
-                  </td>
                 </tr>
               <?php
 }
 $_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
             <?php } else { ?>
-              <tr><td colspan="8" class="text-center text-muted py-3">Заданий пока нет</td></tr>
+              <tr><td colspan="7" class="text-center text-muted py-3">Заданий пока нет</td></tr>
             <?php }?>
             </tbody>
           </table>
