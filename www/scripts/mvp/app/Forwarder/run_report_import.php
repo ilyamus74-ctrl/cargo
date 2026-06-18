@@ -59,6 +59,95 @@ function forwarder_report_import_set_env(string $name, string $value): void
     }
 }
 
+function forwarder_report_import_load_connector(int $connectorId): array
+{
+    if ($connectorId <= 0) {
+        throw new RuntimeException('Invalid connector-id');
+    }
+
+    $bootstrap = realpath(__DIR__ . '/../../../../../bootstrap.php');
+    if (!$bootstrap || !is_file($bootstrap)) {
+        throw new RuntimeException('Application bootstrap.php not found');
+    }
+    require_once $bootstrap;
+
+    global $dbcnx;
+    if (!isset($dbcnx) || !($dbcnx instanceof mysqli)) {
+        throw new RuntimeException('DB connection $dbcnx is not available');
+    }
+    $dbcnx->set_charset('utf8mb4');
+
+    $stmt = $dbcnx->prepare('SELECT * FROM connectors WHERE id = ? LIMIT 1');
+    if (!$stmt) {
+        throw new RuntimeException('Failed to prepare connector query: ' . $dbcnx->error);
+    }
+    $stmt->bind_param('i', $connectorId);
+    $stmt->execute();
+    $res = $stmt->get_result();
+    $connector = $res ? $res->fetch_assoc() : null;
+    $stmt->close();
+    if (!$connector) {
+        throw new RuntimeException('Connector not found: ' . $connectorId);
+    }
+
+    return $connector;
+}
+
+function forwarder_report_import_first_connector_value(array $connector, string ...$keys): string
+{
+    foreach ($keys as $key) {
+        if (isset($connector[$key]) && trim((string)$connector[$key]) !== '') {
+            return trim((string)$connector[$key]);
+        }
+    }
+    return '';
+}
+
+function forwarder_report_import_is_service_message(string $value): bool
+{
+    $value = trim(preg_replace('/\s+/u', ' ', $value) ?? '');
+    if ($value === '') {
+        return false;
+    }
+    return preg_match('/\b(?:packages?\s+not\s+found|no\s+packages?\s+found|not\s+found|no\s+data)\b/iu', $value) === 1;
+}
+
+function forwarder_report_import_internal_no_looks_real(string $value): bool
+{
+    $value = trim($value);
+    if ($value === '' || mb_strlen($value, 'UTF-8') < 4 || forwarder_report_import_is_service_message($value)) {
+        return false;
+    }
+    return preg_match('/^(?:CBR[A-Z0-9_-]*|H[A-Z0-9_-]*|\d+)$/iu', $value) === 1;
+}
+
+function forwarder_report_import_debug_write(string $debugDir, string $filename, string $contents): string
+{
+    if ($debugDir === '') {
+        return '';
+    }
+    if (!is_dir($debugDir) && !mkdir($debugDir, 0775, true) && !is_dir($debugDir)) {
+        throw new RuntimeException('Unable to create debug dir: ' . $debugDir);
+    }
+    $path = rtrim($debugDir, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . $filename;
+    file_put_contents($path, $contents);
+    return $path;
+}
+
+function forwarder_report_import_raw_extension(string $body, string $contentType): string
+{
+    if ($body !== '' && str_starts_with($body, 'PK')) {
+        return 'xlsx';
+    }
+    if (str_contains($contentType, 'csv')) {
+        return 'csv';
+    }
+    if (str_contains($contentType, 'html') || preg_match('/<html\b|<table\b/iu', $body) === 1) {
+        return 'html';
+    }
+    return 'raw';
+}
+
 function forwarder_report_import_json_exit(array $payload, int $code = 0): void
 {
     echo json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT) . PHP_EOL;
@@ -148,7 +237,12 @@ function forwarder_report_import_normalize_row(array $row, int $rowNo): ?array
     if ($invoice !== null) {
         $normalized['invoice_amount'] = $invoice;
     }
-    if ($normalized['tracking_no'] === '' && $normalized['forwarder_internal_no'] === '') {
+    $rowText = trim(implode(' ', array_map(static fn($v) => trim((string)$v), $row)));
+    if ($normalized['tracking_no'] === '' && forwarder_report_import_is_service_message($rowText)) {
+        $GLOBALS['forwarder_report_import_filtered_service_rows'] = (int)($GLOBALS['forwarder_report_import_filtered_service_rows'] ?? 0) + 1;
+        return null;
+    }
+    if ($normalized['tracking_no'] === '' && !forwarder_report_import_internal_no_looks_real($normalized['forwarder_internal_no'])) {
         return null;
     }
     return $normalized;
@@ -332,19 +426,49 @@ function forwarder_report_import_parse_body(string $body, string $contentType): 
 }
 
 $args = forwarder_report_import_args($_SERVER['argv'] ?? []);
-forwarder_report_import_set_env('DEV_COLIBRI_BASE_URL', forwarder_report_import_arg($args, 'base-url', 'base_url'));
-forwarder_report_import_set_env('DEV_COLIBRI_LOGIN', forwarder_report_import_arg($args, 'login', 'username'));
-forwarder_report_import_set_env('DEV_COLIBRI_PASSWORD', forwarder_report_import_arg($args, 'password'));
-forwarder_report_import_set_env('FORWARDER_BASE_URL', forwarder_report_import_arg($args, 'base-url', 'base_url'));
-forwarder_report_import_set_env('FORWARDER_LOGIN', forwarder_report_import_arg($args, 'login', 'username'));
-forwarder_report_import_set_env('FORWARDER_PASSWORD', forwarder_report_import_arg($args, 'password'));
+$connectorId = (int)(forwarder_report_import_arg($args, 'connector-id', 'connector_id') ?: 0);
+$connector = [];
+$connectorName = '';
+$connectorCountries = '';
+if ($connectorId > 0) {
+    try {
+        $connector = forwarder_report_import_load_connector($connectorId);
+    } catch (Throwable $e) {
+        forwarder_report_import_json_exit([
+            'status' => 'CONFIG_ERROR',
+            'message' => $e->getMessage(),
+            'connector_id' => $connectorId,
+            'rows' => [],
+            'rows_total' => 0,
+        ], 3);
+    }
+    $connectorName = (string)($connector['name'] ?? '');
+    $connectorCountries = forwarder_report_import_first_connector_value($connector, 'countries', 'country_code', 'country');
+    $baseUrl = forwarder_report_import_first_connector_value($connector, 'base_url');
+    $login = forwarder_report_import_first_connector_value($connector, 'auth_username', 'login', 'username');
+    $password = forwarder_report_import_first_connector_value($connector, 'auth_password', 'password');
+} else {
+    $baseUrl = forwarder_report_import_arg($args, 'base-url', 'base_url');
+    $login = forwarder_report_import_arg($args, 'login', 'username');
+    $password = forwarder_report_import_arg($args, 'password');
+}
+forwarder_report_import_set_env('DEV_COLIBRI_BASE_URL', $baseUrl);
+forwarder_report_import_set_env('DEV_COLIBRI_LOGIN', $login);
+forwarder_report_import_set_env('DEV_COLIBRI_PASSWORD', $password);
+forwarder_report_import_set_env('FORWARDER_BASE_URL', $baseUrl);
+forwarder_report_import_set_env('FORWARDER_LOGIN', $login);
+forwarder_report_import_set_env('FORWARDER_PASSWORD', $password);
 forwarder_report_import_set_env('FORWARDER_SESSION_FILE', forwarder_report_import_arg($args, 'session-file', 'session_file'));
 forwarder_report_import_set_env('FORWARDER_SESSION_TTL_SECONDS', forwarder_report_import_arg($args, 'session-ttl-seconds', 'session_ttl_seconds'));
 
-$fromDate = forwarder_report_import_arg($args, 'from', 'from_date') ?: date('Y-m-d');
-$toDate = forwarder_report_import_arg($args, 'to', 'to_date') ?: date('Y-m-d');
+$fromDate = forwarder_report_import_arg($args, 'from-date', 'from_date', 'date-from', 'date_from', 'from') ?: date('Y-m-d');
+$toDate = forwarder_report_import_arg($args, 'to-date', 'to_date', 'date-to', 'date_to', 'to') ?: date('Y-m-d');
 $pagePath = forwarder_report_import_arg($args, 'page-path', 'page_path') ?: '/collector/reports/all_packages';
 $postPath = forwarder_report_import_arg($args, 'post-path', 'post_path') ?: $pagePath;
+$debugDir = forwarder_report_import_arg($args, 'debug-dir', 'debug_dir');
+$saveRaw = forwarder_report_import_arg($args, 'save-raw', 'save_raw') !== '';
+$debugFiles = [];
+$GLOBALS['forwarder_report_import_filtered_service_rows'] = 0;
 $correlationId = 'run-report-import-' . date('YmdHis') . '-' . bin2hex(random_bytes(4));
 
 try {
@@ -366,6 +490,9 @@ try {
 
     $pageResponse = $sessionClient->requestWithSession('GET', $pagePath, [], false);
     $pageHtml = (string)($pageResponse['body'] ?? '');
+    if ($saveRaw) {
+        $debugFiles['get_page_html'] = forwarder_report_import_debug_write($debugDir, 'collector_all_packages_get.html', $pageHtml);
+    }
     $token = forwarder_report_import_csrf_from_html($pageHtml) ?: $sessionClient->csrfToken();
 
     $payload = [
@@ -380,6 +507,9 @@ try {
     $statusCode = (int)($reportResponse['status_code'] ?? 0);
     $body = (string)($reportResponse['body'] ?? '');
     $contentType = forwarder_report_import_content_type($reportResponse);
+    if ($saveRaw) {
+        $debugFiles['post_response_raw'] = forwarder_report_import_debug_write($debugDir, 'collector_all_packages_response.' . forwarder_report_import_raw_extension($body, $contentType), $body);
+    }
     if ($statusCode < 200 || $statusCode >= 300 || $body === '') {
         forwarder_report_import_json_exit([
             'status' => 'FETCH_ERROR',
@@ -395,20 +525,35 @@ try {
     }
 
     $rows = forwarder_report_import_parse_body($body, $contentType);
+    if ($saveRaw) {
+        $debugFiles['normalized_rows'] = forwarder_report_import_debug_write($debugDir, 'normalized_rows.json', json_encode($rows, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT) . PHP_EOL);
+    }
     forwarder_report_import_json_exit([
         'status' => 'OK',
         'message' => 'Forwarder report imported from remote endpoint',
         'mode' => 'report_import',
         'correlation_id' => $correlationId,
+        'connector_id' => $connectorId > 0 ? $connectorId : null,
+        'connector_name' => $connectorName,
         'from_date' => $fromDate,
         'to_date' => $toDate,
         'rows_total' => count($rows),
         'rows' => $rows,
         'diagnostics' => [
+            'connector_id' => $connectorId > 0 ? $connectorId : null,
+            'connector_name' => $connectorName,
+            'connector_countries' => $connectorCountries,
+            'base_url' => $baseUrl,
+            'from_date' => $fromDate,
+            'to_date' => $toDate,
             'page_path' => $pagePath,
             'post_path' => $postPath,
             'http_status' => $statusCode,
             'content_type' => $contentType,
+            'raw_size' => strlen($body),
+            'rows_total' => count($rows),
+            'filtered_service_rows' => (int)($GLOBALS['forwarder_report_import_filtered_service_rows'] ?? 0),
+            'debug_files' => array_filter($debugFiles),
         ],
     ]);
 } catch (Throwable $e) {
