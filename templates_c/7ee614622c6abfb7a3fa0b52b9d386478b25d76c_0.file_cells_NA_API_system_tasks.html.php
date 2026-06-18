@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-06-18 13:43:13
+/* Smarty version 5.3.1, created on 2026-06-18 13:52:48
   from 'file:cells_NA_API_system_tasks.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_6a33f5f168b584_41648803',
+  'unifunc' => 'content_6a33f830b32585_62329202',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '7ee614622c6abfb7a3fa0b52b9d386478b25d76c' => 
     array (
       0 => 'cells_NA_API_system_tasks.html',
-      1 => 1781790186,
+      1 => 1781790659,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_6a33f5f168b584_41648803 (\Smarty\Template $_smarty_tpl) {
+function content_6a33f830b32585_62329202 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?><div class="container-fluid py-3">
   <div class="d-flex justify-content-between align-items-center mb-3">
@@ -150,6 +150,12 @@ m</td>
                   <td><small><?php echo (($tmp = $_smarty_tpl->getValue('task')['next_run_at'] ?? null)===null||$tmp==='' ? '-' ?? null : $tmp);?>
 </small></td>
                   <td class="text-end">
+                    <button type="button" class="btn btn-sm btn-outline-success js-core-link"
+                            data-core-action="run_system_task_now"
+                            data-task-id="<?php echo $_smarty_tpl->getValue('task')['id'];?>
+"
+                            data-confirm="Выполнить задание <?php echo htmlspecialchars((string)$_smarty_tpl->getValue('task')['code'], ENT_QUOTES, 'UTF-8', true);?>
+ сейчас?<?php if ($_smarty_tpl->getValue('task')['is_enabled'] != 1) {?> Задание disabled, но будет запущено вручную.<?php }?>">Run</button>
                     <button type="button" class="btn btn-sm btn-outline-primary js-system-task-edit"
                             data-task-id="<?php echo $_smarty_tpl->getValue('task')['id'];?>
 "
