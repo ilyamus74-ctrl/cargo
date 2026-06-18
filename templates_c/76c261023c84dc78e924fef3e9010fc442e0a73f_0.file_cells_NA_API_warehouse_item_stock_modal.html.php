@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-06-07 14:41:19
+/* Smarty version 5.3.1, created on 2026-06-18 14:34:04
   from 'file:cells_NA_API_warehouse_item_stock_modal.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_6a25830fb6cc94_69645443',
+  'unifunc' => 'content_6a3401dcbedf70_29893117',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '76c261023c84dc78e924fef3e9010fc442e0a73f' => 
     array (
       0 => 'cells_NA_API_warehouse_item_stock_modal.html',
-      1 => 1780842471,
+      1 => 1781787416,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_6a25830fb6cc94_69645443 (\Smarty\Template $_smarty_tpl) {
+function content_6a3401dcbedf70_29893117 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?><form id="item-stock-modal-form" class="row g-3">
   <input type="hidden" name="item_id" value="<?php echo $_smarty_tpl->getValue('item')['id'];?>
@@ -72,6 +72,47 @@ $_smarty_current_dir = '/home/cells/web/templates';
     </div>
   </div>
 
+
+  <?php if ($_smarty_tpl->getValue('item')['source_origin'] == 'forwarder_report' || $_smarty_tpl->getValue('item')['forwarder_declaration_status'] || $_smarty_tpl->getValue('item')['forwarder_report_date'] || $_smarty_tpl->getValue('item')['forwarder_remote_created_at']) {?>
+  <div class="col-12">
+    <div class="card border-success">
+      <div class="card-header bg-success text-white">Forwarder report</div>
+      <div class="card-body">
+        <div class="row g-2 small">
+          <div class="col-md-3"><strong>Connector:</strong> <?php echo htmlspecialchars((string)(($tmp = (($tmp = $_smarty_tpl->getValue('item')['connector_name'] ?? null)===null||$tmp==='' ? $_smarty_tpl->getValue('item')['receiver_company'] ?? null : $tmp) ?? null)===null||$tmp==='' ? '—' ?? null : $tmp), ENT_QUOTES, 'UTF-8', true);?>
+</div>
+          <div class="col-md-3"><strong>Forwarder position:</strong> <?php echo htmlspecialchars((string)(($tmp = $_smarty_tpl->getValue('item')['forwarder_position_code'] ?? null)===null||$tmp==='' ? '—' ?? null : $tmp), ENT_QUOTES, 'UTF-8', true);?>
+</div>
+          <div class="col-md-3"><strong>Local cell:</strong> <?php echo htmlspecialchars((string)(($tmp = $_smarty_tpl->getValue('item')['local_cell_code'] ?? null)===null||$tmp==='' ? '—' ?? null : $tmp), ENT_QUOTES, 'UTF-8', true);?>
+</div>
+          <div class="col-md-3"><strong>Declaration status:</strong> <?php echo htmlspecialchars((string)(($tmp = $_smarty_tpl->getValue('item')['forwarder_declaration_status'] ?? null)===null||$tmp==='' ? '—' ?? null : $tmp), ENT_QUOTES, 'UTF-8', true);?>
+</div>
+          <div class="col-md-3"><strong>Forwarder date:</strong> <?php echo htmlspecialchars((string)(($tmp = $_smarty_tpl->getValue('item')['forwarder_effective_date'] ?? null)===null||$tmp==='' ? '—' ?? null : $tmp), ENT_QUOTES, 'UTF-8', true);?>
+</div>
+          <div class="col-md-3"><strong>Report date:</strong> <?php echo htmlspecialchars((string)(($tmp = $_smarty_tpl->getValue('item')['forwarder_report_date'] ?? null)===null||$tmp==='' ? '—' ?? null : $tmp), ENT_QUOTES, 'UTF-8', true);?>
+</div>
+          <div class="col-md-3"><strong>Remote created:</strong> <?php echo htmlspecialchars((string)(($tmp = $_smarty_tpl->getValue('item')['forwarder_remote_created_at'] ?? null)===null||$tmp==='' ? '—' ?? null : $tmp), ENT_QUOTES, 'UTF-8', true);?>
+</div>
+          <div class="col-md-3"><strong>Client ID:</strong> <?php echo htmlspecialchars((string)(($tmp = $_smarty_tpl->getValue('item')['forwarder_client_id'] ?? null)===null||$tmp==='' ? '—' ?? null : $tmp), ENT_QUOTES, 'UTF-8', true);?>
+</div>
+          <div class="col-md-3"><strong>Client name:</strong> <?php echo htmlspecialchars((string)(($tmp = $_smarty_tpl->getValue('item')['forwarder_client_name'] ?? null)===null||$tmp==='' ? '—' ?? null : $tmp), ENT_QUOTES, 'UTF-8', true);?>
+</div>
+          <div class="col-md-3"><strong>Weight:</strong> <?php echo htmlspecialchars((string)(($tmp = $_smarty_tpl->getValue('item')['forwarder_weight_kg'] ?? null)===null||$tmp==='' ? '—' ?? null : $tmp), ENT_QUOTES, 'UTF-8', true);?>
+</div>
+          <div class="col-md-3"><strong>Category:</strong> <?php echo htmlspecialchars((string)(($tmp = $_smarty_tpl->getValue('item')['forwarder_category'] ?? null)===null||$tmp==='' ? '—' ?? null : $tmp), ENT_QUOTES, 'UTF-8', true);?>
+</div>
+          <div class="col-md-3"><strong>Seller:</strong> <?php echo htmlspecialchars((string)(($tmp = $_smarty_tpl->getValue('item')['forwarder_seller'] ?? null)===null||$tmp==='' ? '—' ?? null : $tmp), ENT_QUOTES, 'UTF-8', true);?>
+</div>
+          <div class="col-md-3"><strong>Invoice:</strong> <?php echo htmlspecialchars((string)(($tmp = $_smarty_tpl->getValue('item')['forwarder_invoice_amount'] ?? null)===null||$tmp==='' ? '—' ?? null : $tmp), ENT_QUOTES, 'UTF-8', true);?>
+ <?php echo htmlspecialchars((string)(($tmp = $_smarty_tpl->getValue('item')['forwarder_invoice_currency'] ?? null)===null||$tmp==='' ? '' ?? null : $tmp), ENT_QUOTES, 'UTF-8', true);?>
+</div>
+          <div class="col-md-3"><strong>Invoice uploaded:</strong> <?php echo htmlspecialchars((string)(($tmp = $_smarty_tpl->getValue('item')['forwarder_invoice_uploaded'] ?? null)===null||$tmp==='' ? '—' ?? null : $tmp), ENT_QUOTES, 'UTF-8', true);?>
+</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <?php }?>
   <div class="col-md-4">
     <label for="tuid" class="form-label">
       TUID
