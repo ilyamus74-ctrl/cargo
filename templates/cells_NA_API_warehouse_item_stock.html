@@ -83,6 +83,14 @@
                     <option value="all">all</option>
                   </select>
                 </div>
+
+                <div class="col-6 col-md-3 col-xl-2">
+                  <label class="form-label small mb-1" for="warehouse-items-registry-sort-by">Дата сортировки</label>
+                  <select id="warehouse-items-registry-sort-by" class="form-select form-select-sm">
+                    <option value="created_at_local" selected>Создана у нас</option>
+                    <option value="forwarder_date">Дата у форварда</option>
+                  </select>
+                </div>
                 <div class="col-6 col-md-3 col-xl-1">
                   <label class="form-label small mb-1" for="warehouse-items-registry-sort">Сортировка</label>
                   <select id="warehouse-items-registry-sort" class="form-select form-select-sm">
@@ -104,14 +112,16 @@
                       <th scope="col">Ячейка/Контейнер</th>
                       <th scope="col">Статус отгрузки</th>
                       <th scope="col">Регистрация у форварда</th>
+                      <th scope="col">Статус у форварда</th>
+                      <th scope="col">Дата у форварда</th>
                       <th scope="col">Сообщение</th>
                       <th scope="col" class="text-end">⋮</th>
-                      <th scope="col">Создана</th>
+                      <th scope="col">Создана у нас</th>
                     </tr>
                   </thead>
                   <tbody id="warehouse-items-registry-tbody">
                     <tr>
-                      <td colspan="11" class="text-center text-muted">Загрузка...</td>
+                      <td colspan="13" class="text-center text-muted">Загрузка...</td>
                     </tr>
                   </tbody>
                 </table>

@@ -2736,6 +2736,7 @@ const CoreAPI = {
         forwarderRegisteredSelect: null,
         limitSelect: null,
         sortSelect: null,
+        sortBySelect: null,
         sentinel: null,
         observer: null,
         searchTimer: null,
@@ -2748,6 +2749,7 @@ const CoreAPI = {
             limit: '50',
             offset: 0,
             sort: 'DESC',
+            sortBy: 'created_at_local',
             search: '',
             loading: false,
             done: false
@@ -2777,9 +2779,10 @@ const CoreAPI = {
             this.forwarderRegisteredSelect = root.querySelector('#warehouse-items-registry-forwarder-registered');
             this.limitSelect = root.querySelector('#warehouse-items-registry-limit');
             this.sortSelect = root.querySelector('#warehouse-items-registry-sort');
+            this.sortBySelect = root.querySelector('#warehouse-items-registry-sort-by');
             this.sentinel = root.querySelector('#warehouse-items-registry-sentinel');
 
-            if (!this.tbody || !this.total || !this.searchInput || !this.stateSelect || !this.sourceSelect || !this.forwarderStatusSelect || !this.forwarderRegisteredSelect || !this.limitSelect || !this.sortSelect || !this.sentinel) {
+            if (!this.tbody || !this.total || !this.searchInput || !this.stateSelect || !this.sourceSelect || !this.forwarderStatusSelect || !this.forwarderRegisteredSelect || !this.limitSelect || !this.sortSelect || !this.sortBySelect || !this.sentinel) {
                 return;
             }
 
@@ -2789,6 +2792,7 @@ const CoreAPI = {
             this.state.forwarderRegistered = this.forwarderRegisteredSelect.value || 'all';
             this.state.limit = this.limitSelect.value || '50';
             this.state.sort = this.sortSelect.value || 'DESC';
+            this.state.sortBy = this.sortBySelect.value || 'created_at_local';
             this.state.search = this.searchInput.value.trim();
             this.state.offset = 0;
             this.state.done = false;
@@ -2817,6 +2821,7 @@ const CoreAPI = {
             bindSelect(this.forwarderRegisteredSelect, 'forwarderRegistered', 'all');
             bindSelect(this.limitSelect, 'limit', '50');
             bindSelect(this.sortSelect, 'sort', 'DESC');
+            bindSelect(this.sortBySelect, 'sortBy', 'created_at_local');
 
             this.searchInput.addEventListener('input', () => {
                 if (this.searchTimer) {
@@ -2877,6 +2882,7 @@ const CoreAPI = {
             fd.append('limit', this.state.limit);
             fd.append('offset', String(this.state.offset));
             fd.append('sort', this.state.sort);
+            fd.append('sort_by', this.state.sortBy);
             fd.append('search', this.state.search);
 
             try {

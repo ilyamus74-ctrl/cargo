@@ -839,6 +839,10 @@ if ($action === 'warehouse_items_registry') {
 
     $sortRaw = strtoupper(trim((string)($_POST['sort'] ?? 'DESC')));
     $sort = $sortRaw === 'ASC' ? 'ASC' : 'DESC';
+    $sortBy = trim((string)($_POST['sort_by'] ?? 'created_at_local'));
+    if (!in_array($sortBy, ['created_at_local', 'forwarder_date'], true)) {
+        $sortBy = 'created_at_local';
+    }
     $search = trim((string)($_POST['search'] ?? ''));
 
     $hasOutTable = warehouse_stock_table_exists($dbcnx, 'warehouse_item_out');
@@ -860,6 +864,19 @@ if ($action === 'warehouse_items_registry') {
     $stockRegStatus = warehouse_stock_registry_col($dbcnx, 'warehouse_item_stock', 'wi', 'forwarder_registration_status', "''");
     $stockRegMessage = warehouse_stock_registry_col($dbcnx, 'warehouse_item_stock', 'wi', 'forwarder_registration_message', "''");
     $stockRegResponse = warehouse_stock_registry_col($dbcnx, 'warehouse_item_stock', 'wi', 'forwarder_registration_response_json');
+    $stockSourceOrigin = warehouse_stock_registry_col($dbcnx, 'warehouse_item_stock', 'wi', 'source_origin', "''");
+    $stockConnectorId = warehouse_stock_registry_col($dbcnx, 'warehouse_item_stock', 'wi', 'connector_id');
+    $stockForwarderReportItemId = warehouse_stock_registry_col($dbcnx, 'warehouse_item_stock', 'wi', 'forwarder_report_item_id');
+    $friDeclarationStatus = warehouse_stock_registry_col($dbcnx, 'forwarder_report_items', 'fri', 'declaration_status', "''");
+    $fri2DeclarationStatus = warehouse_stock_registry_col($dbcnx, 'forwarder_report_items', 'fri2', 'declaration_status', "''");
+    $friReportDate = warehouse_stock_registry_col($dbcnx, 'forwarder_report_items', 'fri', 'report_date');
+    $fri2ReportDate = warehouse_stock_registry_col($dbcnx, 'forwarder_report_items', 'fri2', 'report_date');
+    $friRemoteCreatedAt = warehouse_stock_registry_col($dbcnx, 'forwarder_report_items', 'fri', 'remote_created_at');
+    $fri2RemoteCreatedAt = warehouse_stock_registry_col($dbcnx, 'forwarder_report_items', 'fri2', 'remote_created_at');
+    $friClientId = warehouse_stock_registry_col($dbcnx, 'forwarder_report_items', 'fri', 'client_id', "''");
+    $fri2ClientId = warehouse_stock_registry_col($dbcnx, 'forwarder_report_items', 'fri2', 'client_id', "''");
+    $friClientName = warehouse_stock_registry_col($dbcnx, 'forwarder_report_items', 'fri', 'client_name', "''");
+    $fri2ClientName = warehouse_stock_registry_col($dbcnx, 'forwarder_report_items', 'fri2', 'client_name', "''");
     $stockOutJoin = $hasOutTable ? 'LEFT JOIN warehouse_item_out wo ON wo.stock_item_id = wi.id' : '';
     $stockOutStatus = $hasOutTable ? warehouse_stock_registry_col($dbcnx, 'warehouse_item_out', 'wo', 'status', "''") : "''";
     $stockContainer = $hasOutTable ? warehouse_stock_registry_col($dbcnx, 'warehouse_item_out', 'wo', 'shipped_container_name', "''") : "''";
@@ -888,6 +905,15 @@ if ($action === 'warehouse_items_registry') {
             {$stockReceiverCompany} AS receiver_company,
             COALESCE(NULLIF({$stockReceiverCompany}, ''), NULLIF({$stockCarrierName}, '')) AS forwarder_name,
             {$stockCreatedAt} AS created_at,
+            {$stockCreatedAt} AS created_at_local,
+            {$stockSourceOrigin} AS source_origin,
+            {$stockConnectorId} AS connector_id,
+            COALESCE({$friDeclarationStatus}, {$fri2DeclarationStatus}) AS forwarder_declaration_status,
+            COALESCE({$friReportDate}, {$fri2ReportDate}) AS forwarder_report_date,
+            COALESCE({$friRemoteCreatedAt}, {$fri2RemoteCreatedAt}) AS forwarder_remote_created_at,
+            COALESCE({$friRemoteCreatedAt}, {$friReportDate}, {$fri2RemoteCreatedAt}, {$fri2ReportDate}) AS forwarder_effective_date,
+            COALESCE({$friClientId}, {$fri2ClientId}) AS forwarder_client_id,
+            COALESCE({$friClientName}, {$fri2ClientName}) AS forwarder_client_name,
             {$stockCellId} AS cell_id,
             c.code AS cell_address,
             wi.forwarder_position_code,
@@ -912,6 +938,8 @@ if ($action === 'warehouse_items_registry') {
         FROM warehouse_item_stock wi
         {$stockOutJoin}
         LEFT JOIN cells c ON c.id = {$stockCellId}
+        LEFT JOIN forwarder_report_items fri ON fri.id = {$stockForwarderReportItemId}
+        LEFT JOIN forwarder_report_items fri2 ON fri2.connector_id = {$stockConnectorId} AND fri2.tracking_no = {$stockTracking}
         LEFT JOIN users u ON u.id = {$stockUserId}
     ";
 
@@ -944,6 +972,15 @@ if ($action === 'warehouse_items_registry') {
                 {$inReceiverCompany} AS receiver_company,
                 COALESCE(NULLIF({$inReceiverCompany}, ''), NULLIF({$inCarrierName}, '')) AS forwarder_name,
                 {$inCreatedAt} AS created_at,
+                {$inCreatedAt} AS created_at_local,
+                '' AS source_origin,
+                NULL AS connector_id,
+                '' AS forwarder_declaration_status,
+                NULL AS forwarder_report_date,
+                NULL AS forwarder_remote_created_at,
+                NULL AS forwarder_effective_date,
+                '' AS forwarder_client_id,
+                '' AS forwarder_client_name,
                 NULL AS cell_id,
                 NULL AS cell_address,
                 NULL AS forwarder_position_code,
@@ -989,6 +1026,15 @@ if ($action === 'warehouse_items_registry') {
                 {$outReceiverCompany} AS receiver_company,
                 COALESCE(NULLIF({$outReceiverCompany}, ''), NULLIF({$stockCarrierName}, '')) AS forwarder_name,
                 {$outCreatedAt} AS created_at,
+                {$stockCreatedAt} AS created_at_local,
+                {$stockSourceOrigin} AS source_origin,
+                {$stockConnectorId} AS connector_id,
+                COALESCE({$friDeclarationStatus}, {$fri2DeclarationStatus}) AS forwarder_declaration_status,
+                COALESCE({$friReportDate}, {$fri2ReportDate}) AS forwarder_report_date,
+                COALESCE({$friRemoteCreatedAt}, {$fri2RemoteCreatedAt}) AS forwarder_remote_created_at,
+                COALESCE({$friRemoteCreatedAt}, {$friReportDate}, {$fri2RemoteCreatedAt}, {$fri2ReportDate}) AS forwarder_effective_date,
+                COALESCE({$friClientId}, {$fri2ClientId}) AS forwarder_client_id,
+                COALESCE({$friClientName}, {$fri2ClientName}) AS forwarder_client_name,
                 {$stockCellId} AS cell_id,
                 c.code AS cell_address,
                 wi.forwarder_position_code,
@@ -1008,6 +1054,8 @@ if ($action === 'warehouse_items_registry') {
             FROM warehouse_item_out wo
             LEFT JOIN warehouse_item_stock wi ON wi.id = wo.stock_item_id
             LEFT JOIN cells c ON c.id = {$stockCellId}
+            LEFT JOIN forwarder_report_items fri ON fri.id = {$stockForwarderReportItemId}
+            LEFT JOIN forwarder_report_items fri2 ON fri2.connector_id = {$stockConnectorId} AND fri2.tracking_no = {$stockTracking}
             LEFT JOIN users u ON u.id = {$stockUserId}
         ";
     }
@@ -1086,7 +1134,7 @@ if ($action === 'warehouse_items_registry') {
             registry.*,
             COALESCE(NULLIF(registry.tuid, ''), NULLIF(registry.tracking_no, ''), CAST(registry.uid_created AS CHAR)) AS parcel_uid
         {$baseSql}
-        ORDER BY registry.created_at {$sort}, registry.item_id {$sort}
+        ORDER BY " . ($sortBy === 'forwarder_date' ? "COALESCE(registry.forwarder_effective_date, registry.created_at_local)" : "registry.created_at_local") . " {$sort}, registry.item_id {$sort}
     ";
     if ($limit !== null) {
         $sql .= ' LIMIT ? OFFSET ?';
@@ -1533,39 +1581,87 @@ if ($action === 'open_item_stock_modal') {
     $stockForwarderRegStatus = warehouse_stock_registry_col($dbcnx, 'warehouse_item_stock', 'warehouse_item_stock', 'forwarder_registration_status', "''");
     $stockForwarderRegMessage = warehouse_stock_registry_col($dbcnx, 'warehouse_item_stock', 'warehouse_item_stock', 'forwarder_registration_message', "''");
     $stockForwarderRegResponse = warehouse_stock_registry_col($dbcnx, 'warehouse_item_stock', 'warehouse_item_stock', 'forwarder_registration_response_json');
+    $modalSourceOrigin = warehouse_stock_registry_col($dbcnx, 'warehouse_item_stock', 'warehouse_item_stock', 'source_origin', "''");
+    $modalConnectorId = warehouse_stock_registry_col($dbcnx, 'warehouse_item_stock', 'warehouse_item_stock', 'connector_id');
+    $modalReportItemId = warehouse_stock_registry_col($dbcnx, 'warehouse_item_stock', 'warehouse_item_stock', 'forwarder_report_item_id');
+    $modalForwarderPosition = warehouse_stock_registry_col($dbcnx, 'warehouse_item_stock', 'warehouse_item_stock', 'forwarder_position_code', "''");
+    $modalConnectorName = warehouse_stock_registry_col($dbcnx, 'connectors', 'conn', 'name', "''");
+    $modalFriDeclarationStatus = warehouse_stock_registry_col($dbcnx, 'forwarder_report_items', 'fri', 'declaration_status', "''");
+    $modalFri2DeclarationStatus = warehouse_stock_registry_col($dbcnx, 'forwarder_report_items', 'fri2', 'declaration_status', "''");
+    $modalFriReportDate = warehouse_stock_registry_col($dbcnx, 'forwarder_report_items', 'fri', 'report_date');
+    $modalFri2ReportDate = warehouse_stock_registry_col($dbcnx, 'forwarder_report_items', 'fri2', 'report_date');
+    $modalFriRemoteCreatedAt = warehouse_stock_registry_col($dbcnx, 'forwarder_report_items', 'fri', 'remote_created_at');
+    $modalFri2RemoteCreatedAt = warehouse_stock_registry_col($dbcnx, 'forwarder_report_items', 'fri2', 'remote_created_at');
+    $modalFriClientId = warehouse_stock_registry_col($dbcnx, 'forwarder_report_items', 'fri', 'client_id', "''");
+    $modalFri2ClientId = warehouse_stock_registry_col($dbcnx, 'forwarder_report_items', 'fri2', 'client_id', "''");
+    $modalFriClientName = warehouse_stock_registry_col($dbcnx, 'forwarder_report_items', 'fri', 'client_name', "''");
+    $modalFri2ClientName = warehouse_stock_registry_col($dbcnx, 'forwarder_report_items', 'fri2', 'client_name', "''");
+    $modalFriWeight = warehouse_stock_registry_col($dbcnx, 'forwarder_report_items', 'fri', 'weight_kg');
+    $modalFri2Weight = warehouse_stock_registry_col($dbcnx, 'forwarder_report_items', 'fri2', 'weight_kg');
+    $modalFriCategory = warehouse_stock_registry_col($dbcnx, 'forwarder_report_items', 'fri', 'category', "''");
+    $modalFri2Category = warehouse_stock_registry_col($dbcnx, 'forwarder_report_items', 'fri2', 'category', "''");
+    $modalFriSeller = warehouse_stock_registry_col($dbcnx, 'forwarder_report_items', 'fri', 'seller', "''");
+    $modalFri2Seller = warehouse_stock_registry_col($dbcnx, 'forwarder_report_items', 'fri2', 'seller', "''");
+    $modalFriInvoiceAmount = warehouse_stock_registry_col($dbcnx, 'forwarder_report_items', 'fri', 'invoice_amount');
+    $modalFri2InvoiceAmount = warehouse_stock_registry_col($dbcnx, 'forwarder_report_items', 'fri2', 'invoice_amount');
+    $modalFriInvoiceCurrency = warehouse_stock_registry_col($dbcnx, 'forwarder_report_items', 'fri', 'invoice_currency', "''");
+    $modalFri2InvoiceCurrency = warehouse_stock_registry_col($dbcnx, 'forwarder_report_items', 'fri2', 'invoice_currency', "''");
+    $modalFriInvoiceUploaded = warehouse_stock_registry_col($dbcnx, 'forwarder_report_items', 'fri', 'invoice_uploaded', "''");
+    $modalFri2InvoiceUploaded = warehouse_stock_registry_col($dbcnx, 'forwarder_report_items', 'fri2', 'invoice_uploaded', "''");
     
     // Сначала проверим существование посылки и права доступа
     $checkSql = "
         SELECT
-            id,
-            user_id,
-            cell_id,
-            batch_uid,
-            tuid,
-            tracking_no,
-            carrier_code,
-            carrier_name,
-            receiver_country_code,
-            receiver_country_name,
-            receiver_name,
-            receiver_company,
-            receiver_address,
-            sender_name,
-            sender_company,
-            uid_created,
-            weight_kg,
-            size_l_cm,
-            size_w_cm,
-            size_h_cm,
-            addons_json,
-            label_image,
-            box_image,
+            warehouse_item_stock.id,
+            warehouse_item_stock.user_id,
+            warehouse_item_stock.cell_id,
+            warehouse_item_stock.batch_uid,
+            warehouse_item_stock.tuid,
+            warehouse_item_stock.tracking_no,
+            warehouse_item_stock.carrier_code,
+            warehouse_item_stock.carrier_name,
+            warehouse_item_stock.receiver_country_code,
+            warehouse_item_stock.receiver_country_name,
+            warehouse_item_stock.receiver_name,
+            warehouse_item_stock.receiver_company,
+            warehouse_item_stock.receiver_address,
+            warehouse_item_stock.sender_name,
+            warehouse_item_stock.sender_company,
+            warehouse_item_stock.uid_created,
+            warehouse_item_stock.weight_kg,
+            warehouse_item_stock.size_l_cm,
+            warehouse_item_stock.size_w_cm,
+            warehouse_item_stock.size_h_cm,
+            warehouse_item_stock.addons_json,
+            warehouse_item_stock.label_image,
+            warehouse_item_stock.box_image,
             {$stockForwarderRegisteredAt} AS forwarder_registered_at,
             {$stockForwarderRegStatus} AS forwarder_registration_status,
             {$stockForwarderRegMessage} AS forwarder_registration_message,
-            {$stockForwarderRegResponse} AS forwarder_registration_response_json
+            {$stockForwarderRegResponse} AS forwarder_registration_response_json,
+            {$modalSourceOrigin} AS source_origin,
+            {$modalConnectorId} AS connector_id,
+            {$modalConnectorName} AS connector_name,
+            {$modalForwarderPosition} AS forwarder_position_code,
+            c.code AS local_cell_code,
+            COALESCE({$modalFriDeclarationStatus}, {$modalFri2DeclarationStatus}) AS forwarder_declaration_status,
+            COALESCE({$modalFriReportDate}, {$modalFri2ReportDate}) AS forwarder_report_date,
+            COALESCE({$modalFriRemoteCreatedAt}, {$modalFri2RemoteCreatedAt}) AS forwarder_remote_created_at,
+            COALESCE({$modalFriRemoteCreatedAt}, {$modalFriReportDate}, {$modalFri2RemoteCreatedAt}, {$modalFri2ReportDate}) AS forwarder_effective_date,
+            COALESCE({$modalFriClientId}, {$modalFri2ClientId}) AS forwarder_client_id,
+            COALESCE({$modalFriClientName}, {$modalFri2ClientName}) AS forwarder_client_name,
+            COALESCE({$modalFriWeight}, {$modalFri2Weight}) AS forwarder_weight_kg,
+            COALESCE({$modalFriCategory}, {$modalFri2Category}) AS forwarder_category,
+            COALESCE({$modalFriSeller}, {$modalFri2Seller}) AS forwarder_seller,
+            COALESCE({$modalFriInvoiceAmount}, {$modalFri2InvoiceAmount}) AS forwarder_invoice_amount,
+            COALESCE({$modalFriInvoiceCurrency}, {$modalFri2InvoiceCurrency}) AS forwarder_invoice_currency,
+            COALESCE({$modalFriInvoiceUploaded}, {$modalFri2InvoiceUploaded}) AS forwarder_invoice_uploaded
         FROM warehouse_item_stock
-        WHERE id = ?
+        LEFT JOIN cells c ON c.id = warehouse_item_stock.cell_id
+        LEFT JOIN connectors conn ON conn.id = {$modalConnectorId}
+        LEFT JOIN forwarder_report_items fri ON fri.id = {$modalReportItemId}
+        LEFT JOIN forwarder_report_items fri2 ON fri2.connector_id = {$modalConnectorId} AND fri2.tracking_no = warehouse_item_stock.tracking_no
+        WHERE warehouse_item_stock.id = ?
         LIMIT 1
     ";
     $stmt = $dbcnx->prepare($checkSql);

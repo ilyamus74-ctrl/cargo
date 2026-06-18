@@ -1,7 +1,9 @@
 {foreach $warehouse_items_registry as $item}
   <tr>
     <td>
-      {if $item.source_table == 'in'}
+      {if $item.source_origin == 'forwarder_report'}
+        <span class="badge bg-success">Форвард</span>
+      {elseif $item.source_table == 'in'}
         <span class="badge bg-info text-dark">Приёмка</span>
       {elseif $item.source_table == 'stock'}
         <span class="badge bg-primary">Склад</span>
@@ -62,6 +64,8 @@
        <div class="small text-muted mt-1">{$item.forwarder_registered_at|escape}</div>
       {/if}
     </td>
+    <td>{$item.forwarder_declaration_status|default:'—'|escape}</td>
+    <td>{$item.forwarder_effective_date|default:'—'|escape}</td>
     <td title="{$item.forwarder_registration_message|default:''|escape}">
       {$item.forwarder_registration_message_short|default:'—'|escape}
     </td>
@@ -112,11 +116,11 @@
         —
       {/if}
     </td>
-    <td>{$item.created_at|default:'—'|escape}</td>
+    <td>{$item.created_at_local|default:$item.created_at|default:'—'|escape}</td>
   </tr>
 {/foreach}
 {if !$warehouse_items_registry && $show_empty}
   <tr>
-    <td colspan="11" class="text-center text-muted">Нет посылок по выбранным фильтрам</td>
+    <td colspan="13" class="text-center text-muted">Нет посылок по выбранным фильтрам</td>
   </tr>
 {/if}

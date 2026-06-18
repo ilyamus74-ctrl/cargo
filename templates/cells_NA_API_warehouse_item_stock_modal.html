@@ -43,6 +43,32 @@
     </div>
   </div>
 
+
+  {if $item.source_origin == 'forwarder_report' || $item.forwarder_declaration_status || $item.forwarder_report_date || $item.forwarder_remote_created_at}
+  <div class="col-12">
+    <div class="card border-success">
+      <div class="card-header bg-success text-white">Forwarder report</div>
+      <div class="card-body">
+        <div class="row g-2 small">
+          <div class="col-md-3"><strong>Connector:</strong> {$item.connector_name|default:$item.receiver_company|default:'—'|escape}</div>
+          <div class="col-md-3"><strong>Forwarder position:</strong> {$item.forwarder_position_code|default:'—'|escape}</div>
+          <div class="col-md-3"><strong>Local cell:</strong> {$item.local_cell_code|default:'—'|escape}</div>
+          <div class="col-md-3"><strong>Declaration status:</strong> {$item.forwarder_declaration_status|default:'—'|escape}</div>
+          <div class="col-md-3"><strong>Forwarder date:</strong> {$item.forwarder_effective_date|default:'—'|escape}</div>
+          <div class="col-md-3"><strong>Report date:</strong> {$item.forwarder_report_date|default:'—'|escape}</div>
+          <div class="col-md-3"><strong>Remote created:</strong> {$item.forwarder_remote_created_at|default:'—'|escape}</div>
+          <div class="col-md-3"><strong>Client ID:</strong> {$item.forwarder_client_id|default:'—'|escape}</div>
+          <div class="col-md-3"><strong>Client name:</strong> {$item.forwarder_client_name|default:'—'|escape}</div>
+          <div class="col-md-3"><strong>Weight:</strong> {$item.forwarder_weight_kg|default:'—'|escape}</div>
+          <div class="col-md-3"><strong>Category:</strong> {$item.forwarder_category|default:'—'|escape}</div>
+          <div class="col-md-3"><strong>Seller:</strong> {$item.forwarder_seller|default:'—'|escape}</div>
+          <div class="col-md-3"><strong>Invoice:</strong> {$item.forwarder_invoice_amount|default:'—'|escape} {$item.forwarder_invoice_currency|default:''|escape}</div>
+          <div class="col-md-3"><strong>Invoice uploaded:</strong> {$item.forwarder_invoice_uploaded|default:'—'|escape}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  {/if}
   <div class="col-md-4">
     <label for="tuid" class="form-label">
       TUID
