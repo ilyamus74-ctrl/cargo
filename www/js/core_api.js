@@ -322,6 +322,57 @@ const CoreAPI = {
             }
         },
 
+        setButtonBusy(button, isBusy, busyText = 'Выполняется...') {
+            if (!button) return;
+
+            if (isBusy) {
+                if (typeof button.dataset.originalHtml === 'undefined') {
+                    button.dataset.originalHtml = button.innerHTML;
+                }
+                if (typeof button.dataset.originalDisabled === 'undefined') {
+                    button.dataset.originalDisabled = button.disabled ? '1' : '0';
+                }
+                button.dataset.coreBusy = '1';
+                button.disabled = true;
+                button.classList.add('disabled');
+                button.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>'
+                    + '<span>' + busyText + '</span>';
+                return;
+            }
+
+            if (typeof button.dataset.originalHtml !== 'undefined') {
+                button.innerHTML = button.dataset.originalHtml;
+            }
+            if (typeof button.dataset.originalDisabled !== 'undefined') {
+                button.disabled = button.dataset.originalDisabled === '1';
+                if (button.dataset.originalDisabled !== '1') {
+                    button.classList.remove('disabled');
+                }
+            }
+            delete button.dataset.originalHtml;
+            delete button.dataset.originalDisabled;
+            delete button.dataset.coreBusy;
+        },
+
+        setCommitBatchBusy(button, isBusy) {
+            if (!button) return;
+            const batchUid = button.getAttribute('data-batch-uid') || '';
+            let buttons = [button];
+
+            if (batchUid) {
+                buttons = Array.from(document.querySelectorAll(
+                    '.js-core-link[data-core-action="commit_item_in_batch"][data-batch-uid]'
+                )).filter((currentButton) => currentButton.getAttribute('data-batch-uid') === batchUid);
+                if (buttons.length === 0) {
+                    buttons = [button];
+                }
+            }
+
+            buttons.forEach((currentButton) => {
+                CoreAPI.ui.setButtonBusy(currentButton, isBusy, 'Завершаю...');
+            });
+        },
+
         showToast(message, type = 'success') {
             let box = document.getElementById('core-api-toast');
             if (!box) {
@@ -1553,7 +1604,9 @@ const CoreAPI = {
                 }
             }
         },
-        'commit_item_in_batch': (data) => {
+        'commit_item_in_batch': (data, link) => {
+            CoreAPI.ui.setCommitBatchBusy(link, false);
+
             const summary = data.registration_summary || {};
             const moved = Number(data.moved_to_stock || 0);
             const registered = Number(summary.registered || 0);
@@ -1842,6 +1895,9 @@ const CoreAPI = {
             const link = e.target.closest('.js-core-link[data-core-action]');
             if (!link) return;
             e.preventDefault();
+            if (link.disabled || link.dataset.coreBusy === '1') {
+                return;
+            }
             const action = link.getAttribute('data-core-action');
             if (!action) return;
                         if (action === 'warehouse_move_batch_assign') {
@@ -1957,9 +2013,15 @@ const CoreAPI = {
                 console.log(k, '=>', v);
             }
             // Вызываем API
+            if (action === 'commit_item_in_batch') {
+                CoreAPI.ui.setCommitBatchBusy(link, true);
+            }
             try {
                 const data = await CoreAPI.client.call(formData);
                 if (!data || data.status !== 'ok') {
+                    if (action === 'commit_item_in_batch') {
+                        CoreAPI.ui.setCommitBatchBusy(link, false);
+                    }
                     console.error('core_api error:', data);
                     if (data?.code === 'session_expired') {
                         return;
@@ -2028,6 +2090,9 @@ const CoreAPI = {
                 const handler = CoreAPI.handlers[action] || CoreAPI.handlers['default'];
                 await handler(data, link, formData);
             } catch (err) {
+                if (action === 'commit_item_in_batch') {
+                    CoreAPI.ui.setCommitBatchBusy(link, false);
+                }
                 console.error('core_api fetch error:', err);
                 if (err?.payload?.code === 'session_expired' || window.__coreApiSessionRedirecting) {
                     return;
