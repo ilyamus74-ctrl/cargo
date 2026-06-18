@@ -75,12 +75,11 @@
             <tr>
               <th>ID</th>
               <th>Code</th>
-              <th>Endpoint</th>
-              <th>Every</th>
-              <th>Enabled</th>
-              <th>Last</th>
-              <th>Next</th>
-              <th></th>
+              <th class="text-nowrap">Endpoint</th>
+              <th class="text-nowrap">Every</th>
+              <th class="text-nowrap">Enabled</th>
+              <th class="text-nowrap">Last</th>
+              <th class="text-nowrap">Next</th>
             </tr>
             </thead>
             <tbody>
@@ -88,35 +87,38 @@
               {foreach $tasks as $task}
                 <tr>
                   <td>{$task.id}</td>
-                  <td><code>{$task.code|escape}</code><br><small>{$task.name|escape}</small></td>
-                  <td><code>{$task.endpoint_action|escape}</code></td>
-                  <td>{$task.interval_minutes}m</td>
-                  <td>{if $task.is_enabled == 1}<span class="badge bg-success">yes</span>{else}<span class="badge bg-secondary">no</span>{/if}</td>
-                  <td><small>{$task.last_run_at|default:'-'}</small><br><small>{$task.last_status|default:''}</small></td>
-                  <td><small>{$task.next_run_at|default:'-'}</small></td>
-                  <td class="text-end">
-                    <button type="button" class="btn btn-sm btn-outline-success js-core-link"
-                            data-core-action="run_system_task_now"
-                            data-task-id="{$task.id}"
-                            data-confirm="Выполнить задание {$task.code|escape} сейчас?{if $task.is_enabled != 1} Задание disabled, но будет запущено вручную.{/if}">Run</button>
-                    <button type="button" class="btn btn-sm btn-outline-primary js-system-task-edit"
-                            data-task-id="{$task.id}"
-                            data-task-code="{$task.code|escape}"
-                            data-task-name="{$task.name|escape}"
-                            data-task-description="{$task.description|escape}"
-                            data-task-payload="{$task.payload_json|default:''|escape:'htmlall':'UTF-8'}"
-                            data-task-endpoint="{$task.endpoint_action|escape}"
-                            data-task-interval="{$task.interval_minutes}"
-                            data-task-enabled="{$task.is_enabled}">Edit</button>
-                    <button type="button" class="btn btn-sm btn-outline-danger js-core-link"
-                            data-core-action="delete_system_task"
-                            data-task-id="{$task.id}"
-                            data-confirm="Удалить задание {$task.code|escape}?">Del</button>
+                  <td class="system-task-main-cell">
+                    <code>{$task.code|escape}</code><br>
+                    <small>{$task.name|escape}</small>
+                    <div class="mt-1 d-flex flex-wrap gap-1">
+                      <button type="button" class="btn btn-sm btn-outline-success js-core-link"
+                              data-core-action="run_system_task_now"
+                              data-task-id="{$task.id}"
+                              data-confirm="Выполнить задание {$task.code|escape} сейчас?{if $task.is_enabled != 1} Задание disabled, но будет запущено вручную.{/if}">Run</button>
+                      <button type="button" class="btn btn-sm btn-outline-primary js-system-task-edit"
+                              data-task-id="{$task.id}"
+                              data-task-code="{$task.code|escape}"
+                              data-task-name="{$task.name|escape}"
+                              data-task-description="{$task.description|escape}"
+                              data-task-payload="{$task.payload_json|default:''|escape:'htmlall':'UTF-8'}"
+                              data-task-endpoint="{$task.endpoint_action|escape}"
+                              data-task-interval="{$task.interval_minutes}"
+                              data-task-enabled="{$task.is_enabled}">Edit</button>
+                      <button type="button" class="btn btn-sm btn-outline-danger js-core-link"
+                              data-core-action="delete_system_task"
+                              data-task-id="{$task.id}"
+                              data-confirm="Удалить задание {$task.code|escape}?">Del</button>
+                    </div>
                   </td>
+                  <td class="text-nowrap"><code>{$task.endpoint_action|escape}</code></td>
+                  <td class="text-nowrap">{$task.interval_minutes}m</td>
+                  <td class="text-nowrap">{if $task.is_enabled == 1}<span class="badge bg-success">yes</span>{else}<span class="badge bg-secondary">no</span>{/if}</td>
+                  <td class="text-nowrap"><small>{$task.last_run_at|default:'-'}</small><br><small>{$task.last_status|default:''}</small></td>
+                  <td class="text-nowrap"><small>{$task.next_run_at|default:'-'}</small></td>
                 </tr>
               {/foreach}
             {else}
-              <tr><td colspan="8" class="text-center text-muted py-3">Заданий пока нет</td></tr>
+              <tr><td colspan="7" class="text-center text-muted py-3">Заданий пока нет</td></tr>
             {/if}
             </tbody>
           </table>
