@@ -3022,125 +3022,6 @@ if (!function_exists('warehouse_sync_label_var')) {
     }
 }
 
-if (!function_exists('warehouse_sync_first_non_empty_value')) {
-    function warehouse_sync_first_non_empty_value(array ...$sources): string
-    {
-        foreach ($sources as $source) {
-            foreach ($source as $value) {
-                if (is_array($value) || is_object($value)) {
-                    continue;
-                }
-                $value = trim((string)$value);
-                if ($value !== '') {
-                    return $value;
-                }
-            }
-        }
-        return '';
-    }
-}
-
-if (!function_exists('warehouse_sync_decode_addons_json')) {
-    function warehouse_sync_decode_addons_json($raw): array
-    {
-        $decoded = json_decode(trim((string)$raw), true);
-        return is_array($decoded) ? $decoded : [];
-    }
-}
-
-if (!function_exists('warehouse_sync_fetch_forwarder_report_item')) {
-    function warehouse_sync_fetch_forwarder_report_item(mysqli $dbcnx, int $connectorId, string $trackingNo): array
-    {
-        if ($connectorId <= 0 || trim($trackingNo) === '' || !warehouse_sync_table_exists($dbcnx, 'forwarder_report_items')) {
-            return [];
-        }
-        $columns = warehouse_sync_table_columns($dbcnx, 'forwarder_report_items');
-        if (!in_array('connector_id', $columns, true) || !in_array('tracking_no', $columns, true)) {
-            return [];
-        }
-        $stmt = $dbcnx->prepare("SELECT * FROM forwarder_report_items WHERE connector_id = ? AND tracking_no = ? LIMIT 1");
-        if (!$stmt) {
-            return [];
-        }
-        $stmt->bind_param('is', $connectorId, $trackingNo);
-        $stmt->execute();
-        $row = $stmt->get_result()?->fetch_assoc();
-        $stmt->close();
-        return is_array($row) ? $row : [];
-    }
-}
-
-if (!function_exists('warehouse_sync_build_out_label_vars')) {
-    function warehouse_sync_build_out_label_vars(mysqli $dbcnx, array $item, array $connector, array $context): array
-    {
-        $trackingNo = warehouse_sync_first_non_empty_value([
-            $context['tracking_no'] ?? '', $item['tracking_no'] ?? '', $item['stock_tracking_no'] ?? '', $item['tuid'] ?? '', $item['stock_tuid'] ?? '',
-        ]);
-        $addons = warehouse_sync_decode_addons_json($item['addons_json'] ?? '');
-        $report = warehouse_sync_fetch_forwarder_report_item($dbcnx, (int)($connector['id'] ?? 0), $trackingNo);
-        $pick = static function (array $keys) use ($item, $addons, $report): string {
-            $values = [];
-            foreach ($keys as $key) {
-                $values[] = $item[$key] ?? '';
-                $values[] = $addons[$key] ?? '';
-                $values[] = $report[$key] ?? '';
-            }
-            return warehouse_sync_first_non_empty_value($values);
-        };
-        $clientName = warehouse_sync_first_non_empty_value([
-            $item['receiver_name'] ?? '', $item['stock_receiver_name'] ?? '', $item['resolved_receiver_company'] ?? '', $item['receiver_company'] ?? '', $item['stock_receiver_company'] ?? '',
-            $addons['client_name'] ?? '', $report['client_name'] ?? '', $report['receiver_name'] ?? '', $report['receiver_company'] ?? '',
-        ]);
-        $countryCode = strtoupper(warehouse_sync_first_non_empty_value([
-            $item['resolved_receiver_country_code'] ?? '', $item['receiver_country_code'] ?? '', $item['stock_receiver_country_code'] ?? '', $addons['receiver_country_code'] ?? '', $addons['country_dest'] ?? '', $report['receiver_country_code'] ?? '', $report['country_dest'] ?? '',
-        ]));
-        $vars = [
-            '{{track}}' => $trackingNo,
-            '{{client_name}}' => $clientName,
-            '{{client}}' => $clientName,
-            '{{client_address}}' => warehouse_sync_first_non_empty_value([$item['resolved_receiver_address'] ?? '', $item['receiver_address'] ?? '', $item['stock_receiver_address'] ?? '', $addons['client_address'] ?? '', $report['client_address'] ?? '', $report['receiver_address'] ?? '']),
-            '{{receiver_country_code}}' => $countryCode,
-            '{{country_dest}}' => warehouse_sync_first_non_empty_value([$countryCode, $addons['country_dest'] ?? '', $report['country_dest'] ?? '']),
-            '{{forward_name}}' => trim((string)($connector['name'] ?? '')),
-            '{{flight_name}}' => trim((string)($context['flight_display'] ?? '')),
-            '{{shipment_cell}}' => trim((string)($context['shipment_cell'] ?? '')),
-            '{{container_name}}' => trim((string)($context['container_display'] ?? '')),
-            '{{weight}}' => $pick(['weight_kg', 'weight']),
-            '{{volume_weight}}' => $pick(['volume_weight']),
-            '{{description}}' => $pick(['description', 'goods_description', 'category']),
-            '{{amount}}' => $pick(['amount']),
-            '{{invoice_usd}}' => $pick(['invoice_usd']),
-            '{{total_invoice_price}}' => $pick(['total_invoice_price']),
-            '{{declared_value}}' => $pick(['declared_value', 'price']),
-            '{{invoice_price}}' => $pick(['invoice_price', 'price']),
-            '{{shipping_price}}' => $pick(['shipping_price']),
-            '{{seller}}' => $pick(['seller']),
-            '{{client_code}}' => $pick(['client_code']),
-            '{{client_id}}' => $pick(['client_id']),
-            '{{consignee_phone}}' => $pick(['consignee_phone', 'phone']),
-            '{{container_position}}' => trim((string)($context['container_position'] ?? '')),
-            '{{flight_record_id}}' => trim((string)($context['flight_record_id'] ?? '')),
-        ];
-        foreach (['track', 'client_name', 'client_address', 'receiver_country_code', 'country_dest', 'forward_name', 'flight_name', 'weight', 'description', 'amount', 'invoice_price'] as $key) {
-            $vars[$key] = (string)($vars['{{' . $key . '}}'] ?? '');
-        }
-        return $vars;
-    }
-}
-
-if (!function_exists('warehouse_sync_label_vars_have_test_values')) {
-    function warehouse_sync_label_vars_have_test_values(array $labelVars): bool
-    {
-        $haystack = implode("\n", array_map(static fn($value): string => is_scalar($value) ? (string)$value : '', $labelVars));
-        foreach (['Test Client', 'Baku, Test street', 'Test goods description', 'TEST-TRACK', 'CLI001', 'INT-00001'] as $needle) {
-            if (stripos($haystack, $needle) !== false) {
-                return true;
-            }
-        }
-        return false;
-    }
-}
-
 
 if (!function_exists('warehouse_sync_is_airport_like_code')) {
     function warehouse_sync_is_airport_like_code(string $value): bool
@@ -5190,48 +5071,15 @@ if ($action === 'warehouse_item_out_confirm_send') {
     if ($shipmentCell === '') { $shipmentCell = trim(($flightNo !== '' ? $flightNo : $flightName) . ' / ' . ($containerName !== '' ? $containerName : $containerId)); }
 
     $stockColumns = warehouse_sync_table_columns($dbcnx, 'warehouse_item_stock');
-    $stockSelects = [];
-    foreach ([
-        'weight_kg',
-        'addons_json',
-        'receiver_name',
-        'receiver_address',
-        'receiver_country_code',
-        'receiver_company',
-        'tracking_no',
-        'tuid',
-        'uid_created',
-        'volume_weight',
-        'description',
-        'goods_description',
-        'category',
-        'amount',
-        'invoice_usd',
-        'total_invoice_price',
-        'declared_value',
-        'invoice_price',
-        'shipping_price',
-        'price',
-    ] as $column) {
-        if (in_array($column, $stockColumns, true)) {
-            $stockSelects[] = "wi.`{$column}` AS stock_{$column}";
-            $stockSelects[] = "wi.`{$column}` AS {$column}";
-        } else {
-            $stockSelects[] = "'' AS stock_{$column}";
-            $stockSelects[] = "'' AS {$column}";
-        }
-    }
-    $stockSelectSql = implode(",\n               ", $stockSelects);
-    $wiCellSql = in_array('cell_id', $stockColumns, true) ? 'wi.cell_id' : "''";
-    $wiReceiverCompanySql = in_array('receiver_company', $stockColumns, true) ? 'wi.receiver_company' : "''";
-    $wiReceiverCountrySql = in_array('receiver_country_code', $stockColumns, true) ? 'wi.receiver_country_code' : "''";
-    $wiReceiverAddressSql = in_array('receiver_address', $stockColumns, true) ? 'wi.receiver_address' : "''";
+    $wiWeightSql = in_array('weight', $stockColumns, true) ? 'wi.weight' : "''";
+    $wiVolumeWeightSql = in_array('volume_weight', $stockColumns, true) ? 'wi.volume_weight' : "''";
+    $wiDescriptionSql = in_array('description', $stockColumns, true) ? 'wi.description' : "''";
 
     $sqlSelect = "
-        SELECT wo.*, {$stockSelectSql}, {$wiCellSql} AS cell_id,
-               COALESCE(NULLIF(wo.receiver_company, ''), {$wiReceiverCompanySql}) AS resolved_receiver_company,
-               COALESCE(NULLIF(wo.receiver_country_code, ''), {$wiReceiverCountrySql}) AS resolved_receiver_country_code,
-               COALESCE(NULLIF(wo.receiver_address, ''), {$wiReceiverAddressSql}) AS resolved_receiver_address
+        SELECT wo.*, wi.receiver_name, {$wiWeightSql} AS weight, {$wiVolumeWeightSql} AS volume_weight, {$wiDescriptionSql} AS description, wi.cell_id,
+               COALESCE(NULLIF(wo.receiver_company, ''), wi.receiver_company) AS resolved_receiver_company,
+               COALESCE(NULLIF(wo.receiver_country_code, ''), wi.receiver_country_code) AS resolved_receiver_country_code,
+               COALESCE(NULLIF(wo.receiver_address, ''), wi.receiver_address) AS resolved_receiver_address
         FROM warehouse_item_out wo
         LEFT JOIN warehouse_item_stock wi ON wi.id = wo.stock_item_id
         WHERE wo.stock_item_id = ?
@@ -5272,18 +5120,16 @@ if ($action === 'warehouse_item_out_confirm_send') {
         $connector = warehouse_sync_resolve_permitted_connector($dbcnx, $item, 0);
         $labelTemplate = warehouse_sync_resolve_label_template_code($dbcnx, $connector);
         $renderProfile = warehouse_sync_label_render_profile_from_array($labelTemplate);
-        $labelVars = warehouse_sync_build_out_label_vars($dbcnx, $item, $connector, [
-            'tracking_no' => $trackingForForwarder,
-            'flight_display' => $flightDisplay,
-            'container_display' => $containerDisplay,
-            'shipment_cell' => $shipmentCell,
-            'container_position' => $containerPosition,
-            'flight_record_id' => $flightRecordId,
-        ]);
-        if (warehouse_sync_label_vars_have_test_values($labelVars)) {
-            $response = ['status' => 'error', 'print_status' => 'error', 'local_status' => 'to_send', 'message' => 'Лейбл не напечатан: в label_vars остались тестовые данные.'];
-            return;
-        }
+        $labelVars = warehouse_sync_label_template_sample_vars((int)($connector['id'] ?? 0), $trackingForForwarder);
+        $labelVars['{{track}}'] = $trackingForForwarder;
+        $labelVars['{{client_name}}'] = trim((string)($item['receiver_name'] ?? $item['resolved_receiver_company'] ?? ''));
+        $labelVars['{{client_address}}'] = trim((string)($item['resolved_receiver_address'] ?? ''));
+        $labelVars['{{weight}}'] = trim((string)($item['weight'] ?? ''));
+        $labelVars['{{description}}'] = trim((string)($item['description'] ?? ''));
+        $labelVars['{{country_dest}}'] = strtoupper(trim((string)($item['resolved_receiver_country_code'] ?? '')));
+        $labelVars['{{receiver_country_code}}'] = strtoupper(trim((string)($item['resolved_receiver_country_code'] ?? '')));
+        $labelVars['{{forward_name}}'] = trim((string)($connector['name'] ?? ''));
+        $labelVars['{{flight_name}}'] = $flightDisplay;
 
         $printMode = PRINT_LABEL_PRODUCTION_MODE;
         $printStatus = 'skipped'; $printMessage = ''; $diagnostics = [];
