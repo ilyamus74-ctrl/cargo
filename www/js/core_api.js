@@ -4130,32 +4130,18 @@ const CoreAPI = {
                 this.searchInput.value = '';
             }
 
-            try {
-                await this.resetAndLoad();
-                if (CoreAPI.warehouseInStorage?.resetAndLoad) {
-                    await CoreAPI.warehouseInStorage.resetAndLoad();
-                }
-            } catch (refreshErr) {
-                console.warn('warehouse_item_out post-confirm refresh warning:', refreshErr);
-            }
-
             CoreAPI.showToast?.('Посылка перемещена в контейнер.', 'success');
-            if (data?.print_mode === 'zpl_vector_template' || data?.print_mode === 'zpl_raw' || data?.print_mode === 'pdf_template') {
-                const zplOk = String(data?.print_status || '').trim().toLowerCase() === 'ok';
-                CoreAPI.showToast?.(zplOk ? 'Лейбл отправлен на печать' : (String(data?.print_message || '').trim() || 'Печать лейбла завершилась с ошибкой.'), zplOk ? 'success' : 'warning');
-            }
+
+            const printMode = String(data?.print_mode || '').trim();
             const printStatus = String(data?.forwarder_sync?.add_result?.print?.status || data?.print_status || '').trim().toLowerCase();
             const printOkStatuses = ['ok', 'success', 'printed'];
             const printNeutralStatuses = ['skipped', 'queued', 'running', 'not_queued', 'ready_for_browser_print'];
             const printErrorStatuses = ['error', 'failed', 'timeout'];
+            const serverPrintModes = ['zpl_vector_template', 'zpl_raw', 'pdf_template'];
 
-            if (
-                printOkStatuses.includes(printStatus) &&
-                data?.print_mode !== 'zpl_vector_template' &&
-                data?.print_mode !== 'zpl_raw' &&
-                data?.print_mode !== 'pdf_template'
-            ) {
+            if (printOkStatuses.includes(printStatus)) {
                 CoreAPI.showToast?.('Лейбл отправлен на печать.', 'success');
+
                 const renderEngine = String(data?.forwarder_sync?.add_result?.print?.generated_waybill?.render_engine || '').trim();
                 if (renderEngine === 'simple-pdf-fallback') {
                     CoreAPI.showToast?.(
@@ -4171,7 +4157,7 @@ const CoreAPI = {
                     !printNeutralStatuses.includes(printStatus)
                 )
             ) {
-                const printMessage = String(data?.forwarder_sync?.add_result?.print?.message || data?.forwarder_sync?.add_result?.print?.error || '').trim();
+                const printMessage = String(data?.forwarder_sync?.add_result?.print?.message || data?.forwarder_sync?.add_result?.print?.error || data?.print_message || '').trim();
                 CoreAPI.showToast?.(
                     printMessage !== '' ? `Печать лейбла: ${printMessage}` : 'Печать лейбла завершилась с ошибкой.',
                     'warning'
@@ -4182,7 +4168,29 @@ const CoreAPI = {
             this.setModalMessage('success', 'Лейбл напечатан. Закрываем окно...');
             window.setTimeout(() => {
                 this.hideModal();
-            }, auto ? 2000 : 0);
+            }, auto ? 300 : 0);
+
+            try {
+                const refreshOut = this.resetAndLoad?.();
+                if (refreshOut && typeof refreshOut.catch === 'function') {
+                    refreshOut.catch(refreshErr => {
+                        console.warn('warehouse_item_out post-confirm refresh warning:', refreshErr);
+                    });
+                }
+            } catch (refreshErr) {
+                console.warn('warehouse_item_out post-confirm refresh warning:', refreshErr);
+            }
+
+            try {
+                const refreshInStorage = CoreAPI.warehouseInStorage?.resetAndLoad?.();
+                if (refreshInStorage && typeof refreshInStorage.catch === 'function') {
+                    refreshInStorage.catch(refreshErr => {
+                        console.warn('warehouseInStorage post-confirm refresh warning:', refreshErr);
+                    });
+                }
+            } catch (refreshErr) {
+                console.warn('warehouseInStorage post-confirm refresh warning:', refreshErr);
+            }
         },
         updateContainerOptions() {
             if (!this.containerSelect) {
