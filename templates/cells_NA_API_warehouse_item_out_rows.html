@@ -7,6 +7,13 @@
     <td>{$item.cell_address|default:'—'|escape}</td>
     <td>
       <div class="small text-primary">{$item.status|default:'to_send'|escape}</div>
+      {if $item.forwarder_label_status == 'ready'}
+        <div class="small text-success">label ready</div>
+      {elseif $item.forwarder_label_status == 'error'}
+        <div class="small text-danger">label error{if $item.forwarder_label_message}: {$item.forwarder_label_message|escape}{/if}</div>
+      {else}
+        <div class="small text-warning">label preparing</div>
+      {/if}
       {if $item.status_message}
         <div class="small text-muted">{$item.status_message|escape}</div>
       {/if}

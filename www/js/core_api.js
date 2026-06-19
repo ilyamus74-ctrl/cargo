@@ -4020,6 +4020,20 @@ const CoreAPI = {
 
             if (normalizedStatus === 'to_send' || normalizedStatus === 'sended') {
                 const isResend = normalizedStatus === 'sended';
+                const labelStatus = String(item?.forwarder_label_status || '').trim().toLowerCase();
+                if (!isResend && labelStatus !== 'ready') {
+                    const isLabelError = labelStatus === 'error';
+                    const labelMessage = isLabelError && item?.forwarder_label_message ? ` ${this.escapeHtml(item.forwarder_label_message)}` : '';
+                    this.setModalMessage(
+                        isLabelError ? 'danger' : 'warning',
+                        `Лейбл ещё готовится. Повторите скан через несколько секунд.${labelMessage}`
+                    );
+                    this.playOutcomeSound('alert');
+                    this.modalConfirmButton?.classList.add('d-none');
+                    this.modalCancelButton?.classList.remove('d-none');
+                    this.modalCloseButton?.classList.remove('d-none');
+                    return;
+                }
                 this.setModalMessage(
                     isResend ? 'warning' : 'success',
                     isResend

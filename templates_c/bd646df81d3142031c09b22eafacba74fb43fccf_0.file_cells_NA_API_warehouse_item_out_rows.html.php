@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-03-18 20:21:39
+/* Smarty version 5.3.1, created on 2026-06-19 09:34:52
   from 'file:cells_NA_API_warehouse_item_out_rows.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_69bb0953203c36_05480050',
+  'unifunc' => 'content_6a350d3cbb6281_43099098',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     'bd646df81d3142031c09b22eafacba74fb43fccf' => 
     array (
       0 => 'cells_NA_API_warehouse_item_out_rows.html',
-      1 => 1773653016,
+      1 => 1781861538,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_69bb0953203c36_05480050 (\Smarty\Template $_smarty_tpl) {
+function content_6a350d3cbb6281_43099098 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 $_from = $_smarty_tpl->getSmarty()->getRuntime('Foreach')->init($_smarty_tpl, $_smarty_tpl->getValue('item_out_rows'), 'item');
 $foreach0DoElse = true;
@@ -41,6 +41,14 @@ $foreach0DoElse = false;
     <td>
       <div class="small text-primary"><?php echo htmlspecialchars((string)(($tmp = $_smarty_tpl->getValue('item')['status'] ?? null)===null||$tmp==='' ? 'to_send' ?? null : $tmp), ENT_QUOTES, 'UTF-8', true);?>
 </div>
+      <?php if ($_smarty_tpl->getValue('item')['forwarder_label_status'] == 'ready') {?>
+        <div class="small text-success">label ready</div>
+      <?php } elseif ($_smarty_tpl->getValue('item')['forwarder_label_status'] == 'error') {?>
+        <div class="small text-danger">label error<?php if ($_smarty_tpl->getValue('item')['forwarder_label_message']) {?>: <?php echo htmlspecialchars((string)$_smarty_tpl->getValue('item')['forwarder_label_message'], ENT_QUOTES, 'UTF-8', true);
+}?></div>
+      <?php } else { ?>
+        <div class="small text-warning">label preparing</div>
+      <?php }?>
       <?php if ($_smarty_tpl->getValue('item')['status_message']) {?>
         <div class="small text-muted"><?php echo htmlspecialchars((string)$_smarty_tpl->getValue('item')['status_message'], ENT_QUOTES, 'UTF-8', true);?>
 </div>
