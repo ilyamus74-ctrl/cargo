@@ -827,7 +827,13 @@ if (!function_exists('warehouse_sync_ensure_out_table')) {
                 $dbcnx->query($alterSql);
             }
         }
-        $dbcnx->query("ALTER TABLE warehouse_item_out ADD INDEX idx_wio_label_payload_status (label_payload_status)");
+        if ($res = $dbcnx->query("SHOW INDEX FROM warehouse_item_out WHERE Key_name = 'idx_wio_label_payload_status'")) {
+            $hasIndex = $res->num_rows > 0;
+            $res->free();
+            if (!$hasIndex) {
+                $dbcnx->query("ALTER TABLE warehouse_item_out ADD INDEX idx_wio_label_payload_status (label_payload_status)");
+            }
+        }
 
         if ($res = $dbcnx->query("SHOW INDEX FROM warehouse_item_out WHERE Key_name = 'uq_stock_item_id'")) {
             $hasUnique = $res->num_rows > 0;
