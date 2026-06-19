@@ -5070,8 +5070,13 @@ if ($action === 'warehouse_item_out_confirm_send') {
     if ($containerId === '' && $containerName === '') { $response = ['status' => 'error', 'message' => 'Сначала выберите контейнер']; return; }
     if ($shipmentCell === '') { $shipmentCell = trim(($flightNo !== '' ? $flightNo : $flightName) . ' / ' . ($containerName !== '' ? $containerName : $containerId)); }
 
+    $stockColumns = warehouse_sync_table_columns($dbcnx, 'warehouse_item_stock');
+    $wiWeightSql = in_array('weight', $stockColumns, true) ? 'wi.weight' : "''";
+    $wiVolumeWeightSql = in_array('volume_weight', $stockColumns, true) ? 'wi.volume_weight' : "''";
+    $wiDescriptionSql = in_array('description', $stockColumns, true) ? 'wi.description' : "''";
+
     $sqlSelect = "
-        SELECT wo.*, wi.receiver_name, wi.weight, wi.volume_weight, wi.description, wi.cell_id,
+        SELECT wo.*, wi.receiver_name, {$wiWeightSql} AS weight, {$wiVolumeWeightSql} AS volume_weight, {$wiDescriptionSql} AS description, wi.cell_id,
                COALESCE(NULLIF(wo.receiver_company, ''), wi.receiver_company) AS resolved_receiver_company,
                COALESCE(NULLIF(wo.receiver_country_code, ''), wi.receiver_country_code) AS resolved_receiver_country_code,
                COALESCE(NULLIF(wo.receiver_address, ''), wi.receiver_address) AS resolved_receiver_address
