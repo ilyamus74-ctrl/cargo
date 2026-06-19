@@ -4154,7 +4154,10 @@ const CoreAPI = {
                     );
                     this.playOutcomeSound('alert');
                 }
-            } else if (printStatus !== '' && printStatus !== 'skipped' && printStatus !== 'ready_for_browser_print') {
+            } else if (
+                       printStatus !== '' &&
+                    !['ok', 'success', 'printed', 'skipped', 'queued', 'running', 'not_queued', 'ready_for_browser_print'].includes(printStatus)
+                   ) {
                 const printMessage = String(data?.forwarder_sync?.add_result?.print?.message || data?.forwarder_sync?.add_result?.print?.error || '').trim();
                 CoreAPI.showToast?.(
                     printMessage !== '' ? `Печать лейбла: ${printMessage}` : 'Печать лейбла завершилась с ошибкой.',
