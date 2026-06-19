@@ -1,0 +1,58 @@
+============================================================
+[2026-06-19 20:39:57] START: Colibri missing client details
+CMD: sudo -u apache /usr/bin/php www/scripts/mvp/app/Forwarder/run_package_details.php --connector-id=2 --source=missing-clients --limit=100
+============================================================
+{
+    "status": "ok",
+    "connector_id": 2,
+    "connector_key": "colibri_az",
+    "source": "missing-clients",
+    "processed": 100,
+    "updated": 100,
+    "complete": 12,
+    "partial": 0,
+    "nodata": 0,
+    "skipped": 0,
+    "errors": 88,
+    "first_errors": [
+        "client_id=151989 track=1Z7E35Y3DK15598292: package_exist=false",
+        "client_id=152021 track=JJD149990200042918548: package_exist=false",
+        "client_id=152053 track=579349208518: package_exist=false",
+        "client_id=152065 track=00340434330746965623: package_exist=false",
+        "client_id=152116 track=JJD000030102964000105474719: package_exist=false",
+        "client_id=152139 track=1222278561510931684200889462053385: package_exist=false",
+        "client_id=152184 track=00340433910969297698: package_exist=false",
+        "client_id=152208 track=00340434793282552069: package_exist=false",
+        "client_id=152230 track=00340434881960322797: package_exist=false",
+        "client_id=152274 track=00340434659173364107: package_exist=false"
+    ]
+}
+[2026-06-19 20:40:44] END: Colibri missing client details, rc=0
+============================================================
+[2026-06-19 20:40:44] START: Colibri warehouse label payloads
+CMD: sudo -u apache /usr/bin/php www/scripts/warehouse/prepare_out_label_payloads.php --connector-id=2 --limit=100
+============================================================
+{
+    "status": "ok",
+    "processed": 1,
+    "ready": 0,
+    "partial": 1,
+    "errors": 0
+}
+[2026-06-19 20:40:45] END: Colibri warehouse label payloads, rc=0
+============================================================
+[2026-06-19 20:40:45] START: ASER warehouse label payloads
+CMD: sudo -u apache /usr/bin/php www/scripts/warehouse/prepare_out_label_payloads.php --connector-id=7 --limit=100
+============================================================
+{
+    "status": "ok",
+    "processed": 1,
+    "ready": 0,
+    "partial": 1,
+    "errors": 0
+}
+[2026-06-19 20:40:46] END: ASER warehouse label payloads, rc=0
+============================================================
+Finished. Failed steps: 0
+Log: /home/cells/web/storage/logs/payload_prepare_20260619_203957.log
+============================================================
