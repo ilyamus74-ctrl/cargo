@@ -3952,9 +3952,11 @@ const CoreAPI = {
                     : 'Контейнер не выбран';
             }
             if (this.modalContainerHelp) {
+                const payloadStatus = String(item?.label_payload_status || 'empty').trim() || 'empty';
+                const payloadText = item ? ` Label payload: ${payloadStatus}.` : '';
                 this.modalContainerHelp.textContent = containerMeta
-                    ? `Ячейка отгрузки будет присвоена как: ${containerMeta.shipmentCell}`
-                    : 'Для подтверждения выберите контейнер из open-рейса.';
+                    ? `Ячейка отгрузки будет присвоена как: ${containerMeta.shipmentCell}.${payloadText}`
+                    : `Для подтверждения выберите контейнер из open-рейса.${payloadText}`;
             }
         },
         openModal() {
@@ -4093,7 +4095,7 @@ const CoreAPI = {
             try {
                 data = await CoreAPI.client.call(fd);
                 this.setModalMessage('info', 'Печатаем лейбл...');
-                if (data?.forwarder_add_status === 'ok' && String(data?.print_status || '').trim().toLowerCase() === 'error') {
+                if ((data?.forwarder_add_status === 'ok' || data?.fast_path === true) && String(data?.print_status || '').trim().toLowerCase() === 'error') {
                     this.setModalMessage('danger', 'Ошибка печати. Посылка подтверждена, но наклейка не напечатана.');
                     CoreAPI.showToast?.(String(data?.print_message || '').trim() || 'Посылка подтверждена, но лейбл не напечатан.', 'warning');
                     this.playOutcomeSound('alert');
@@ -4106,7 +4108,7 @@ const CoreAPI = {
                 if (!data || data.status !== 'ok') {
                     throw new Error(data?.message || 'confirm_failed');
                 }
-                this.setModalMessage('success', 'Лейбл напечатан');
+                this.setModalMessage('success', this.escapeHtml(data?.message || 'Лейбл напечатан'));
             } catch (err) {
                 console.error('core_api fetch error (warehouse_item_out_confirm_send):', err);
                 this.setModalMessage('danger', data?.message ? this.escapeHtml(data.message) : 'Не удалось подтвердить перемещение в контейнер. Попробуйте ещё раз.');

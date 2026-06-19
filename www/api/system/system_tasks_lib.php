@@ -100,6 +100,11 @@ function system_tasks_endpoint_registry(): array
             'name' => 'Обработчик batch sync',
             'description' => 'Берет queued/running batch jobs и обрабатывает их в фоне.',
         ],
+        'warehouse_prepare_out_label_payloads' => [
+            'group' => 'warehouse',
+            'name' => 'Prepare out label payloads',
+            'description' => 'Готовит warehouse_item_out.label_payload_json для быстрой печати наклеек.',
+        ],
         'warehouse_sync_reconcile' => [
             'group' => 'warehouse',
             'name' => 'Reconcile half_sync/error',
@@ -203,6 +208,15 @@ function system_tasks_seed_defaults(mysqli $dbcnx): void
             'description' => 'Берет queued/running batch jobs и обрабатывает их в фоне.',
             'endpoint_action' => 'warehouse_sync_batch_worker',
             'interval_minutes' => 1,
+        ],
+        [
+            'code' => 'warehouse_prepare_out_label_payloads',
+            'name' => 'Prepare out label payloads',
+            'description' => 'Готовит payload для быстрой печати наклеек warehouse_item_out.',
+            'endpoint_action' => 'warehouse_prepare_out_label_payloads',
+            'payload_json' => '{"limit":100}',
+            'interval_minutes' => 1,
+            'is_enabled' => 1,
         ],
         [
             'code' => 'warehouse_sync_reconcile_half_sync_30m',
@@ -654,6 +668,9 @@ function system_tasks_execute(mysqli $dbcnx, array $task, int $systemUserId = 0)
     if ($action === 'warehouse_sync_reconcile') {
         return system_tasks_run_warehouse_sync_reconcile($dbcnx, $task, $systemUserId);
     }
+    if ($action === 'warehouse_prepare_out_label_payloads') {
+        return system_tasks_run_warehouse_prepare_out_label_payloads($dbcnx, $task);
+    }
     if ($action === 'forwarder_report_bot_outgoing') {
         return system_tasks_run_forwarder_report_bot_outgoing($dbcnx, $task);
     }
@@ -718,6 +735,40 @@ function system_tasks_run_forwarder_session_keepalive(mysqli $dbcnx, array $task
         'connector_id' => $connectorId,
         'session_file' => $sessionFile,
         'execution' => $execution,
+    ];
+}
+
+function system_tasks_run_warehouse_prepare_out_label_payloads(mysqli $dbcnx, array $task): array
+{
+    $payload = json_decode((string)($task['payload_json'] ?? '{}'), true);
+    $payload = is_array($payload) ? $payload : [];
+    $limit = max(1, min(500, (int)($payload['limit'] ?? 100)));
+    $connectorId = (int)($payload['connector_id'] ?? 0);
+    $scriptPath = dirname(__DIR__, 2) . '/scripts/warehouse/prepare_out_label_payloads.php';
+    if (!is_file($scriptPath)) {
+        return ['status' => 'error', 'message' => 'prepare_out_label_payloads.php not found'];
+    }
+
+    $cmdParts = [
+        '/usr/bin/php',
+        $scriptPath,
+        '--limit=' . $limit,
+    ];
+    if ($connectorId > 0) {
+        $cmdParts[] = '--connector-id=' . $connectorId;
+    }
+    $execution = system_tasks_run_command_capture($cmdParts);
+    $decoded = json_decode((string)($execution['output'] ?? ''), true);
+    $ok = (int)($execution['exit_code'] ?? 1) === 0 && is_array($decoded) && ($decoded['status'] ?? '') === 'ok';
+
+    return [
+        'status' => $ok ? 'ok' : 'error',
+        'message' => $ok ? 'warehouse_prepare_out_label_payloads done' : 'warehouse_prepare_out_label_payloads failed',
+        'context' => [
+            'command' => '/usr/bin/php www/scripts/warehouse/prepare_out_label_payloads.php --limit=' . $limit,
+            'result' => $decoded,
+            'execution' => $execution,
+        ],
     ];
 }
 

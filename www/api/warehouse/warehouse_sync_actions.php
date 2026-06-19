@@ -813,6 +813,11 @@ if (!function_exists('warehouse_sync_ensure_out_table')) {
             'status' => "ALTER TABLE warehouse_item_out ADD COLUMN status VARCHAR(32) NOT NULL DEFAULT 'for_sync'",
             'status_message' => "ALTER TABLE warehouse_item_out ADD COLUMN status_message TEXT NULL",
             'status_updated_at' => "ALTER TABLE warehouse_item_out ADD COLUMN status_updated_at DATETIME NULL",
+            'label_payload_status' => "ALTER TABLE warehouse_item_out ADD COLUMN label_payload_status VARCHAR(32) NULL",
+            'label_payload_message' => "ALTER TABLE warehouse_item_out ADD COLUMN label_payload_message TEXT NULL",
+            'label_payload_json' => "ALTER TABLE warehouse_item_out ADD COLUMN label_payload_json LONGTEXT NULL",
+            'label_payload_synced_at' => "ALTER TABLE warehouse_item_out ADD COLUMN label_payload_synced_at DATETIME NULL",
+            'label_payload_source' => "ALTER TABLE warehouse_item_out ADD COLUMN label_payload_source VARCHAR(64) NULL",
             'created_at' => "ALTER TABLE warehouse_item_out ADD COLUMN created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
             'updated_at' => "ALTER TABLE warehouse_item_out ADD COLUMN updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP",
         ];
@@ -822,6 +827,7 @@ if (!function_exists('warehouse_sync_ensure_out_table')) {
                 $dbcnx->query($alterSql);
             }
         }
+        $dbcnx->query("ALTER TABLE warehouse_item_out ADD INDEX idx_wio_label_payload_status (label_payload_status)");
 
         if ($res = $dbcnx->query("SHOW INDEX FROM warehouse_item_out WHERE Key_name = 'uq_stock_item_id'")) {
             $hasUnique = $res->num_rows > 0;
@@ -4805,6 +4811,8 @@ if ($action === 'warehouse_item_out_to_send') {
             wo.receiver_address,
             wo.status,
             wo.status_message,
+            COALESCE(NULLIF(wo.label_payload_status, ''), 'empty') AS label_payload_status,
+            wo.label_payload_message,
             wo.status_updated_at,
             wo.created_at,
             c.code AS cell_address,
@@ -4928,6 +4936,8 @@ if ($action === 'warehouse_item_out_lookup') {
             wo.shipped_container_name,
             wo.status,
             wo.status_message,
+            COALESCE(NULLIF(wo.label_payload_status, ''), 'empty') AS label_payload_status,
+            wo.label_payload_message,
             wo.status_updated_at,
             wo.created_at,
             wi.receiver_name,
@@ -5009,6 +5019,8 @@ if ($action === 'warehouse_item_out_confirm_send') {
             wo.tracking_no,
             wo.tuid,
             wo.status,
+            wo.label_payload_status,
+            wo.label_payload_json,
             COALESCE(NULLIF(wo.receiver_company, ''), wi.receiver_company) AS receiver_company,
             COALESCE(NULLIF(wo.receiver_country_code, ''), wi.receiver_country_code) AS receiver_country_code
         FROM warehouse_item_out wo
@@ -5082,6 +5094,153 @@ if ($action === 'warehouse_item_out_confirm_send') {
         $printRotate = (int)($labelTemplate['print_rotate'] ?? 0);
         $renderProfile = warehouse_sync_label_render_profile_from_array($labelTemplate);
         $sessionFile = dirname(__DIR__, 2) . '/storage/forwarder_sessions/connector_' . (int)($connector['id'] ?? 0) . '.cookie';
+
+        $preparedPayload = json_decode((string)($item['label_payload_json'] ?? ''), true);
+        $preparedPayload = is_array($preparedPayload) ? $preparedPayload : [];
+        $preparedStatus = strtolower(trim((string)($item['label_payload_status'] ?? '')));
+        $preparedBarcode = trim((string)($preparedPayload['internal_id'] ?? $preparedPayload['cbr_number'] ?? $preparedPayload['barcode_value'] ?? ''));
+        $preparedMissing = [];
+        foreach (['tracking_no', 'client_name', 'client_address', 'category'] as $requiredKey) {
+            if (trim((string)($preparedPayload[$requiredKey] ?? '')) === '') {
+                $preparedMissing[] = $requiredKey;
+            }
+        }
+        if ($preparedBarcode === '') {
+            $preparedMissing[] = 'internal_id';
+        }
+        if (trim((string)($preparedPayload['gross_weight'] ?? $preparedPayload['weight'] ?? '')) === '') {
+            $preparedMissing[] = 'weight';
+        }
+        if (trim((string)($preparedPayload['invoice'] ?? $preparedPayload['amount'] ?? '')) === '') {
+            $preparedMissing[] = 'invoice';
+        }
+        if (trim((string)($preparedPayload['currency'] ?? '')) === '' && !preg_match('/\b[A-Z]{3}\b/', (string)($preparedPayload['amount'] ?? ''))) {
+            $preparedMissing[] = 'currency';
+        }
+
+        if ($preparedStatus === 'ready' && $preparedPayload !== [] && $preparedMissing === []) {
+            $labelVars = [];
+            foreach ($preparedPayload as $key => $value) {
+                if (is_scalar($value) || $value === null) {
+                    $labelVars[$key] = (string)$value;
+                    $labelVars['{{' . $key . '}}'] = (string)$value;
+                }
+            }
+            $runtimeVars = [
+                'flight_no' => $flightNo,
+                'flight_name' => $flightName,
+                'container_id' => $containerId,
+                'container_name' => $containerName,
+                'shipment_cell' => $shipmentCell,
+                'flight_departure' => trim((string)($_POST['flight_departure'] ?? ($preparedPayload['flight_departure'] ?? ''))),
+                'flight_destination' => trim((string)($_POST['flight_destination'] ?? ($preparedPayload['flight_destination'] ?? ''))),
+            ];
+            foreach ($runtimeVars as $key => $value) {
+                $labelVars[$key] = (string)$value;
+                $labelVars['{{' . $key . '}}'] = (string)$value;
+            }
+            $labelVars['internal_id'] = $preparedBarcode;
+            $labelVars['{{internal_id}}'] = $preparedBarcode;
+            $labelVars['barcode_value'] = $preparedBarcode;
+            $labelVars['{{barcode_value}}'] = $preparedBarcode;
+            $labelVars['{{barcode}}'] = $preparedBarcode;
+
+            $printMode = PRINT_LABEL_PRODUCTION_MODE;
+            $printStatus = 'skipped';
+            $printMessage = '';
+            $diagnostics = [];
+            $logTiming('before_fast_print');
+            if ($printMode === 'zpl_vector_template') {
+                $diagnostics = warehouse_sync_send_vector_template_waybill($labelVars, $renderProfile);
+                $printStatus = (string)($diagnostics['print_status'] ?? 'error');
+                $printMessage = (string)($diagnostics['print_message'] ?? '');
+            } elseif ($printMode === 'pdf_template') {
+                $pdfRender = warehouse_sync_render_waybill_pdf_from_template($labelVars, $renderProfile);
+                $printResult = warehouse_sync_send_pdf_template_to_cups((string)($pdfRender['final_pdf_path'] ?? ''));
+                $diagnostics = array_merge($pdfRender, $printResult);
+                $printStatus = (string)($printResult['status'] ?? 'error');
+                $printMessage = (string)($printResult['message'] ?? '');
+            } elseif ($printMode === 'zpl_raw') {
+                $zpl = warehouse_sync_render_waybill_zpl($labelVars, $renderProfile);
+                $printResult = warehouse_sync_send_zpl_to_printer($zpl);
+                $diagnostics = $printResult + ['zpl_size' => strlen($zpl)];
+                $printStatus = (string)($printResult['status'] ?? 'error');
+                $printMessage = (string)($printResult['message'] ?? '');
+            }
+            $logTiming('after_fast_print');
+
+            $printOk = strtolower(trim($printStatus)) === 'ok';
+            if (!$printOk) {
+                $response = [
+                    'status' => 'error',
+                    'fast_path' => true,
+                    'forwarder_add_status' => 'background_skipped',
+                    'print_status' => 'error',
+                    'message' => 'Лейбл не напечатан',
+                    'print_message' => $printMessage,
+                    'print_mode' => $printMode,
+                    'print_diagnostics' => $diagnostics,
+                ];
+                return;
+            }
+
+            $sqlUpdate = "
+                UPDATE warehouse_item_out
+                SET status = ?, status_message = ?, shipment_cell = ?, shipped_flight_no = ?, shipped_container_name = ?, status_updated_at = NOW()
+                WHERE stock_item_id = ?
+                LIMIT 1
+            ";
+            $stmtUpdate = $dbcnx->prepare($sqlUpdate);
+            if (!$stmtUpdate) {
+                throw new RuntimeException('Не удалось подготовить обновление');
+            }
+            $stmtUpdate->bind_param('sssssi', $nextStatus, $statusMessage, $shipmentCell, $flightDisplay, $containerDisplay, $stockItemId);
+            $stmtUpdate->execute();
+            $updateError = (int)$stmtUpdate->errno;
+            $stmtUpdate->close();
+            if ($updateError !== 0) {
+                throw new RuntimeException('Не удалось обновить данные отгрузки. Попробуйте ещё раз.');
+            }
+
+            $bgArgs = [
+                'base-url' => $baseUrl,
+                'login' => $login,
+                'password' => $password,
+                'session-file' => $sessionFile,
+                'track' => $trackingForForwarder,
+                'verify-number' => $trackingForForwarder,
+                'position' => $containerPosition,
+                'verify-check-package' => '1',
+                'print-label' => '0',
+                'print-mode' => 'none',
+                'return-label-html' => '0',
+                'return-label-vars' => '0',
+                'print-label-retries' => '0',
+                'print-label-retry-delay-ms' => '0',
+            ];
+            $cmdParts = ['php', dirname(__DIR__, 2) . '/scripts/mvp/app/Forwarder/run_add_package_to_container.php'];
+            foreach ($bgArgs as $key => $value) {
+                $cmdParts[] = '--' . $key . '=' . (string)$value;
+            }
+            @exec(implode(' ', array_map('escapeshellarg', $cmdParts)) . ' > /dev/null 2>&1 &');
+
+            $response = [
+                'status' => 'ok',
+                'fast_path' => true,
+                'forwarder_add_status' => 'background',
+                'local_status' => $nextStatus,
+                'print_status' => 'ok',
+                'message' => 'Лейбл напечатан из локально подготовленных данных. Синхронизация с форвардом выполняется в фоне.',
+                'print_message' => $printMessage,
+                'print_mode' => $printMode,
+                'print_diagnostics' => $diagnostics,
+                'stock_item_id' => $stockItemId,
+                'tracking_no' => $trackingForForwarder,
+                'warehouse_status' => $nextStatus,
+                'status_message' => $statusMessage,
+            ];
+            return;
+        }
 
         $logTiming('before_add_package');
         $addResult = warehouse_sync_exec_forwarder_cli_script('run_add_package_to_container.php', [
@@ -5198,13 +5357,39 @@ if ($action === 'warehouse_item_out_confirm_send') {
         $logTiming('after_print');
 
         $printOk = strtolower(trim($printStatus)) === 'ok';
+        if ($printOk && $labelVars !== []) {
+            $payloadForFuture = [];
+            foreach ($labelVars as $key => $value) {
+                if (!is_scalar($value) && $value !== null) {
+                    continue;
+                }
+                $normalizedKey = trim((string)$key, '{} ');
+                if ($normalizedKey !== '') {
+                    $payloadForFuture[$normalizedKey] = (string)$value;
+                }
+            }
+            $payloadForFuture['track'] = $trackingForForwarder;
+            $payloadForFuture['tracking_no'] = $trackingForForwarder;
+            $payloadForFuture['internal_id'] = warehouse_sync_label_var($labelVars, 'internal_id', warehouse_sync_label_var($labelVars, 'barcode_value', ''));
+            $payloadForFuture['barcode_value'] = $payloadForFuture['internal_id'];
+            $payloadForFutureJson = json_encode($payloadForFuture, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            if (is_string($payloadForFutureJson)) {
+                $stmtPayload = $dbcnx->prepare("UPDATE warehouse_item_out SET label_payload_status='ready', label_payload_message='saved from fallback confirm_send', label_payload_json=?, label_payload_synced_at=NOW(), label_payload_source='fallback-confirm-send' WHERE stock_item_id=? LIMIT 1");
+                if ($stmtPayload) {
+                    $stmtPayload->bind_param('si', $payloadForFutureJson, $stockItemId);
+                    $stmtPayload->execute();
+                    $stmtPayload->close();
+                }
+            }
+        }
         $logTiming('before_response');
         $response = [
             'status' => $printOk ? 'ok' : 'error',
+            'fast_path' => false,
             'forwarder_add_status' => 'ok',
             'local_status' => $nextStatus,
             'print_status' => $printOk ? 'ok' : 'error',
-            'message' => $printOk ? 'Посылка подтверждена у форварда и лейбл напечатан' : 'Посылка подтверждена у форварда, но лейбл не напечатан',
+            'message' => $printOk ? 'Данные не были подготовлены заранее, выполнена проверка у форварда.' : 'Посылка подтверждена у форварда, но лейбл не напечатан',
             'print_message' => $printMessage,
             'print_mode' => $printMode,
             'print_diagnostics' => $diagnostics,
