@@ -1,2 +1,5 @@
 
 /www/storage/forwarder_sessions/*.cookie
+
+# Runtime/user images
+/www/img/
