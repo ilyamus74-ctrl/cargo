@@ -832,6 +832,9 @@ if (!function_exists('warehouse_sync_ensure_out_table')) {
             $res->free();
             if (!$hasIndex) {
                 $dbcnx->query("ALTER TABLE warehouse_item_out ADD INDEX idx_wio_label_payload_status (label_payload_status)");
+                if ((int)$dbcnx->errno === 1061) {
+                    while ($dbcnx->more_results() && $dbcnx->next_result()) {}
+                }
             }
         }
 
