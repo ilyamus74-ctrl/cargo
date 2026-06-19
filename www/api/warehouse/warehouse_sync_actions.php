@@ -1954,7 +1954,7 @@ if (!function_exists('warehouse_sync_exec_forwarder_cli_script')) {
             throw new RuntimeException('Не найден скрипт: ' . $scriptPath);
         }
 
-        $cmdParts = ['php', $scriptPath];
+        $cmdParts = ['/usr/bin/php', $scriptPath];
         foreach ($args as $key => $value) {
             $normalizedKey = trim((string)$key);
             if ($normalizedKey === '') {
@@ -5218,7 +5218,7 @@ if ($action === 'warehouse_item_out_confirm_send') {
                 'print-label-retries' => '0',
                 'print-label-retry-delay-ms' => '0',
             ];
-            $cmdParts = ['php', dirname(__DIR__, 2) . '/scripts/mvp/app/Forwarder/run_add_package_to_container.php'];
+            $cmdParts = ['/usr/bin/php', dirname(__DIR__, 2) . '/scripts/mvp/app/Forwarder/run_add_package_to_container.php'];
             foreach ($bgArgs as $key => $value) {
                 $cmdParts[] = '--' . $key . '=' . (string)$value;
             }
@@ -5297,6 +5297,21 @@ if ($action === 'warehouse_item_out_confirm_send') {
             return;
         }
 
+        $generatedWaybill = is_array($addResult['print']['generated_waybill'] ?? null) ? $addResult['print']['generated_waybill'] : [];
+        $labelVars = is_array($addResult['label_vars'] ?? null) ? $addResult['label_vars'] : (is_array($generatedWaybill['label_vars'] ?? null) ? $generatedWaybill['label_vars'] : []);
+        if ($labelVars === []) {
+            $logTiming('before_response');
+            $response = [
+                'status' => 'error',
+                'fast_path' => false,
+                'forwarder_add_status' => 'ok',
+                'print_status' => 'error',
+                'message' => 'Форвард подтвердил посылку, но не вернул label_vars для печати. Печать остановлена.',
+                'forwarder_sync' => ['status' => 'ok', 'add_result' => $addResult],
+            ];
+            return;
+        }
+
         $logTiming('before_db_update');
         $sqlUpdate = "
             UPDATE warehouse_item_out
@@ -5324,12 +5339,6 @@ if ($action === 'warehouse_item_out_confirm_send') {
                 'flight_no' => $flightDisplay,
                 'container_name' => $containerDisplay,
             ]);
-        }
-
-        $generatedWaybill = is_array($addResult['print']['generated_waybill'] ?? null) ? $addResult['print']['generated_waybill'] : [];
-        $labelVars = is_array($addResult['label_vars'] ?? null) ? $addResult['label_vars'] : (is_array($generatedWaybill['label_vars'] ?? null) ? $generatedWaybill['label_vars'] : []);
-        if ($labelVars === []) {
-            $labelVars = warehouse_sync_label_template_sample_vars((int)($connector['id'] ?? 0), $trackingForForwarder);
         }
 
         $printMode = PRINT_LABEL_PRODUCTION_MODE;
