@@ -4065,7 +4065,7 @@ const CoreAPI = {
             if (this.modalConfirmButton) {
                 this.modalConfirmButton.disabled = true;
                 this.modalConfirmButton.textContent = auto ? 'Автоподтверждение...' : 'Сохраняем...';
-                this.setModalMessage('info', 'Проверяем посылку у форварда...');
+                this.setModalMessage('info', 'Печатаем локальный лейбл...');
             }
 
             const fd = new FormData();
@@ -4092,10 +4092,9 @@ const CoreAPI = {
             let data = null;
             try {
                 data = await CoreAPI.client.call(fd);
-                this.setModalMessage('info', 'Печатаем лейбл...');
-                if (data?.forwarder_add_status === 'ok' && String(data?.print_status || '').trim().toLowerCase() === 'error') {
-                    this.setModalMessage('danger', 'Ошибка печати. Посылка подтверждена, но наклейка не напечатана.');
-                    CoreAPI.showToast?.(String(data?.print_message || '').trim() || 'Посылка подтверждена, но лейбл не напечатан.', 'warning');
+                if (String(data?.print_status || '').trim().toLowerCase() === 'error') {
+                    this.setModalMessage('danger', this.escapeHtml(data?.message || 'Лейбл не напечатан. Отгрузка не подтверждена.'));
+                    CoreAPI.showToast?.(String(data?.print_message || data?.message || '').trim() || 'Лейбл не напечатан. Отгрузка не подтверждена.', 'warning');
                     this.playOutcomeSound('alert');
                     if (this.modalConfirmButton) {
                         this.modalConfirmButton.disabled = false;
@@ -4106,7 +4105,7 @@ const CoreAPI = {
                 if (!data || data.status !== 'ok') {
                     throw new Error(data?.message || 'confirm_failed');
                 }
-                this.setModalMessage('success', 'Лейбл напечатан');
+                this.setModalMessage('success', this.escapeHtml(data?.message || 'Посылка отгружена, лейбл напечатан. Синхронизация с форвардом выполняется в фоне.'));
             } catch (err) {
                 console.error('core_api fetch error (warehouse_item_out_confirm_send):', err);
                 this.setModalMessage('danger', data?.message ? this.escapeHtml(data.message) : 'Не удалось подтвердить перемещение в контейнер. Попробуйте ещё раз.');
@@ -4139,7 +4138,7 @@ const CoreAPI = {
                 console.warn('warehouse_item_out post-confirm refresh warning:', refreshErr);
             }
 
-            CoreAPI.showToast?.('Посылка перемещена в контейнер.', 'success');
+            CoreAPI.showToast?.(data?.message || 'Посылка отгружена, лейбл напечатан. Синхронизация с форвардом выполняется в фоне.', 'success');
             if (data?.print_mode === 'zpl_vector_template' || data?.print_mode === 'zpl_raw' || data?.print_mode === 'pdf_template') {
                 const zplOk = String(data?.print_status || '').trim().toLowerCase() === 'ok';
                 CoreAPI.showToast?.(zplOk ? 'Лейбл отправлен на печать' : (String(data?.print_message || '').trim() || 'Печать лейбла завершилась с ошибкой.'), zplOk ? 'success' : 'warning');
@@ -4164,7 +4163,7 @@ const CoreAPI = {
                 this.playOutcomeSound('alert');
             }
 
-            this.setModalMessage('success', 'Лейбл напечатан. Закрываем окно...');
+            this.setModalMessage('success', this.escapeHtml(data?.message || 'Лейбл напечатан. Закрываем окно...'));
             window.setTimeout(() => {
                 this.hideModal();
             }, auto ? 2000 : 0);
