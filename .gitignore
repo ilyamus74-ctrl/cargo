@@ -3,3 +3,6 @@
 
 # Runtime/user images
 /www/img/
+
+# Runtime forwarder sessions
+/www/storage/forwarder_sessions/*.cookie
