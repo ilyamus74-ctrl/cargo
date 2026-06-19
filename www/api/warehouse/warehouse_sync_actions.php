@@ -813,14 +813,6 @@ if (!function_exists('warehouse_sync_ensure_out_table')) {
             'status' => "ALTER TABLE warehouse_item_out ADD COLUMN status VARCHAR(32) NOT NULL DEFAULT 'for_sync'",
             'status_message' => "ALTER TABLE warehouse_item_out ADD COLUMN status_message TEXT NULL",
             'status_updated_at' => "ALTER TABLE warehouse_item_out ADD COLUMN status_updated_at DATETIME NULL",
-            'forwarder_sync_status' => "ALTER TABLE warehouse_item_out ADD COLUMN forwarder_sync_status VARCHAR(16) NULL",
-            'forwarder_sync_message' => "ALTER TABLE warehouse_item_out ADD COLUMN forwarder_sync_message TEXT NULL",
-            'forwarder_synced_at' => "ALTER TABLE warehouse_item_out ADD COLUMN forwarder_synced_at DATETIME NULL",
-            'forwarder_label_status' => "ALTER TABLE warehouse_item_out ADD COLUMN forwarder_label_status VARCHAR(32) NULL",
-            'forwarder_label_message' => "ALTER TABLE warehouse_item_out ADD COLUMN forwarder_label_message TEXT NULL",
-            'forwarder_label_vars_json' => "ALTER TABLE warehouse_item_out ADD COLUMN forwarder_label_vars_json LONGTEXT NULL",
-            'forwarder_waybill_code' => "ALTER TABLE warehouse_item_out ADD COLUMN forwarder_waybill_code VARCHAR(128) NULL",
-            'forwarder_label_prepared_at' => "ALTER TABLE warehouse_item_out ADD COLUMN forwarder_label_prepared_at DATETIME NULL",
             'created_at' => "ALTER TABLE warehouse_item_out ADD COLUMN created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP",
             'updated_at' => "ALTER TABLE warehouse_item_out ADD COLUMN updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP",
         ];
@@ -846,89 +838,6 @@ if (!function_exists('warehouse_sync_ensure_out_table')) {
                 $dbcnx->query("ALTER TABLE warehouse_item_out ADD KEY idx_status_updated (status, status_updated_at)");
             }
         }
-
-        if ($res = $dbcnx->query("SHOW INDEX FROM warehouse_item_out WHERE Key_name = 'idx_wio_forwarder_label_status'")) {
-            $hasIndex = $res->num_rows > 0;
-            $res->free();
-            if (!$hasIndex) {
-                $dbcnx->query("ALTER TABLE warehouse_item_out ADD KEY idx_wio_forwarder_label_status (forwarder_label_status)");
-            }
-        }
-    }
-}
-
-if (!function_exists('warehouse_sync_ensure_out_forwarder_jobs_table')) {
-    function warehouse_sync_ensure_out_forwarder_jobs_table(mysqli $dbcnx): void
-    {
-        $dbcnx->query("CREATE TABLE IF NOT EXISTS warehouse_out_forwarder_jobs (
-            id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-            stock_item_id BIGINT NOT NULL,
-            out_item_id BIGINT NULL,
-            tracking_no VARCHAR(128) NOT NULL,
-            connector_id INT NULL,
-            flight_record_id INT NULL,
-            container_id VARCHAR(128) NULL,
-            container_name VARCHAR(255) NULL,
-            shipment_cell VARCHAR(255) NULL,
-            status VARCHAR(16) NOT NULL DEFAULT 'queued',
-            attempts INT NOT NULL DEFAULT 0,
-            max_attempts INT NOT NULL DEFAULT 5,
-            payload_json LONGTEXT NULL,
-            result_json LONGTEXT NULL,
-            last_error TEXT NULL,
-            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-            started_at DATETIME NULL,
-            finished_at DATETIME NULL,
-            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-            PRIMARY KEY (id),
-            KEY idx_status_created (status, created_at),
-            KEY idx_stock_item_id (stock_item_id),
-            KEY idx_out_item_id (out_item_id),
-            KEY idx_tracking_no (tracking_no)
-        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci");
-    }
-}
-
-if (!function_exists('warehouse_sync_enqueue_out_forwarder_job')) {
-    function warehouse_sync_enqueue_out_forwarder_job(mysqli $dbcnx, array $payload): int
-    {
-        warehouse_sync_ensure_out_forwarder_jobs_table($dbcnx);
-        $outItemId = (int)($payload['out_item_id'] ?? 0);
-        $containerId = trim((string)($payload['container_id'] ?? ''));
-        if ($outItemId > 0) {
-            $stmt = $dbcnx->prepare("SELECT id FROM warehouse_out_forwarder_jobs WHERE out_item_id = ? AND COALESCE(container_id, '') = ? AND status IN ('queued','running','ok','done') ORDER BY id DESC LIMIT 1");
-            if ($stmt) {
-                $stmt->bind_param('is', $outItemId, $containerId);
-                $stmt->execute();
-                $row = $stmt->get_result()?->fetch_assoc();
-                $stmt->close();
-                if ($row) { return (int)$row['id']; }
-            }
-        }
-        $payloadJson = json_encode($payload, JSON_UNESCAPED_UNICODE);
-        $stockItemId = (int)($payload['stock_item_id'] ?? 0);
-        $trackingNo = trim((string)($payload['tracking_no'] ?? ''));
-        $connectorId = (int)($payload['connector_id'] ?? 0) ?: null;
-        $flightRecordId = (int)($payload['flight_record_id'] ?? 0) ?: null;
-        $containerName = trim((string)($payload['container_name'] ?? ''));
-        $shipmentCell = trim((string)($payload['shipment_cell'] ?? ''));
-        $stmt = $dbcnx->prepare("INSERT INTO warehouse_out_forwarder_jobs (stock_item_id, out_item_id, tracking_no, connector_id, flight_record_id, container_id, container_name, shipment_cell, status, payload_json) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'queued', ?)");
-        if (!$stmt) { throw new RuntimeException('Не удалось подготовить задачу синхронизации форварда'); }
-        $stmt->bind_param('iisiissss', $stockItemId, $outItemId, $trackingNo, $connectorId, $flightRecordId, $containerId, $containerName, $shipmentCell, $payloadJson);
-        $stmt->execute();
-        $jobId = (int)$dbcnx->insert_id;
-        $stmt->close();
-        return $jobId;
-    }
-}
-
-if (!function_exists('warehouse_sync_fire_out_forwarder_worker')) {
-    function warehouse_sync_fire_out_forwarder_worker(int $jobId): void
-    {
-        if ($jobId <= 0) { return; }
-        $script = dirname(__DIR__, 2) . '/scripts/warehouse/run_out_forwarder_job.php';
-        if (!is_file($script)) { return; }
-        @exec('/usr/bin/php ' . escapeshellarg($script) . ' --job-id=' . escapeshellarg((string)$jobId) . ' >/dev/null 2>&1 &');
     }
 }
 
@@ -978,11 +887,7 @@ if (!function_exists('warehouse_sync_out_set_status')) {
         warehouse_sync_ensure_out_table($dbcnx);
         warehouse_sync_out_upsert_from_stock($dbcnx, $stockItemId);
 
-        if ($status === 'to_send') {
-            $sql = "UPDATE warehouse_item_out SET status = ?, status_message = ?, status_updated_at = NOW(), forwarder_label_status = COALESCE(forwarder_label_status, 'queued'), forwarder_label_message = NULL WHERE stock_item_id = ? LIMIT 1";
-        } else {
-            $sql = "UPDATE warehouse_item_out SET status = ?, status_message = ?, status_updated_at = NOW() WHERE stock_item_id = ? LIMIT 1";
-        }
+        $sql = "UPDATE warehouse_item_out SET status = ?, status_message = ?, status_updated_at = NOW() WHERE stock_item_id = ? LIMIT 1";
         $stmt = $dbcnx->prepare($sql);
         if (!$stmt) {
             return;
@@ -3039,166 +2944,6 @@ if (!function_exists('warehouse_sync_label_var')) {
     }
 }
 
-if (!function_exists('warehouse_sync_first_non_empty_value')) {
-    function warehouse_sync_first_non_empty_value(array ...$sources): string
-    {
-        foreach ($sources as $source) {
-            foreach ($source as $value) {
-                if (is_array($value) || is_object($value)) {
-                    continue;
-                }
-                $value = trim((string)$value);
-                if ($value !== '') {
-                    return $value;
-                }
-            }
-        }
-        return '';
-    }
-}
-
-if (!function_exists('warehouse_sync_decode_addons_json')) {
-    function warehouse_sync_decode_addons_json($raw): array
-    {
-        $decoded = json_decode(trim((string)$raw), true);
-        return is_array($decoded) ? $decoded : [];
-    }
-}
-
-if (!function_exists('warehouse_sync_fetch_forwarder_report_item')) {
-    function warehouse_sync_fetch_forwarder_report_item(mysqli $dbcnx, int $connectorId, string $trackingNo): array
-    {
-        if ($connectorId <= 0 || trim($trackingNo) === '' || !warehouse_sync_table_exists($dbcnx, 'forwarder_report_items')) {
-            return [];
-        }
-        $columns = warehouse_sync_table_columns($dbcnx, 'forwarder_report_items');
-        if (!in_array('connector_id', $columns, true) || !in_array('tracking_no', $columns, true)) {
-            return [];
-        }
-        $stmt = $dbcnx->prepare("SELECT * FROM forwarder_report_items WHERE connector_id = ? AND tracking_no = ? LIMIT 1");
-        if (!$stmt) {
-            return [];
-        }
-        $stmt->bind_param('is', $connectorId, $trackingNo);
-        $stmt->execute();
-        $row = $stmt->get_result()?->fetch_assoc();
-        $stmt->close();
-        return is_array($row) ? $row : [];
-    }
-}
-
-if (!function_exists('warehouse_sync_build_out_label_vars')) {
-    function warehouse_sync_build_out_label_vars(mysqli $dbcnx, array $item, array $connector, array $context): array
-    {
-        $trackingNo = warehouse_sync_first_non_empty_value([
-            $context['tracking_no'] ?? '', $item['tracking_no'] ?? '', $item['stock_tracking_no'] ?? '', $item['tuid'] ?? '', $item['stock_tuid'] ?? '',
-        ]);
-        $addons = warehouse_sync_decode_addons_json($item['addons_json'] ?? '');
-        $report = warehouse_sync_fetch_forwarder_report_item($dbcnx, (int)($connector['id'] ?? 0), $trackingNo);
-        $pick = static function (array $keys) use ($item, $addons, $report): string {
-            $values = [];
-            foreach ($keys as $key) {
-                $values[] = $item[$key] ?? '';
-                $values[] = $addons[$key] ?? '';
-                $values[] = $report[$key] ?? '';
-            }
-            return warehouse_sync_first_non_empty_value($values);
-        };
-        $clientName = warehouse_sync_first_non_empty_value([
-            $item['receiver_name'] ?? '', $item['stock_receiver_name'] ?? '', $item['resolved_receiver_company'] ?? '', $item['receiver_company'] ?? '', $item['stock_receiver_company'] ?? '',
-            $addons['client_name'] ?? '', $report['client_name'] ?? '', $report['receiver_name'] ?? '', $report['receiver_company'] ?? '',
-        ]);
-        $countryCode = strtoupper(warehouse_sync_first_non_empty_value([
-            $item['resolved_receiver_country_code'] ?? '', $item['receiver_country_code'] ?? '', $item['stock_receiver_country_code'] ?? '', $addons['receiver_country_code'] ?? '', $addons['country_dest'] ?? '', $report['receiver_country_code'] ?? '', $report['country_dest'] ?? '',
-        ]));
-        $vars = [
-            '{{track}}' => $trackingNo,
-            '{{client_name}}' => $clientName,
-            '{{client}}' => $clientName,
-            '{{client_address}}' => warehouse_sync_first_non_empty_value([$item['resolved_receiver_address'] ?? '', $item['receiver_address'] ?? '', $item['stock_receiver_address'] ?? '', $addons['client_address'] ?? '', $report['client_address'] ?? '', $report['receiver_address'] ?? '']),
-            '{{receiver_country_code}}' => $countryCode,
-            '{{country_dest}}' => warehouse_sync_first_non_empty_value([$countryCode, $addons['country_dest'] ?? '', $report['country_dest'] ?? '']),
-            '{{forward_name}}' => trim((string)($connector['name'] ?? '')),
-            '{{flight_name}}' => trim((string)($context['flight_display'] ?? '')),
-            '{{shipment_cell}}' => trim((string)($context['shipment_cell'] ?? '')),
-            '{{container_name}}' => trim((string)($context['container_display'] ?? '')),
-            '{{weight}}' => $pick(['weight_kg', 'weight']),
-            '{{volume_weight}}' => $pick(['volume_weight']),
-            '{{description}}' => $pick(['description', 'goods_description', 'category']),
-            '{{amount}}' => $pick(['amount']),
-            '{{invoice_usd}}' => $pick(['invoice_usd']),
-            '{{total_invoice_price}}' => $pick(['total_invoice_price']),
-            '{{declared_value}}' => $pick(['declared_value', 'price']),
-            '{{invoice_price}}' => $pick(['invoice_price', 'price']),
-            '{{shipping_price}}' => $pick(['shipping_price']),
-            '{{seller}}' => $pick(['seller']),
-            '{{client_code}}' => $pick(['client_code']),
-            '{{client_id}}' => $pick(['client_id']),
-            '{{consignee_phone}}' => $pick(['consignee_phone', 'phone']),
-            '{{container_position}}' => trim((string)($context['container_position'] ?? '')),
-            '{{flight_record_id}}' => trim((string)($context['flight_record_id'] ?? '')),
-        ];
-        foreach (['track', 'client_name', 'client_address', 'receiver_country_code', 'country_dest', 'forward_name', 'flight_name', 'weight', 'description', 'amount', 'invoice_price'] as $key) {
-            $vars[$key] = (string)($vars['{{' . $key . '}}'] ?? '');
-        }
-        return $vars;
-    }
-}
-
-if (!function_exists('warehouse_sync_label_vars_have_test_values')) {
-    function warehouse_sync_label_vars_have_test_values(array $labelVars): bool
-    {
-        $haystack = implode("\n", array_map(static fn($value): string => is_scalar($value) ? (string)$value : '', $labelVars));
-        foreach (['Test Client', 'Baku, Test street', 'Test goods description', 'TEST-TRACK', 'CLI001', 'INT-00001'] as $needle) {
-            if (stripos($haystack, $needle) !== false) {
-                return true;
-            }
-        }
-        return false;
-    }
-}
-
-if (!function_exists('warehouse_sync_label_vars_require_ready_fields')) {
-    function warehouse_sync_label_vars_require_ready_fields(array $labelVars): array
-    {
-        $get = static function (array $keys) use ($labelVars): string {
-            foreach ($keys as $key) {
-                $v = trim((string)($labelVars[$key] ?? ''));
-                if ($v !== '') { return $v; }
-            }
-            return '';
-        };
-        $missing = [];
-        foreach ([
-            'waybill/internal code' => ['{{internal_id}}', 'internal_id', '{{barcode}}', 'barcode'],
-            'delivery address' => ['{{client_address}}', 'client_address', '{{delivery_address}}', 'delivery_address'],
-            'weight' => ['{{weight}}', 'weight'],
-            'description' => ['{{description}}', 'description'],
-        ] as $label => $keys) {
-            if ($get($keys) === '') { $missing[] = $label; }
-        }
-        return $missing;
-    }
-}
-
-if (!function_exists('warehouse_sync_label_vars_with_runtime_context')) {
-    function warehouse_sync_label_vars_with_runtime_context(array $labelVars, array $context): array
-    {
-        foreach ([
-            'track' => 'tracking_no',
-            'flight_name' => 'flight_display',
-            'container_name' => 'container_display',
-            'shipment_cell' => 'shipment_cell',
-        ] as $var => $ctxKey) {
-            $value = trim((string)($context[$ctxKey] ?? ''));
-            if ($value !== '') {
-                $labelVars[$var] = $value;
-                $labelVars['{{' . $var . '}}'] = $value;
-            }
-        }
-        return $labelVars;
-    }
-}
 
 if (!function_exists('warehouse_sync_is_airport_like_code')) {
     function warehouse_sync_is_airport_like_code(string $value): bool
@@ -5061,9 +4806,6 @@ if ($action === 'warehouse_item_out_to_send') {
             wo.status,
             wo.status_message,
             wo.status_updated_at,
-            wo.forwarder_label_status,
-            wo.forwarder_label_message,
-            wo.forwarder_label_prepared_at,
             wo.created_at,
             c.code AS cell_address,
             COALESCE(NULLIF(wo.tuid, ''), NULLIF(wo.tracking_no, ''), wo.uid_created) AS parcel_uid
@@ -5187,9 +4929,6 @@ if ($action === 'warehouse_item_out_lookup') {
             wo.status,
             wo.status_message,
             wo.status_updated_at,
-            wo.forwarder_label_status,
-            wo.forwarder_label_message,
-            wo.forwarder_label_prepared_at,
             wo.created_at,
             wi.receiver_name,
             c.code AS cell_address,
@@ -5233,7 +4972,6 @@ if ($action === 'warehouse_item_out_confirm_send') {
     $current = $user;
 
     warehouse_sync_ensure_out_table($dbcnx);
-    warehouse_sync_ensure_out_forwarder_jobs_table($dbcnx);
 
     $stockItemId = max(0, (int)($_POST['stock_item_id'] ?? 0));
     $trackingNo = trim((string)($_POST['tracking_no'] ?? ''));
@@ -5242,128 +4980,204 @@ if ($action === 'warehouse_item_out_confirm_send') {
     $containerId = trim((string)($_POST['container_id'] ?? ''));
     $containerName = trim((string)($_POST['container_name'] ?? ''));
     $shipmentCell = trim((string)($_POST['shipment_cell'] ?? ''));
-    $flightRecordId = max(0, (int)($_POST['flight_record_id'] ?? 0));
+    $printToken = trim((string)($_POST['print_token'] ?? ''));
+    $printDeviceKey = trim((string)($_POST['print_device_key'] ?? ''));
 
     $timingTracking = $trackingNo;
     $logTiming = static function (string $stage) use (&$timingTracking): void {
         error_log('OUT_CONFIRM_TIMING tracking=' . $timingTracking . ' ' . $stage . '=' . sprintf('%.6F', microtime(true)));
     };
 
-    if ($stockItemId <= 0) { $response = ['status' => 'error', 'message' => 'Не найдена посылка для подтверждения']; return; }
-    if ($containerId === '' && $containerName === '') { $response = ['status' => 'error', 'message' => 'Сначала выберите контейнер']; return; }
-    if ($shipmentCell === '') { $shipmentCell = trim(($flightNo !== '' ? $flightNo : $flightName) . ' / ' . ($containerName !== '' ? $containerName : $containerId)); }
-
-    $stockColumns = warehouse_sync_table_columns($dbcnx, 'warehouse_item_stock');
-    $stockSelects = [];
-    foreach ([
-        'weight_kg',
-        'addons_json',
-        'receiver_name',
-        'receiver_address',
-        'receiver_country_code',
-        'receiver_company',
-        'tracking_no',
-        'tuid',
-        'uid_created',
-        'volume_weight',
-        'description',
-        'goods_description',
-        'category',
-        'amount',
-        'invoice_usd',
-        'total_invoice_price',
-        'declared_value',
-        'invoice_price',
-        'shipping_price',
-        'price',
-    ] as $column) {
-        if (in_array($column, $stockColumns, true)) {
-            $stockSelects[] = "wi.`{$column}` AS stock_{$column}";
-            $stockSelects[] = "wi.`{$column}` AS {$column}";
-        } else {
-            $stockSelects[] = "'' AS stock_{$column}";
-            $stockSelects[] = "'' AS {$column}";
-        }
+    if ($stockItemId <= 0) {
+        $response = ['status' => 'error', 'message' => 'Не найдена посылка для подтверждения'];
+        return;
     }
-    $stockSelectSql = implode(",\n               ", $stockSelects);
-    $wiCellSql = in_array('cell_id', $stockColumns, true) ? 'wi.cell_id' : "''";
-    $wiReceiverCompanySql = in_array('receiver_company', $stockColumns, true) ? 'wi.receiver_company' : "''";
-    $wiReceiverCountrySql = in_array('receiver_country_code', $stockColumns, true) ? 'wi.receiver_country_code' : "''";
-    $wiReceiverAddressSql = in_array('receiver_address', $stockColumns, true) ? 'wi.receiver_address' : "''";
+
+    if ($containerId === '' && $containerName === '') {
+        $response = ['status' => 'error', 'message' => 'Сначала выберите контейнер'];
+        return;
+    }
+
+    if ($shipmentCell === '') {
+        $shipmentCell = trim(($flightNo !== '' ? $flightNo : $flightName) . ' / ' . ($containerName !== '' ? $containerName : $containerId));
+    }
 
     $sqlSelect = "
-        SELECT wo.*, {$stockSelectSql}, {$wiCellSql} AS cell_id,
-               COALESCE(NULLIF(wo.receiver_company, ''), {$wiReceiverCompanySql}) AS resolved_receiver_company,
-               COALESCE(NULLIF(wo.receiver_country_code, ''), {$wiReceiverCountrySql}) AS resolved_receiver_country_code,
-               COALESCE(NULLIF(wo.receiver_address, ''), {$wiReceiverAddressSql}) AS resolved_receiver_address
+        SELECT
+            wo.id,
+            wo.stock_item_id,
+            wo.tracking_no,
+            wo.tuid,
+            wo.status,
+            COALESCE(NULLIF(wo.receiver_company, ''), wi.receiver_company) AS receiver_company,
+            COALESCE(NULLIF(wo.receiver_country_code, ''), wi.receiver_country_code) AS receiver_country_code
         FROM warehouse_item_out wo
         LEFT JOIN warehouse_item_stock wi ON wi.id = wo.stock_item_id
         WHERE wo.stock_item_id = ?
-        LIMIT 1";
+        LIMIT 1
+    ";
     $item = null;
     $stmtSelect = $dbcnx->prepare($sqlSelect);
     if ($stmtSelect) {
         $stmtSelect->bind_param('i', $stockItemId);
         $stmtSelect->execute();
-        $item = $stmtSelect->get_result()?->fetch_assoc() ?: null;
+        $resSelect = $stmtSelect->get_result();
+        if ($resSelect) {
+            $item = $resSelect->fetch_assoc() ?: null;
+        }
         $stmtSelect->close();
     }
-    if (!$item) { $response = ['status' => 'error', 'message' => 'Посылка не найдена в отгрузке']; return; }
 
-    $currentStatus = strtolower(trim((string)($item['status'] ?? '')));
-    if ($currentStatus === 'sended') {
-        $logTiming('before_response');
-        $response = ['status' => 'error', 'message' => 'Посылка уже отгружена.', 'print_status' => 'skipped', 'local_status' => 'sended'];
+    if (!$item) {
+        $response = ['status' => 'error', 'message' => 'Посылка не найдена в отгрузке'];
         return;
     }
-    if ($currentStatus !== 'to_send') {
-        $response = ['status' => 'error', 'message' => 'Подтверждение доступно только для статуса to_send'];
+
+    $currentStatus = strtolower(trim((string)($item['status'] ?? '')));
+    if (!in_array($currentStatus, ['to_send', 'sended'], true)) {
+        $response = ['status' => 'error', 'message' => 'Подтверждение доступно только для статусов to_send или sended'];
         return;
     }
 
     $containerDisplay = $containerName !== '' ? $containerName : $containerId;
     $flightDisplay = $flightNo !== '' ? $flightNo : $flightName;
-    $statusMessage = 'Отправлено в контейнер ' . $containerDisplay . ($flightDisplay !== '' ? ' рейса ' . $flightDisplay : '') . ($shipmentCell !== '' ? ' (ячейка ' . $shipmentCell . ')' : '');
-    $trackingForForwarder = trim($trackingNo !== '' ? $trackingNo : (string)($item['tracking_no'] ?: ($item['tuid'] ?? '')));
+    $statusMessage = 'Отправлено в контейнер ' . $containerDisplay;
+    if ($flightDisplay !== '') {
+        $statusMessage .= ' рейса ' . $flightDisplay;
+    }
+    if ($shipmentCell !== '') {
+        $statusMessage .= ' (ячейка ' . $shipmentCell . ')';
+    }
+    $nextStatus = 'sended';
+    $trackingForForwarder = trim($trackingNo !== '' ? $trackingNo : (string)($item['tracking_no'] ?? $item['tuid'] ?? ''));
     $timingTracking = $trackingForForwarder;
     $containerPosition = trim($containerId !== '' ? $containerId : $containerDisplay);
+    $flightRecordId = max(0, (int)($_POST['flight_record_id'] ?? 0));
+
     if ($trackingForForwarder === '' || $containerPosition === '' || $flightRecordId <= 0) {
-        $response = ['status' => 'error', 'print_status' => 'skipped', 'message' => 'Не хватает данных для отгрузки'];
+        $response = [
+            'status' => 'error',
+            'forwarder_add_status' => 'error',
+            'print_status' => 'skipped',
+            'message' => 'Не хватает данных для подтверждения у форварда',
+        ];
         return;
     }
 
+    $lastAddResult = null;
     try {
         $connector = warehouse_sync_resolve_permitted_connector($dbcnx, $item, 0);
+        $baseUrl = trim((string)($connector['base_url'] ?? ''));
+        $login = trim((string)($connector['auth_username'] ?? ''));
+        $password = trim((string)($connector['auth_password'] ?? ''));
+        if ($baseUrl === '' || $login === '' || $password === '') {
+            throw new RuntimeException('Не настроены доступы к форварду');
+        }
+
         $labelTemplate = warehouse_sync_resolve_label_template_code($dbcnx, $connector);
+        $labelTemplateCode = trim((string)($labelTemplate['template_code'] ?? 'default'));
+        $labelTemplateBody = trim((string)($labelTemplate['template_body'] ?? ''));
+        $labelWidthCm = (float)($labelTemplate['label_width_cm'] ?? 10.0);
+        $labelHeightCm = (float)($labelTemplate['label_height_cm'] ?? 15.0);
+        $printRotate = (int)($labelTemplate['print_rotate'] ?? 0);
         $renderProfile = warehouse_sync_label_render_profile_from_array($labelTemplate);
-        if (strtolower(trim((string)($item['forwarder_label_status'] ?? ''))) !== 'ready' || trim((string)($item['forwarder_label_vars_json'] ?? '')) === '') {
-            $response = ['status' => 'error', 'print_status' => 'skipped', 'local_status' => 'to_send', 'message' => 'Лейбл ещё не подготовлен форвардом. Повторите через несколько секунд или запустите подготовку лейбла.'];
-            return;
-        }
-        $labelVars = json_decode((string)$item['forwarder_label_vars_json'], true);
-        if (!is_array($labelVars)) {
-            $response = ['status' => 'error', 'print_status' => 'skipped', 'local_status' => 'to_send', 'message' => 'Лейбл форварда повреждён. Запустите подготовку лейбла повторно.'];
-            return;
-        }
-        $labelVars = warehouse_sync_label_vars_with_runtime_context($labelVars, [
-            'tracking_no' => $trackingForForwarder,
-            'flight_display' => $flightDisplay,
-            'container_display' => $containerDisplay,
-            'shipment_cell' => $shipmentCell,
+        $sessionFile = dirname(__DIR__, 2) . '/storage/forwarder_sessions/connector_' . (int)($connector['id'] ?? 0) . '.cookie';
+
+        $logTiming('before_add_package');
+        $addResult = warehouse_sync_exec_forwarder_cli_script('run_add_package_to_container.php', [
+            'base-url' => $baseUrl,
+            'login' => $login,
+            'password' => $password,
+            'session-file' => $sessionFile,
+            'track' => $trackingForForwarder,
+            'verify-number' => $trackingForForwarder,
+            'position' => $containerPosition,
+            'verify-check-package' => '1',
+            'print-label' => '0',
+            'print-mode' => 'none',
+            'return-label-html' => '0',
+            'return-label-vars' => '1',
+            'print-token' => $printToken,
+            'print-device-key' => $printDeviceKey,
+            'print-file-name' => 'label_' . (string)(preg_replace('/[^A-Za-z0-9._-]+/', '_', $trackingForForwarder) ?? 'track') . '.html',
+            'label-template-code' => $labelTemplateCode,
+            'label-template-body-base64' => $labelTemplateBody !== '' ? base64_encode($labelTemplateBody) : '',
+            'label-width-cm' => (string)$labelWidthCm,
+            'label-height-cm' => (string)$labelHeightCm,
+            'print-paper-width-mm' => (string)$renderProfile['print_paper_width_mm'],
+            'print-paper-height-mm' => (string)$renderProfile['print_paper_height_mm'],
+            'render-width-mm' => (string)$renderProfile['render_width_mm'],
+            'render-height-mm' => (string)$renderProfile['render_height_mm'],
+            'render-rotate' => (string)$renderProfile['render_rotate'],
+            'render-layout-mode' => (string)$renderProfile['render_layout_mode'],
+            'render-css-override' => (string)$renderProfile['render_css_override'],
+            'render-fit-mode' => (string)$renderProfile['render_fit_mode'],
+            'render-scale-percent' => (string)$renderProfile['render_scale_percent'],
+            'render-offset-x-mm' => (string)$renderProfile['render_offset_x_mm'],
+            'render-offset-y-mm' => (string)$renderProfile['render_offset_y_mm'],
+            'print-rotate' => (string)$printRotate,
+            'print-rasterize' => '0',
+            'forward-name' => trim((string)($connector['name'] ?? '')),
+            'country-dest' => strtoupper(trim((string)($item['receiver_country_code'] ?? ''))),
+            'allow-label-url' => '0',
+            'print-label-retries' => '0',
+            'print-label-retry-delay-ms' => '0',
         ]);
-        if (warehouse_sync_label_vars_have_test_values($labelVars)) {
-            $response = ['status' => 'error', 'print_status' => 'error', 'local_status' => 'to_send', 'message' => 'Лейбл не напечатан: в label_vars обнаружены тестовые данные.'];
-            return;
-        }
-        $missingLabelFields = warehouse_sync_label_vars_require_ready_fields($labelVars);
-        if ($missingLabelFields) {
-            $response = ['status' => 'error', 'print_status' => 'skipped', 'local_status' => 'to_send', 'message' => 'Лейбл не напечатан: нет обязательных данных форварда (' . implode(', ', $missingLabelFields) . ').'];
+        $lastAddResult = $addResult;
+        $logTiming('after_add_package');
+        $addStatus = strtolower(trim((string)($addResult['status'] ?? '')));
+        if ($addStatus !== 'ok') {
+            $logTiming('before_response');
+            $response = [
+                'status' => 'error',
+                'forwarder_add_status' => 'error',
+                'print_status' => 'skipped',
+                'message' => trim((string)($addResult['message'] ?? 'Не удалось добавить посылку в контейнер форварда')),
+                'forwarder_sync' => ['status' => 'error', 'add_result' => $addResult],
+            ];
             return;
         }
 
+        $logTiming('before_db_update');
+        $sqlUpdate = "
+            UPDATE warehouse_item_out
+            SET status = ?, status_message = ?, shipment_cell = ?, shipped_flight_no = ?, shipped_container_name = ?, status_updated_at = NOW()
+            WHERE stock_item_id = ?
+            LIMIT 1
+        ";
+        $stmtUpdate = $dbcnx->prepare($sqlUpdate);
+        if (!$stmtUpdate) {
+            throw new RuntimeException('Не удалось подготовить обновление');
+        }
+        $stmtUpdate->bind_param('sssssi', $nextStatus, $statusMessage, $shipmentCell, $flightDisplay, $containerDisplay, $stockItemId);
+        $stmtUpdate->execute();
+        $updateError = (int)$stmtUpdate->errno;
+        $stmtUpdate->close();
+        $logTiming('after_db_update');
+        if ($updateError !== 0) {
+            throw new RuntimeException('Не удалось обновить данные отгрузки. Попробуйте ещё раз.');
+        }
+
+        if (function_exists('audit_log')) {
+            audit_log((int)($current['id'] ?? 0), 'WAREHOUSE_ITEM_OUT_CONFIRMED', 'warehouse_item_out', $stockItemId, 'Посылка отправлена в контейнер', [
+                'tracking_no' => $trackingForForwarder,
+                'shipment_cell' => $shipmentCell,
+                'flight_no' => $flightDisplay,
+                'container_name' => $containerDisplay,
+            ]);
+        }
+
+        $generatedWaybill = is_array($addResult['print']['generated_waybill'] ?? null) ? $addResult['print']['generated_waybill'] : [];
+        $labelVars = is_array($addResult['label_vars'] ?? null) ? $addResult['label_vars'] : (is_array($generatedWaybill['label_vars'] ?? null) ? $generatedWaybill['label_vars'] : []);
+        if ($labelVars === []) {
+            $labelVars = warehouse_sync_label_template_sample_vars((int)($connector['id'] ?? 0), $trackingForForwarder);
+        }
+
         $printMode = PRINT_LABEL_PRODUCTION_MODE;
-        $printStatus = 'skipped'; $printMessage = ''; $diagnostics = [];
-        $logTiming('before_local_print');
+        $printStatus = 'skipped';
+        $printMessage = '';
+        $diagnostics = [];
+        $logTiming('before_print');
         if ($printMode === 'zpl_vector_template') {
             $diagnostics = warehouse_sync_send_vector_template_waybill($labelVars, $renderProfile);
             $printStatus = (string)($diagnostics['print_status'] ?? 'error');
@@ -5381,32 +5195,42 @@ if ($action === 'warehouse_item_out_confirm_send') {
             $printStatus = (string)($printResult['status'] ?? 'error');
             $printMessage = (string)($printResult['message'] ?? '');
         }
-        $logTiming('after_local_print');
-        if (strtolower(trim($printStatus)) !== 'ok') {
-            $logTiming('before_response');
-            $response = ['status' => 'error', 'message' => 'Лейбл не напечатан. Отгрузка не подтверждена.', 'print_status' => 'error', 'local_status' => 'to_send', 'print_message' => $printMessage, 'print_mode' => $printMode, 'print_diagnostics' => $diagnostics];
-            return;
-        }
+        $logTiming('after_print');
 
-        $sqlUpdate = "UPDATE warehouse_item_out SET status = 'sended', status_message = ?, shipment_cell = ?, shipped_flight_no = ?, shipped_container_name = ?, status_updated_at = NOW(), forwarder_sync_status = COALESCE(forwarder_sync_status, 'queued'), forwarder_sync_message = NULL WHERE stock_item_id = ? LIMIT 1";
-        $stmtUpdate = $dbcnx->prepare($sqlUpdate);
-        if (!$stmtUpdate) { throw new RuntimeException('Не удалось подготовить обновление'); }
-        $stmtUpdate->bind_param('ssssi', $statusMessage, $shipmentCell, $flightDisplay, $containerDisplay, $stockItemId);
-        $stmtUpdate->execute(); $err = $stmtUpdate->errno; $stmtUpdate->close();
-        $logTiming('after_db_update');
-        if ($err !== 0) { throw new RuntimeException('Не удалось обновить данные отгрузки. Попробуйте ещё раз.'); }
-
-        $jobPayload = ['tracking_no'=>$trackingForForwarder,'stock_item_id'=>$stockItemId,'out_item_id'=>(int)$item['id'],'connector_id'=>(int)($connector['id'] ?? 0),'flight_record_id'=>$flightRecordId,'container_id'=>$containerPosition,'container_name'=>$containerDisplay,'shipment_cell'=>$shipmentCell,'print_label'=>false];
-        $jobId = warehouse_sync_enqueue_out_forwarder_job($dbcnx, $jobPayload);
-        warehouse_sync_fire_out_forwarder_worker($jobId);
-        $logTiming('after_enqueue_forwarder_job');
+        $printOk = strtolower(trim($printStatus)) === 'ok';
         $logTiming('before_response');
-        $response = ['status'=>'ok','message'=>'Посылка отгружена, лейбл напечатан. Синхронизация с форвардом выполняется в фоне.','print_status'=>'ok','forwarder_sync_status'=>'queued','forwarder_job_id'=>$jobId,'local_status'=>'sended','stock_item_id'=>$stockItemId,'tracking_no'=>$trackingForForwarder,'warehouse_status'=>'sended','status_message'=>$statusMessage,'print_mode'=>$printMode,'print_diagnostics'=>$diagnostics];
+        $response = [
+            'status' => $printOk ? 'ok' : 'error',
+            'forwarder_add_status' => 'ok',
+            'local_status' => $nextStatus,
+            'print_status' => $printOk ? 'ok' : 'error',
+            'message' => $printOk ? 'Посылка подтверждена у форварда и лейбл напечатан' : 'Посылка подтверждена у форварда, но лейбл не напечатан',
+            'print_message' => $printMessage,
+            'print_mode' => $printMode,
+            'print_diagnostics' => $diagnostics,
+            'stock_item_id' => $stockItemId,
+            'tracking_no' => $trackingForForwarder,
+            'warehouse_status' => $nextStatus,
+            'status_message' => $statusMessage,
+            'forwarder_sync' => [
+                'status' => 'ok',
+                'message' => 'Посылка добавлена в контейнер форварда; snapshot обновляется системной задачей',
+                'add_result' => $addResult,
+                'snapshot_update' => ['status' => 'skipped', 'message' => 'Snapshot не выполняется в request подтверждения'],
+            ],
+        ];
     } catch (Throwable $e) {
         $logTiming('before_response');
-        $response = ['status'=>'error','print_status'=>'skipped','message'=>$e->getMessage(),'forwarder_sync_status'=>'not_queued'];
+        $response = [
+            'status' => 'error',
+            'forwarder_add_status' => $lastAddResult ? (string)($lastAddResult['status'] ?? 'error') : 'error',
+            'print_status' => 'skipped',
+            'message' => $e->getMessage(),
+            'forwarder_sync' => ['status' => 'error', 'message' => $e->getMessage(), 'add_result' => $lastAddResult],
+        ];
     }
 }
+
 
 if ($action === 'form_connector_label_template') {
     auth_require_login();

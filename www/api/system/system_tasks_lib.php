@@ -120,16 +120,6 @@ function system_tasks_endpoint_registry(): array
             'name' => 'Forwarder positions sync',
             'description' => 'Синхронизирует позиции/ячейки форвардов в forwarder_positions.',
         ],
-        'warehouse_out_forwarder_sync_worker' => [
-            'group' => 'warehouse',
-            'name' => 'Warehouse out forwarder sync worker',
-            'description' => 'Досинхронизирует queued/error отгрузки warehouse_item_out с форвардом.',
-        ],
-        'warehouse_out_forwarder_label_prepare_worker' => [
-            'group' => 'warehouse',
-            'name' => 'Warehouse out forwarder label prepare worker',
-            'description' => 'Готовит реальные label_vars форварда для to_send посылок до локальной печати.',
-        ],
         'forwarder_session_keepalive' => [
             'group' => 'forwarder',
             'name' => 'Forwarder session keepalive',
@@ -212,20 +202,6 @@ function system_tasks_seed_defaults(mysqli $dbcnx): void
             'name' => 'Обработчик пакетной синхронизации посылок',
             'description' => 'Берет queued/running batch jobs и обрабатывает их в фоне.',
             'endpoint_action' => 'warehouse_sync_batch_worker',
-            'interval_minutes' => 1,
-        ],
-        [
-            'code' => 'warehouse_out_forwarder_sync_worker',
-            'name' => 'Синхронизация отгрузок с форвардом',
-            'description' => 'Запускает worker очереди warehouse_out_forwarder_jobs.',
-            'endpoint_action' => 'warehouse_out_forwarder_sync_worker',
-            'interval_minutes' => 1,
-        ],
-        [
-            'code' => 'warehouse_out_forwarder_label_prepare_worker',
-            'name' => 'Подготовка лейблов форварда для отгрузки',
-            'description' => 'Каждую минуту получает реальные label_vars форварда для to_send посылок.',
-            'endpoint_action' => 'warehouse_out_forwarder_label_prepare_worker',
             'interval_minutes' => 1,
         ],
         [
@@ -690,14 +666,6 @@ function system_tasks_execute(mysqli $dbcnx, array $task, int $systemUserId = 0)
     if ($action === 'forwarder_session_keepalive') {
         return system_tasks_run_forwarder_session_keepalive($dbcnx, $task);
     }
-
-    if ($action === 'warehouse_out_forwarder_sync_worker') {
-        return system_tasks_run_warehouse_out_forwarder_sync_worker($dbcnx, $task);
-    }
-
-    if ($action === 'warehouse_out_forwarder_label_prepare_worker') {
-        return system_tasks_run_warehouse_out_forwarder_label_prepare_worker($dbcnx, $task);
-    }
     return [
         'status' => 'error',
 
@@ -705,40 +673,6 @@ function system_tasks_execute(mysqli $dbcnx, array $task, int $systemUserId = 0)
     ];
 }
 
-
-
-
-function system_tasks_run_warehouse_out_forwarder_label_prepare_worker(mysqli $dbcnx, array $task): array
-{
-    $payload = json_decode((string)($task['payload_json'] ?? ''), true);
-    if (!is_array($payload)) { $payload = []; }
-    $limit = max(1, min(50, (int)($payload['limit'] ?? 10)));
-    $scriptPath = dirname(__DIR__, 2) . '/scripts/warehouse/run_out_forwarder_label_prepare_job.php';
-    if (!is_file($scriptPath)) { return ['status' => 'error', 'message' => 'Worker script not found: ' . $scriptPath]; }
-    $execution = system_tasks_run_command_capture([system_tasks_php_cli_binary(), $scriptPath, '--limit=' . $limit]);
-    $parsed = system_tasks_decode_json_output((string)($execution['output'] ?? ''), 'run_out_forwarder_label_prepare_job.php', ['exit_code' => (int)($execution['exit_code'] ?? 0)]);
-    if ((int)($execution['exit_code'] ?? 0) !== 0 || (string)($parsed['status'] ?? '') === 'error') {
-        return ['status' => 'error', 'message' => (string)($parsed['message'] ?? 'warehouse label prepare worker failed'), 'worker' => $parsed];
-    }
-    return ['status' => 'ok', 'message' => 'warehouse_item_out labels prepared: ' . (int)($parsed['ready'] ?? 0), 'worker' => $parsed];
-}
-
-function system_tasks_run_warehouse_out_forwarder_sync_worker(mysqli $dbcnx, array $task): array
-{
-    $scriptPath = dirname(__DIR__, 2) . '/scripts/warehouse/run_out_forwarder_job.php';
-    if (!is_file($scriptPath)) {
-        return ['status' => 'error', 'message' => 'Worker script not found: ' . $scriptPath];
-    }
-    $payload = json_decode((string)($task['payload_json'] ?? '{}'), true);
-    if (!is_array($payload)) { $payload = []; }
-    $limit = max(1, min(50, (int)($payload['limit'] ?? 10)));
-    $execution = system_tasks_run_command_capture(['/usr/bin/php', $scriptPath, '--limit=' . $limit]);
-    $parsed = system_tasks_decode_json_output((string)($execution['output'] ?? ''), 'run_out_forwarder_job.php', ['exit_code' => (int)($execution['exit_code'] ?? 0)]);
-    if ((int)($execution['exit_code'] ?? 0) !== 0 || strtolower((string)($parsed['status'] ?? 'error')) !== 'ok') {
-        return ['status' => 'error', 'message' => (string)($parsed['message'] ?? 'warehouse out forwarder worker failed'), 'worker' => $parsed];
-    }
-    return ['status' => 'ok', 'message' => 'warehouse_out_forwarder_jobs processed: ' . (int)($parsed['processed'] ?? 0), 'worker' => $parsed];
-}
 
 function system_tasks_run_forwarder_session_keepalive(mysqli $dbcnx, array $task): array
 {
