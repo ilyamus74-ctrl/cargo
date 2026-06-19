@@ -4145,7 +4145,16 @@ const CoreAPI = {
                 CoreAPI.showToast?.(zplOk ? 'Лейбл отправлен на печать' : (String(data?.print_message || '').trim() || 'Печать лейбла завершилась с ошибкой.'), zplOk ? 'success' : 'warning');
             }
             const printStatus = String(data?.forwarder_sync?.add_result?.print?.status || data?.print_status || '').trim().toLowerCase();
-            if (printStatus === 'ok' && data?.print_mode !== 'zpl_vector_template' && data?.print_mode !== 'zpl_raw' && data?.print_mode !== 'pdf_template') {
+            const printOkStatuses = ['ok', 'success', 'printed'];
+            const printNeutralStatuses = ['skipped', 'queued', 'running', 'not_queued', 'ready_for_browser_print'];
+            const printErrorStatuses = ['error', 'failed', 'timeout'];
+
+            if (
+                printOkStatuses.includes(printStatus) &&
+                data?.print_mode !== 'zpl_vector_template' &&
+                data?.print_mode !== 'zpl_raw' &&
+                data?.print_mode !== 'pdf_template'
+            ) {
                 CoreAPI.showToast?.('Лейбл отправлен на печать.', 'success');
                 const renderEngine = String(data?.forwarder_sync?.add_result?.print?.generated_waybill?.render_engine || '').trim();
                 if (renderEngine === 'simple-pdf-fallback') {
@@ -4153,9 +4162,15 @@ const CoreAPI = {
                         'Расширенный PDF-лейбл недоступен в этом окружении, использован упрощённый fallback.',
                         'warning'
                     );
-                    this.playOutcomeSound('alert');
                 }
-            } else if (printStatus !== '' && printStatus !== 'skipped' && printStatus !== 'ready_for_browser_print') {
+            } else if (
+                printErrorStatuses.includes(printStatus) ||
+                (
+                    printStatus !== '' &&
+                    !printOkStatuses.includes(printStatus) &&
+                    !printNeutralStatuses.includes(printStatus)
+                )
+            ) {
                 const printMessage = String(data?.forwarder_sync?.add_result?.print?.message || data?.forwarder_sync?.add_result?.print?.error || '').trim();
                 CoreAPI.showToast?.(
                     printMessage !== '' ? `Печать лейбла: ${printMessage}` : 'Печать лейбла завершилась с ошибкой.',
