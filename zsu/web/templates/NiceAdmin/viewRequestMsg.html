@@ -234,6 +234,7 @@
                         <th scope="col">Product</th>
                         <th scope="col">Price</th>
                         <th scope="col">Status</th>
+                        <th scope="col">Робота з заявкою</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -244,14 +245,23 @@
                         <td>{if $v['lotImgDir']}Запит за  {$v['lotImgDir']}{/if}<!--<button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#ExtralargeModal" onclick="showItem('show','');"></button>--></td>
                         <td></td>
                         <td><div id="idInListStats_{$v['id']}"><span class="badge bg-info">New</span></div></td>
+                        <td>
+                          {if $v['case_id']}
+                            <a class="btn btn-success btn-sm" href="request_case.php?case_id={$v['case_id']}" title="Відкрити історію"><i class="bi bi-journal-text"></i></a>
+                          {else}
+                            <form method="post" action="request_case_create.php" style="display:inline">
+                              <input type="hidden" name="csrf" value="{$USER_HISTORY_CSRF}">
+                              <input type="hidden" name="request_id" value="{$v['id']}">
+                              <button class="btn btn-primary btn-sm" type="submit" data-request-id="{$v['id']}" title="Створити картку роботи із заявкою"><i class="bi bi-plus"></i></button>
+                            </form>
+                          {/if}
+                        </td>
                       </tr>
                     {/foreach}
-
                     </tbody>
                   </table>
 
                 </div>
-
               </div>
             </div><!-- End Recent Sales -->
             <div class="modal " id="ExtralargeModal" tabindex="-1" style="display: none;" aria-hidden="true">

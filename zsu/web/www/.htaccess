@@ -3,6 +3,12 @@ RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
 RewriteRule .* index.php [L]
 
+#Options -ExecCGI
+#RemoveHandler .php .phtml .php3 .php4 .php5 .php7 .phar .cgi .pl .py .sh .html .htm .js .svg
+#<FilesMatch "\.(php|phtml|php3|php4|php5|php7|phar|cgi|pl|py|sh|html|htm|js|svg)$">
+#  Require all denied
+#</FilesMatch>
+
 #///
 #RewriteEngine on
 RewriteRule ^.htaccess$ - [F]

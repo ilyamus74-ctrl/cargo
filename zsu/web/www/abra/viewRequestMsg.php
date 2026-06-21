@@ -5,6 +5,7 @@ include_once("setlocale/locale.php");
 require_once("../../libs/Smarty.class.php");
 
 include("/home/zsuauto/web/configs/connectDB.php");
+require_once(__DIR__ . "/../request_history_lib.php");
 $smarty = new \Smarty\Smarty;
 
 require_once("../patch.php");
@@ -25,8 +26,8 @@ if(!empty($_SESSION['admin_user']['id'])){
     $smarty->assign("SESSION",$_SESSION);
     $smarty->assign("pageview","viewRequestMsgAll");
 
-    $preg_list="SELECT * FROM `zs_requests`  ORDER BY `id` DESC";
-
+//    $preg_list="SELECT * FROM `zs_requests`  ORDER BY `id` DESC";
+    $preg_list="SELECT r.*, c.id AS case_id FROM `zs_requests` r LEFT JOIN zs_request_cases c ON c.request_id = r.id ORDER BY r.`id` DESC";
 
 //$preg_list="SELECT * FROM `zs_announce_auto_uk` WHERE  `active_announce` != 'S'   ORDER BY `id` DESC LIMIT 8";
 $sss1=$dbcnx->query($preg_list);
@@ -36,6 +37,7 @@ $sss1=$dbcnx->query($preg_list);
 	}
 //print_r($allMsg);
 $smarty->assign("allMsg",$allMsg);
+$smarty->assign("USER_HISTORY_CSRF", rh_csrf());
 $smarty->display('NiceAdmin/index.html');
 echo "start";
 
