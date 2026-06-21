@@ -1,0 +1,120 @@
+    <head>
+        <!-- meta data -->
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
+        <meta property=”og:locale” content=”uk_UA” />
+        <!-- The above 3 meta tags *must* come first in the head; any other head content must come *after* these tags -->
+
+        <!--font-family-->
+		<link href="https://fonts.googleapis.com/css?family=Poppins:100,100i,200,200i,300,300i,400,400i,500,500i,600,600i,700,700i,800,800i,900,900i" rel="stylesheet">
+
+		<link href="https://fonts.googleapis.com/css?family=Rufina:400,700" rel="stylesheet">
+        
+        <!-- title of site -->
+        <title>{if $meta.title|escape}{$meta.title|escape}{else}{$data['title']}{$meta.title|escape}{/if}</title>
+	<meta name="description" content="{if $meta.description|escape}{$meta.description|escape}{else}{$data['description']}{/if}">
+	<meta name="keywords" content="{if $meta.keywords|escape}{$meta.keywords|escape}{else}{$data['keywords']}{/if}">
+	<meta name="robots" content="index,follow">
+	<meta name="author" content="">
+	<link rel="canonical" href="{$reqUrl}">
+	<script async src="https://www.googletagmanager.com/gtag/js?id=G-8HQD9F3E7S"></script>
+	<script src="//{$domainName}/js/googleAnalytics.js"></script>
+	<script sync src="//{$domainName}/js/zsu.js"></script>
+
+	<meta property=”og:title” content=”{if $meta.og.title|escape}{$meta.og.title|escape}{else}{$data['title']}{/if}"/>
+	<meta property=”og:description” content=”{if $meta.og.description|escape}{$meta.og.description|escape}{else}{$data['description']}{/if}"/>
+	<meta property=”og:site_name” content=”{if $meta.og.site_name|escape}{$meta.og.site_name|escape}{else}{$viewCar['url_announce']} {$data['description']}{/if}” />
+	<meta property=”og:image” content='{if $meta.og.image|escape}{$meta.og.image|escape}{else}https://{$domainName}/assets/logo/favicon.png”{/if}' />
+	<meta property=”og:type” content=”{$meta.og.type|escape}” />
+	<meta property=”og:url” content=”{$meta.og.url|escape}” />
+	{$meta.jsonld nofilter}
+	
+	{*$microprope*}
+
+	<!--<meta http-equiv="refresh" content="30">-->
+        <!-- For favicon png -->
+		<link rel="shortcut icon" type="image/icon" href="//{$domainName}/assets/logo/favicon.png"/>
+       
+        <!--font-awesome.min.css-->
+        <link rel="stylesheet" href="//{$domainName}/assets/css/font-awesome.min.css">
+
+        <!--linear icon css-->
+		<link rel="stylesheet" href="//{$domainName}/assets/css/linearicons.css">
+
+        <!--flaticon.css-->
+		<link rel="stylesheet" href="//{$domainName}/assets/css/flaticon.css">
+
+		<!--animate.css-->
+        <link rel="stylesheet" href="//{$domainName}/assets/css/animate.css">
+
+        <!--owl.carousel.css-->
+        <link rel="stylesheet" href="//{$domainName}/assets/css/owl.carousel.min.css">
+		<link rel="stylesheet" href="//{$domainName}/assets/css/owl.theme.default.min.css">
+		
+        <!--bootstrap.min.css-->
+        <link rel="stylesheet" href="//{$domainName}/assets/css/bootstrap.min.css">
+		
+		<!-- bootsnav -->
+		<link rel="stylesheet" href="//{$domainName}/assets/css/bootsnav.css" >	
+        
+        <!--style.css-->
+        <link rel="stylesheet" href="//{$domainName}/assets/css/style.css">
+        
+        <!--responsive.css-->
+        <link rel="stylesheet" href="//{$domainName}/assets/css/responsive.css">
+        <!--responsive.css-->
+        <link rel="stylesheet" href="//{$domainName}/assets/css/zsu.css">
+        
+        <!-- HTML5 shim and Respond.js for IE8 support of HTML5 elements and media queries -->
+        <!-- WARNING: Respond.js doesn't work if you view the page via file:// -->
+		
+        <!--[if lt IE 9]>
+			<script src="https://oss.maxcdn.com/html5shiv/3.7.3/html5shiv.min.js"></script>
+			<script src="https://oss.maxcdn.com/respond/1.4.2/respond.min.js"></script>
+        <![endif]-->
+
+    </head>
+	
+		<!--welcome-hero start -->
+		<section id="home" class="welcome-hero">
+
+			<!-- top-area Start -->
+			<div class="top-area">
+				<div class="header-area">
+					<!-- Start Navigation -->
+				    <nav class="navbar navbar-default bootsnav  navbar-sticky navbar-scrollspy"  data-minus-value-desktop="70" data-minus-value-mobile="55" data-speed="1000">
+
+				        <div class="container">
+
+				            <!-- Start Header Navigation -->
+				            <div class="navbar-header">
+				                <button type="button" class="navbar-toggle" data-toggle="collapse" data-target="#navbar-menu">
+				                    <i class="fa fa-bars"></i>
+				                </button>
+				                <a class="navbar-brand" href="index.html">Авто для ЗСУ від волонтерів!<span></span></a>
+
+				            </div><!--/.navbar-header-->
+				            <!-- End Header Navigation -->
+
+				            <!-- Collect the nav links, forms, and other content for toggling -->
+				            <div class="collapse navbar-collapse menu-ui-design" id="navbar-menu">
+				                <ul class="nav navbar-nav navbar-right" data-in="fadeInDown" data-out="fadeOutUp">
+				                    <!--<li class=" scroll active"><a href="#home">Головна</a></li>-->
+				                    <li><a href="/">Головна</a></li>
+				                    <li><a href="/service" target="blank">Послуги</a></li>
+				                    <li><a href="/all-cars">Доступні авто</a></li>
+				                    <li><a href="/new-cars">Нові авто в продажу</a></li>
+				                    <!--<li class="scroll"><a href="#brand">brands</a></li>-->
+				                    <li><a href="/contact">Зв'язок з нами</a></li>
+				                    <li><a href="/aboutus">Хто ми? (Про нас)</a></li>
+				                </ul><!--/.nav -->
+				            </div><!-- /.navbar-collapse -->
+				        </div><!--/.container-->
+				    </nav><!--/nav-->
+				    <!-- End Navigation -->
+				</div><!--/.header-area-->
+			    <div class="clearfix"></div>
+
+			</div><!-- /.top-area-->
+			<!-- top-area End -->

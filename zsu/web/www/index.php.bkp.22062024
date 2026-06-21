@@ -1,0 +1,222 @@
+<?
+session_start();
+//print_r($_SERVER['GET']);
+//echo "start";
+require('../libs/Smarty.class.php');
+$smarty = new Smarty;
+require('patch.php');
+$theme="/templates";
+//$smarty->force_compile = true;
+$smarty->debugging = false;
+$smarty->caching = false;
+$smarty->cache_lifetime = 0;
+$smarty->assign(THEME,$theme);
+
+#include_once("config.php");
+#include_once("../connect_opp.php");
+
+//$turl="aservice.center";
+//$_SESSION['turl']="aservice.center";
+//$smarty->assign(turl,"aservice.center");
+/*
+$_SESSION['turl_req']=$_SERVER['HTTP_HOST'];
+$smarty->assign(turl_req,$_SESSION['turl_req']);
+$_SESSION['turl_req_page']=$_SERVER['REQUEST_URI'];
+$smarty->assign(turl_req_page,$_SESSION['turl_req_page']);
+//include_once("banner.php");
+$smarty->assign(banner_all,$banner_all);
+*/
+//echo"d";
+//$smarty->display('list.tpl');
+//exit();
+//$in_locale=mysql_escape_string($_GET['locale']);
+/*
+include_once("settings/locale.php");
+include_once("settings/connect.php");
+include_once("settings/connect_gpsbb.php");
+include_once("login_gpsbb.php");
+*/
+
+//include_once("login_gpsbb_instrument.php");
+//print_r($_SERVER);
+//echo "<br>\r\n<br>\r\n";
+//print_r($_SESSION);
+//include_once("set_cookie.php");
+//print_r($_SESSION);
+//print_r($_COOKIE);
+//echo "$in_locale";
+//передаем язык для календарика
+/*
+$smarty->assign(datetimepicker,"
+	function date_1 () {
+      $('#datetimepicker1').datetimepicker({language: '".$_SESSION['lang_now']."',format:'YYYY-MM-DD HH:mm'});
+      $('#datetimepicker2').datetimepicker({language: '".$_SESSION['lang_now']."',format:'YYYY-MM-DD HH:mm'});
+    }");
+*/
+//передаем язык для календарика
+
+///////
+//$test=mysql_escape_string($_SERVER['REQUEST_URI']);
+//echo "<br>$test main";
+//print_r($_SERVER);
+
+//$findida=preg_match("/^zayavki/",$test);
+/*
+$to2=str_replace("-","",$test);
+$to2=preg_replace("/[a-z0-9]*.html/","",$to2);
+$to2=str_replace("/zayavka","",$to2);
+$to2=str_replace('/','',$to2)*1;
+//echo "$to2";
+
+$test=str_replace('/zayavka','',$test);
+*/
+$url_razborka=explode("/",$_SERVER[REQUEST_URI]);
+
+//print_r($url_razborka);
+
+if(empty($_SESSION['user']))
+	{
+//	print_r($_SERVER);
+//	if($_SERVER['PHP_SELF'] != $_SERVER['REQUEST_URI']) 	header("Location: ".$_SESSION['domain_name']."/index.php");
+
+//	$smarty->assign(SESSION,$_SESSION);
+//	$smarty->display('pages-login.html');
+	
+	if(in_array('aboutus', $url_razborka, true)){
+	//echo "PROVIDER";
+		include_once("aboutus.php");
+	}
+	else if(in_array('service', $url_razborka, true)){
+	//echo "PROVIDER";
+		include_once("service.php");
+	}
+	else if(in_array('all-cars', $url_razborka, true)){
+	//echo "PROVIDER";
+		include_once("all-cars.php");
+	}
+	else if(in_array('new-cars', $url_razborka, true)){
+	//echo "PROVIDER";
+		include_once("new-cars.php");
+	}
+	else if(in_array('contact', $url_razborka, true)){
+	//echo "PROVIDER";
+		include_once("contact.php");
+	}
+	else if(!empty($url_razborka[1])){
+		include_once("404.php");
+	}
+	else {include('main.php');}
+	}
+elseif(!empty($_SESSION['user'])){
+//	$_SESSION['control_short_hash']=md5(microtime(true));
+	$smarty->assign(SESSION,$_SESSION);
+	include('main.php');
+
+//	перенес во вложенные файлики
+	}
+/*	if(in_array('provider', $url_razborka, true)){
+	//echo "PROVIDER";
+		include_once("provider.php");
+	}
+	elseif(in_array('provider_claim', $url_razborka, true)){
+	//echo "sklad settings";
+		include_once("provider_claim.php");
+	}
+	elseif(in_array('sklad_settings', $url_razborka, true)){
+	//echo "sklad settings";
+		include_once("sklad_settings.php");
+	}
+
+	elseif(in_array('sklad_reports', $url_razborka, true)){
+	//echo "sklad move inventory";
+		include_once("sklad_reports.php");
+	}
+
+	elseif(in_array('sklad_move', $url_razborka, true)){
+	//echo "sklad move";
+		include_once("sklad_move.php");
+	}
+	elseif(in_array('sklad_move_inventory', $url_razborka, true)){
+	//echo "sklad move inventory";
+		include_once("sklad_move_inventory.php");
+	}
+
+	elseif(in_array('sklad_move_input', $url_razborka, true)){
+	//echo "sklad move inventory";
+		include_once("sklad_move_input.php");
+	}
+
+	elseif(in_array('sklad_move_stock', $url_razborka, true)){
+	//echo "sklad move inventory";
+		include_once("sklad_move_stock.php");
+	}
+
+	elseif(in_array('admins_users', $url_razborka, true)){
+	//echo "sklad move inventory";
+		include_once("admins_users.php");
+	}
+*/
+//	else {echo"bbb";}
+//	$smarty->display('index.html');
+//	echo "b";
+	//include('main.php');
+	
+//	}
+
+/*
+//elseif($test=="login") { include('login.php'); }
+//elseif($test=="registration") { include('registration.php'); }
+elseif($test=="exit") {   session_unset($_SESSION); 	 
+			    header("location: http://$turl"); 
+			 }
+elseif($test=="admin") {  include('admin/main.php');    }
+
+elseif($test=="registration") { include('registration.php'); }
+
+//echo "$test";
+
+elseif($test=="gps_tracker") 	{ include('gps_tracker/index.php');	}
+*/
+//elseif($test=="join_car"
+///				or $test=="support"
+//				or $test=="gps-track"
+//				or $test=="gps-bb-price"
+//				) 	{ include('text_page_main.php');	}
+
+/*
+elseif($test=="how_its_work") { include('how_work.php'); }
+elseif($test=="podat_zayavku") { include('addzayavka.php'); }
+elseif($test=="addzp") { include('addzp.php'); }
+elseif($test=="razborka_audi"    or $test=="razborka_acura"
+				 or $test=="razborka_bmw"
+				 or $test=="razborka_toyota"
+				 or $test=="razborka_citroen"
+				 or $test=="razborka_ford"
+				 or $test=="razborka_mercedes-benz"
+				 or $test=="razborka_hyundai"
+				 or $test=="razborka_renault"
+				 or $test=="razborka_volkswagen"
+				 or $test=="razborka_kia"
+				 or $test=="razborka_mitsubishi"
+				 or $test=="razborka_peugeot"
+				 or $test=="razborka_fiat"
+				 or $test=="razborka_lexus"
+				 or $test=="razborka_volvo"
+				 or $test=="razborka_subaru"
+				 ) { include('razborka_m.php'); }
+elseif($test=="contacts") { include('contacts.php'); }
+elseif($test=="auto_news") { include('auto_news.php'); }
+elseif($t_link=="?locale") { include('main.php'); }
+*/
+
+else 	{
+//	echo "c $test";
+	include_once('404.php');
+	//echo "c";
+	 }
+	//echo"d";
+
+//	include('404.php');
+
+
+?>

@@ -1,0 +1,9 @@
+User-agent: *
+Disallow: /ABRA
+Disallow: /NiceAdmin
+Disallow: /admin
+Disallow: /t
+Allow: /
+Sitemap: https://zsuauto.info/sitemap.xml
+Sitemap: https://zsuauto.info/sitemap1.xml
+Sitemap: https://zsuauto.info/sitemap2.xml

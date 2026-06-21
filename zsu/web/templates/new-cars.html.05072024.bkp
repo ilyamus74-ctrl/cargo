@@ -1,0 +1,171 @@
+
+			<div class="container">
+				<div class="welcome-hero-txt">
+					<h1  class="animated fadeInUp">{$data['main_text_h1']}</h1>
+					<p>
+					{$data['main_text']}
+					</p>
+					<button class="welcome-btn" onclick="window.location.href='#'">Зв'яжись з нами!</button>
+
+
+			<!--	<div class="featured-cars-content">
+					<div class="row">
+						
+						{foreach from=$allCars key=k item=v}
+						<div class="col-lg-3 col-md-4 col-sm-6">
+							<div class="single-featured-cars">
+								<div class="featured-img-box">
+									<div class="featured-cars-img">
+										<img src="img/announce/{$v['img_dir']}/{$v['img_announce'][0]}" alt="cars">
+									</div>
+									<div class="featured-model-info">
+										<p>
+											модель: {$v['modell']}
+											<span class="featured-mi-span"> {$v['kilometerstand']} км</span> 
+											<span class="featured-hp-span"> {$v['Leistung']}</span>
+											коробка: {$v['Getriebe']}
+										</p>
+									</div>
+								</div>
+								<div class="featured-cars-txt">
+									<h2><a href="#">{$v['marke']}  {$v['modell']}</a></h2>
+									<h3>{$v['price']} Евро</h3>
+									<p>
+										{$v['name_announce']}
+									</p>
+								</div>
+							</div>
+						</div>
+						{/foreach}
+					</div>
+			-->			<!--featured-cars start -->
+		<section id="featured-cars" class="featured-cars">
+			<div class="container ">
+				<!--<div class="section-header">
+					<p>Актуальна інформація авто з Европейських ресурсів <span></span> </p>
+					<h2>Доступні авто у продажу в Європі</h2>
+				</div><!--/.section-header-->
+				<div class="featured-cars-content ">
+
+					<div class="row">
+						
+						{foreach from=$newCars key=k item=v}
+						<div class="col-lg-3 col-md-4 col-sm-6">
+							<div class="single-featured-cars">
+								<div class="featured-img-box">
+									<div class="featured-cars-img">
+										<img src="img/announce/{$v['img_dir']}/{$v['img_announce'][0]}" alt="cars">
+									</div>
+									<div class="featured-model-info">
+										<p>
+											модель: {$v['modell']}
+											<span class="featured-mi-span"> {$v['kilometerstand']} км</span> 
+											<span class="featured-hp-span"> {$v['Leistung']}</span>
+											коробка: {$v['Getriebe']}
+										</p>
+									</div>
+								</div>
+								<div class="featured-cars-txt">
+									<h2><a href="#">{$v['marke']}  {$v['modell']}</a></h2>
+									<h3>{$v['price']} Евро</h3>
+									<p>
+										{$v['name_announce']}
+									</p>
+								</div>
+							</div>
+						</div>
+						{/foreach}
+						
+					</div>
+					<div class="row" style="display:none">
+						{foreach from=$newCars key=k item=v}
+						<div class="col-lg-3 col-md-4 col-sm-6">
+							<div class="single-featured-cars">
+								<div class="featured-img-box">
+									<div class="featured-cars-img">
+										<img src="img/announce/{$v['img_dir']}/{$v['img_announce'][0]}" alt="cars">
+									</div>
+									<div class="featured-model-info">
+										<p>
+											модель: {$v['modell']}
+											<span class="featured-mi-span"> {$v['kilometerstand']} км</span> 
+											<span class="featured-hp-span"> {$v['Leistung']}</span>
+											коробка: {$v['Getriebe']}
+										</p>
+									</div>
+								</div>
+								<div class="featured-cars-txt">
+									<h2><a href="#">{$v['marke']}  {$v['modell']}</a></h2>
+									<h3>{$v['price']} Евро</h3>
+									<p>
+										{$v['name_announce']}
+									</p>
+								</div>
+							</div>
+						</div>
+						{/foreach}
+
+					</div>
+				</div>
+			</div><!--/.container-->
+
+		</section><!--/.featured-cars-->
+		<!--featured-cars end -->
+
+
+				</div>
+			</div>
+
+    
+
+
+		<!--service start -->
+		<section id="service" class="service">
+			<div class="container">
+			
+				<div class="service-content">
+
+
+				<!--	<div class="row">
+						<div class="col-md-4 col-sm-6">
+							<div class="single-service-item">
+								<div class="single-service-icon">
+									<i class="flaticon-car"></i>
+								</div>
+								<h2><a href="#">Впевниність підбору <span> авто </span> </a></h2>
+								<p>
+									Ми шукаємо тільки ті авто які технічно справні і можоть бути використанні на фронті без глабальних фінансових вкладень. Зайвий клопіт нікому не треба!
+								</p>
+							</div>
+						</div>
+						<div class="col-md-4 col-sm-6">
+							<div class="single-service-item">
+								<div class="single-service-icon">
+									<i class="flaticon-car-repair"></i>
+								</div>
+								<h2><a href="#">Тільки технічно справні авто</a></h2>
+								<p>Авто яки ми пропонуємо відповідають опису та діляться на дві категоріі.
+								 <br>
+								 <br><b>1. Повністью справні до використання на дорогах ЄС.
+								 <br>2.Умовно справні, справні та не придатні до використання на дороах ЕС.</b></p>
+								
+							</div>
+						</div>
+						<div class="col-md-4 col-sm-6">
+							<div class="single-service-item">
+								<div class="single-service-icon">
+									<i class="flaticon-car-1"></i>
+								</div>
+								<h2><a href="#">Повний звіт з послуги доставки авто</a></h2>
+								<p>
+								    Незалежно від того хто замовляє авто, ми робимо повний звіт всіх фінансових витрат перед військовослужбовцем! Довіра та мета перемоги України понад усе!
+								</p>
+							</div>
+						</div>
+					</div>-->
+				</div>
+			</div><!--/.container-->
+
+		</section><!--/.service-->
+		<!--service end-->
+

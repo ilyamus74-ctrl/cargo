@@ -1,0 +1,47 @@
+				<div class="section-header">
+				<br><br><br>
+				<h3>Всього за запитом оголошень {$allCarsCount} </h3>
+					<!--<p>Актуальна інформація авто з Европейських ресурсів <span></span> </p>
+					<h2>Доступні авто у продажу в Європі</h2>-->
+				</div><!--/.section-header-->
+				<div class="featured-cars-content" >
+					<div class="row">
+						
+						{foreach from=$allCars key=k item=v}
+						<div class="col-lg-3 col-md-4 col-sm-6">
+							<div class="single-featured-cars">
+								<div class="featured-img-box">
+									<div class="featured-cars-img">
+									<a href="//{$domainName}/view/{$v['img_dir']}-{$v['url_announce']}" target="_blank"><img src="img/thumb/{$v['img_dir']}/{$v['img_thumb']}" alt="{$v['name_announce']}"></a>
+									</div>
+									<div class="featured-model-info">
+										<p class="h5">
+											модель: {$v['modell']}
+											<span class="featured-mi-span"> {$v['kilometerstand']} км</span> 
+											<span class="featured-hp-span"> {$v['Leistung']}</span>
+											коробка: {$v['Getriebe']}
+										</p>
+									</div>
+								</div>
+								<div class="featured-cars-txt">
+									<h4><a href="//{$domainName}/view/{$v['img_dir']}-{$v['url_announce']}" target="_blank">{$v['marke']}  {$v['modell']}</a></h4>
+									<h3>{$v['price']} Евро</h3>
+									<p>{$v['name_announce']}</p>
+								</div>
+							</div>
+						</div>
+						{/foreach}
+						
+						
+					</div>
+					<div class="row" id="showNextCar"></div>
+				{if $allCarsLeft}
+				<div class="section-header" id="showMoreButton">
+				<button class="welcome-btn model-search-btn" onclick="searchMoreAllCars();">Показати ще</button>
+				</div>
+				{/if}
+
+				</div>
+				<div id="nextCars" style="display:none">
+				<input type="hidden" value="{foreach from=$allCars key=myId item=i name=foo}{if $smarty.foreach.foo.last}{$myId}{/if}{/foreach}" id="lastIdCar">
+				</div>

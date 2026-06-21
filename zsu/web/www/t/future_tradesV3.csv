@@ -1,0 +1,5 @@
+timestamp_utc,direction_pred,magnitude_pred,price_entry,price_exit,direction_prob,currency_pair,event,is_removed,priority
+2025-10-14 06:00:00,0,3.792065,1.16156,1.1611807935094833,0.5970615733473064,EUR/USD,CPI m/m (cpi_mom_eur),0,Low
+2025-10-14 08:40:00,0,4.4212,1.16156,1.1611178800201416,0.587662349735929,EUR/USD,3-Month Letras Auction (3_month_letras_auction_eur),0,Low
+2025-10-15 06:45:00,0,4.2289104,1.16156,1.1611371089553832,0.5675258012619157,EUR/USD,CPI m/m (cpi_mom_eur),0,Low
+2025-10-15 09:00:00,0,4.328148,1.16156,1.1611271852111815,0.613419540630602,EUR/USD,Industrial Production m/m (industrial_production_mom_eur),0,Low

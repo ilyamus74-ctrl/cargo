@@ -1,0 +1,93 @@
+Payload prepare run started at 2026-06-19 22:41:48
+WEB_DIR=/home/cells/web
+CLIENT_LIMIT=300
+ASER_CLIENT_LIMIT=300
+PAYLOAD_LIMIT=300
+============================================================
+[2026-06-19 22:41:48] START: COLIBRI missing client details
+CMD: sudo -u apache /usr/bin/php www/scripts/mvp/app/Forwarder/run_package_details.php --connector-id=2 --source=missing-clients --limit=300
+============================================================
+{
+    "status": "ok",
+    "connector_id": 2,
+    "connector_key": "colibri_az",
+    "source": "missing-clients",
+    "processed": 300,
+    "touched": 300,
+    "complete": 52,
+    "partial": 0,
+    "nodata": 0,
+    "skipped": 0,
+    "errors": 248,
+    "first_errors": [
+        "client_id=193016 track=DE5246533723: package_exist=false",
+        "client_id=193017 track=00340434662880604749: package_exist=false",
+        "client_id=193069 track=00340434681212016241: package_exist=false",
+        "client_id=193077 track=1ZG2222R6807151415: package_exist=false",
+        "client_id=193106 track=H1024550963373001044: package_exist=false",
+        "client_id=193113 track=00340434758338470056: package_exist=false",
+        "client_id=193115 track=00340434758337215986: package_exist=false",
+        "client_id=193116 track=H1025023017057801044: package_exist=false",
+        "client_id=193121 track=LW020985216NL: package_exist=false",
+        "client_id=193129 track=00340435060651909809: package_exist=false"
+    ]
+}
+[2026-06-19 22:44:14] END: COLIBRI missing client details, rc=0
+============================================================
+[2026-06-19 22:44:14] START: ASER missing client details
+CMD: sudo -u apache /usr/bin/php www/scripts/mvp/app/Forwarder/run_package_details.php --connector-id=7 --source=missing-clients --limit=300
+============================================================
+{
+    "status": "ok",
+    "connector_id": 7,
+    "connector_key": "aser_az",
+    "source": "missing-clients",
+    "processed": 300,
+    "touched": 300,
+    "complete": 124,
+    "partial": 0,
+    "nodata": 0,
+    "skipped": 0,
+    "errors": 176,
+    "first_errors": [
+        "client_id=127652 track=H1024542232877601044: package_exist=false",
+        "client_id=131198 track=H1024571329333501044: package_exist=false",
+        "client_id=132684 track=H1024563238548401044: package_exist=false",
+        "client_id=132827 track=00340434731249315982: package_exist=false",
+        "client_id=148959 track=00340434662893340634: package_exist=false",
+        "client_id=161651 track=H1024571263747201044: package_exist=false",
+        "client_id=169806 track=H1024542196020001044: package_exist=false",
+        "client_id=171864 track=H1024542232861101044: package_exist=false",
+        "client_id=172277 track=H1024563176760201044: package_exist=false",
+        "client_id=174528 track=H1024563335254501044: package_exist=false"
+    ]
+}
+[2026-06-19 22:46:37] END: ASER missing client details, rc=0
+============================================================
+[2026-06-19 22:46:37] START: COLIBRI warehouse label payloads
+CMD: sudo -u apache /usr/bin/php www/scripts/warehouse/prepare_out_label_payloads.php --connector-id=2 --limit=300
+============================================================
+{
+    "status": "ok",
+    "processed": 0,
+    "ready": 0,
+    "partial": 0,
+    "errors": 0
+}
+[2026-06-19 22:46:38] END: COLIBRI warehouse label payloads, rc=0
+============================================================
+[2026-06-19 22:46:38] START: ASER warehouse label payloads
+CMD: sudo -u apache /usr/bin/php www/scripts/warehouse/prepare_out_label_payloads.php --connector-id=7 --limit=300
+============================================================
+{
+    "status": "ok",
+    "processed": 0,
+    "ready": 0,
+    "partial": 0,
+    "errors": 0
+}
+[2026-06-19 22:46:38] END: ASER warehouse label payloads, rc=0
+============================================================
+Finished. Failed steps: 0
+Log: /home/cells/web/storage/logs/payload_prepare_20260619_224148.log
+============================================================
