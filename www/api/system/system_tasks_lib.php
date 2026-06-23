@@ -572,7 +572,7 @@ function system_tasks_run_one(mysqli $dbcnx, int $taskId, int $systemUserId = 0)
         $runMessage = (string)($result['message'] ?? 'done');
         if (is_array($result['context'] ?? null)) {
             $context['execution_context'] = $result['context'];
-            foreach (['errors', 'connector_id', 'connector_ids', 'rows_total', 'report_items_upserted', 'stock_created', 'stock_updated', 'mapped_to_cells', 'unmapped_positions'] as $contextKey) {
+            foreach (['errors', 'connector_id', 'connector_ids', 'rows_total', 'report_items_upserted', 'stock_created', 'stock_updated', 'mapped_to_cells', 'unmapped_positions', 'out_created_to_send', 'out_updated_to_send', 'out_existing_to_send', 'out_skipped_status', 'out_skipped_existing_state', 'out_errors'] as $contextKey) {
                 if (array_key_exists($contextKey, $result['context'])) {
                     $context[$contextKey] = $result['context'][$contextKey];
                 }
@@ -941,6 +941,12 @@ function system_tasks_run_forwarder_report_import(mysqli $dbcnx, array $task, in
         'stock_updated' => 0,
         'mapped_to_cells' => 0,
         'unmapped_positions' => 0,
+        'out_created_to_send' => 0,
+        'out_updated_to_send' => 0,
+        'out_existing_to_send' => 0,
+        'out_skipped_status' => 0,
+        'out_skipped_existing_state' => 0,
+        'out_errors' => 0,
         'errors' => [],
     ];
     $connectorResults = [];
@@ -962,7 +968,7 @@ function system_tasks_run_forwarder_report_import(mysqli $dbcnx, array $task, in
         }
 
         $summary = warehouse_forwarder_import_report_items($dbcnx, $connectorId, $rows);
-        foreach (['rows_total', 'report_items_upserted', 'stock_created', 'stock_updated', 'mapped_to_cells', 'unmapped_positions'] as $key) {
+        foreach (['rows_total', 'report_items_upserted', 'stock_created', 'stock_updated', 'mapped_to_cells', 'unmapped_positions', 'out_created_to_send', 'out_updated_to_send', 'out_existing_to_send', 'out_skipped_status', 'out_skipped_existing_state', 'out_errors'] as $key) {
             $aggregate[$key] += (int)($summary[$key] ?? 0);
         }
         foreach ((array)($summary['errors'] ?? []) as $error) {
@@ -1076,6 +1082,12 @@ function system_tasks_forwarder_report_import_message(array $summary): string
         . '; stock_updated=' . (int)($summary['stock_updated'] ?? 0)
         . '; mapped_to_cells=' . (int)($summary['mapped_to_cells'] ?? 0)
         . '; unmapped_positions=' . (int)($summary['unmapped_positions'] ?? 0)
+        . '; out_created_to_send=' . (int)($summary['out_created_to_send'] ?? 0)
+        . '; out_updated_to_send=' . (int)($summary['out_updated_to_send'] ?? 0)
+        . '; out_existing_to_send=' . (int)($summary['out_existing_to_send'] ?? 0)
+        . '; out_skipped_status=' . (int)($summary['out_skipped_status'] ?? 0)
+        . '; out_skipped_existing_state=' . (int)($summary['out_skipped_existing_state'] ?? 0)
+        . '; out_errors=' . (int)($summary['out_errors'] ?? 0)
         . '; errors=' . count((array)($summary['errors'] ?? []));
 }
 
