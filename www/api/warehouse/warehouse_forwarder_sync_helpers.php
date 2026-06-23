@@ -166,13 +166,35 @@ function warehouse_forwarder_sync_declared_to_out(mysqli $dbcnx, int $connectorI
         return ['action' => 'skipped_existing_state', 'message' => 'existing status=' . $existingStatus];
     }
 
+    $stockStmt = $dbcnx->prepare('SELECT * FROM warehouse_item_stock WHERE id = ? LIMIT 1');
+    if (!$stockStmt) return ['action' => 'error', 'message' => 'stock select prepare failed: ' . $dbcnx->error];
+    $stockStmt->bind_param('i', $stockItemId);
+    $stockStmt->execute();
+    $stockRow = $stockStmt->get_result()->fetch_assoc();
+    $stockStmt->close();
+    if (!$stockRow) {
+        return ['action' => 'error', 'message' => 'warehouse_item_stock not found: id=' . $stockItemId];
+    }
+
+    $batchUid = (int)($stockRow['batch_uid'] ?? 0);
+    if ($batchUid <= 0) {
+        $batchUid = 99990000 + $connectorId;
+    }
+
     $forwarder = trim((string)($conn['name'] ?? ''));
     $position = warehouse_forwarder_pick($reportRow, ['forwarder_position_code', 'position', 'position_code', 'cell', 'place']);
     $country = warehouse_forwarder_connector_country_code($conn);
+    $stockCountry = strtoupper(trim((string)($stockRow['receiver_country_code'] ?? '')));
+    if ($stockCountry !== '') {
+        $country = $stockCountry;
+    }
+    $stockUidCreated = (int)($stockRow['uid_created'] ?? 0);
+    $stockUserId = (int)($stockRow['user_id'] ?? 0);
     $message = 'Created from forwarder report: status=' . $statusRaw . '; position=' . $position;
 
     $values = [
         'stock_item_id' => $stockItemId,
+        'batch_uid' => $batchUid,
         'tracking_no' => $tracking,
         'tuid' => $tracking,
         'status' => 'to_send',
@@ -180,11 +202,14 @@ function warehouse_forwarder_sync_declared_to_out(mysqli $dbcnx, int $connectorI
         'status_updated_at' => ['expr' => 'NOW()'],
         'forwarder' => $forwarder,
         'receiver_company' => $forwarder,
+        'receiver_name' => (string)($stockRow['receiver_name'] ?? ''),
+        'receiver_address' => (string)($stockRow['receiver_address'] ?? ''),
         'country' => $country,
         'country_code' => $country,
         'receiver_country_code' => $country,
-        'uid_created' => 9999,
-        'user_id' => 9999,
+        'weight_kg' => $stockRow['weight_kg'] ?? null,
+        'uid_created' => $stockUidCreated > 0 ? $stockUidCreated : 9999,
+        'user_id' => $stockUserId > 0 ? $stockUserId : 9999,
         'created_at' => ['expr' => 'NOW()'],
         'updated_at' => ['expr' => 'NOW()'],
     ];
@@ -197,7 +222,11 @@ function warehouse_forwarder_sync_declared_to_out(mysqli $dbcnx, int $connectorI
     }
     if (!$cols) return ['action' => 'error', 'message' => 'no insertable columns'];
     $sql = 'INSERT INTO warehouse_item_out (' . implode(',', $cols) . ') VALUES (' . implode(',', $sqlValues) . ')';
-    if (!$dbcnx->query($sql)) return ['action' => 'error', 'message' => 'insert failed: ' . $dbcnx->error];
+    try {
+        if (!$dbcnx->query($sql)) return ['action' => 'error', 'message' => 'insert failed: ' . $dbcnx->error];
+    } catch (Throwable $e) {
+        return ['action' => 'error', 'message' => 'insert failed: ' . $e->getMessage()];
+    }
     return ['action' => 'created', 'message' => 'created to_send', 'id' => (int)$dbcnx->insert_id];
 }
 
