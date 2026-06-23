@@ -2857,6 +2857,7 @@ const CoreAPI = {
         stateSelect: null,
         sourceSelect: null,
         forwarderStatusSelect: null,
+        forwarderFilter: null,
         forwarderRegisteredSelect: null,
         limitSelect: null,
         sortSelect: null,
@@ -2870,6 +2871,7 @@ const CoreAPI = {
             sourceTable: 'all',
             forwarderStatus: 'all',
             forwarderRegistered: 'all',
+            forwarderId: 'ALL',
             limit: '50',
             offset: 0,
             sort: 'DESC',
@@ -2899,6 +2901,7 @@ const CoreAPI = {
             this.searchInput = root.querySelector('#warehouse-items-registry-search');
             this.stateSelect = root.querySelector('#warehouse-items-registry-state');
             this.sourceSelect = root.querySelector('#warehouse-items-registry-source');
+            this.forwarderFilter = root.querySelector('#warehouse-items-registry-forwarder');
             this.forwarderStatusSelect = root.querySelector('#warehouse-items-registry-forwarder-status');
             this.forwarderRegisteredSelect = root.querySelector('#warehouse-items-registry-forwarder-registered');
             this.limitSelect = root.querySelector('#warehouse-items-registry-limit');
@@ -2912,12 +2915,13 @@ const CoreAPI = {
             this.dateSummary = root.querySelector('#warehouse-items-registry-date-summary');
             this.sentinel = root.querySelector('#warehouse-items-registry-sentinel');
 
-            if (!this.tbody || !this.total || !this.searchInput || !this.stateSelect || !this.sourceSelect || !this.forwarderStatusSelect || !this.forwarderRegisteredSelect || !this.limitSelect || !this.sortSelect || !this.sortBySelect || !this.dateTypeSelect || !this.dateFromInput || !this.dateToInput || !this.dateApplyBtn || !this.dateResetBtn || !this.dateSummary || !this.sentinel) {
+            if (!this.tbody || !this.total || !this.searchInput || !this.stateSelect || !this.sourceSelect || !this.forwarderFilter || !this.forwarderStatusSelect || !this.forwarderRegisteredSelect || !this.limitSelect || !this.sortSelect || !this.sortBySelect || !this.dateTypeSelect || !this.dateFromInput || !this.dateToInput || !this.dateApplyBtn || !this.dateResetBtn || !this.dateSummary || !this.sentinel) {
                 return;
             }
 
             this.state.warehouseState = this.stateSelect.value || 'all';
             this.state.sourceTable = this.sourceSelect.value || 'all';
+            this.state.forwarderId = this.forwarderFilter.value || 'ALL';
             this.state.forwarderStatus = this.forwarderStatusSelect.value || 'all';
             this.state.forwarderRegistered = this.forwarderRegisteredSelect.value || 'all';
             this.state.limit = this.limitSelect.value || '50';
@@ -2950,6 +2954,7 @@ const CoreAPI = {
 
             bindSelect(this.stateSelect, 'warehouseState', 'all');
             bindSelect(this.sourceSelect, 'sourceTable', 'all');
+            bindSelect(this.forwarderFilter, 'forwarderId', 'ALL');
             bindSelect(this.forwarderStatusSelect, 'forwarderStatus', 'all');
             bindSelect(this.forwarderRegisteredSelect, 'forwarderRegistered', 'all');
             bindSelect(this.limitSelect, 'limit', '50');
@@ -2964,6 +2969,8 @@ const CoreAPI = {
                 this.resetAndLoad();
             });
             this.dateResetBtn.addEventListener('click', () => {
+                this.forwarderFilter.value = 'ALL';
+                this.state.forwarderId = 'ALL';
                 this.dateTypeSelect.value = '';
                 this.dateFromInput.value = '';
                 this.dateToInput.value = '';
@@ -3047,6 +3054,7 @@ const CoreAPI = {
             fd.append('action', 'warehouse_items_registry');
             fd.append('warehouse_state', this.state.warehouseState);
             fd.append('source_table', this.state.sourceTable);
+            fd.append('forwarder_id', this.forwarderFilter?.value || this.state.forwarderId || 'ALL');
             fd.append('forwarder_registration_status', this.state.forwarderStatus);
             fd.append('forwarder_registered_filter', this.state.forwarderRegistered);
             fd.append('limit', this.state.limit);
@@ -3943,7 +3951,7 @@ const CoreAPI = {
 
         populateModalFields(item, containerMeta) {
             if (this.modalForwarder) this.modalForwarder.textContent = item?.receiver_company || '—';
-            if (this.modalCell) this.modalCell.textContent = item?.cell_address || '—';
+            if (this.modalCell) this.modalCell.textContent = item?.cell_display || item?.cell_address || '—';
             if (this.modalRecipient) this.modalRecipient.textContent = item?.receiver_name || '—';
             if (this.modalTracking) this.modalTracking.textContent = item?.tracking_no || item?.tuid || item?.parcel_uid || '—';
             if (this.modalContainer) {

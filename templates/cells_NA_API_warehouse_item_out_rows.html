@@ -4,7 +4,12 @@
     <td>{$item.tracking_no|default:'—'|escape}</td>
     <td>{$item.receiver_company|default:'—'|escape}</td>
     <td>{$item.receiver_country_code|default:'—'|escape}</td>
-    <td>{$item.cell_address|default:'—'|escape}</td>
+    <td>
+      {if $item.cell_display}{$item.cell_display|escape}{elseif $item.cell_address}{$item.cell_address|escape}{else}—{/if}
+      {if $item.unmapped_forwarder_position_code}
+        <div class="small text-warning">Не сопоставлено: {$item.unmapped_forwarder_position_code|escape}</div>
+      {/if}
+    </td>
     <td>
       <div class="small text-primary">{$item.status|default:'to_send'|escape}</div>
       {if $item.forwarder_label_status == 'ready'}

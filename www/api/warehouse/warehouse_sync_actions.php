@@ -4824,11 +4824,56 @@ if ($action === 'warehouse_item_out_to_send') {
             wo.label_payload_message,
             wo.status_updated_at,
             wo.created_at,
-            c.code AS cell_address,
+            wi.forwarder_position_code,
+            stock_cell.code AS stock_cell_address,
+            mapped_cell.code AS mapped_cell_address,
+            COALESCE(
+                NULLIF(NULLIF(TRIM(wo.shipment_cell), '—'), ''),
+                NULLIF(TRIM(stock_cell.code), ''),
+                NULLIF(TRIM(mapped_cell.code), ''),
+                '—'
+            ) AS cell_address,
+            COALESCE(
+                NULLIF(NULLIF(TRIM(wo.shipment_cell), '—'), ''),
+                NULLIF(TRIM(stock_cell.code), ''),
+                NULLIF(TRIM(mapped_cell.code), ''),
+                '—'
+            ) AS cell_display,
+            CASE WHEN mapped_cell.id IS NULL AND stock_cell.id IS NULL THEN wi.forwarder_position_code ELSE NULL END AS unmapped_forwarder_position_code,
             COALESCE(NULLIF(wo.tuid, ''), NULLIF(wo.tracking_no, ''), wo.uid_created) AS parcel_uid
         FROM warehouse_item_out wo
-        LEFT JOIN warehouse_item_stock wi ON wi.id = wo.stock_item_id
-        LEFT JOIN cells c ON c.id = wi.cell_id
+        LEFT JOIN warehouse_item_stock wi_direct ON wi_direct.id = wo.stock_item_id
+        LEFT JOIN warehouse_item_stock wi_fallback ON wi_fallback.id = (
+            SELECT wi_lookup.id
+            FROM warehouse_item_stock wi_lookup
+            WHERE (wo.stock_item_id IS NULL OR wo.stock_item_id = 0)
+              AND (
+                    (TRIM(COALESCE(wi_lookup.tracking_no, '')) <> '' AND wi_lookup.tracking_no = wo.tracking_no)
+                 OR (TRIM(COALESCE(wi_lookup.tuid, '')) <> '' AND wi_lookup.tuid = wo.tuid)
+                 OR (TRIM(COALESCE(wi_lookup.tracking_no, '')) <> '' AND wi_lookup.tracking_no = wo.tuid)
+                 OR (TRIM(COALESCE(wi_lookup.tuid, '')) <> '' AND wi_lookup.tuid = wo.tracking_no)
+              )
+            ORDER BY wi_lookup.id DESC
+            LIMIT 1
+        )
+        LEFT JOIN warehouse_item_stock wi ON wi.id = COALESCE(wi_direct.id, wi_fallback.id)
+        LEFT JOIN cells stock_cell ON stock_cell.id = wi.cell_id
+        LEFT JOIN cells mapped_cell ON mapped_cell.id = (
+            SELECT m.cell_id
+            FROM warehouse_cell_forwarder_map m
+            WHERE (wi.cell_id IS NULL OR wi.cell_id = 0)
+              AND m.connector_id = wi.connector_id
+              AND m.forwarder_position_code = wi.forwarder_position_code
+              AND m.is_active = 1
+            ORDER BY
+                CASE
+                    WHEN UPPER(TRIM(COALESCE(m.country_code, ''))) = UPPER(TRIM(COALESCE(wo.receiver_country_code, ''))) AND TRIM(COALESCE(m.country_code, '')) <> '' THEN 0
+                    WHEN TRIM(COALESCE(m.country_code, '')) = '' THEN 1
+                    ELSE 2
+                END,
+                m.id DESC
+            LIMIT 1
+        )
         {$whereSql}
         ORDER BY COALESCE(wo.status_updated_at, wo.created_at) DESC, wo.id DESC
     ";
@@ -4950,11 +4995,53 @@ if ($action === 'warehouse_item_out_lookup') {
             wo.status_updated_at,
             wo.created_at,
             wi.receiver_name,
-            c.code AS cell_address,
+            wi.forwarder_position_code,
+            COALESCE(
+                NULLIF(NULLIF(TRIM(wo.shipment_cell), '—'), ''),
+                NULLIF(TRIM(stock_cell.code), ''),
+                NULLIF(TRIM(mapped_cell.code), ''),
+                '—'
+            ) AS cell_address,
+            COALESCE(
+                NULLIF(NULLIF(TRIM(wo.shipment_cell), '—'), ''),
+                NULLIF(TRIM(stock_cell.code), ''),
+                NULLIF(TRIM(mapped_cell.code), ''),
+                '—'
+            ) AS cell_display,
             COALESCE(NULLIF(wo.tuid, ''), NULLIF(wo.tracking_no, ''), wo.uid_created) AS parcel_uid
         FROM warehouse_item_out wo
-        LEFT JOIN warehouse_item_stock wi ON wi.id = wo.stock_item_id
-        LEFT JOIN cells c ON c.id = wi.cell_id
+        LEFT JOIN warehouse_item_stock wi_direct ON wi_direct.id = wo.stock_item_id
+        LEFT JOIN warehouse_item_stock wi_fallback ON wi_fallback.id = (
+            SELECT wi_lookup.id
+            FROM warehouse_item_stock wi_lookup
+            WHERE (wo.stock_item_id IS NULL OR wo.stock_item_id = 0)
+              AND (
+                    (TRIM(COALESCE(wi_lookup.tracking_no, '')) <> '' AND wi_lookup.tracking_no = wo.tracking_no)
+                 OR (TRIM(COALESCE(wi_lookup.tuid, '')) <> '' AND wi_lookup.tuid = wo.tuid)
+                 OR (TRIM(COALESCE(wi_lookup.tracking_no, '')) <> '' AND wi_lookup.tracking_no = wo.tuid)
+                 OR (TRIM(COALESCE(wi_lookup.tuid, '')) <> '' AND wi_lookup.tuid = wo.tracking_no)
+              )
+            ORDER BY wi_lookup.id DESC
+            LIMIT 1
+        )
+        LEFT JOIN warehouse_item_stock wi ON wi.id = COALESCE(wi_direct.id, wi_fallback.id)
+        LEFT JOIN cells stock_cell ON stock_cell.id = wi.cell_id
+        LEFT JOIN cells mapped_cell ON mapped_cell.id = (
+            SELECT m.cell_id
+            FROM warehouse_cell_forwarder_map m
+            WHERE (wi.cell_id IS NULL OR wi.cell_id = 0)
+              AND m.connector_id = wi.connector_id
+              AND m.forwarder_position_code = wi.forwarder_position_code
+              AND m.is_active = 1
+            ORDER BY
+                CASE
+                    WHEN UPPER(TRIM(COALESCE(m.country_code, ''))) = UPPER(TRIM(COALESCE(wo.receiver_country_code, ''))) AND TRIM(COALESCE(m.country_code, '')) <> '' THEN 0
+                    WHEN TRIM(COALESCE(m.country_code, '')) = '' THEN 1
+                    ELSE 2
+                END,
+                m.id DESC
+            LIMIT 1
+        )
         WHERE UPPER(TRIM(wo.tracking_no)) = ?
            OR UPPER(TRIM(wo.tuid)) = ?
            OR UPPER(TRIM(COALESCE(NULLIF(wo.tuid, ''), NULLIF(wo.tracking_no, ''), wo.uid_created))) = ?

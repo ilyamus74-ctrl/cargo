@@ -48,6 +48,17 @@
                   </select>
 
                 </div>
+
+                <div class="col-6 col-md-3 col-xl-2">
+                  <label class="form-label small mb-1" for="warehouse-items-registry-forwarder">Форвард</label>
+                  <select id="warehouse-items-registry-forwarder" class="form-select form-select-sm">
+                    <option value="ALL" selected>Все форварды</option>
+                    {foreach $warehouse_stock_forwarders as $forwarder}
+                      <option value="{$forwarder.id|escape}">{$forwarder.name|escape}</option>
+                    {/foreach}
+                  </select>
+                </div>
+
                 <div class="col-6 col-md-3 col-xl-2">
                   <label class="form-label small mb-1" for="warehouse-items-registry-forwarder-status">Статус форварда</label>
                   <select id="warehouse-items-registry-forwarder-status" class="form-select form-select-sm">

@@ -809,7 +809,38 @@ if ($action === 'item_stock') {
         }
         $stmt->close();
     }
+    $forwarders = [];
+    if (warehouse_stock_table_exists($dbcnx, 'connectors')) {
+        $usedConnectorWhere = [];
+        if (warehouse_stock_column_exists($dbcnx, 'warehouse_item_stock', 'connector_id')) {
+            $usedConnectorWhere[] = 'c.id IN (SELECT DISTINCT connector_id FROM warehouse_item_stock WHERE connector_id IS NOT NULL AND connector_id > 0)';
+        }
+        if (warehouse_stock_table_exists($dbcnx, 'warehouse_item_out') && warehouse_stock_column_exists($dbcnx, 'warehouse_item_out', 'connector_id')) {
+            $usedConnectorWhere[] = 'c.id IN (SELECT DISTINCT connector_id FROM warehouse_item_out WHERE connector_id IS NOT NULL AND connector_id > 0)';
+        }
+        if (warehouse_stock_table_exists($dbcnx, 'warehouse_item_in') && warehouse_stock_column_exists($dbcnx, 'warehouse_item_in', 'connector_id')) {
+            $usedConnectorWhere[] = 'c.id IN (SELECT DISTINCT connector_id FROM warehouse_item_in WHERE connector_id IS NOT NULL AND connector_id > 0)';
+        }
+        $activeOrUsed = "COALESCE(c.is_active, 0) = 1";
+        if ($usedConnectorWhere) {
+            $activeOrUsed = '(' . $activeOrUsed . ' OR ' . implode(' OR ', $usedConnectorWhere) . ')';
+        }
+        $sql = "
+            SELECT c.id, c.name
+            FROM connectors c
+            WHERE TRIM(COALESCE(c.name, '')) <> ''
+              AND {$activeOrUsed}
+            ORDER BY c.name ASC
+        ";
+        if ($res = $dbcnx->query($sql)) {
+            while ($row = $res->fetch_assoc()) {
+                $forwarders[] = ['id' => (int)$row['id'], 'name' => (string)$row['name']];
+            }
+            $res->free();
+        }
+    }
     $smarty->assign('batches',      $batches);
+    $smarty->assign('warehouse_stock_forwarders', $forwarders);
     $smarty->assign('current_user', $current);
     ob_start();
     $smarty->display('cells_NA_API_warehouse_item_stock.html');
@@ -874,6 +905,24 @@ if ($action === 'warehouse_items_registry') {
     $dateTo = warehouse_stock_normalize_filter_date((string)($_POST['date_to'] ?? ''));
     if (!in_array($dateType, ['created_at_local', 'forwarder_date', 'forwarder_synced_at'], true)) {
         $dateType = '';
+    }
+
+    $forwarderIdRaw = trim((string)($_POST['forwarder_id'] ?? 'ALL'));
+    $forwarderId = null;
+    $forwarderName = '';
+    if ($forwarderIdRaw !== 'ALL' && ctype_digit($forwarderIdRaw) && (int)$forwarderIdRaw > 0) {
+        $stmtForwarder = $dbcnx->prepare("SELECT name FROM connectors WHERE id = ? AND TRIM(COALESCE(name, '')) <> '' LIMIT 1");
+        if ($stmtForwarder) {
+            $tmpId = (int)$forwarderIdRaw;
+            $stmtForwarder->bind_param('i', $tmpId);
+            $stmtForwarder->execute();
+            $resForwarder = $stmtForwarder->get_result();
+            if ($resForwarder && ($rowForwarder = $resForwarder->fetch_assoc())) {
+                $forwarderId = $tmpId;
+                $forwarderName = strtoupper(trim((string)$rowForwarder['name']));
+            }
+            $stmtForwarder->close();
+        }
     }
 
     $hasOutTable = warehouse_stock_table_exists($dbcnx, 'warehouse_item_out');
@@ -985,6 +1034,7 @@ if ($action === 'warehouse_items_registry') {
         $inReceiverName = warehouse_stock_registry_col($dbcnx, 'warehouse_item_in', 'wii', 'receiver_name', "''");
         $inReceiverCompany = warehouse_stock_registry_col($dbcnx, 'warehouse_item_in', 'wii', 'receiver_company', "''");
         $inCarrierName = warehouse_stock_registry_col($dbcnx, 'warehouse_item_in', 'wii', 'carrier_name', "''");
+        $inConnectorId = warehouse_stock_registry_col($dbcnx, 'warehouse_item_in', 'wii', 'connector_id');
         $inCreatedAt = warehouse_stock_registry_col($dbcnx, 'warehouse_item_in', 'wii', 'created_at');
         $inRegisteredAt = warehouse_stock_registry_col($dbcnx, 'warehouse_item_in', 'wii', 'forwarder_registered_at');
         $inRegStatus = warehouse_stock_registry_col($dbcnx, 'warehouse_item_in', 'wii', 'forwarder_registration_status', "''");
@@ -1007,7 +1057,7 @@ if ($action === 'warehouse_items_registry') {
                 {$inCreatedAt} AS created_at,
                 {$inCreatedAt} AS created_at_local,
                 '' AS source_origin,
-                NULL AS connector_id,
+                {$inConnectorId} AS connector_id,
                 '' AS forwarder_declaration_status,
                 NULL AS forwarder_report_date,
                 NULL AS forwarder_remote_created_at,
@@ -1039,6 +1089,7 @@ if ($action === 'warehouse_items_registry') {
         $outTuid = warehouse_stock_registry_col($dbcnx, 'warehouse_item_out', 'wo', 'tuid', $stockTuid);
         $outTracking = warehouse_stock_registry_col($dbcnx, 'warehouse_item_out', 'wo', 'tracking_no', $stockTracking);
         $outReceiverCompany = warehouse_stock_registry_col($dbcnx, 'warehouse_item_out', 'wo', 'receiver_company', $stockReceiverCompany);
+        $outConnectorId = warehouse_stock_registry_col($dbcnx, 'warehouse_item_out', 'wo', 'connector_id', $stockConnectorId);
         $outCreatedAt = warehouse_stock_registry_col($dbcnx, 'warehouse_item_out', 'wo', 'created_at');
         $outStatus = warehouse_stock_registry_col($dbcnx, 'warehouse_item_out', 'wo', 'status', "''");
         $outContainer = warehouse_stock_registry_col($dbcnx, 'warehouse_item_out', 'wo', 'shipped_container_name', "''");
@@ -1062,7 +1113,7 @@ if ($action === 'warehouse_items_registry') {
                 {$outCreatedAt} AS created_at,
                 {$stockCreatedAt} AS created_at_local,
                 {$stockSourceOrigin} AS source_origin,
-                {$stockConnectorId} AS connector_id,
+                {$outConnectorId} AS connector_id,
                 COALESCE({$friDeclarationStatus}, {$fri2DeclarationStatus}) AS forwarder_declaration_status,
                 COALESCE({$friReportDate}, {$fri2ReportDate}) AS forwarder_report_date,
                 COALESCE({$friRemoteCreatedAt}, {$fri2RemoteCreatedAt}) AS forwarder_remote_created_at,
@@ -1109,6 +1160,13 @@ if ($action === 'warehouse_items_registry') {
         $conditions[] = 'registry.source_table = ?';
         $types .= 's';
         $params[] = $sourceTable;
+    }
+
+    if ($forwarderId !== null) {
+        $conditions[] = "(registry.connector_id = ? OR (COALESCE(registry.connector_id, 0) = 0 AND UPPER(TRIM(COALESCE(registry.forwarder_name, registry.receiver_company, ''))) = ?))";
+        $types .= 'is';
+        $params[] = $forwarderId;
+        $params[] = $forwarderName;
     }
     if ($warehouseState !== 'all') {
         if ($warehouseState === 'registration_errors') {
