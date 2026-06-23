@@ -1,0 +1,93 @@
+Payload prepare run started at 2026-06-23 01:00:00
+WEB_DIR=/home/cells/web
+CLIENT_LIMIT=300
+ASER_CLIENT_LIMIT=300
+PAYLOAD_LIMIT=300
+============================================================
+[2026-06-23 01:00:00] START: COLIBRI missing client details
+CMD: sudo -u apache /usr/bin/php www/scripts/mvp/app/Forwarder/run_package_details.php --connector-id=2 --source=missing-clients --limit=300
+============================================================
+{
+    "status": "ok",
+    "connector_id": 2,
+    "connector_key": "colibri_az",
+    "source": "missing-clients",
+    "processed": 300,
+    "touched": 300,
+    "complete": 3,
+    "partial": 0,
+    "nodata": 0,
+    "skipped": 0,
+    "errors": 297,
+    "first_errors": [
+        "client_id=188399 track=938506700577: package_exist=false",
+        "client_id=188411 track=357426286895: package_exist=false",
+        "client_id=188419 track=00340434323882801146: package_exist=false",
+        "client_id=188445 track=H1024563241014901044: package_exist=false",
+        "client_id=188461 track=DE5443425601: package_exist=false",
+        "client_id=188463 track=00340434662879152626: package_exist=false",
+        "client_id=188471 track=81141144631912: package_exist=false",
+        "client_id=188472 track=00340434615851399083: package_exist=false",
+        "client_id=188488 track=00340434391946410696: package_exist=false",
+        "client_id=188494 track=H1024563314684601044: package_exist=false"
+    ]
+}
+[2026-06-23 01:02:33] END: COLIBRI missing client details, rc=0
+============================================================
+[2026-06-23 01:02:33] START: ASER missing client details
+CMD: sudo -u apache /usr/bin/php www/scripts/mvp/app/Forwarder/run_package_details.php --connector-id=7 --source=missing-clients --limit=300
+============================================================
+{
+    "status": "ok",
+    "connector_id": 7,
+    "connector_key": "aser_az",
+    "source": "missing-clients",
+    "processed": 161,
+    "touched": 161,
+    "complete": 1,
+    "partial": 0,
+    "nodata": 0,
+    "skipped": 0,
+    "errors": 160,
+    "first_errors": [
+        "client_id=242972 track=H1030160027350001044: package_exist=false",
+        "client_id=242979 track=H1024542255385001044: package_exist=false",
+        "client_id=243057 track=00340434731246623738: package_exist=false",
+        "client_id=243083 track=155629337433: package_exist=false",
+        "client_id=243147 track=10654659690: package_exist=false",
+        "client_id=243362 track=H1025022993236101044: package_exist=false",
+        "client_id=243405 track=357816678545: package_exist=false",
+        "client_id=243416 track=H1025023049458301044: package_exist=false",
+        "client_id=243553 track=636367943990: package_exist=false",
+        "client_id=243611 track=00340434515530101887: package_exist=false"
+    ]
+}
+[2026-06-23 01:03:36] END: ASER missing client details, rc=0
+============================================================
+[2026-06-23 01:03:36] START: COLIBRI warehouse label payloads
+CMD: sudo -u apache /usr/bin/php www/scripts/warehouse/prepare_out_label_payloads.php --connector-id=2 --limit=300
+============================================================
+{
+    "status": "ok",
+    "processed": 0,
+    "ready": 0,
+    "partial": 0,
+    "errors": 0
+}
+[2026-06-23 01:03:36] END: COLIBRI warehouse label payloads, rc=0
+============================================================
+[2026-06-23 01:03:36] START: ASER warehouse label payloads
+CMD: sudo -u apache /usr/bin/php www/scripts/warehouse/prepare_out_label_payloads.php --connector-id=7 --limit=300
+============================================================
+{
+    "status": "ok",
+    "processed": 0,
+    "ready": 0,
+    "partial": 0,
+    "errors": 0
+}
+[2026-06-23 01:03:36] END: ASER warehouse label payloads, rc=0
+============================================================
+Finished. Failed steps: 0
+Log: /home/cells/web/storage/logs/payload_prepare_20260623_010000.log
+============================================================
