@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-06-19 09:34:52
+/* Smarty version 5.3.1, created on 2026-06-23 13:04:53
   from 'file:cells_NA_API_warehouse_item_out_rows.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_6a350d3cbb6281_43099098',
+  'unifunc' => 'content_6a3a8475c2e0d1_39625450',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     'bd646df81d3142031c09b22eafacba74fb43fccf' => 
     array (
       0 => 'cells_NA_API_warehouse_item_out_rows.html',
-      1 => 1781861538,
+      1 => 1782219818,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_6a350d3cbb6281_43099098 (\Smarty\Template $_smarty_tpl) {
+function content_6a3a8475c2e0d1_39625450 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 $_from = $_smarty_tpl->getSmarty()->getRuntime('Foreach')->init($_smarty_tpl, $_smarty_tpl->getValue('item_out_rows'), 'item');
 $foreach0DoElse = true;
@@ -36,8 +36,17 @@ $foreach0DoElse = false;
 </td>
     <td><?php echo htmlspecialchars((string)(($tmp = $_smarty_tpl->getValue('item')['receiver_country_code'] ?? null)===null||$tmp==='' ? '—' ?? null : $tmp), ENT_QUOTES, 'UTF-8', true);?>
 </td>
-    <td><?php echo htmlspecialchars((string)(($tmp = $_smarty_tpl->getValue('item')['cell_address'] ?? null)===null||$tmp==='' ? '—' ?? null : $tmp), ENT_QUOTES, 'UTF-8', true);?>
-</td>
+    <td>
+      <?php if ($_smarty_tpl->getValue('item')['cell_display']) {
+echo htmlspecialchars((string)$_smarty_tpl->getValue('item')['cell_display'], ENT_QUOTES, 'UTF-8', true);
+} elseif ($_smarty_tpl->getValue('item')['cell_address']) {
+echo htmlspecialchars((string)$_smarty_tpl->getValue('item')['cell_address'], ENT_QUOTES, 'UTF-8', true);
+} else { ?>—<?php }?>
+      <?php if ($_smarty_tpl->getValue('item')['unmapped_forwarder_position_code']) {?>
+        <div class="small text-warning">Не сопоставлено: <?php echo htmlspecialchars((string)$_smarty_tpl->getValue('item')['unmapped_forwarder_position_code'], ENT_QUOTES, 'UTF-8', true);?>
+</div>
+      <?php }?>
+    </td>
     <td>
       <div class="small text-primary"><?php echo htmlspecialchars((string)(($tmp = $_smarty_tpl->getValue('item')['status'] ?? null)===null||$tmp==='' ? 'to_send' ?? null : $tmp), ENT_QUOTES, 'UTF-8', true);?>
 </div>

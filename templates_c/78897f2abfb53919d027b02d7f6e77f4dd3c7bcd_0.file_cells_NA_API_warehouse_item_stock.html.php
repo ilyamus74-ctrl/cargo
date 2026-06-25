@@ -1,18 +1,18 @@
 <?php
-/* Smarty version 5.3.1, created on 2026-06-18 14:50:30
+/* Smarty version 5.3.1, created on 2026-06-23 13:05:01
   from 'file:cells_NA_API_warehouse_item_stock.html' */
 
 /* @var \Smarty\Template $_smarty_tpl */
 if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   'version' => '5.3.1',
-  'unifunc' => 'content_6a3405b6994719_36323759',
+  'unifunc' => 'content_6a3a847da000f7_80112992',
   'has_nocache_code' => false,
   'file_dependency' => 
   array (
     '78897f2abfb53919d027b02d7f6e77f4dd3c7bcd' => 
     array (
       0 => 'cells_NA_API_warehouse_item_stock.html',
-      1 => 1781794175,
+      1 => 1782219833,
       2 => 'file',
     ),
   ),
@@ -20,7 +20,7 @@ if ($_smarty_tpl->getCompiled()->isFresh($_smarty_tpl, array (
   array (
   ),
 ))) {
-function content_6a3405b6994719_36323759 (\Smarty\Template $_smarty_tpl) {
+function content_6a3a847da000f7_80112992 (\Smarty\Template $_smarty_tpl) {
 $_smarty_current_dir = '/home/cells/web/templates';
 ?>
     <div class="pagetitle">
@@ -72,6 +72,26 @@ $_smarty_current_dir = '/home/cells/web/templates';
                   </select>
 
                 </div>
+
+                <div class="col-6 col-md-3 col-xl-2">
+                  <label class="form-label small mb-1" for="warehouse-items-registry-forwarder">Форвард</label>
+                  <select id="warehouse-items-registry-forwarder" class="form-select form-select-sm">
+                    <option value="ALL" selected>Все форварды</option>
+                    <?php
+$_from = $_smarty_tpl->getSmarty()->getRuntime('Foreach')->init($_smarty_tpl, $_smarty_tpl->getValue('warehouse_stock_forwarders'), 'forwarder');
+$foreach0DoElse = true;
+foreach ($_from ?? [] as $_smarty_tpl->getVariable('forwarder')->value) {
+$foreach0DoElse = false;
+?>
+                      <option value="<?php echo htmlspecialchars((string)$_smarty_tpl->getValue('forwarder')['id'], ENT_QUOTES, 'UTF-8', true);?>
+"><?php echo htmlspecialchars((string)$_smarty_tpl->getValue('forwarder')['name'], ENT_QUOTES, 'UTF-8', true);?>
+</option>
+                    <?php
+}
+$_smarty_tpl->getSmarty()->getRuntime('Foreach')->restore($_smarty_tpl, 1);?>
+                  </select>
+                </div>
+
                 <div class="col-6 col-md-3 col-xl-2">
                   <label class="form-label small mb-1" for="warehouse-items-registry-forwarder-status">Статус форварда</label>
                   <select id="warehouse-items-registry-forwarder-status" class="form-select form-select-sm">
