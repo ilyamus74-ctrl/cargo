@@ -663,6 +663,68 @@ if (!function_exists('warehouse_sync_audit_log')) {
     }
 }
 
+if (!function_exists('warehouse_sync_audit_normalize_message')) {
+    function warehouse_sync_audit_normalize_message(string $message): string
+    {
+        return trim((string)preg_replace('/\s+/u', ' ', trim($message)));
+    }
+}
+
+if (!function_exists('warehouse_sync_audit_last_workflow_event')) {
+    function warehouse_sync_audit_last_workflow_event(mysqli $dbcnx, array $entry): ?array
+    {
+        warehouse_sync_ensure_audit_table($dbcnx);
+
+        $itemId = (int)($entry['item_id'] ?? 0);
+        $tracking = trim((string)($entry['tracking_no'] ?? ''));
+        $forwarder = trim((string)($entry['forwarder'] ?? ''));
+        $country = trim((string)($entry['country_code'] ?? ''));
+
+        if ($itemId > 0) {
+            $stmt = $dbcnx->prepare("SELECT id, item_id, tracking_no, forwarder, country_code, status, message FROM warehouse_sync_audit WHERE item_id = ? AND status NOT IN ('imported_from_forwarder','updated_from_forwarder','last_seen') ORDER BY id DESC LIMIT 1");
+            if (!$stmt) {
+                return null;
+            }
+            $stmt->bind_param('i', $itemId);
+        } elseif ($tracking !== '') {
+            $stmt = $dbcnx->prepare("SELECT id, item_id, tracking_no, forwarder, country_code, status, message FROM warehouse_sync_audit WHERE tracking_no = ? AND forwarder = ? AND country_code = ? AND status NOT IN ('imported_from_forwarder','updated_from_forwarder','last_seen') ORDER BY id DESC LIMIT 1");
+            if (!$stmt) {
+                return null;
+            }
+            $stmt->bind_param('sss', $tracking, $forwarder, $country);
+        } else {
+            return null;
+        }
+
+        $stmt->execute();
+        $row = $stmt->get_result()->fetch_assoc();
+        $stmt->close();
+        return $row ?: null;
+    }
+}
+
+if (!function_exists('warehouse_sync_audit_log_error_once')) {
+    function warehouse_sync_audit_log_error_once(mysqli $dbcnx, array $entry): array
+    {
+        $entry['status'] = 'error';
+        $last = warehouse_sync_audit_last_workflow_event($dbcnx, $entry);
+        $message = warehouse_sync_audit_normalize_message((string)($entry['message'] ?? ''));
+        if ($last && trim((string)($last['status'] ?? '')) === 'error' && warehouse_sync_audit_normalize_message((string)($last['message'] ?? '')) === $message) {
+            return ['inserted' => false, 'reason' => 'same_active_error', 'audit_id' => null];
+        }
+
+        warehouse_sync_audit_log($dbcnx, $entry);
+        return ['inserted' => true, 'reason' => 'inserted', 'audit_id' => (int)$dbcnx->insert_id];
+    }
+}
+
+if (!function_exists('warehouse_sync_audit_log_state_transition')) {
+    function warehouse_sync_audit_log_state_transition(mysqli $dbcnx, array $entry): array
+    {
+        warehouse_sync_audit_log($dbcnx, $entry);
+        return ['inserted' => true, 'reason' => 'inserted', 'audit_id' => (int)$dbcnx->insert_id];
+    }
+}
 
 if (!function_exists('warehouse_sync_ensure_trace_table')) {
     function warehouse_sync_ensure_trace_table(mysqli $dbcnx): void
@@ -897,19 +959,48 @@ if (!function_exists('warehouse_sync_out_upsert_from_stock')) {
 }
 
 if (!function_exists('warehouse_sync_out_set_status')) {
-    function warehouse_sync_out_set_status(mysqli $dbcnx, int $stockItemId, string $status, string $message = ''): void
+    function warehouse_sync_out_set_status(mysqli $dbcnx, int $stockItemId, string $status, string $message = '', bool $skipSame = false): array
     {
         warehouse_sync_ensure_out_table($dbcnx);
         warehouse_sync_out_upsert_from_stock($dbcnx, $stockItemId);
 
+        if ($skipSame) {
+            $cur = '';
+            $msg = '';
+            $sel = $dbcnx->prepare('SELECT status, status_message FROM warehouse_item_out WHERE stock_item_id = ? LIMIT 1');
+            if ($sel) {
+                $sel->bind_param('i', $stockItemId);
+                $sel->execute();
+                $row = $sel->get_result()->fetch_assoc();
+                $sel->close();
+                $cur = trim((string)($row['status'] ?? ''));
+                $msg = warehouse_sync_audit_normalize_message((string)($row['status_message'] ?? ''));
+            }
+            if ($cur === trim($status) && $msg === warehouse_sync_audit_normalize_message($message)) {
+                return ['changed' => false, 'reason' => 'same_status', 'affected_rows' => 0];
+            }
+            $sql = "UPDATE warehouse_item_out SET status = ?, status_message = ?, status_updated_at = NOW(), updated_at = NOW() WHERE stock_item_id = ? AND COALESCE(status, '') <> ? LIMIT 1";
+            $stmt = $dbcnx->prepare($sql);
+            if (!$stmt) {
+                return ['changed' => false, 'reason' => 'prepare_failed', 'affected_rows' => 0];
+            }
+            $stmt->bind_param('ssis', $status, $message, $stockItemId, $status);
+            $stmt->execute();
+            $affected = (int)$stmt->affected_rows;
+            $stmt->close();
+            return ['changed' => $affected > 0, 'reason' => $affected > 0 ? 'updated' : 'same_status', 'affected_rows' => $affected];
+        }
+
         $sql = "UPDATE warehouse_item_out SET status = ?, status_message = ?, status_updated_at = NOW() WHERE stock_item_id = ? LIMIT 1";
         $stmt = $dbcnx->prepare($sql);
         if (!$stmt) {
-            return;
+            return ['changed' => false, 'reason' => 'prepare_failed', 'affected_rows' => 0];
         }
         $stmt->bind_param('ssi', $status, $message, $stockItemId);
         $stmt->execute();
+        $affected = (int)$stmt->affected_rows;
         $stmt->close();
+        return ['changed' => $affected > 0, 'reason' => $affected > 0 ? 'updated' : 'unchanged', 'affected_rows' => $affected];
     }
 }
 
@@ -1357,6 +1448,11 @@ if (!function_exists('warehouse_sync_reconcile_half_sync')) {
             'confirmed_sync' => 0,
             'error' => 0,
             'unchanged' => 0,
+            'status_transitions_applied' => 0,
+            'status_same_noop' => 0,
+            'status_downgrade_skipped' => 0,
+            'audit_state_created' => 0,
+            'audit_state_skipped' => 0,
         ];
 
         foreach ($rows as $row) {
@@ -1412,8 +1508,30 @@ if (!function_exists('warehouse_sync_reconcile_half_sync')) {
                 ? ('report status: ' . $reportStatus . ($targetTable !== '' ? (' -> ' . $targetTable) : ($nextStatus !== '' ? (' -> out:' . $nextStatus) : '')))
                 : ('report matched in ' . (string)($report['table_name'] ?? 'connector_report'));
 
-            warehouse_sync_out_set_status($dbcnx, $itemId, $nextStatus, $message);
-            warehouse_sync_audit_log($dbcnx, [
+            if ($currentStatus === trim($nextStatus)) {
+                $stats['status_same_noop']++;
+                $stats['audit_state_skipped']++;
+                $stats['unchanged']++;
+                continue;
+            }
+
+            $rank = ['for_sync' => 10, 'half_sync' => 20, 'error' => 20, 'to_send' => 30, 'confirmed_sync' => 40, 'sended' => 50, 'success' => 60];
+            if (($rank[$currentStatus] ?? 0) > ($rank[$nextStatus] ?? 0)) {
+                $stats['status_downgrade_skipped']++;
+                $stats['audit_state_skipped']++;
+                $stats['unchanged']++;
+                continue;
+            }
+
+            $updateResult = warehouse_sync_out_set_status($dbcnx, $itemId, $nextStatus, $message, true);
+            if (empty($updateResult['changed'])) {
+                $stats['status_same_noop']++;
+                $stats['audit_state_skipped']++;
+                $stats['unchanged']++;
+                continue;
+            }
+
+            warehouse_sync_audit_log_state_transition($dbcnx, [
                 'item_id' => $itemId,
                 'tracking_no' => $trackingNo,
                 'forwarder' => $forwarder,
@@ -1423,6 +1541,8 @@ if (!function_exists('warehouse_sync_reconcile_half_sync')) {
                 'response_json' => json_encode($report, JSON_UNESCAPED_UNICODE) ?: '',
                 'created_by' => $createdBy,
             ]);
+            $stats['status_transitions_applied']++;
+            $stats['audit_state_created']++;
 
             if (!isset($stats[$nextStatus])) {
                 $stats[$nextStatus] = 0;
@@ -6342,7 +6462,7 @@ if ($action === 'warehouse_sync_item') {
             $errorPayload['payload'] = $payload;
         }
         $errorJson = json_encode($errorPayload, JSON_UNESCAPED_UNICODE);
-        warehouse_sync_audit_log($dbcnx, [
+        warehouse_sync_audit_log_error_once($dbcnx, [
             'item_id' => $itemId,
             'tracking_no' => $tracking,
             'forwarder' => $forwarder,
