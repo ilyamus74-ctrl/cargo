@@ -51,6 +51,6 @@ $data['title'] = $deliveredReport ? $deliveredReport['title'] : 'Передан�
 $data['keywords'] = 'передані авто для ЗСУ, звіти волонтерів, автомобілі військовим';
 
 $smarty->assign('data', $data);
-$smarty->assign('reqUrl', $deliveredReport ? dcr_public_url((int)$deliveredReport['id']) : ('https://' . $_SERVER['SERVER_NAME'] . '/peredani-avто'));
+$smarty->assign('reqUrl', $deliveredReport ? dcr_public_url((int)$deliveredReport['id']) : ('https://' . $_SERVER['SERVER_NAME'] . '/peredani-avto'));
 $smarty->assign('pageView', 'deliveredCars');
 $smarty->display('index.html');
