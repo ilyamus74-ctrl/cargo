@@ -1,4 +1,4 @@
-    <head>␊
+    <head>
         <!-- meta data -->
         <meta charset="utf-8">
         <meta http-equiv="X-UA-Compatible" content="IE=edge">
@@ -24,8 +24,8 @@
 	<script src="//{$domainName}/js/googleAnalytics.js"></script>
 	<script sync src="//{$domainName}/js/zsu.js"></script>
 
-	<meta property=”og:title” content=”{if $meta.og.title|escape}{$meta.og.title|escape}{else}{$data['title']}{/if}"/>
-	<meta property=”og:description” content=”{if $meta.og.description|escape}{$meta.og.description|escape}{else}{$data['description']}{/if}"/>
+        <meta property=”og:title” content=”{if $meta.og.title|escape}{$meta.og.title|escape}{else}{$data['title']}{/if}”/>
+        <meta property=”og:description” content=”{if $meta.og.description|escape}{$meta.og.description|escape}{else}{$data['description']}{/if}”/>
 	<meta property=”og:site_name” content=”{if $meta.og.site_name|escape}{$meta.og.site_name|escape}{else}{$viewCar['url_announce']} {$data['description']}{/if}” />
 	<meta property=”og:image” content='{if $meta.og.image|escape}{$meta.og.image|escape}{else}https://{$domainName}/assets/logo/favicon.png”{/if}' />
 	<meta property=”og:type” content=”{$meta.og.type|escape}” />
@@ -107,6 +107,7 @@
 		                    <li><a href="/">Головна</a></li>
 		                    <li><a href="/service" target="blank">Послуги</a></li>
 		                    <li><a href="/all-cars">Доступні авто</a></li>
+                                    <li><a href="/peredani-avto">Передані авто</a></li>
 		                    <li><a href="/new-cars">Нові авто в продажу</a></li>
 		                    <!--<li class="scroll"><a href="#brand">brands</a></li>-->
 		                    <li><a href="/contact">Зв'язок з нами</a></li>
