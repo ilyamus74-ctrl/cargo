@@ -22,7 +22,8 @@ $smarty->assign("xlang",$_SESSION['locale_c']);
 //print_r($_SERVER);
 //print_r($_SESSION['user']);
 
-$url_razborka=explode("/",$_SERVER['REQUEST_URI']);
+$url_path=parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
+$url_razborka=explode("/",$url_path);
 $domainName="zsuauto.info";
 $smarty->assign("domainName",$domainName);
 //print_r($url_razborka);
@@ -80,6 +81,11 @@ if(empty($_SESSION['user']))
 	$_SESSION['secCode'] = md5(microtime(true));
 	$smarty->assign("secCode",$_SESSION['secCode']);
 		include_once("new-cars.php");
+	}
+	else if(in_array('peredani-avto', $url_razborka, true)){
+	$_SESSION['secCode'] = md5(microtime(true));
+	$smarty->assign("secCode",$_SESSION['secCode']);
+		include_once("delivered-cars.php");
 	}
 	else if(in_array('contact', $url_razborka, true)){
 	//echo "PROVIDER";
@@ -153,7 +159,7 @@ elseif(!empty($_SESSION['user'])){
 	}
 
 else 	{
-//	echo "c $test";
+//	echo"c $test";
 	include_once('404.php');
 	//echo "c";
 	 }
