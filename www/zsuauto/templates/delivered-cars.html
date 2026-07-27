@@ -1,0 +1,80 @@
+<style>
+    .delivered-cars-section { padding: 90px 0; background: #f8f9fb; }
+    .delivered-card { background: #fff; border-radius: 10px; overflow: hidden; box-shadow: 0 8px 24px rgba(0,0,0,.08); margin-bottom: 30px; height: 100%; }
+    .delivered-card img { width: 100%; height: 240px; object-fit: cover; }
+    .delivered-card-body { padding: 22px; }
+    .delivered-card-body h3 { margin-top: 0; font-size: 22px; line-height: 1.35; }
+    .delivered-card-meta { color: #777; margin-bottom: 12px; }
+    .delivered-card-text { white-space: pre-line; color: #444; }
+    .delivered-more { display: inline-block; margin-top: 14px; font-weight: 600; }
+    .delivered-gallery img { width: 100%; height: 260px; object-fit: cover; border-radius: 8px; margin-bottom: 24px; }
+    .delivered-report { background: #fff; padding: 32px; border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,.08); }
+    .delivered-report-text { font-size: 17px; line-height: 1.8; margin: 25px 0; }
+    .delivered-empty { background: #fff; border-radius: 10px; padding: 40px; text-align: center; }
+</style>
+
+<div class="container">
+    <div class="welcome-hero-txt">
+        <h1 class="animated fadeInUp">{$data['main_text_h1']}</h1>
+        <p>{$data['main_text']}</p>
+    </div>
+</div>
+</section><!--/.welcome-hero-->
+
+<section class="delivered-cars-section">
+    <div class="container">
+        {if !$DELIVERED_REPORTS_READY}
+            <div class="delivered-empty">Розділ готується до запуску.</div>
+        {elseif $deliveredReport}
+            <p><a href="/peredani-avto">← Усі передані авто</a></p>
+            <article class="delivered-report">
+                {if !$deliveredReport['is_published']}
+                    <p><span class="label label-warning">Попередній перегляд чернетки</span></p>
+                {/if}
+                {if $deliveredReport['delivered_at_view']}
+                    <div class="delivered-card-meta">Дата передачі: {$deliveredReport['delivered_at_view']}</div>
+                {/if}
+                <div class="delivered-report-text">{$deliveredReport['report_text_html'] nofilter}</div>
+                <div class="row delivered-gallery">
+                    {foreach from=$deliveredReport['photos'] item=photo}
+                        <div class="col-md-4 col-sm-6">
+                            <a href="{$photo['url']}" target="_blank">
+                                <img src="{$photo['url']}" loading="lazy" alt="{$deliveredReport['title']|escape}">
+                            </a>
+                        </div>
+                    {/foreach}
+                </div>
+            </article>
+        {else}
+            <div class="section-header">
+                <h2>Звіти про передані автомобілі</h2>
+                <p>Фото та короткий опис виконаної роботи за заявками військових.</p>
+            </div>
+            {if !$deliveredReports}
+                <div class="delivered-empty">Опублікованих звітів поки немає.</div>
+            {else}
+                <div class="row">
+                    {foreach from=$deliveredReports item=report}
+                        <div class="col-md-4 col-sm-6">
+                            <article class="delivered-card">
+                                {if $report['cover_url']}
+                                    <a href="/peredani-avto?report={$report['id']}">
+                                        <img src="{$report['cover_url']}" loading="lazy" alt="{$report['title']|escape}">
+                                    </a>
+                                {/if}
+                                <div class="delivered-card-body">
+                                    {if $report['delivered_at_view']}
+                                        <div class="delivered-card-meta">Передано: {$report['delivered_at_view']}</div>
+                                    {/if}
+                                    <h3><a href="/peredani-avto?report={$report['id']}">{$report['title']|escape}</a></h3>
+                                    <div class="delivered-card-text">{$report['summary']|escape}</div>
+                                    <a class="delivered-more" href="/peredani-avto?report={$report['id']}">Дивитися звіт і фото →</a>
+                                </div>
+                            </article>
+                        </div>
+                    {/foreach}
+                </div>
+            {/if}
+        {/if}
+    </div>
+</section>
