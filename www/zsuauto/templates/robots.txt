@@ -1,0 +1,6 @@
+User-agent: Googlebot
+Disallow: /ABRA
+Disallow: /NiceAdmin
+Disallow: /admin
+Disallow: /t
+Sitemap: https://zsuauto.info/sitemap.xml

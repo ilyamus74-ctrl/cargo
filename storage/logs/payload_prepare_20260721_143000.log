@@ -1,0 +1,93 @@
+Payload prepare run started at 2026-07-21 14:30:00
+WEB_DIR=/home/cells/web
+CLIENT_LIMIT=300
+ASER_CLIENT_LIMIT=300
+PAYLOAD_LIMIT=300
+============================================================
+[2026-07-21 14:30:00] START: COLIBRI missing client details
+CMD: sudo -u apache /usr/bin/php www/scripts/mvp/app/Forwarder/run_package_details.php --connector-id=2 --source=missing-clients --limit=300
+============================================================
+{
+    "status": "ok",
+    "connector_id": 2,
+    "connector_key": "colibri_az",
+    "source": "missing-clients",
+    "processed": 255,
+    "touched": 255,
+    "complete": 3,
+    "partial": 0,
+    "nodata": 0,
+    "skipped": 0,
+    "errors": 252,
+    "first_errors": [
+        "client_id=184560 track=%006454604011277032130101276: package_exist=false",
+        "client_id=184652 track=00340434730291193425: package_exist=false",
+        "client_id=184655 track=00340434293250311075: package_exist=false",
+        "client_id=184659 track=00340435070600793809: package_exist=false",
+        "client_id=184681 track=H1032310368440901044: package_exist=false",
+        "client_id=184688 track=H1000865004853701044: package_exist=false",
+        "client_id=184701 track=358961461205: package_exist=false",
+        "client_id=184716 track=00340434190704172018: package_exist=false",
+        "client_id=184717 track=00340435063970562021: package_exist=false",
+        "client_id=184737 track=H1025022915989101044: package_exist=false"
+    ]
+}
+[2026-07-21 14:32:46] END: COLIBRI missing client details, rc=0
+============================================================
+[2026-07-21 14:32:46] START: ASER missing client details
+CMD: sudo -u apache /usr/bin/php www/scripts/mvp/app/Forwarder/run_package_details.php --connector-id=7 --source=missing-clients --limit=300
+============================================================
+{
+    "status": "ok",
+    "connector_id": 7,
+    "connector_key": "aser_az",
+    "source": "missing-clients",
+    "processed": 277,
+    "touched": 277,
+    "complete": 1,
+    "partial": 0,
+    "nodata": 0,
+    "skipped": 0,
+    "errors": 276,
+    "first_errors": [
+        "client_id=230029 track=1040990389250564: package_exist=false",
+        "client_id=230041 track=00340435060669292283: package_exist=false",
+        "client_id=230158 track=%006454613489356351919101276: package_exist=false",
+        "client_id=230176 track=00340433919420049760: package_exist=false",
+        "client_id=230262 track=00340435060472123774: package_exist=false",
+        "client_id=230658 track=00340434797616158071: package_exist=false",
+        "client_id=230807 track=155630683697: package_exist=false",
+        "client_id=230852 track=H1024563220223701044: package_exist=false",
+        "client_id=230921 track=00340434662889042009: package_exist=false",
+        "client_id=230961 track=h1024542186569001044: package_exist=false"
+    ]
+}
+[2026-07-21 14:34:41] END: ASER missing client details, rc=0
+============================================================
+[2026-07-21 14:34:41] START: COLIBRI warehouse label payloads
+CMD: sudo -u apache /usr/bin/php www/scripts/warehouse/prepare_out_label_payloads.php --connector-id=2 --limit=300
+============================================================
+{
+    "status": "ok",
+    "processed": 0,
+    "ready": 0,
+    "partial": 0,
+    "errors": 0
+}
+[2026-07-21 14:34:41] END: COLIBRI warehouse label payloads, rc=0
+============================================================
+[2026-07-21 14:34:41] START: ASER warehouse label payloads
+CMD: sudo -u apache /usr/bin/php www/scripts/warehouse/prepare_out_label_payloads.php --connector-id=7 --limit=300
+============================================================
+{
+    "status": "ok",
+    "processed": 0,
+    "ready": 0,
+    "partial": 0,
+    "errors": 0
+}
+[2026-07-21 14:34:41] END: ASER warehouse label payloads, rc=0
+============================================================
+Finished. Failed steps: 0
+Log: /home/cells/web/storage/logs/payload_prepare_20260721_143000.log
+============================================================

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding= "UTF-8" ?>
+<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+   <sitemap>
+    <loc>https://zsuauto.info/sitemap1.xml</loc>
+    <lastmod>2025-04-03T09:12+02:00</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.9</priority></url>
+   </sitemap>
+   <sitemap>
+    <loc>https://zsuauto.info/sitemap2.xml</loc>
+    <lastmod>2024-04-03T09:12+02:00</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.9</priority></url>
+   </sitemap>
+</sitemapindex>

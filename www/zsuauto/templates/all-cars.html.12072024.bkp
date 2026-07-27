@@ -1,0 +1,174 @@
+			<div class="container">
+
+
+
+				<div class="welcome-hero-txt">
+					<h1  class="animated fadeInUp">{$data['main_text_h1']}</h1>
+					<p>
+					{$data['main_text']}
+					</p>
+					<button class="welcome-btn" onclick="myModalOpen();" id="myBtn">Зв'яжись з нами!</button>
+				</div>
+
+				<div class="row">
+					<div class="col-md-12">
+						<div class="model-search-content">
+							<div class="row">
+								<div class="col-md-offset-1 col-md-2 col-sm-12">
+									<div class="single-model-search">
+										<h2>Тип трансопрту</h2>
+										<div class="model-select-icon">
+											<select class="form-control" id="type" name="type">
+											  	<option value="all">Всі</option><!-- /.option-->
+											  	<option value="bus">Буси</option><!-- /.option-->
+											  	<option value="jeep">Джипи</option><!-- /.option-->
+											  	<option value="cargo">Вантажний</option><!-- /.option-->
+
+											</select><!-- /.select-->
+										</div><!-- /.model-select-icon -->
+									</div>
+									<div class="single-model-search">
+										<h2>Технічний стан</h2>
+										<div class="model-select-icon">
+											<select class="form-control" id="stan" name="stan">
+											  	<option value="all">Будь який</option><!-- /.option-->
+											  	<option value="ready">Повністью справний</option><!-- /.option-->
+											  	<option value="uradey">Умовно справний</option><!-- /.option-->
+											  	<!--<option value="roadster">roadster</option>--><!-- /.option-->
+											</select><!-- /.select-->
+										</div><!-- /.model-select-icon -->
+									</div>
+								</div>
+								<div class="col-md-offset-1 col-md-2 col-sm-12">
+									<div class="single-model-search">
+										<h2>Виробник</h2>
+										<div class="model-select-icon">
+											<select class="form-control" id="marke" name="marke">
+											  	<option value="all">Будь який</option><!-- /.option-->
+											  	<option value="Volkswagen">VW</option><!-- /.option-->
+											  	<option value="Mercedes">Mercedes</option><!-- /.option-->
+											  	<option value="Hyndai">Hyndai</option><!-- /.option-->
+											</select><!-- /.select-->
+										</div><!-- /.model-select-icon -->
+									</div>
+									<div class="single-model-search" style="display:none">
+										<h2>car condition</h2>
+										<div class="model-select-icon">
+											<select class="form-control">
+
+											  	<option value="default">condition</option><!-- /.option-->
+
+											  	<option value="something">something</option><!-- /.option-->
+
+											  	<option value="something">something</option><!-- /.option-->
+											  	<option value="something">something</option><!-- /.option-->
+
+											</select><!-- /.select-->
+										</div><!-- /.model-select-icon -->
+									</div>
+								</div>
+								<div class="col-md-offset-1 col-md-2 col-sm-12" >
+									<div class="single-model-search" style="display:none">
+										<h2>select model</h2>
+										<div class="model-select-icon">
+											<select class="form-control" id="model" name="model">
+
+											  	<option value="default">model</option><!-- /.option-->
+
+											  	<option value="kia-rio">kia-rio</option><!-- /.option-->
+
+											  	<option value="mitsubishi">mitsubishi</option><!-- /.option-->
+											  	<option value="ford">ford</option><!-- /.option-->
+
+											</select><!-- /.select-->
+										</div><!-- /.model-select-icon -->
+									</div>
+									<div class="single-model-search">
+										<h2>Вибір ціни</h2>
+										<div class="model-select-icon">
+											<select class="form-control" id="price" name="price">
+											  	<option value="all" {if $SESSION['searchQuery']['price'] == "all"}selected{/if}>Всі кошти світу</option><!-- /.option-->
+											  	<option value="2000" {if $SESSION['searchQuery']['price'] == "2000"}selected{/if}>до 2000 Евро</option><!-- /.option-->
+											  	<option value="3000" {if $SESSION['searchQuery']['price'] == "3000"}selected{/if}>до 3000 Евро</option><!-- /.option-->
+											  	<option value="4000" {if $SESSION['searchQuery']['price'] == "4000"}selected{/if}>до 4000 Евро</option><!-- /.option-->
+											  	<option value="5000" {if $SESSION['searchQuery']['price'] == "5000"}selected{/if}>до 5000 Евро</option><!-- /.option-->
+											  	<option value="6000" {if $SESSION['searchQuery']['price'] == "6000"}selected{/if}>до 6000 Евро</option><!-- /.option-->
+											  	<option value="7000" {if $SESSION['searchQuery']['price'] == "7000"}selected{/if}>до 7000 Евро</option><!-- /.option-->
+
+											</select><!-- /.select-->
+										</div><!-- /.model-select-icon -->
+									</div>
+								</div>
+								<div class="col-md-2 col-sm-12">
+									<div class="single-model-search text-center">
+										<button class="welcome-btn model-search-btn" onclick="searchAllCars();">
+											Показати
+										</button>
+									</div>
+								</div>
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
+
+		</section><!--/.welcome-hero-->
+
+		</section><!--/.service-->
+		<!--service end-->
+
+
+		<!--featured-cars start -->
+		<section id="featured-cars" class="featured-cars">
+			<div class="container" id="listAllCars">
+			
+				<div class="section-header">
+				<br><br><br>
+				<h3>Всього за запитом оголошень {$allCarsCount} </h3>
+					<!--<p>Актуальна інформація авто з Европейських ресурсів <span></span> </p>
+					<h2>Доступні авто у продажу в Європі</h2>-->
+				</div><!--/.section-header-->
+				<div class="featured-cars-content" >
+					<div class="row">
+						
+						{foreach from=$allCars key=k item=v}
+						<div class="col-lg-3 col-md-4 col-sm-6">
+							<div class="single-featured-cars">
+								<div class="featured-img-box">
+									<div class="featured-cars-img">
+									<a href="//{$domainName}/view/{$v['img_dir']}-{$v['url_announce']}" target="_blank"><img src="img/thumb/{$v['img_dir']}/{$v['img_thumb']}" alt="{$v['name_announce']}"></a>
+									</div>
+									<div class="featured-model-info">
+										<p>
+											модель: {$v['modell']}
+											<span class="featured-mi-span"> {$v['kilometerstand']} км</span> 
+											<span class="featured-hp-span"> {$v['Leistung']}</span>
+											коробка: {$v['Getriebe']}
+										</p>
+									</div>
+								</div>
+								<div class="featured-cars-txt">
+									<h2><a href="//{$domainName}/view/{$v['img_dir']}-{$v['url_announce']}" target="_blank">{$v['marke']}  {$v['modell']}</a></h2>
+									<h3>{$v['price']} Евро</h3>
+									<p>
+										{$v['name_announce']}
+									</p>
+								</div>
+							</div>
+						</div>
+						{/foreach}
+						
+					</div>
+					<div class="row" id="showNextCar"></div>
+				</div>
+				{if $allCarsLeft}
+				<div class="section-header" id="showMoreButton">
+				<button class="welcome-btn model-search-btn" onclick="searchMoreAllCars();">Показати ще</button>
+				</div>
+				{/if}
+			</div><!--/.container-->
+				<div id="nextCars" style="display:none">
+				<input type="hidden" value="{foreach from=$allCars key=myId item=i name=foo}{if $smarty.foreach.foo.last}{$myId}{/if}{/foreach}" id="lastIdCar">
+				</div>
+		</section><!--/.featured-cars-->
+		<!--featured-cars end -->

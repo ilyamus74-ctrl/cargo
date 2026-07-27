@@ -1,0 +1,82 @@
+Payload prepare run started at 2026-07-01 07:00:00
+WEB_DIR=/home/cells/web
+CLIENT_LIMIT=300
+ASER_CLIENT_LIMIT=300
+PAYLOAD_LIMIT=300
+============================================================
+[2026-07-01 07:00:00] START: COLIBRI missing client details
+CMD: sudo -u apache /usr/bin/php www/scripts/mvp/app/Forwarder/run_package_details.php --connector-id=2 --source=missing-clients --limit=300
+============================================================
+{
+    "status": "ok",
+    "connector_id": 2,
+    "connector_key": "colibri_az",
+    "source": "missing-clients",
+    "processed": 211,
+    "touched": 211,
+    "complete": 3,
+    "partial": 0,
+    "nodata": 0,
+    "skipped": 0,
+    "errors": 208,
+    "first_errors": [
+        "client_id=419111 track=00340434796406531681: package_exist=false",
+        "client_id=419119 track=%006454611766850520604101276: package_exist=false",
+        "client_id=419120 track=00340435060662934777: package_exist=false",
+        "client_id=419130 track=H1025023034042201044: package_exist=false",
+        "client_id=419137 track=H1029440108422301044: package_exist=false",
+        "client_id=419149 track=00340434799606817951: package_exist=false",
+        "client_id=419151 track=H1025022990454501044: package_exist=false",
+        "client_id=419152 track=H1024542218906001044: package_exist=false",
+        "client_id=419165 track=%006454608448875234299136276: package_exist=false",
+        "client_id=419175 track=00340434392018962174: package_exist=false"
+    ]
+}
+[2026-07-01 07:01:47] END: COLIBRI missing client details, rc=0
+============================================================
+[2026-07-01 07:01:47] START: ASER missing client details
+CMD: sudo -u apache /usr/bin/php www/scripts/mvp/app/Forwarder/run_package_details.php --connector-id=7 --source=missing-clients --limit=300
+============================================================
+{
+    "status": "ok",
+    "connector_id": 7,
+    "connector_key": "aser_az",
+    "source": "missing-clients",
+    "processed": 0,
+    "touched": 0,
+    "complete": 0,
+    "partial": 0,
+    "nodata": 0,
+    "skipped": 0,
+    "errors": 0,
+    "first_errors": []
+}
+[2026-07-01 07:01:48] END: ASER missing client details, rc=0
+============================================================
+[2026-07-01 07:01:48] START: COLIBRI warehouse label payloads
+CMD: sudo -u apache /usr/bin/php www/scripts/warehouse/prepare_out_label_payloads.php --connector-id=2 --limit=300
+============================================================
+{
+    "status": "ok",
+    "processed": 0,
+    "ready": 0,
+    "partial": 0,
+    "errors": 0
+}
+[2026-07-01 07:01:48] END: COLIBRI warehouse label payloads, rc=0
+============================================================
+[2026-07-01 07:01:48] START: ASER warehouse label payloads
+CMD: sudo -u apache /usr/bin/php www/scripts/warehouse/prepare_out_label_payloads.php --connector-id=7 --limit=300
+============================================================
+{
+    "status": "ok",
+    "processed": 0,
+    "ready": 0,
+    "partial": 0,
+    "errors": 0
+}
+[2026-07-01 07:01:48] END: ASER warehouse label payloads, rc=0
+============================================================
+Finished. Failed steps: 0
+Log: /home/cells/web/storage/logs/payload_prepare_20260701_070000.log
+============================================================

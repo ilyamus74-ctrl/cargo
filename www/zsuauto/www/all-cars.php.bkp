@@ -1,0 +1,77 @@
+<?php
+session_start();
+include("/home/zsuauto/web/configs/connectDB.php");
+
+if(empty($_SESSION['searchQuery']) || $_SESSION['searchQuery'] == "all"){
+$_SESSION['searchQuery']="all";
+$preg_list="SELECT * FROM `zs_announce_auto_uk` WHERE  `active_announce` != 'S'   ORDER BY `id` DESC LIMIT 8";
+//$_SESSION['searchQuery']['type']="all";
+//$_SESSION['searchQuery']['marke']="all";
+//$_SESSION['searchQuery']['price']="all";
+//$_SESSION['searchQuery']['stan']="all";
+}
+else{
+	    foreach($_SESSION['searchQuery'] as $key=>$item){
+		if($key == "price" && $item != "all" ){
+		if(empty($addon)) { $addon =" AND `".$key."` <= '".$item."' ";  }
+		
+		}
+		if($key == "marke" && $item != "all" ){
+		if(empty($addon2)) { $addon2 =" AND `".$key."` = '".$item."' ";  }
+		
+		}
+		if($key == "type" && $item != "all" ){
+		if(empty($addon3)) { $addon3 =" AND `".$key."` = '".$item."' ";  }
+		
+		}
+		if($key == "stan" && $item != "all" ){
+		if(empty($addon4)) { $addon4 =" AND `".$key."` = '".$item."' ";  }
+		
+		}
+	    	if($key == "lastIdCar" && $item != "" ){
+		if(empty($addon5)) { $addon5 =" AND `id` > '".$item."' ";  }
+		
+		}
+	    }
+
+
+}
+$preg_list="SELECT * FROM `zs_announce_auto_uk` WHERE  `active_announce` != 'S' ".$addon." ".$addon2." ".$addon3." ".$addon4." ".$addon5." ORDER BY `id` ASC LIMIT 8";
+$preg_list_count ="SELECT COUNT(`id`) FROM `zs_announce_auto_uk` WHERE  `active_announce` != 'S' ".$addon." ".$addon2." ".$addon3." ".$addon4." ".$addon5."  ORDER BY `id` ASC";
+
+
+//$preg_list="SELECT * FROM `zs_announce_auto_uk` WHERE  `active_announce` != 'S'   ORDER BY `id` DESC LIMIT 8";
+$sss1=$dbcnx->query($preg_list);
+	while($idpp = $sss1->fetch_assoc()){
+	$idpp['img_announce']=json_decode($idpp['img_announce']);
+	$allCars[]=$idpp;
+	}
+$smarty->assign("allCars",$allCars);
+
+
+$sss1=$dbcnx->query($preg_list_count);
+	while($idpp = $sss1->fetch_assoc()){
+	$idpp['img_announce']=json_decode($idpp['img_announce']);
+	$allCarsCount=$idpp;
+	}
+$smarty->assign("allCarsCount",$allCarsCount['COUNT(`id`)']);
+
+if(($allCarsCount['COUNT(`id`)'] - 8) > 0){
+    $smarty->assign("allCarsLeft",($allCarsCount['COUNT(`id`)'])-8);
+}
+//print_r($allCarsCount);
+
+#echo "aaaa";
+$smarty->assign("SESSION",$_SESSION);
+
+$data['main_text']="Ми запустили бота який шукає певні марки авто для військових які коштують не всі гроші світу.<br> Бот викладає реальні (дійсні) оголошення автомобілів які можна подивитись та замовити пригон їх з Европи а саме Германії в Україну.";
+$data['main_text_h1']="Машини які доступні в продажу для військових";
+$data['description']="Машини які доступні в продажу для військових - Загальна база з постійними оновленнями оголошень машин які доступні для військових.";
+$data['title']="Машини які доступні в продажу для військових";
+$data['keywords']="Машини які доступні в продажу для військових";
+$smarty->assign("data",$data);
+
+$smarty->assign("pageView","allCars");
+$smarty->display('index.html');
+
+?>
