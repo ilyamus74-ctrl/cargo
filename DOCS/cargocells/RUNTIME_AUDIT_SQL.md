@@ -1,15 +1,23 @@
-CargoCells — runtime audit SQL (read-only)
+# CargoCells — runtime audit SQL (read-only)
 
-Назначение: собрать фактическое состояние production без изменения данных.Все запросы ниже: SELECT / SHOW, без UPDATE/DELETE/ALTER.
+**Назначение:** собрать фактическое состояние production без изменения данных.  
+**Все запросы ниже:** `SELECT` / `SHOW`, без `UPDATE/DELETE/ALTER`.
 
-Выполнять в MySQL/MariaDB-консоли production CargoCells под пользователем с read-only правами, если такой доступ есть. Не публиковать passwords/tokens/cookies из таблицы connectors.
+> Выполнять в **MySQL/MariaDB-консоли production CargoCells** под пользователем с read-only правами, если такой доступ есть. Не публиковать passwords/tokens/cookies из таблицы `connectors`.
 
-0. Контекст БД
+---
 
+## 0. Контекст БД
+
+```sql
 SELECT NOW() AS db_now, @@hostname AS db_host, @@version AS db_version, DATABASE() AS db_name;
+```
 
-1. Connectors без секретов
+---
 
+## 1. Connectors без секретов
+
+```sql
 SELECT
     id,
     name,
@@ -24,9 +32,11 @@ SELECT
     LEFT(COALESCE(last_error, ''), 300) AS last_error
 FROM connectors
 ORDER BY id;
+```
 
-Status mappings
+### Status mappings
 
+```sql
 SELECT
     c.id AS connector_id,
     c.name,
@@ -36,9 +46,11 @@ SELECT
 FROM connectors c
 LEFT JOIN connectors_addons ca ON ca.connector_id = c.id
 ORDER BY c.id;
+```
 
-Operation metadata без credentials
+### Operation metadata без credentials
 
+```sql
 SELECT
     id,
     name,
@@ -47,11 +59,15 @@ SELECT
     CHAR_LENGTH(COALESCE(operations_json, '')) AS operations_json_bytes
 FROM connectors
 ORDER BY id;
+```
 
-Если нужно увидеть operations_json, перед передачей результата убедиться, что внутри нет секретов.
+Если нужно увидеть `operations_json`, перед передачей результата убедиться, что внутри нет секретов.
 
-2. Distribution warehouse_item_out.status
+---
 
+## 2. Distribution `warehouse_item_out.status`
+
+```sql
 SELECT
     LOWER(TRIM(COALESCE(status, ''))) AS status,
     COUNT(*) AS cnt,
@@ -60,9 +76,11 @@ SELECT
 FROM warehouse_item_out
 GROUP BY LOWER(TRIM(COALESCE(status, '')))
 ORDER BY cnt DESC, status;
+```
 
-Возраст backlog
+### Возраст backlog
 
+```sql
 SELECT
     LOWER(TRIM(status)) AS status,
     COUNT(*) AS cnt,
@@ -70,9 +88,13 @@ SELECT
 FROM warehouse_item_out
 WHERE LOWER(TRIM(status)) IN ('for_sync','half_sync','confirmed_sync','error')
 GROUP BY LOWER(TRIM(status));
+```
 
-3. Первые строки, которые сейчас получит reconcile
+---
 
+## 3. Первые строки, которые сейчас получит reconcile
+
+```sql
 SELECT
     id,
     stock_item_id,
@@ -87,18 +109,24 @@ FROM warehouse_item_out
 WHERE status IN ('for_sync', 'confirmed_sync', 'half_sync', 'error', 'success', 'to_send')
 ORDER BY status_updated_at ASC, id ASC
 LIMIT 200;
+```
 
-Сохранить список id. Через 1–2 reconcile-run повторить запрос. Если почти весь список остаётся тем же и новые pending rows не заходят в окно — подтверждён AUD-003.
+Сохранить список `id`. Через 1–2 reconcile-run повторить запрос. Если почти весь список остаётся тем же и новые pending rows не заходят в окно — подтверждён `AUD-003`.
 
-4. Stock без outbound row
+---
 
+## 4. Stock без outbound row
+
+```sql
 SELECT COUNT(*) AS stock_without_out
 FROM warehouse_item_stock wi
 LEFT JOIN warehouse_item_out wo ON wo.stock_item_id = wi.id
 WHERE wo.stock_item_id IS NULL;
+```
 
 Разбивка по forwarder:
 
+```sql
 SELECT
     UPPER(TRIM(COALESCE(wi.receiver_company, ''))) AS forwarder,
     UPPER(TRIM(COALESCE(wi.receiver_country_code, ''))) AS country,
@@ -110,16 +138,22 @@ GROUP BY
     UPPER(TRIM(COALESCE(wi.receiver_company, ''))),
     UPPER(TRIM(COALESCE(wi.receiver_country_code, '')))
 ORDER BY cnt DESC;
+```
 
-5. Outbound row без stock
+---
 
+## 5. Outbound row без stock
+
+```sql
 SELECT COUNT(*) AS out_without_stock
 FROM warehouse_item_out wo
 LEFT JOIN warehouse_item_stock wi ON wi.id = wo.stock_item_id
 WHERE wi.id IS NULL;
+```
 
 Примеры:
 
+```sql
 SELECT
     wo.id,
     wo.stock_item_id,
@@ -133,11 +167,15 @@ LEFT JOIN warehouse_item_stock wi ON wi.id = wo.stock_item_id
 WHERE wi.id IS NULL
 ORDER BY wo.id DESC
 LIMIT 100;
+```
 
-6. Duplicate tracking/TUID
+---
 
-Stock tracking duplicates
+## 6. Duplicate tracking/TUID
 
+### Stock tracking duplicates
+
+```sql
 SELECT
     UPPER(TRIM(tracking_no)) AS tracking_no,
     COUNT(*) AS cnt,
@@ -148,9 +186,11 @@ GROUP BY UPPER(TRIM(tracking_no))
 HAVING COUNT(*) > 1
 ORDER BY cnt DESC, tracking_no
 LIMIT 200;
+```
 
-Outbound tracking duplicates
+### Outbound tracking duplicates
 
+```sql
 SELECT
     UPPER(TRIM(tracking_no)) AS tracking_no,
     COUNT(*) AS cnt,
@@ -161,9 +201,11 @@ GROUP BY UPPER(TRIM(tracking_no))
 HAVING COUNT(*) > 1
 ORDER BY cnt DESC, tracking_no
 LIMIT 200;
+```
 
-TUID duplicates
+### TUID duplicates
 
+```sql
 SELECT
     UPPER(TRIM(tuid)) AS tuid,
     COUNT(*) AS cnt,
@@ -174,11 +216,15 @@ GROUP BY UPPER(TRIM(tuid))
 HAVING COUNT(*) > 1
 ORDER BY cnt DESC, tuid
 LIMIT 200;
+```
 
-7. Outbound anomalies
+---
 
-sended без контейнера/рейса
+## 7. Outbound anomalies
 
+### `sended` без контейнера/рейса
+
+```sql
 SELECT
     id,
     stock_item_id,
@@ -196,9 +242,11 @@ WHERE LOWER(TRIM(status)) = 'sended'
   )
 ORDER BY status_updated_at DESC
 LIMIT 200;
+```
 
-to_send без forwarder/country
+### `to_send` без forwarder/country
 
+```sql
 SELECT
     id,
     stock_item_id,
@@ -213,9 +261,11 @@ WHERE LOWER(TRIM(status)) = 'to_send'
       OR TRIM(COALESCE(receiver_country_code, '')) = ''
   )
 ORDER BY id DESC;
+```
 
-label payload distribution
+### label payload distribution
 
+```sql
 SELECT
     LOWER(TRIM(COALESCE(status, ''))) AS out_status,
     LOWER(TRIM(COALESCE(label_payload_status, ''))) AS label_status,
@@ -225,9 +275,13 @@ GROUP BY
     LOWER(TRIM(COALESCE(status, ''))),
     LOWER(TRIM(COALESCE(label_payload_status, '')))
 ORDER BY out_status, cnt DESC;
+```
 
-8. Forwarder registration state
+---
 
+## 8. Forwarder registration state
+
+```sql
 SELECT
     LOWER(TRIM(COALESCE(forwarder_registration_status, ''))) AS registration_status,
     UPPER(TRIM(COALESCE(receiver_company, ''))) AS forwarder,
@@ -241,9 +295,11 @@ GROUP BY
     UPPER(TRIM(COALESCE(receiver_company, ''))),
     UPPER(TRIM(COALESCE(receiver_country_code, '')))
 ORDER BY cnt DESC;
+```
 
 Последние ошибки без sensitive response payload:
 
+```sql
 SELECT
     id,
     tracking_no,
@@ -258,22 +314,30 @@ WHERE LOWER(TRIM(COALESCE(forwarder_registration_status, ''))) IN (
 )
 ORDER BY COALESCE(forwarder_registered_at, created_at) DESC
 LIMIT 200;
+```
 
-9. System tasks
+---
 
+## 9. System tasks
+
+```sql
 SELECT *
 FROM system_tasks
 ORDER BY id;
+```
 
 Последние runs:
 
+```sql
 SELECT *
 FROM system_task_runs
 ORDER BY id DESC
 LIMIT 200;
+```
 
 Batch jobs:
 
+```sql
 SELECT
     status,
     COUNT(*) AS cnt,
@@ -282,18 +346,24 @@ SELECT
 FROM warehouse_sync_batch_jobs
 GROUP BY status
 ORDER BY cnt DESC;
+```
 
 Batch items:
 
+```sql
 SELECT
     status,
     COUNT(*) AS cnt
 FROM warehouse_sync_batch_job_items
 GROUP BY status
 ORDER BY cnt DESC;
+```
 
-10. Audit / sync trace density
+---
 
+## 10. Audit / sync trace density
+
+```sql
 SELECT
     status,
     COUNT(*) AS cnt,
@@ -302,7 +372,9 @@ SELECT
 FROM warehouse_sync_audit
 GROUP BY status
 ORDER BY cnt DESC;
+```
 
+```sql
 SELECT
     stage,
     decision,
@@ -312,9 +384,13 @@ SELECT
 FROM warehouse_sync_trace
 GROUP BY stage, decision
 ORDER BY cnt DESC;
+```
 
-11. Indexes ключевых таблиц
+---
 
+## 11. Indexes ключевых таблиц
+
+```sql
 SHOW INDEX FROM warehouse_item_stock;
 SHOW INDEX FROM warehouse_item_out;
 SHOW INDEX FROM warehouse_sync_audit;
@@ -322,54 +398,72 @@ SHOW INDEX FROM warehouse_sync_trace;
 SHOW INDEX FROM system_tasks;
 SHOW INDEX FROM warehouse_sync_batch_jobs;
 SHOW INDEX FROM warehouse_sync_batch_job_items;
+```
 
-Для каждой active connector_report_* таблицы отдельно:
+Для каждой active `connector_report_*` таблицы отдельно:
 
+```sql
 SHOW INDEX FROM connector_report_aser_az;
+```
 
-Имя заменить на фактическое. Нужен индекс по нормализованному tracking column; reliance только на payload_json LIKE — нежелательно.
+Имя заменить на фактическое. Нужен индекс по нормализованному tracking column; reliance только на `payload_json LIKE` — нежелательно.
 
-12. Реальные report statuses
+---
+
+## 12. Реальные report statuses
 
 Для конкретной report table сначала посмотреть columns:
 
+```sql
 SHOW COLUMNS FROM connector_report_aser_az;
+```
 
-Если есть status и tracking_no:
+Если есть `status` и `tracking_no`:
 
+```sql
 SELECT
     TRIM(status) AS report_status,
     COUNT(*) AS cnt
 FROM connector_report_aser_az
 GROUP BY TRIM(status)
 ORDER BY cnt DESC;
+```
 
-Список нужно сравнить с connectors_addons.report_out_statuses_json.
+Список нужно сравнить с `connectors_addons.report_out_statuses_json`.
 
 Целевой результат audit:
 
+```text
 external status seen in DB
  -> mapping exists?
  -> expected local state
  -> number of rows
  -> unknown/unmapped count
+```
 
-13. Диагностика одной посылки
+---
 
-Заменить TRACK_HERE:
+## 13. Диагностика одной посылки
 
+Заменить `TRACK_HERE`:
+
+```sql
 SELECT *
 FROM warehouse_item_stock
 WHERE UPPER(TRIM(tracking_no)) = UPPER('TRACK_HERE')
    OR UPPER(TRIM(tuid)) = UPPER('TRACK_HERE')
 ORDER BY id DESC;
+```
 
+```sql
 SELECT *
 FROM warehouse_item_out
 WHERE UPPER(TRIM(tracking_no)) = UPPER('TRACK_HERE')
    OR UPPER(TRIM(tuid)) = UPPER('TRACK_HERE')
 ORDER BY id DESC;
+```
 
+```sql
 SELECT
     id,
     item_id,
@@ -382,7 +476,9 @@ SELECT
 FROM warehouse_sync_audit
 WHERE UPPER(TRIM(tracking_no)) = UPPER('TRACK_HERE')
 ORDER BY id;
+```
 
+```sql
 SELECT
     id,
     item_id,
@@ -401,13 +497,18 @@ WHERE item_id IN (
        OR UPPER(TRIM(tuid)) = UPPER('TRACK_HERE')
 )
 ORDER BY id;
+```
 
-После этого отдельно смотреть строку в соответствующей connector_report_* table.
+После этого отдельно смотреть строку в соответствующей `connector_report_*` table.
 
-14. Что прислать для Audit v2
+---
+
+## 14. Что прислать для Audit v2
 
 Достаточно выводов разделов:
 
+```text
 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 11, 12
+```
 
-Secrets из connectors не нужны. auth_password, auth_token, auth_cookies не выводить.
+Secrets из `connectors` не нужны. `auth_password`, `auth_token`, `auth_cookies` не выводить.

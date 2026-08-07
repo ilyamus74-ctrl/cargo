@@ -6,3 +6,6 @@
 
 # Runtime forwarder sessions
 /www/storage/forwarder_sessions/*.cookie
+
+# Runtime logs
+/storage/logs/
