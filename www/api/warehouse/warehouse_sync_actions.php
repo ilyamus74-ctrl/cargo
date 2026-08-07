@@ -1515,7 +1515,7 @@ if (!function_exists('warehouse_sync_reconcile_half_sync')) {
                 continue;
             }
 
-            $rank = ['for_sync' => 10, 'half_sync' => 20, 'error' => 20, 'to_send' => 30, 'confirmed_sync' => 40, 'sended' => 50, 'success' => 60];
+            $rank = ['for_sync' => 10, 'half_sync' => 20, 'error' => 20, 'confirmed_sync' => 25, 'to_send' => 30,  'sended' => 50, 'success' => 60];
             if (($rank[$currentStatus] ?? 0) > ($rank[$nextStatus] ?? 0)) {
                 $stats['status_downgrade_skipped']++;
                 $stats['audit_state_skipped']++;
